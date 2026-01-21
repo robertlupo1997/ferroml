@@ -1,0 +1,151 @@
+account
+40000 - Core Revenue
+41000 - Emerging Revenue
+42000 - Growth Revenue
+42500 - New Growth Revenue
+43000 - Property Management Revenue
+44000 - Construction Management Revenue
+50000 - Core General Deal Costs
+50001 - Core Travel Deal Costs
+50002 - Core Meals & Entertainement Deal Costs
+50003 - Core Commissions
+50004 - Core COS Producer Payroll Expense
+50006 - Core COS Producer Payroll Taxes
+50007 - Core COS Producer Payroll Benefits
+50008 - Core COS Support Payroll Expense
+50009 - Core COS Support Payroll Bonus
+50010 - Core COS Support Payroll Taxes
+50011 - Core COS Support Payroll Benefits
+50012 - Core COS Travel
+50013 - Core COS Meals & Entertainment
+50014 - Core COS Dues & Subscriptions
+50015 - Core COS Signage
+50016 - Core COS Telephone
+50017 - Core COS Computer Expense
+51000 - Emerging General Deal Costs
+51001 - Emerging Travel Deal Costs
+51002 - Emerging Meals & Entertainment Deal Costs
+51003 - Emerging Commissions
+51004 - Emerging COS Producer Payroll Expense
+51005 - Emerging COS Producer Payroll Bonus
+51006 - Emerging COS Producer Payroll Taxes
+51007 - Emerging COS Producer Payroll Benefits
+51012 - Emerging COS Travel
+51013 - Emerging COS Meals & Entertainment
+51014 - Emerging COS Dues & Subscriptions
+51015 - Emerging COS Signage
+51017 - Emerging COS Computer Expense
+52000 - Growth General Deal Costs
+52001 - Growth Travel Deal Costs
+52002 - Growth Meals & Entertainment Deal Costs
+52003 - Growth Commissions
+52004 - Growth COS Producer Payroll Expense
+52005 - Growth COS Producer Payroll Bonus
+52006 - Growth COS Producer Payroll Taxes
+52007 - Growth COS Producer Payroll Benefits
+52008 - Growth COS Support Payroll Expense
+52009 - Growth COS Support Payroll Bonus
+52010 - Growth COS Support Payroll Taxes
+52011 - Growth  COS Support Payroll Benefits
+52012 - Growth COS Travel
+52013 - Growth COS Meals and Entertainment
+52014 - Growth COS Dues & Subscription
+52015 - Growth COS Signage
+52017 - Growth COS Computer Expense
+52500 - New Growth General Deal Costs
+52502 - New Growth Meals & Entertainment Deal Costs
+52503 - New Growth Commissions
+52506 - New Growth COS Producer Payroll Taxes
+52507 - New Growth COS Producer Payroll Benefits
+52508 - New Growth COS Support Payroll Expense
+52512 - New Growth COS Travel
+52513 - New Growth COS Meals and Entertainment
+52514 - New Growth COS Dues & Subscription
+52515 - New Growth COS Signage
+52517 - New Growth COS Computer Expense
+53000 - Management COS Pursuit/Referral Fees
+53300 - Management COS & Accounting Payroll Expense
+53305 - Management COS & Accounting Bonus
+53310 - Management COS & Accounting Payroll Taxes
+53320 - Management COS & Accounting Benefits
+53400 - Management COS Travel
+53500 - Management COS Meals & Entertainment
+53600 - Management COS Dues & Subscription
+53700 - Management COS Telephone
+53800 - Management COS Other
+53900 - Management COS On Site Payroll Expense
+53910 - Management COS Payroll Reimbursement
+53920 - Management COS Other Reimbursement
+60300 - Payroll Expense
+60301 - Payroll Taxes
+60302 - Payroll Benefits
+60303 - Payroll Bonuses
+60310 - Line Incentive Compensation
+60400 - Travel
+60401 - Travel - Airfare
+60402 - Travel - Hotels
+60410 - Meetings
+60411 - Meetings - Inside Lane
+60412 - Meetings - Sales Symposium
+60419 - Meetings - Other Line Supported
+60420 - Conference Expense
+60421 - Conference - ICSC Las Vegas
+60422 - Conference - ICSC Orlando
+60424 - Conference - ICSC Other
+60425 - Conference - NMHC
+60429 - Conference - Other
+60500 - Meals & Entertainment
+60510 - Rewards Trip
+60520 - Client Appreciation Expense
+60530 - Client Appreciation M&E
+60600 - Dues & Subscriptions
+60601 - Dues & Memberships
+60602 - Software Subscriptions
+60800 - Computer Expense
+61000 - Travel - Auto
+61100 - Recruiting
+"61101 - Recruiting - Travel, Meals & Entertainment"
+61109 - Recruiting - Other
+61200 - Background Checks
+61300 - Continuing Education
+61400 - Employee Welfare
+61402 - EE Welfare - Team Development
+61403 - EE Welfare - Team Meals & Entertainment
+61404 - EE Welfare - YE Parties
+61409 - EE Welfare - Other
+61500 - Uniforms
+61600 - Relocation Expense
+62000 - Rental Expense
+62100 - Office Supplies & Expenses
+62200 - Telephone & Internet
+62300 - Postage & Delivery
+62400 - Printing & Reproduction
+63000 - Marketing Expense
+63001 - Marketing - Advertising
+63002 - Marketing - Sponsorships
+63009 - Marketing - Other
+64000 - Professional Fees
+64100 - Contracted Services
+65000 - Insurance
+"65100 - Business Taxes, Licenses & Permits"
+67000 - Bad Debt Expense
+67500 - Charitable Contributions
+68000 - Bank Service Charges
+70401 - Travel - New Growth - Airfare
+70500 - Meals & Entertainment - New Growth
+70602 - Software Subscriptions - New Growth
+71000 - Travel - New Growth - Auto
+"71101 - Recruiting - New Growth - Travel, Meals & Entertainment"
+71200 - Background Checks - New Growth
+71403 - EE Welfare - New Growth - Team Meals & Entertainment
+71700 - Training & Development Expense - New Growth
+72000 - Rental Expense - New Growth
+72100 - Office Supplies & Expenses - New Growth
+72200 - Telephone & Internet - New Growth
+72300 - Postage & Delivery - New Growth
+72400 - Printing & Reproduction - New Growth
+73001 - Marketing - New Growth - Advertising
+"75100 - Business Taxes, Licenses & Permits - New Growth"
+78000 - Bank Service Charges - New Growth
+80000 - Other Income
+60700 - Signage Costs

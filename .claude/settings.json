@@ -1,0 +1,41 @@
+{
+  "env": {
+    "MAX_THINKING_TOKENS": "32000"
+  },
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Bash(git diff:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(pytest:*)",
+      "Bash(python -m *)",
+      "Bash(ruff *)",
+      "Bash(go build *)",
+      "Bash(go test *)",
+      "Bash(bun *)",
+      "Bash(docker-compose *)",
+      "Bash(./loop.sh *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./secrets/**)",
+      "Bash(curl:*)",
+      "Bash(wget:*)"
+    ],
+    "ask": [
+      "Edit(**)",
+      "Write(**)",
+      "Bash(psql:*)",
+      "Bash(python:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "code-simplifier@claude-plugins-official": true,
+    "huggingface-skills@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
+  },
+  "defaultMode": "plan"
+}

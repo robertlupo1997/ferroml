@@ -1,0 +1,2467 @@
+//! Naive Bayes Classifiers with Statistical Diagnostics
+//!
+//! This module provides Naive Bayes classifiers with comprehensive statistical
+//! output - FerroML's key differentiator from sklearn.
+//!
+//! ## Classifiers
+//!
+//! - **GaussianNB**: For continuous features with Gaussian likelihood
+//! - **MultinomialNB**: For discrete count features (e.g., word counts in text)
+//! - **BernoulliNB**: For binary/boolean features
+//!
+//! ## Features
+//!
+//! - **Class priors**: Automatic or user-specified prior probabilities
+//! - **Incremental learning**: `partial_fit` for online/out-of-core learning
+//! - **Smoothing**: Variance smoothing (Gaussian), Laplace/Lidstone smoothing (Multinomial/Bernoulli)
+//! - **Feature log-probabilities**: Full probabilistic output
+//!
+//! ## Example - GaussianNB
+//!
+//! ```ignore
+//! use ferroml_core::models::naive_bayes::GaussianNB;
+//! use ferroml_core::models::{Model, ProbabilisticModel};
+//! use ndarray::{Array1, Array2};
+//!
+//! let x = Array2::from_shape_vec((6, 2), vec![
+//!     1.0, 2.0, 2.0, 1.0, 3.0, 3.0, 6.0, 7.0, 7.0, 6.0, 8.0, 8.0
+//! ]).unwrap();
+//! let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+//!
+//! let mut model = GaussianNB::new();
+//! model.fit(&x, &y).unwrap();
+//!
+//! // Get probability predictions
+//! let probas = model.predict_proba(&x).unwrap();
+//! ```
+//!
+//! ## Example - MultinomialNB (Text Classification)
+//!
+//! ```ignore
+//! use ferroml_core::models::naive_bayes::MultinomialNB;
+//! use ferroml_core::models::{Model, ProbabilisticModel};
+//! use ndarray::{Array1, Array2};
+//!
+//! // Word count features (e.g., bag-of-words)
+//! let x = Array2::from_shape_vec((4, 3), vec![
+//!     5.0, 1.0, 0.0,  // Document 1: 5 occurrences of word 0, etc.
+//!     4.0, 2.0, 0.0,  // Document 2
+//!     0.0, 1.0, 5.0,  // Document 3
+//!     0.0, 0.0, 6.0,  // Document 4
+//! ]).unwrap();
+//! let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+//!
+//! let mut model = MultinomialNB::new();
+//! model.fit(&x, &y).unwrap();
+//! let probas = model.predict_proba(&x).unwrap();
+//! ```
+//!
+//! ## Example - BernoulliNB (Binary Features)
+//!
+//! ```ignore
+//! use ferroml_core::models::naive_bayes::BernoulliNB;
+//! use ferroml_core::models::{Model, ProbabilisticModel};
+//! use ndarray::{Array1, Array2};
+//!
+//! // Binary features (presence/absence)
+//! let x = Array2::from_shape_vec((4, 3), vec![
+//!     1.0, 1.0, 0.0,
+//!     1.0, 0.0, 0.0,
+//!     0.0, 1.0, 1.0,
+//!     0.0, 0.0, 1.0,
+//! ]).unwrap();
+//! let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+//!
+//! let mut model = BernoulliNB::new();
+//! model.fit(&x, &y).unwrap();
+//! let probas = model.predict_proba(&x).unwrap();
+//! ```
+
+use crate::hpo::SearchSpace;
+use crate::models::{
+    check_is_fitted, validate_fit_input, validate_predict_input, ClassWeight, Model,
+    PredictionInterval, ProbabilisticModel,
+};
+use crate::{FerroError, Result};
+use ndarray::{Array1, Array2, Axis};
+use serde::{Deserialize, Serialize};
+
+/// Gaussian Naive Bayes classifier
+///
+/// Implements the Gaussian Naive Bayes algorithm for classification.
+/// The likelihood of features is assumed to be Gaussian:
+///
+/// P(x_i | y) = (1 / sqrt(2π σ²_y)) * exp(-(x_i - μ_y)² / (2σ²_y))
+///
+/// ## Assumptions
+///
+/// 1. **Feature independence**: Features are conditionally independent given the class
+/// 2. **Gaussian distribution**: Each feature follows a Gaussian distribution per class
+///
+/// ## Incremental Learning
+///
+/// Supports `partial_fit` for online learning, updating mean/variance estimates
+/// incrementally using Welford's algorithm for numerical stability.
+///
+/// ## Variance Smoothing
+///
+/// Adds a small value (`var_smoothing * max(variance)`) to all variances to
+/// prevent division by zero and improve numerical stability.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GaussianNB {
+    /// Variance smoothing: portion of largest variance added to all variances
+    /// for numerical stability. Default: 1e-9
+    pub var_smoothing: f64,
+    /// User-specified class priors. If None, priors are estimated from data.
+    pub priors: Option<Array1<f64>>,
+    /// Class weights for handling imbalanced datasets
+    pub class_weight: ClassWeight,
+
+    // Fitted parameters (None before fit)
+    /// Per-class mean for each feature: shape (n_classes, n_features)
+    theta: Option<Array2<f64>>,
+    /// Per-class variance for each feature: shape (n_classes, n_features)
+    var: Option<Array2<f64>>,
+    /// Actual variance used (with smoothing applied): shape (n_classes, n_features)
+    var_smoothed: Option<Array2<f64>>,
+    /// Class priors: shape (n_classes,)
+    class_prior: Option<Array1<f64>>,
+    /// Unique class labels
+    classes: Option<Array1<f64>>,
+    /// Number of samples per class (for incremental learning)
+    class_count: Option<Array1<f64>>,
+    /// Number of features
+    n_features: Option<usize>,
+    /// Epsilon: smoothing value computed from largest variance
+    epsilon: Option<f64>,
+}
+
+impl Default for GaussianNB {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl GaussianNB {
+    /// Create a new Gaussian Naive Bayes classifier with default settings
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            var_smoothing: 1e-9,
+            priors: None,
+            class_weight: ClassWeight::Uniform,
+            theta: None,
+            var: None,
+            var_smoothed: None,
+            class_prior: None,
+            classes: None,
+            class_count: None,
+            n_features: None,
+            epsilon: None,
+        }
+    }
+
+    /// Set variance smoothing parameter
+    ///
+    /// Higher values increase numerical stability but may reduce accuracy.
+    #[must_use]
+    pub fn with_var_smoothing(mut self, var_smoothing: f64) -> Self {
+        self.var_smoothing = var_smoothing;
+        self
+    }
+
+    /// Set class weights for handling imbalanced data
+    #[must_use]
+    pub fn with_class_weight(mut self, class_weight: ClassWeight) -> Self {
+        self.class_weight = class_weight;
+        self
+    }
+
+    /// Set user-specified class priors
+    ///
+    /// Priors should sum to 1. If not provided, priors are estimated from data.
+    #[must_use]
+    pub fn with_priors(mut self, priors: Array1<f64>) -> Self {
+        self.priors = Some(priors);
+        self
+    }
+
+    /// Get the class means (theta)
+    ///
+    /// Shape: (n_classes, n_features)
+    #[must_use]
+    pub fn theta(&self) -> Option<&Array2<f64>> {
+        self.theta.as_ref()
+    }
+
+    /// Get the class variances (before smoothing)
+    ///
+    /// Shape: (n_classes, n_features)
+    #[must_use]
+    pub fn var(&self) -> Option<&Array2<f64>> {
+        self.var.as_ref()
+    }
+
+    /// Get the smoothed class variances (actually used for prediction)
+    ///
+    /// Shape: (n_classes, n_features)
+    #[must_use]
+    pub fn var_smoothed(&self) -> Option<&Array2<f64>> {
+        self.var_smoothed.as_ref()
+    }
+
+    /// Get the class priors
+    ///
+    /// Shape: (n_classes,)
+    #[must_use]
+    pub fn class_prior(&self) -> Option<&Array1<f64>> {
+        self.class_prior.as_ref()
+    }
+
+    /// Get the unique class labels
+    #[must_use]
+    pub fn classes(&self) -> Option<&Array1<f64>> {
+        self.classes.as_ref()
+    }
+
+    /// Get the number of samples seen per class
+    #[must_use]
+    pub fn class_count(&self) -> Option<&Array1<f64>> {
+        self.class_count.as_ref()
+    }
+
+    /// Get the smoothing epsilon value
+    #[must_use]
+    pub fn epsilon(&self) -> Option<f64> {
+        self.epsilon
+    }
+
+    /// Incremental fit on a batch of samples
+    ///
+    /// This method allows for online/out-of-core learning by updating the
+    /// model parameters incrementally.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - Feature matrix of shape (n_samples, n_features)
+    /// * `y` - Target values of shape (n_samples,)
+    /// * `classes` - All possible classes (required on first call, can be None afterwards)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut model = GaussianNB::new();
+    ///
+    /// // First batch - must specify all classes
+    /// model.partial_fit(&x1, &y1, Some(vec![0.0, 1.0])).unwrap();
+    ///
+    /// // Subsequent batches
+    /// model.partial_fit(&x2, &y2, None).unwrap();
+    /// model.partial_fit(&x3, &y3, None).unwrap();
+    /// ```
+    pub fn partial_fit(
+        &mut self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        classes: Option<Vec<f64>>,
+    ) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        let n_features = x.ncols();
+
+        // Initialize on first call
+        if !self.is_fitted() {
+            let classes = classes.ok_or_else(|| {
+                FerroError::invalid_input("Classes must be provided on first call to partial_fit")
+            })?;
+
+            if classes.is_empty() {
+                return Err(FerroError::invalid_input("Classes cannot be empty"));
+            }
+
+            let n_classes = classes.len();
+            let classes_arr = Array1::from_vec(classes);
+
+            self.classes = Some(classes_arr);
+            self.n_features = Some(n_features);
+            self.theta = Some(Array2::zeros((n_classes, n_features)));
+            self.var = Some(Array2::zeros((n_classes, n_features)));
+            self.class_count = Some(Array1::zeros(n_classes));
+        }
+
+        // Validate feature count matches
+        if self.n_features.unwrap() != n_features {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", self.n_features.unwrap()),
+                format!("{} features", n_features),
+            ));
+        }
+
+        let classes = self.classes.as_ref().unwrap();
+
+        // Update statistics for each class using Welford's algorithm
+        for (class_idx, &class_label) in classes.iter().enumerate() {
+            // Get samples for this class
+            let class_mask: Vec<usize> = y
+                .iter()
+                .enumerate()
+                .filter(|(_, &yi)| (yi - class_label).abs() < 1e-10)
+                .map(|(i, _)| i)
+                .collect();
+
+            if class_mask.is_empty() {
+                continue;
+            }
+
+            let n_new = class_mask.len() as f64;
+            let n_old = self.class_count.as_ref().unwrap()[class_idx];
+            let n_total = n_old + n_new;
+
+            // Extract samples for this class
+            let x_class: Array2<f64> =
+                Array2::from_shape_fn((class_mask.len(), n_features), |(i, j)| {
+                    x[[class_mask[i], j]]
+                });
+
+            // Compute new sample statistics
+            let new_mean = x_class.mean_axis(Axis(0)).unwrap();
+            let new_var = if class_mask.len() > 1 {
+                compute_variance(&x_class, &new_mean)
+            } else {
+                Array1::zeros(n_features)
+            };
+
+            // Get current statistics
+            let theta = self.theta.as_mut().unwrap();
+            let var = self.var.as_mut().unwrap();
+            let class_count = self.class_count.as_mut().unwrap();
+
+            let old_mean = theta.row(class_idx).to_owned();
+            let old_var = var.row(class_idx).to_owned();
+
+            // Combine old and new using parallel axis formula
+            // Combined mean: (n_old * old_mean + n_new * new_mean) / n_total
+            let combined_mean = if n_old > 0.0 {
+                (&old_mean * n_old + &new_mean * n_new) / n_total
+            } else {
+                new_mean.clone()
+            };
+
+            // Combined variance using parallel algorithm
+            // var_combined = (n_old * (var_old + d_old^2) + n_new * (var_new + d_new^2)) / n_total
+            // where d_old = old_mean - combined_mean, d_new = new_mean - combined_mean
+            let combined_var = if n_old > 0.0 {
+                let d_old = &old_mean - &combined_mean;
+                let d_new = &new_mean - &combined_mean;
+
+                let var_old_contribution = &old_var + &d_old.mapv(|x| x * x);
+                let var_new_contribution = &new_var + &d_new.mapv(|x| x * x);
+
+                (&var_old_contribution * n_old + &var_new_contribution * n_new) / n_total
+            } else {
+                new_var
+            };
+
+            // Update stored values
+            theta.row_mut(class_idx).assign(&combined_mean);
+            var.row_mut(class_idx).assign(&combined_var);
+            class_count[class_idx] = n_total;
+        }
+
+        // Update priors and smoothed variance
+        self.update_priors_and_variance();
+
+        Ok(())
+    }
+
+    /// Update class priors and apply variance smoothing
+    fn update_priors_and_variance(&mut self) {
+        let class_count = self.class_count.as_ref().unwrap();
+        let var = self.var.as_ref().unwrap();
+
+        // Compute class priors
+        let total_samples: f64 = class_count.sum();
+        if total_samples > 0.0 {
+            if let Some(ref user_priors) = self.priors {
+                // Use user-specified priors
+                self.class_prior = Some(user_priors.clone());
+            } else {
+                // Estimate from data
+                self.class_prior = Some(class_count / total_samples);
+            }
+        }
+
+        // Compute epsilon (smoothing value based on largest variance)
+        let max_var = var.iter().copied().fold(0.0_f64, f64::max);
+        self.epsilon = Some(self.var_smoothing * max_var);
+
+        // Apply variance smoothing
+        let epsilon = self.epsilon.unwrap();
+        self.var_smoothed = Some(var.mapv(|v| v + epsilon));
+    }
+
+    /// Compute joint log-likelihood for each class
+    ///
+    /// Returns shape (n_samples, n_classes)
+    fn joint_log_likelihood(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.theta, "joint_log_likelihood")?;
+
+        let n_features = self.n_features.unwrap();
+        validate_predict_input(x, n_features)?;
+
+        let theta = self.theta.as_ref().unwrap();
+        let var_smoothed = self.var_smoothed.as_ref().unwrap();
+        let class_prior = self.class_prior.as_ref().unwrap();
+
+        let n_samples = x.nrows();
+        let n_classes = theta.nrows();
+
+        let mut jll = Array2::zeros((n_samples, n_classes));
+
+        for class_idx in 0..n_classes {
+            let mean = theta.row(class_idx);
+            let var = var_smoothed.row(class_idx);
+
+            // log P(y=class) + sum_i log P(x_i | y=class)
+            // Gaussian log-likelihood:
+            // log P(x_i | y) = -0.5 * (log(2π) + log(σ²) + (x - μ)² / σ²)
+
+            let log_prior = class_prior[class_idx].ln();
+            let log_det = var.mapv(|v| v.ln()).sum(); // sum of log variances
+            let const_term =
+                -0.5 * (n_features as f64 * (2.0 * std::f64::consts::PI).ln() + log_det);
+
+            for sample_idx in 0..n_samples {
+                let xi = x.row(sample_idx);
+
+                // Mahalanobis distance (diagonal covariance)
+                let diff = &xi - &mean;
+                let mahal: f64 = diff.iter().zip(var.iter()).map(|(&d, &v)| d * d / v).sum();
+
+                jll[[sample_idx, class_idx]] = log_prior + const_term - 0.5 * mahal;
+            }
+        }
+
+        Ok(jll)
+    }
+}
+
+impl Model for GaussianNB {
+    fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        // Find unique classes
+        let mut classes: Vec<f64> = y.iter().copied().collect();
+        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        classes.dedup();
+
+        if classes.len() < 2 {
+            return Err(FerroError::invalid_input(
+                "GaussianNB requires at least 2 classes",
+            ));
+        }
+
+        // Reset state
+        self.theta = None;
+        self.var = None;
+        self.var_smoothed = None;
+        self.class_prior = None;
+        self.classes = None;
+        self.class_count = None;
+        self.n_features = None;
+        self.epsilon = None;
+
+        // Use partial_fit to do the actual work
+        self.partial_fit(x, y, Some(classes))
+    }
+
+    fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+        let jll = self.joint_log_likelihood(x)?;
+        let classes = self.classes.as_ref().unwrap();
+
+        // Find class with maximum log-likelihood for each sample
+        let predictions: Array1<f64> = jll
+            .rows()
+            .into_iter()
+            .map(|row| {
+                let max_idx = row
+                    .iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .map(|(idx, _)| idx)
+                    .unwrap_or(0);
+                classes[max_idx]
+            })
+            .collect();
+
+        Ok(predictions)
+    }
+
+    fn is_fitted(&self) -> bool {
+        self.theta.is_some()
+    }
+
+    fn feature_importance(&self) -> Option<Array1<f64>> {
+        // For Naive Bayes, use ratio of between-class variance to within-class variance
+        // as a simple feature importance measure (similar to F-ratio)
+        let theta = self.theta.as_ref()?;
+        let var = self.var.as_ref()?;
+        let class_prior = self.class_prior.as_ref()?;
+
+        let n_features = theta.ncols();
+        let n_classes = theta.nrows();
+
+        if n_classes < 2 {
+            return None;
+        }
+
+        // Global mean per feature
+        let global_mean: Array1<f64> = (0..n_features)
+            .map(|j| (0..n_classes).map(|c| theta[[c, j]] * class_prior[c]).sum())
+            .collect();
+
+        // Between-class variance: sum_c prior_c * (theta_c - global_mean)^2
+        let between_var: Array1<f64> = (0..n_features)
+            .map(|j| {
+                (0..n_classes)
+                    .map(|c| {
+                        let diff = theta[[c, j]] - global_mean[j];
+                        class_prior[c] * diff * diff
+                    })
+                    .sum()
+            })
+            .collect();
+
+        // Within-class variance: sum_c prior_c * var_c
+        let within_var: Array1<f64> = (0..n_features)
+            .map(|j| (0..n_classes).map(|c| class_prior[c] * var[[c, j]]).sum())
+            .collect();
+
+        // F-ratio: between / within (add small constant to avoid division by zero)
+        let importance: Array1<f64> = between_var
+            .iter()
+            .zip(within_var.iter())
+            .map(|(&b, &w)| b / (w + 1e-10))
+            .collect();
+
+        Some(importance)
+    }
+
+    fn search_space(&self) -> SearchSpace {
+        SearchSpace::new().float_log("var_smoothing", 1e-12, 1e-3)
+    }
+
+    fn feature_names(&self) -> Option<&[String]> {
+        None
+    }
+
+    fn n_features(&self) -> Option<usize> {
+        self.n_features
+    }
+}
+
+impl ProbabilisticModel for GaussianNB {
+    fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        let jll = self.joint_log_likelihood(x)?;
+
+        // Convert log-likelihoods to probabilities using log-sum-exp trick
+        let n_samples = jll.nrows();
+        let n_classes = jll.ncols();
+        let mut probas = Array2::zeros((n_samples, n_classes));
+
+        for i in 0..n_samples {
+            let row = jll.row(i);
+
+            // Log-sum-exp trick for numerical stability
+            let max_ll = row.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let sum_exp: f64 = row.iter().map(|&ll| (ll - max_ll).exp()).sum();
+            let log_sum = max_ll + sum_exp.ln();
+
+            for j in 0..n_classes {
+                probas[[i, j]] = (jll[[i, j]] - log_sum).exp();
+            }
+        }
+
+        Ok(probas)
+    }
+
+    fn predict_interval(&self, x: &Array2<f64>, level: f64) -> Result<PredictionInterval> {
+        // For classification, return the predicted class probabilities as-is
+        // with bounds based on confidence level (using simple binomial approximation)
+        let probas = self.predict_proba(x)?;
+        let predictions = self.predict(x)?;
+
+        let n_samples = x.nrows();
+        let z = z_critical(1.0 - (1.0 - level) / 2.0);
+
+        // Get the probability of predicted class for each sample
+        let classes = self.classes.as_ref().unwrap();
+        let mut pred_probas = Array1::zeros(n_samples);
+        let mut lower = Array1::zeros(n_samples);
+        let mut upper = Array1::zeros(n_samples);
+
+        for i in 0..n_samples {
+            let class_idx = classes
+                .iter()
+                .position(|&c| (c - predictions[i]).abs() < 1e-10)
+                .unwrap_or(0);
+            let p = probas[[i, class_idx]];
+            pred_probas[i] = p;
+
+            // Simple normal approximation for binomial CI (n=1)
+            // This is a rough approximation since we have single prediction
+            let se = (p * (1.0 - p)).sqrt().max(0.01); // min SE to avoid degenerate intervals
+            lower[i] = (p - z * se).clamp(0.0, 1.0);
+            upper[i] = (p + z * se).clamp(0.0, 1.0);
+        }
+
+        Ok(PredictionInterval::new(pred_probas, lower, upper, level))
+    }
+}
+
+// =============================================================================
+// Multinomial Naive Bayes
+// =============================================================================
+
+/// Multinomial Naive Bayes classifier
+///
+/// Implements the Multinomial Naive Bayes algorithm for classification.
+/// Suitable for discrete features like word counts in text classification.
+///
+/// The likelihood of features is computed as:
+/// P(x_i | y) = (N_yi + alpha) / (N_y + alpha * n_features)
+///
+/// Where:
+/// - N_yi: Count of feature i in class y
+/// - N_y: Total count of all features in class y
+/// - alpha: Smoothing parameter (Laplace/Lidstone)
+/// - n_features: Number of features
+///
+/// ## Assumptions
+///
+/// 1. **Feature independence**: Features are conditionally independent given the class
+/// 2. **Non-negative counts**: Feature values should be non-negative counts
+///
+/// ## Incremental Learning
+///
+/// Supports `partial_fit` for online/out-of-core learning by accumulating
+/// feature counts incrementally.
+///
+/// ## Smoothing
+///
+/// Uses Laplace smoothing (alpha=1.0) by default to prevent zero probabilities.
+/// Set alpha=0 for no smoothing, alpha<1 for Lidstone smoothing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultinomialNB {
+    /// Additive (Laplace/Lidstone) smoothing parameter. Default: 1.0
+    /// alpha=1.0: Laplace smoothing
+    /// alpha=0.0: No smoothing (not recommended)
+    /// 0 < alpha < 1: Lidstone smoothing
+    pub alpha: f64,
+    /// Whether to learn class priors from data. If false, uses uniform priors.
+    pub fit_prior: bool,
+    /// User-specified class priors. If None, priors are estimated from data.
+    pub class_prior: Option<Array1<f64>>,
+    /// Class weights for handling imbalanced datasets
+    pub class_weight: ClassWeight,
+
+    // Fitted parameters (None before fit)
+    /// Log probability of each class: shape (n_classes,)
+    class_log_prior: Option<Array1<f64>>,
+    /// Log probability of features given class: shape (n_classes, n_features)
+    feature_log_prob: Option<Array2<f64>>,
+    /// Raw feature counts per class: shape (n_classes, n_features)
+    feature_count: Option<Array2<f64>>,
+    /// Number of samples per class: shape (n_classes,)
+    class_count: Option<Array1<f64>>,
+    /// Unique class labels
+    classes: Option<Array1<f64>>,
+    /// Number of features
+    n_features: Option<usize>,
+}
+
+impl Default for MultinomialNB {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MultinomialNB {
+    /// Create a new Multinomial Naive Bayes classifier with default settings
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            alpha: 1.0,
+            fit_prior: true,
+            class_prior: None,
+            class_weight: ClassWeight::Uniform,
+            class_log_prior: None,
+            feature_log_prob: None,
+            feature_count: None,
+            class_count: None,
+            classes: None,
+            n_features: None,
+        }
+    }
+
+    /// Set the smoothing parameter (alpha)
+    ///
+    /// Higher alpha values provide more smoothing.
+    /// - alpha=1.0: Laplace smoothing (default)
+    /// - alpha=0.0: No smoothing (may cause issues with unseen features)
+    #[must_use]
+    pub fn with_alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha;
+        self
+    }
+
+    /// Set class weights for handling imbalanced data
+    #[must_use]
+    pub fn with_class_weight(mut self, class_weight: ClassWeight) -> Self {
+        self.class_weight = class_weight;
+        self
+    }
+
+    /// Set whether to learn class priors from data
+    ///
+    /// If false, uses uniform class priors.
+    #[must_use]
+    pub fn with_fit_prior(mut self, fit_prior: bool) -> Self {
+        self.fit_prior = fit_prior;
+        self
+    }
+
+    /// Set user-specified class priors
+    ///
+    /// Priors should sum to 1. If provided, overrides fit_prior setting.
+    #[must_use]
+    pub fn with_class_prior(mut self, priors: Array1<f64>) -> Self {
+        self.class_prior = Some(priors);
+        self
+    }
+
+    /// Get the log probability of each class
+    #[must_use]
+    pub fn class_log_prior(&self) -> Option<&Array1<f64>> {
+        self.class_log_prior.as_ref()
+    }
+
+    /// Get the log probability of features given each class
+    ///
+    /// Shape: (n_classes, n_features)
+    #[must_use]
+    pub fn feature_log_prob(&self) -> Option<&Array2<f64>> {
+        self.feature_log_prob.as_ref()
+    }
+
+    /// Get the raw feature counts per class
+    ///
+    /// Shape: (n_classes, n_features)
+    #[must_use]
+    pub fn feature_count(&self) -> Option<&Array2<f64>> {
+        self.feature_count.as_ref()
+    }
+
+    /// Get the number of samples per class
+    #[must_use]
+    pub fn class_count(&self) -> Option<&Array1<f64>> {
+        self.class_count.as_ref()
+    }
+
+    /// Get the unique class labels
+    #[must_use]
+    pub fn classes(&self) -> Option<&Array1<f64>> {
+        self.classes.as_ref()
+    }
+
+    /// Incremental fit on a batch of samples
+    ///
+    /// This method allows for online/out-of-core learning by updating the
+    /// model parameters incrementally.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - Feature matrix of shape (n_samples, n_features) - should contain counts
+    /// * `y` - Target values of shape (n_samples,)
+    /// * `classes` - All possible classes (required on first call, can be None afterwards)
+    pub fn partial_fit(
+        &mut self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        classes: Option<Vec<f64>>,
+    ) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        // Validate non-negative values
+        if x.iter().any(|&v| v < 0.0) {
+            return Err(FerroError::invalid_input(
+                "MultinomialNB requires non-negative feature values",
+            ));
+        }
+
+        let n_features = x.ncols();
+
+        // Initialize on first call
+        if !self.is_fitted() {
+            let classes = classes.ok_or_else(|| {
+                FerroError::invalid_input("Classes must be provided on first call to partial_fit")
+            })?;
+
+            if classes.is_empty() {
+                return Err(FerroError::invalid_input("Classes cannot be empty"));
+            }
+
+            let n_classes = classes.len();
+            let classes_arr = Array1::from_vec(classes);
+
+            self.classes = Some(classes_arr);
+            self.n_features = Some(n_features);
+            self.feature_count = Some(Array2::zeros((n_classes, n_features)));
+            self.class_count = Some(Array1::zeros(n_classes));
+        }
+
+        // Validate feature count matches
+        if self.n_features.unwrap() != n_features {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", self.n_features.unwrap()),
+                format!("{} features", n_features),
+            ));
+        }
+
+        let classes = self.classes.as_ref().unwrap();
+
+        // Update counts for each class
+        for (class_idx, &class_label) in classes.iter().enumerate() {
+            // Get samples for this class
+            let class_mask: Vec<usize> = y
+                .iter()
+                .enumerate()
+                .filter(|(_, &yi)| (yi - class_label).abs() < 1e-10)
+                .map(|(i, _)| i)
+                .collect();
+
+            if class_mask.is_empty() {
+                continue;
+            }
+
+            let n_class_samples = class_mask.len();
+
+            // Sum feature counts for this class
+            let feature_count = self.feature_count.as_mut().unwrap();
+            let class_count = self.class_count.as_mut().unwrap();
+
+            for &idx in &class_mask {
+                for j in 0..n_features {
+                    feature_count[[class_idx, j]] += x[[idx, j]];
+                }
+            }
+
+            class_count[class_idx] += n_class_samples as f64;
+        }
+
+        // Update log probabilities
+        self.update_log_probabilities();
+
+        Ok(())
+    }
+
+    /// Update log probabilities after fitting/partial fitting
+    fn update_log_probabilities(&mut self) {
+        let feature_count = self.feature_count.as_ref().unwrap();
+        let class_count = self.class_count.as_ref().unwrap();
+        let n_classes = class_count.len();
+        let n_features = self.n_features.unwrap();
+
+        // Compute class log priors
+        let total_samples: f64 = class_count.sum();
+        if total_samples > 0.0 {
+            if let Some(ref user_priors) = self.class_prior {
+                // Use user-specified priors
+                self.class_log_prior = Some(user_priors.mapv(|p| p.ln()));
+            } else if self.fit_prior {
+                // Estimate from data
+                self.class_log_prior = Some(class_count.mapv(|c| (c / total_samples).ln()));
+            } else {
+                // Uniform priors
+                let uniform = 1.0 / n_classes as f64;
+                self.class_log_prior = Some(Array1::from_elem(n_classes, uniform.ln()));
+            }
+        }
+
+        // Compute feature log probabilities with smoothing
+        // P(x_i | y) = (count_yi + alpha) / (total_y + alpha * n_features)
+        let mut feature_log_prob = Array2::zeros((n_classes, n_features));
+
+        for class_idx in 0..n_classes {
+            // Total count for this class
+            let total_count: f64 = feature_count.row(class_idx).sum();
+            let denominator = total_count + self.alpha * n_features as f64;
+
+            for j in 0..n_features {
+                let count = feature_count[[class_idx, j]];
+                let prob = (count + self.alpha) / denominator;
+                feature_log_prob[[class_idx, j]] = prob.ln();
+            }
+        }
+
+        self.feature_log_prob = Some(feature_log_prob);
+    }
+
+    /// Compute joint log-likelihood for each class
+    ///
+    /// Returns shape (n_samples, n_classes)
+    fn joint_log_likelihood(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.feature_log_prob, "joint_log_likelihood")?;
+
+        let n_features = self.n_features.unwrap();
+        validate_predict_input(x, n_features)?;
+
+        let feature_log_prob = self.feature_log_prob.as_ref().unwrap();
+        let class_log_prior = self.class_log_prior.as_ref().unwrap();
+
+        let n_samples = x.nrows();
+        let n_classes = feature_log_prob.nrows();
+
+        let mut jll = Array2::zeros((n_samples, n_classes));
+
+        for class_idx in 0..n_classes {
+            let log_prior = class_log_prior[class_idx];
+            let log_prob = feature_log_prob.row(class_idx);
+
+            for sample_idx in 0..n_samples {
+                // log P(y) + sum_i x_i * log P(x_i | y)
+                let xi = x.row(sample_idx);
+                let log_likelihood: f64 = xi
+                    .iter()
+                    .zip(log_prob.iter())
+                    .map(|(&x_val, &lp)| x_val * lp)
+                    .sum();
+
+                jll[[sample_idx, class_idx]] = log_prior + log_likelihood;
+            }
+        }
+
+        Ok(jll)
+    }
+}
+
+impl Model for MultinomialNB {
+    fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        // Validate non-negative values
+        if x.iter().any(|&v| v < 0.0) {
+            return Err(FerroError::invalid_input(
+                "MultinomialNB requires non-negative feature values",
+            ));
+        }
+
+        // Find unique classes
+        let mut classes: Vec<f64> = y.iter().copied().collect();
+        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        classes.dedup();
+
+        if classes.len() < 2 {
+            return Err(FerroError::invalid_input(
+                "MultinomialNB requires at least 2 classes",
+            ));
+        }
+
+        // Reset state
+        self.class_log_prior = None;
+        self.feature_log_prob = None;
+        self.feature_count = None;
+        self.class_count = None;
+        self.classes = None;
+        self.n_features = None;
+
+        // Use partial_fit to do the actual work
+        self.partial_fit(x, y, Some(classes))
+    }
+
+    fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+        let jll = self.joint_log_likelihood(x)?;
+        let classes = self.classes.as_ref().unwrap();
+
+        // Find class with maximum log-likelihood for each sample
+        let predictions: Array1<f64> = jll
+            .rows()
+            .into_iter()
+            .map(|row| {
+                let max_idx = row
+                    .iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .map(|(idx, _)| idx)
+                    .unwrap_or(0);
+                classes[max_idx]
+            })
+            .collect();
+
+        Ok(predictions)
+    }
+
+    fn is_fitted(&self) -> bool {
+        self.feature_log_prob.is_some()
+    }
+
+    fn feature_importance(&self) -> Option<Array1<f64>> {
+        // For Multinomial NB, use the absolute deviation of feature log-probs
+        // from the mean as a simple importance measure
+        let feature_log_prob = self.feature_log_prob.as_ref()?;
+        let n_features = feature_log_prob.ncols();
+
+        // Compute variance of log-probs across classes for each feature
+        let importance: Array1<f64> = (0..n_features)
+            .map(|j| {
+                let col: Vec<f64> = feature_log_prob.column(j).iter().copied().collect();
+                let mean: f64 = col.iter().sum::<f64>() / col.len() as f64;
+                col.iter().map(|&v| (v - mean).abs()).sum::<f64>() / col.len() as f64
+            })
+            .collect();
+
+        Some(importance)
+    }
+
+    fn search_space(&self) -> SearchSpace {
+        SearchSpace::new().float_log("alpha", 1e-3, 10.0)
+    }
+
+    fn feature_names(&self) -> Option<&[String]> {
+        None
+    }
+
+    fn n_features(&self) -> Option<usize> {
+        self.n_features
+    }
+}
+
+impl ProbabilisticModel for MultinomialNB {
+    fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        let jll = self.joint_log_likelihood(x)?;
+
+        // Convert log-likelihoods to probabilities using log-sum-exp trick
+        let n_samples = jll.nrows();
+        let n_classes = jll.ncols();
+        let mut probas = Array2::zeros((n_samples, n_classes));
+
+        for i in 0..n_samples {
+            let row = jll.row(i);
+
+            // Log-sum-exp trick for numerical stability
+            let max_ll = row.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let sum_exp: f64 = row.iter().map(|&ll| (ll - max_ll).exp()).sum();
+            let log_sum = max_ll + sum_exp.ln();
+
+            for j in 0..n_classes {
+                probas[[i, j]] = (jll[[i, j]] - log_sum).exp();
+            }
+        }
+
+        Ok(probas)
+    }
+
+    fn predict_interval(&self, x: &Array2<f64>, level: f64) -> Result<PredictionInterval> {
+        let probas = self.predict_proba(x)?;
+        let predictions = self.predict(x)?;
+
+        let n_samples = x.nrows();
+        let z = z_critical(1.0 - (1.0 - level) / 2.0);
+
+        let classes = self.classes.as_ref().unwrap();
+        let mut pred_probas = Array1::zeros(n_samples);
+        let mut lower = Array1::zeros(n_samples);
+        let mut upper = Array1::zeros(n_samples);
+
+        for i in 0..n_samples {
+            let class_idx = classes
+                .iter()
+                .position(|&c| (c - predictions[i]).abs() < 1e-10)
+                .unwrap_or(0);
+            let p = probas[[i, class_idx]];
+            pred_probas[i] = p;
+
+            let se = (p * (1.0 - p)).sqrt().max(0.01);
+            lower[i] = (p - z * se).clamp(0.0, 1.0);
+            upper[i] = (p + z * se).clamp(0.0, 1.0);
+        }
+
+        Ok(PredictionInterval::new(pred_probas, lower, upper, level))
+    }
+}
+
+// =============================================================================
+// Bernoulli Naive Bayes
+// =============================================================================
+
+/// Bernoulli Naive Bayes classifier
+///
+/// Implements the Bernoulli Naive Bayes algorithm for classification.
+/// Suitable for binary/boolean features like word presence in text classification.
+///
+/// The likelihood of features is computed as:
+/// P(x_i | y) = P(i | y) * x_i + (1 - P(i | y)) * (1 - x_i)
+///
+/// Where:
+/// - P(i | y): Probability of feature i being present in class y
+/// - x_i: Binary feature value (0 or 1)
+///
+/// ## Key Difference from Multinomial
+///
+/// Unlike MultinomialNB, BernoulliNB explicitly penalizes the non-occurrence of
+/// features that are indicative of a class. This makes it particularly suitable
+/// for short documents where absence of a word is informative.
+///
+/// ## Binarization
+///
+/// By default, features are binarized at threshold 0.0 (i.e., any positive value
+/// becomes 1). Set `binarize` to None to disable binarization (expects binary input).
+///
+/// ## Assumptions
+///
+/// 1. **Feature independence**: Features are conditionally independent given the class
+/// 2. **Binary features**: Each feature is binary (present/absent)
+///
+/// ## Incremental Learning
+///
+/// Supports `partial_fit` for online/out-of-core learning.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BernoulliNB {
+    /// Additive (Laplace/Lidstone) smoothing parameter. Default: 1.0
+    pub alpha: f64,
+    /// Threshold for binarizing features. If None, assumes input is already binary.
+    /// Default: Some(0.0) - any value > 0 becomes 1.
+    pub binarize: Option<f64>,
+    /// Whether to learn class priors from data. If false, uses uniform priors.
+    pub fit_prior: bool,
+    /// User-specified class priors. If None, priors are estimated from data.
+    pub class_prior: Option<Array1<f64>>,
+    /// Class weights for handling imbalanced datasets
+    pub class_weight: ClassWeight,
+
+    // Fitted parameters (None before fit)
+    /// Log probability of each class: shape (n_classes,)
+    class_log_prior: Option<Array1<f64>>,
+    /// Log probability of feature presence given class: shape (n_classes, n_features)
+    feature_log_prob: Option<Array2<f64>>,
+    /// Log probability of feature absence given class: shape (n_classes, n_features)
+    feature_log_prob_neg: Option<Array2<f64>>,
+    /// Count of feature occurrences per class: shape (n_classes, n_features)
+    feature_count: Option<Array2<f64>>,
+    /// Number of samples per class: shape (n_classes,)
+    class_count: Option<Array1<f64>>,
+    /// Unique class labels
+    classes: Option<Array1<f64>>,
+    /// Number of features
+    n_features: Option<usize>,
+}
+
+impl Default for BernoulliNB {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl BernoulliNB {
+    /// Create a new Bernoulli Naive Bayes classifier with default settings
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            alpha: 1.0,
+            binarize: Some(0.0),
+            fit_prior: true,
+            class_prior: None,
+            class_weight: ClassWeight::Uniform,
+            class_log_prior: None,
+            feature_log_prob: None,
+            feature_log_prob_neg: None,
+            feature_count: None,
+            class_count: None,
+            classes: None,
+            n_features: None,
+        }
+    }
+
+    /// Set the smoothing parameter (alpha)
+    #[must_use]
+    pub fn with_alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha;
+        self
+    }
+
+    /// Set class weights for handling imbalanced data
+    #[must_use]
+    pub fn with_class_weight(mut self, class_weight: ClassWeight) -> Self {
+        self.class_weight = class_weight;
+        self
+    }
+
+    /// Set the binarization threshold
+    ///
+    /// Features with values > threshold become 1, others become 0.
+    /// Set to None to disable binarization (expects binary input).
+    #[must_use]
+    pub fn with_binarize(mut self, threshold: Option<f64>) -> Self {
+        self.binarize = threshold;
+        self
+    }
+
+    /// Set whether to learn class priors from data
+    #[must_use]
+    pub fn with_fit_prior(mut self, fit_prior: bool) -> Self {
+        self.fit_prior = fit_prior;
+        self
+    }
+
+    /// Set user-specified class priors
+    #[must_use]
+    pub fn with_class_prior(mut self, priors: Array1<f64>) -> Self {
+        self.class_prior = Some(priors);
+        self
+    }
+
+    /// Get the log probability of each class
+    #[must_use]
+    pub fn class_log_prior(&self) -> Option<&Array1<f64>> {
+        self.class_log_prior.as_ref()
+    }
+
+    /// Get the log probability of feature presence given each class
+    ///
+    /// Shape: (n_classes, n_features)
+    #[must_use]
+    pub fn feature_log_prob(&self) -> Option<&Array2<f64>> {
+        self.feature_log_prob.as_ref()
+    }
+
+    /// Get the raw feature counts per class
+    ///
+    /// Shape: (n_classes, n_features)
+    #[must_use]
+    pub fn feature_count(&self) -> Option<&Array2<f64>> {
+        self.feature_count.as_ref()
+    }
+
+    /// Get the number of samples per class
+    #[must_use]
+    pub fn class_count(&self) -> Option<&Array1<f64>> {
+        self.class_count.as_ref()
+    }
+
+    /// Get the unique class labels
+    #[must_use]
+    pub fn classes(&self) -> Option<&Array1<f64>> {
+        self.classes.as_ref()
+    }
+
+    /// Binarize the input matrix
+    fn binarize_input(&self, x: &Array2<f64>) -> Array2<f64> {
+        if let Some(threshold) = self.binarize {
+            x.mapv(|v| if v > threshold { 1.0 } else { 0.0 })
+        } else {
+            x.clone()
+        }
+    }
+
+    /// Incremental fit on a batch of samples
+    pub fn partial_fit(
+        &mut self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        classes: Option<Vec<f64>>,
+    ) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        let x_bin = self.binarize_input(x);
+        let n_features = x_bin.ncols();
+
+        // Initialize on first call
+        if !self.is_fitted() {
+            let classes = classes.ok_or_else(|| {
+                FerroError::invalid_input("Classes must be provided on first call to partial_fit")
+            })?;
+
+            if classes.is_empty() {
+                return Err(FerroError::invalid_input("Classes cannot be empty"));
+            }
+
+            let n_classes = classes.len();
+            let classes_arr = Array1::from_vec(classes);
+
+            self.classes = Some(classes_arr);
+            self.n_features = Some(n_features);
+            self.feature_count = Some(Array2::zeros((n_classes, n_features)));
+            self.class_count = Some(Array1::zeros(n_classes));
+        }
+
+        // Validate feature count matches
+        if self.n_features.unwrap() != n_features {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", self.n_features.unwrap()),
+                format!("{} features", n_features),
+            ));
+        }
+
+        let classes = self.classes.as_ref().unwrap();
+
+        // Update counts for each class
+        for (class_idx, &class_label) in classes.iter().enumerate() {
+            // Get samples for this class
+            let class_mask: Vec<usize> = y
+                .iter()
+                .enumerate()
+                .filter(|(_, &yi)| (yi - class_label).abs() < 1e-10)
+                .map(|(i, _)| i)
+                .collect();
+
+            if class_mask.is_empty() {
+                continue;
+            }
+
+            let n_class_samples = class_mask.len();
+
+            // Sum feature occurrences for this class
+            let feature_count = self.feature_count.as_mut().unwrap();
+            let class_count = self.class_count.as_mut().unwrap();
+
+            for &idx in &class_mask {
+                for j in 0..n_features {
+                    feature_count[[class_idx, j]] += x_bin[[idx, j]];
+                }
+            }
+
+            class_count[class_idx] += n_class_samples as f64;
+        }
+
+        // Update log probabilities
+        self.update_log_probabilities();
+
+        Ok(())
+    }
+
+    /// Update log probabilities after fitting/partial fitting
+    fn update_log_probabilities(&mut self) {
+        let feature_count = self.feature_count.as_ref().unwrap();
+        let class_count = self.class_count.as_ref().unwrap();
+        let n_classes = class_count.len();
+        let n_features = self.n_features.unwrap();
+
+        // Compute class log priors
+        let total_samples: f64 = class_count.sum();
+        if total_samples > 0.0 {
+            if let Some(ref user_priors) = self.class_prior {
+                self.class_log_prior = Some(user_priors.mapv(|p| p.ln()));
+            } else if self.fit_prior {
+                self.class_log_prior = Some(class_count.mapv(|c| (c / total_samples).ln()));
+            } else {
+                let uniform = 1.0 / n_classes as f64;
+                self.class_log_prior = Some(Array1::from_elem(n_classes, uniform.ln()));
+            }
+        }
+
+        // Compute feature log probabilities with smoothing
+        // P(x_i=1 | y) = (count + alpha) / (n_y + 2*alpha)
+        let mut feature_log_prob = Array2::zeros((n_classes, n_features));
+        let mut feature_log_prob_neg = Array2::zeros((n_classes, n_features));
+
+        for class_idx in 0..n_classes {
+            let n_class = class_count[class_idx];
+            let denominator = n_class + 2.0 * self.alpha;
+
+            for j in 0..n_features {
+                let count = feature_count[[class_idx, j]];
+                let prob = (count + self.alpha) / denominator;
+                let prob_neg = 1.0 - prob;
+
+                feature_log_prob[[class_idx, j]] = prob.ln();
+                feature_log_prob_neg[[class_idx, j]] = prob_neg.ln();
+            }
+        }
+
+        self.feature_log_prob = Some(feature_log_prob);
+        self.feature_log_prob_neg = Some(feature_log_prob_neg);
+    }
+
+    /// Compute joint log-likelihood for each class
+    fn joint_log_likelihood(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.feature_log_prob, "joint_log_likelihood")?;
+
+        let n_features = self.n_features.unwrap();
+        validate_predict_input(x, n_features)?;
+
+        let x_bin = self.binarize_input(x);
+
+        let feature_log_prob = self.feature_log_prob.as_ref().unwrap();
+        let feature_log_prob_neg = self.feature_log_prob_neg.as_ref().unwrap();
+        let class_log_prior = self.class_log_prior.as_ref().unwrap();
+
+        let n_samples = x_bin.nrows();
+        let n_classes = feature_log_prob.nrows();
+
+        let mut jll = Array2::zeros((n_samples, n_classes));
+
+        for class_idx in 0..n_classes {
+            let log_prior = class_log_prior[class_idx];
+            let log_prob = feature_log_prob.row(class_idx);
+            let log_prob_neg = feature_log_prob_neg.row(class_idx);
+
+            for sample_idx in 0..n_samples {
+                // log P(y) + sum_i [x_i * log P(x_i=1|y) + (1-x_i) * log P(x_i=0|y)]
+                let xi = x_bin.row(sample_idx);
+                let log_likelihood: f64 = xi
+                    .iter()
+                    .zip(log_prob.iter().zip(log_prob_neg.iter()))
+                    .map(|(&x_val, (&lp, &lp_neg))| x_val * lp + (1.0 - x_val) * lp_neg)
+                    .sum();
+
+                jll[[sample_idx, class_idx]] = log_prior + log_likelihood;
+            }
+        }
+
+        Ok(jll)
+    }
+}
+
+impl Model for BernoulliNB {
+    fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        // Find unique classes
+        let mut classes: Vec<f64> = y.iter().copied().collect();
+        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        classes.dedup();
+
+        if classes.len() < 2 {
+            return Err(FerroError::invalid_input(
+                "BernoulliNB requires at least 2 classes",
+            ));
+        }
+
+        // Reset state
+        self.class_log_prior = None;
+        self.feature_log_prob = None;
+        self.feature_log_prob_neg = None;
+        self.feature_count = None;
+        self.class_count = None;
+        self.classes = None;
+        self.n_features = None;
+
+        // Use partial_fit to do the actual work
+        self.partial_fit(x, y, Some(classes))
+    }
+
+    fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+        let jll = self.joint_log_likelihood(x)?;
+        let classes = self.classes.as_ref().unwrap();
+
+        let predictions: Array1<f64> = jll
+            .rows()
+            .into_iter()
+            .map(|row| {
+                let max_idx = row
+                    .iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .map(|(idx, _)| idx)
+                    .unwrap_or(0);
+                classes[max_idx]
+            })
+            .collect();
+
+        Ok(predictions)
+    }
+
+    fn is_fitted(&self) -> bool {
+        self.feature_log_prob.is_some()
+    }
+
+    fn feature_importance(&self) -> Option<Array1<f64>> {
+        let feature_log_prob = self.feature_log_prob.as_ref()?;
+        let n_features = feature_log_prob.ncols();
+
+        // Use variance of log-probs across classes as importance
+        let importance: Array1<f64> = (0..n_features)
+            .map(|j| {
+                let col: Vec<f64> = feature_log_prob.column(j).iter().copied().collect();
+                let mean: f64 = col.iter().sum::<f64>() / col.len() as f64;
+                col.iter().map(|&v| (v - mean).abs()).sum::<f64>() / col.len() as f64
+            })
+            .collect();
+
+        Some(importance)
+    }
+
+    fn search_space(&self) -> SearchSpace {
+        SearchSpace::new()
+            .float_log("alpha", 1e-3, 10.0)
+            .float("binarize", -1.0, 1.0) // -1 means None
+    }
+
+    fn feature_names(&self) -> Option<&[String]> {
+        None
+    }
+
+    fn n_features(&self) -> Option<usize> {
+        self.n_features
+    }
+}
+
+impl ProbabilisticModel for BernoulliNB {
+    fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        let jll = self.joint_log_likelihood(x)?;
+
+        let n_samples = jll.nrows();
+        let n_classes = jll.ncols();
+        let mut probas = Array2::zeros((n_samples, n_classes));
+
+        for i in 0..n_samples {
+            let row = jll.row(i);
+            let max_ll = row.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let sum_exp: f64 = row.iter().map(|&ll| (ll - max_ll).exp()).sum();
+            let log_sum = max_ll + sum_exp.ln();
+
+            for j in 0..n_classes {
+                probas[[i, j]] = (jll[[i, j]] - log_sum).exp();
+            }
+        }
+
+        Ok(probas)
+    }
+
+    fn predict_interval(&self, x: &Array2<f64>, level: f64) -> Result<PredictionInterval> {
+        let probas = self.predict_proba(x)?;
+        let predictions = self.predict(x)?;
+
+        let n_samples = x.nrows();
+        let z = z_critical(1.0 - (1.0 - level) / 2.0);
+
+        let classes = self.classes.as_ref().unwrap();
+        let mut pred_probas = Array1::zeros(n_samples);
+        let mut lower = Array1::zeros(n_samples);
+        let mut upper = Array1::zeros(n_samples);
+
+        for i in 0..n_samples {
+            let class_idx = classes
+                .iter()
+                .position(|&c| (c - predictions[i]).abs() < 1e-10)
+                .unwrap_or(0);
+            let p = probas[[i, class_idx]];
+            pred_probas[i] = p;
+
+            let se = (p * (1.0 - p)).sqrt().max(0.01);
+            lower[i] = (p - z * se).clamp(0.0, 1.0);
+            upper[i] = (p + z * se).clamp(0.0, 1.0);
+        }
+
+        Ok(PredictionInterval::new(pred_probas, lower, upper, level))
+    }
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/// Compute variance for each column
+fn compute_variance(x: &Array2<f64>, mean: &Array1<f64>) -> Array1<f64> {
+    let n = x.nrows() as f64;
+    if n <= 1.0 {
+        return Array1::zeros(x.ncols());
+    }
+
+    let n_features = x.ncols();
+    let mut var = Array1::zeros(n_features);
+
+    for j in 0..n_features {
+        let sum_sq: f64 = x.column(j).iter().map(|&xi| (xi - mean[j]).powi(2)).sum();
+        var[j] = sum_sq / n; // Population variance (sklearn uses n, not n-1)
+    }
+
+    var
+}
+
+/// Standard normal critical value (inverse CDF approximation)
+fn z_critical(p: f64) -> f64 {
+    if p <= 0.0 {
+        return f64::NEG_INFINITY;
+    }
+    if p >= 1.0 {
+        return f64::INFINITY;
+    }
+
+    let p_adj = if p > 0.5 { 1.0 - p } else { p };
+    let t = (-2.0 * p_adj.ln()).sqrt();
+
+    let c0 = 2.515_517;
+    let c1 = 0.802_853;
+    let c2 = 0.010_328;
+    let d1 = 1.432_788;
+    let d2 = 0.189_269;
+    let d3 = 0.001_308;
+
+    let z = t - (c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t);
+
+    if p > 0.5 {
+        z
+    } else {
+        -z
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_relative_eq;
+
+    fn create_simple_dataset() -> (Array2<f64>, Array1<f64>) {
+        // Simple 2D dataset with two classes
+        let x = Array2::from_shape_vec(
+            (10, 2),
+            vec![
+                1.0, 1.0, 1.5, 1.5, 2.0, 2.0, 2.5, 2.5, 3.0, 3.0, // Class 0
+                7.0, 7.0, 7.5, 7.5, 8.0, 8.0, 8.5, 8.5, 9.0, 9.0, // Class 1
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
+        (x, y)
+    }
+
+    #[test]
+    fn test_gaussian_nb_fit_predict() {
+        let (x, y) = create_simple_dataset();
+
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+
+        assert!(model.is_fitted());
+
+        // Predict on training data
+        let pred = model.predict(&x).unwrap();
+
+        // Should classify correctly (classes are well-separated)
+        for i in 0..5 {
+            assert_eq!(pred[i], 0.0, "Sample {} should be class 0", i);
+        }
+        for i in 5..10 {
+            assert_eq!(pred[i], 1.0, "Sample {} should be class 1", i);
+        }
+    }
+
+    #[test]
+    fn test_predict_proba() {
+        let (x, y) = create_simple_dataset();
+
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let probas = model.predict_proba(&x).unwrap();
+
+        // Check shape
+        assert_eq!(probas.nrows(), 10);
+        assert_eq!(probas.ncols(), 2);
+
+        // Probabilities should sum to 1
+        for i in 0..10 {
+            let sum: f64 = probas.row(i).sum();
+            assert_relative_eq!(sum, 1.0, epsilon = 1e-10);
+        }
+
+        // Class 0 samples should have high P(y=0)
+        for i in 0..5 {
+            assert!(
+                probas[[i, 0]] > 0.9,
+                "P(y=0) should be high for sample {}",
+                i
+            );
+        }
+
+        // Class 1 samples should have high P(y=1)
+        for i in 5..10 {
+            assert!(
+                probas[[i, 1]] > 0.9,
+                "P(y=1) should be high for sample {}",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_theta_and_var() {
+        let (x, y) = create_simple_dataset();
+
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let theta = model.theta().unwrap();
+        let var = model.var().unwrap();
+
+        // Check shape
+        assert_eq!(theta.shape(), &[2, 2]); // 2 classes, 2 features
+        assert_eq!(var.shape(), &[2, 2]);
+
+        // Class 0 mean should be around 2.0 for both features
+        assert_relative_eq!(theta[[0, 0]], 2.0, epsilon = 0.1);
+        assert_relative_eq!(theta[[0, 1]], 2.0, epsilon = 0.1);
+
+        // Class 1 mean should be around 8.0 for both features
+        assert_relative_eq!(theta[[1, 0]], 8.0, epsilon = 0.1);
+        assert_relative_eq!(theta[[1, 1]], 8.0, epsilon = 0.1);
+    }
+
+    #[test]
+    fn test_class_priors() {
+        let (x, y) = create_simple_dataset();
+
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let priors = model.class_prior().unwrap();
+
+        // Equal class sizes -> equal priors
+        assert_relative_eq!(priors[0], 0.5, epsilon = 1e-10);
+        assert_relative_eq!(priors[1], 0.5, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_custom_priors() {
+        let (x, y) = create_simple_dataset();
+
+        let custom_priors = Array1::from_vec(vec![0.3, 0.7]);
+        let mut model = GaussianNB::new().with_priors(custom_priors.clone());
+        model.fit(&x, &y).unwrap();
+
+        let priors = model.class_prior().unwrap();
+        assert_relative_eq!(priors[0], 0.3, epsilon = 1e-10);
+        assert_relative_eq!(priors[1], 0.7, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_partial_fit() {
+        // First batch
+        let x1 =
+            Array2::from_shape_vec((4, 2), vec![1.0, 1.0, 2.0, 2.0, 8.0, 8.0, 9.0, 9.0]).unwrap();
+        let y1 = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = GaussianNB::new();
+        model.partial_fit(&x1, &y1, Some(vec![0.0, 1.0])).unwrap();
+
+        assert!(model.is_fitted());
+        assert_eq!(model.class_count().unwrap()[0], 2.0);
+        assert_eq!(model.class_count().unwrap()[1], 2.0);
+
+        // Second batch
+        let x2 =
+            Array2::from_shape_vec((4, 2), vec![1.5, 1.5, 2.5, 2.5, 7.5, 7.5, 8.5, 8.5]).unwrap();
+        let y2 = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        model.partial_fit(&x2, &y2, None).unwrap();
+
+        assert_eq!(model.class_count().unwrap()[0], 4.0);
+        assert_eq!(model.class_count().unwrap()[1], 4.0);
+
+        // Should still predict correctly
+        let pred = model.predict(&x1).unwrap();
+        assert_eq!(pred[0], 0.0);
+        assert_eq!(pred[1], 0.0);
+        assert_eq!(pred[2], 1.0);
+        assert_eq!(pred[3], 1.0);
+    }
+
+    #[test]
+    fn test_partial_fit_unbalanced() {
+        // Test incremental learning with unbalanced updates
+        let x1 = Array2::from_shape_vec(
+            (6, 2),
+            vec![1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 8.0, 8.0, 9.0, 9.0, 10.0, 10.0],
+        )
+        .unwrap();
+        let y1 = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+
+        let mut model = GaussianNB::new();
+        model.partial_fit(&x1, &y1, Some(vec![0.0, 1.0])).unwrap();
+
+        // Add only class 0 samples
+        let x2 = Array2::from_shape_vec((2, 2), vec![1.5, 1.5, 2.5, 2.5]).unwrap();
+        let y2 = Array1::from_vec(vec![0.0, 0.0]);
+
+        model.partial_fit(&x2, &y2, None).unwrap();
+
+        // Class 0 should have 5 samples, class 1 should have 3
+        assert_eq!(model.class_count().unwrap()[0], 5.0);
+        assert_eq!(model.class_count().unwrap()[1], 3.0);
+    }
+
+    #[test]
+    fn test_var_smoothing() {
+        let (x, y) = create_simple_dataset();
+
+        let mut model_default = GaussianNB::new();
+        model_default.fit(&x, &y).unwrap();
+
+        let mut model_high_smooth = GaussianNB::new().with_var_smoothing(1.0);
+        model_high_smooth.fit(&x, &y).unwrap();
+
+        // Higher smoothing should result in larger epsilon
+        assert!(model_high_smooth.epsilon().unwrap() > model_default.epsilon().unwrap());
+    }
+
+    #[test]
+    fn test_multiclass() {
+        // 3-class dataset
+        let x = Array2::from_shape_vec(
+            (12, 2),
+            vec![
+                1.0, 1.0, 1.5, 1.5, 2.0, 2.0, 2.5, 2.5, // Class 0
+                5.0, 5.0, 5.5, 5.5, 6.0, 6.0, 6.5, 6.5, // Class 1
+                9.0, 9.0, 9.5, 9.5, 10.0, 10.0, 10.5, 10.5, // Class 2
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0,
+        ]);
+
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let classes = model.classes().unwrap();
+        assert_eq!(classes.len(), 3);
+
+        let probas = model.predict_proba(&x).unwrap();
+        assert_eq!(probas.ncols(), 3);
+
+        // Each row should sum to 1
+        for i in 0..12 {
+            let sum: f64 = probas.row(i).sum();
+            assert_relative_eq!(sum, 1.0, epsilon = 1e-10);
+        }
+    }
+
+    #[test]
+    fn test_feature_importance() {
+        let (x, y) = create_simple_dataset();
+
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let importance = model.feature_importance().unwrap();
+        assert_eq!(importance.len(), 2);
+
+        // Both features are equally discriminative in this dataset
+        // so importance should be similar
+        assert!(importance[0] > 0.0);
+        assert!(importance[1] > 0.0);
+    }
+
+    #[test]
+    fn test_prediction_interval() {
+        let (x, y) = create_simple_dataset();
+
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let interval = model.predict_interval(&x, 0.95).unwrap();
+
+        assert_eq!(interval.predictions.len(), 10);
+        assert_eq!(interval.lower.len(), 10);
+        assert_eq!(interval.upper.len(), 10);
+
+        // Bounds should be valid
+        for i in 0..10 {
+            assert!(interval.lower[i] >= 0.0);
+            assert!(interval.upper[i] <= 1.0);
+            assert!(interval.lower[i] <= interval.predictions[i]);
+            assert!(interval.predictions[i] <= interval.upper[i]);
+        }
+    }
+
+    #[test]
+    fn test_error_not_fitted() {
+        let model = GaussianNB::new();
+        let x = Array2::from_shape_vec((5, 2), vec![1.0; 10]).unwrap();
+
+        assert!(model.predict(&x).is_err());
+        assert!(model.predict_proba(&x).is_err());
+    }
+
+    #[test]
+    fn test_error_single_class() {
+        let x = Array2::from_shape_vec((5, 2), vec![1.0; 10]).unwrap();
+        let y = Array1::from_vec(vec![0.0; 5]);
+
+        let mut model = GaussianNB::new();
+        assert!(model.fit(&x, &y).is_err());
+    }
+
+    #[test]
+    fn test_error_wrong_features() {
+        let x_train =
+            Array2::from_shape_vec((4, 2), vec![1.0, 1.0, 2.0, 2.0, 7.0, 7.0, 8.0, 8.0]).unwrap();
+        let y_train = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = GaussianNB::new();
+        model.fit(&x_train, &y_train).unwrap();
+
+        // Try to predict with wrong number of features
+        let x_test = Array2::from_shape_vec((2, 3), vec![1.0; 6]).unwrap();
+        assert!(model.predict(&x_test).is_err());
+    }
+
+    #[test]
+    fn test_partial_fit_wrong_features() {
+        let x1 =
+            Array2::from_shape_vec((4, 2), vec![1.0, 1.0, 2.0, 2.0, 7.0, 7.0, 8.0, 8.0]).unwrap();
+        let y1 = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = GaussianNB::new();
+        model.partial_fit(&x1, &y1, Some(vec![0.0, 1.0])).unwrap();
+
+        // Try to partial_fit with wrong number of features
+        let x2 = Array2::from_shape_vec((2, 3), vec![1.0; 6]).unwrap();
+        let y2 = Array1::from_vec(vec![0.0, 1.0]);
+        assert!(model.partial_fit(&x2, &y2, None).is_err());
+    }
+
+    #[test]
+    fn test_partial_fit_missing_classes() {
+        let x =
+            Array2::from_shape_vec((4, 2), vec![1.0, 1.0, 2.0, 2.0, 7.0, 7.0, 8.0, 8.0]).unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = GaussianNB::new();
+
+        // First call without classes should fail
+        assert!(model.partial_fit(&x, &y, None).is_err());
+    }
+
+    #[test]
+    fn test_log_probability_numerical_stability() {
+        // Test with very separated classes to check for numerical stability
+        let x = Array2::from_shape_vec(
+            (6, 2),
+            vec![
+                0.0, 0.0, 0.1, 0.1, 0.2, 0.2, // Class 0
+                100.0, 100.0, 100.1, 100.1, 100.2, 100.2, // Class 1
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let probas = model.predict_proba(&x).unwrap();
+
+        // Should not have NaN or Inf
+        for i in 0..6 {
+            for j in 0..2 {
+                assert!(probas[[i, j]].is_finite(), "Probability should be finite");
+            }
+            let sum: f64 = probas.row(i).sum();
+            assert_relative_eq!(sum, 1.0, epsilon = 1e-10);
+        }
+    }
+
+    #[test]
+    fn test_classes_sorted() {
+        // Provide labels in non-sorted order
+        let x = Array2::from_shape_vec(
+            (6, 2),
+            vec![7.0, 7.0, 8.0, 8.0, 9.0, 9.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![1.0, 1.0, 1.0, 0.0, 0.0, 0.0]);
+
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let classes = model.classes().unwrap();
+        // Classes should be sorted
+        assert_eq!(classes[0], 0.0);
+        assert_eq!(classes[1], 1.0);
+    }
+
+    // ==========================================================================
+    // MultinomialNB Tests
+    // ==========================================================================
+
+    fn create_multinomial_dataset() -> (Array2<f64>, Array1<f64>) {
+        // Simulated word count data (bag-of-words style)
+        // Class 0: high counts in features 0,1
+        // Class 1: high counts in features 2,3
+        let x = Array2::from_shape_vec(
+            (8, 4),
+            vec![
+                5.0, 4.0, 0.0, 1.0, // Class 0
+                6.0, 3.0, 1.0, 0.0, // Class 0
+                4.0, 5.0, 0.0, 0.0, // Class 0
+                5.0, 5.0, 1.0, 1.0, // Class 0
+                0.0, 1.0, 5.0, 4.0, // Class 1
+                1.0, 0.0, 6.0, 3.0, // Class 1
+                0.0, 0.0, 4.0, 5.0, // Class 1
+                1.0, 1.0, 5.0, 5.0, // Class 1
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]);
+        (x, y)
+    }
+
+    #[test]
+    fn test_multinomial_nb_fit_predict() {
+        let (x, y) = create_multinomial_dataset();
+
+        let mut model = MultinomialNB::new();
+        model.fit(&x, &y).unwrap();
+
+        assert!(model.is_fitted());
+
+        let pred = model.predict(&x).unwrap();
+
+        // Should classify correctly
+        for i in 0..4 {
+            assert_eq!(pred[i], 0.0, "Sample {} should be class 0", i);
+        }
+        for i in 4..8 {
+            assert_eq!(pred[i], 1.0, "Sample {} should be class 1", i);
+        }
+    }
+
+    #[test]
+    fn test_multinomial_nb_predict_proba() {
+        let (x, y) = create_multinomial_dataset();
+
+        let mut model = MultinomialNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let probas = model.predict_proba(&x).unwrap();
+
+        // Check shape
+        assert_eq!(probas.nrows(), 8);
+        assert_eq!(probas.ncols(), 2);
+
+        // Probabilities should sum to 1
+        for i in 0..8 {
+            let sum: f64 = probas.row(i).sum();
+            assert_relative_eq!(sum, 1.0, epsilon = 1e-10);
+        }
+    }
+
+    #[test]
+    fn test_multinomial_nb_partial_fit() {
+        // First batch
+        let x1 = Array2::from_shape_vec(
+            (4, 3),
+            vec![
+                5.0, 1.0, 0.0, 4.0, 2.0, 0.0, // Class 0
+                0.0, 1.0, 5.0, 0.0, 0.0, 6.0, // Class 1
+            ],
+        )
+        .unwrap();
+        let y1 = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = MultinomialNB::new();
+        model.partial_fit(&x1, &y1, Some(vec![0.0, 1.0])).unwrap();
+
+        assert!(model.is_fitted());
+        assert_eq!(model.class_count().unwrap()[0], 2.0);
+        assert_eq!(model.class_count().unwrap()[1], 2.0);
+
+        // Second batch
+        let x2 = Array2::from_shape_vec(
+            (2, 3),
+            vec![
+                6.0, 2.0, 0.0, // Class 0
+                0.0, 1.0, 7.0, // Class 1
+            ],
+        )
+        .unwrap();
+        let y2 = Array1::from_vec(vec![0.0, 1.0]);
+
+        model.partial_fit(&x2, &y2, None).unwrap();
+
+        assert_eq!(model.class_count().unwrap()[0], 3.0);
+        assert_eq!(model.class_count().unwrap()[1], 3.0);
+    }
+
+    #[test]
+    fn test_multinomial_nb_alpha_smoothing() {
+        let (x, y) = create_multinomial_dataset();
+
+        // With different alpha values
+        let mut model_default = MultinomialNB::new();
+        model_default.fit(&x, &y).unwrap();
+
+        let mut model_low_alpha = MultinomialNB::new().with_alpha(0.1);
+        model_low_alpha.fit(&x, &y).unwrap();
+
+        // Both should predict correctly
+        let pred_default = model_default.predict(&x).unwrap();
+        let pred_low = model_low_alpha.predict(&x).unwrap();
+
+        for i in 0..4 {
+            assert_eq!(pred_default[i], 0.0);
+            assert_eq!(pred_low[i], 0.0);
+        }
+    }
+
+    #[test]
+    fn test_multinomial_nb_negative_values() {
+        let x =
+            Array2::from_shape_vec((4, 2), vec![1.0, -1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]).unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = MultinomialNB::new();
+        // Should fail because of negative values
+        assert!(model.fit(&x, &y).is_err());
+    }
+
+    #[test]
+    fn test_multinomial_nb_uniform_priors() {
+        let (x, y) = create_multinomial_dataset();
+
+        let mut model = MultinomialNB::new().with_fit_prior(false);
+        model.fit(&x, &y).unwrap();
+
+        let log_priors = model.class_log_prior().unwrap();
+        // Uniform priors -> log(0.5) for each class
+        let expected_log_prior = 0.5_f64.ln();
+        assert_relative_eq!(log_priors[0], expected_log_prior, epsilon = 1e-10);
+        assert_relative_eq!(log_priors[1], expected_log_prior, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_multinomial_nb_feature_counts() {
+        let x = Array2::from_shape_vec(
+            (4, 2),
+            vec![
+                3.0, 1.0, // Class 0
+                2.0, 2.0, // Class 0
+                1.0, 3.0, // Class 1
+                0.0, 4.0, // Class 1
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = MultinomialNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let feature_count = model.feature_count().unwrap();
+        // Class 0: feature 0 = 3+2 = 5, feature 1 = 1+2 = 3
+        assert_relative_eq!(feature_count[[0, 0]], 5.0, epsilon = 1e-10);
+        assert_relative_eq!(feature_count[[0, 1]], 3.0, epsilon = 1e-10);
+        // Class 1: feature 0 = 1+0 = 1, feature 1 = 3+4 = 7
+        assert_relative_eq!(feature_count[[1, 0]], 1.0, epsilon = 1e-10);
+        assert_relative_eq!(feature_count[[1, 1]], 7.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_multinomial_nb_feature_importance() {
+        let (x, y) = create_multinomial_dataset();
+
+        let mut model = MultinomialNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let importance = model.feature_importance().unwrap();
+        assert_eq!(importance.len(), 4);
+
+        // All features should have positive importance
+        for i in 0..4 {
+            assert!(importance[i] >= 0.0);
+        }
+    }
+
+    // ==========================================================================
+    // BernoulliNB Tests
+    // ==========================================================================
+
+    fn create_bernoulli_dataset() -> (Array2<f64>, Array1<f64>) {
+        // Binary presence/absence features
+        // Class 0: features 0,1 tend to be present
+        // Class 1: features 2,3 tend to be present
+        let x = Array2::from_shape_vec(
+            (8, 4),
+            vec![
+                1.0, 1.0, 0.0, 0.0, // Class 0
+                1.0, 1.0, 0.0, 1.0, // Class 0
+                1.0, 0.0, 0.0, 0.0, // Class 0
+                1.0, 1.0, 1.0, 0.0, // Class 0
+                0.0, 0.0, 1.0, 1.0, // Class 1
+                0.0, 1.0, 1.0, 1.0, // Class 1
+                0.0, 0.0, 1.0, 1.0, // Class 1
+                1.0, 0.0, 1.0, 1.0, // Class 1
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]);
+        (x, y)
+    }
+
+    #[test]
+    fn test_bernoulli_nb_fit_predict() {
+        let (x, y) = create_bernoulli_dataset();
+
+        let mut model = BernoulliNB::new().with_binarize(None); // Already binary
+        model.fit(&x, &y).unwrap();
+
+        assert!(model.is_fitted());
+
+        let pred = model.predict(&x).unwrap();
+
+        // Should classify correctly
+        for i in 0..4 {
+            assert_eq!(pred[i], 0.0, "Sample {} should be class 0", i);
+        }
+        for i in 4..8 {
+            assert_eq!(pred[i], 1.0, "Sample {} should be class 1", i);
+        }
+    }
+
+    #[test]
+    fn test_bernoulli_nb_predict_proba() {
+        let (x, y) = create_bernoulli_dataset();
+
+        let mut model = BernoulliNB::new().with_binarize(None);
+        model.fit(&x, &y).unwrap();
+
+        let probas = model.predict_proba(&x).unwrap();
+
+        // Check shape
+        assert_eq!(probas.nrows(), 8);
+        assert_eq!(probas.ncols(), 2);
+
+        // Probabilities should sum to 1
+        for i in 0..8 {
+            let sum: f64 = probas.row(i).sum();
+            assert_relative_eq!(sum, 1.0, epsilon = 1e-10);
+        }
+    }
+
+    #[test]
+    fn test_bernoulli_nb_binarization() {
+        // Non-binary data that should be binarized
+        let x = Array2::from_shape_vec(
+            (6, 3),
+            vec![
+                5.0, 3.0, 0.0, // -> 1, 1, 0 (Class 0)
+                4.0, 2.0, 0.0, // -> 1, 1, 0 (Class 0)
+                6.0, 4.0, 0.0, // -> 1, 1, 0 (Class 0)
+                0.0, 0.0, 5.0, // -> 0, 0, 1 (Class 1)
+                0.0, 0.0, 4.0, // -> 0, 0, 1 (Class 1)
+                0.0, 0.0, 6.0, // -> 0, 0, 1 (Class 1)
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+
+        // Default binarize threshold is 0.0
+        let mut model = BernoulliNB::new();
+        model.fit(&x, &y).unwrap();
+
+        let pred = model.predict(&x).unwrap();
+        for i in 0..3 {
+            assert_eq!(pred[i], 0.0, "Sample {} should be class 0", i);
+        }
+        for i in 3..6 {
+            assert_eq!(pred[i], 1.0, "Sample {} should be class 1", i);
+        }
+    }
+
+    #[test]
+    fn test_bernoulli_nb_custom_binarize_threshold() {
+        // Data with values around threshold
+        let x = Array2::from_shape_vec(
+            (4, 2),
+            vec![
+                3.0, 1.0, // threshold=2: -> 1, 0
+                4.0, 0.5, // -> 1, 0
+                0.5, 3.0, // -> 0, 1
+                1.0, 4.0, // -> 0, 1
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = BernoulliNB::new().with_binarize(Some(2.0));
+        model.fit(&x, &y).unwrap();
+
+        let feature_count = model.feature_count().unwrap();
+        // Class 0: feature 0 count = 2 (both > 2), feature 1 count = 0 (both <= 2)
+        assert_relative_eq!(feature_count[[0, 0]], 2.0, epsilon = 1e-10);
+        assert_relative_eq!(feature_count[[0, 1]], 0.0, epsilon = 1e-10);
+        // Class 1: feature 0 count = 0 (both <= 2), feature 1 count = 2 (both > 2)
+        assert_relative_eq!(feature_count[[1, 0]], 0.0, epsilon = 1e-10);
+        assert_relative_eq!(feature_count[[1, 1]], 2.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_bernoulli_nb_partial_fit() {
+        let x1 = Array2::from_shape_vec(
+            (4, 2),
+            vec![
+                1.0, 0.0, 1.0, 0.0, // Class 0
+                0.0, 1.0, 0.0, 1.0, // Class 1
+            ],
+        )
+        .unwrap();
+        let y1 = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = BernoulliNB::new().with_binarize(None);
+        model.partial_fit(&x1, &y1, Some(vec![0.0, 1.0])).unwrap();
+
+        assert!(model.is_fitted());
+        assert_eq!(model.class_count().unwrap()[0], 2.0);
+        assert_eq!(model.class_count().unwrap()[1], 2.0);
+
+        // Second batch
+        let x2 = Array2::from_shape_vec(
+            (2, 2),
+            vec![
+                1.0, 1.0, // Class 0
+                0.0, 1.0, // Class 1
+            ],
+        )
+        .unwrap();
+        let y2 = Array1::from_vec(vec![0.0, 1.0]);
+
+        model.partial_fit(&x2, &y2, None).unwrap();
+
+        assert_eq!(model.class_count().unwrap()[0], 3.0);
+        assert_eq!(model.class_count().unwrap()[1], 3.0);
+    }
+
+    #[test]
+    fn test_bernoulli_nb_alpha_smoothing() {
+        let (x, y) = create_bernoulli_dataset();
+
+        let mut model_high_alpha = BernoulliNB::new().with_alpha(2.0).with_binarize(None);
+        model_high_alpha.fit(&x, &y).unwrap();
+
+        let mut model_low_alpha = BernoulliNB::new().with_alpha(0.01).with_binarize(None);
+        model_low_alpha.fit(&x, &y).unwrap();
+
+        // Both should still predict correctly on well-separated data
+        let pred_high = model_high_alpha.predict(&x).unwrap();
+        let pred_low = model_low_alpha.predict(&x).unwrap();
+
+        for i in 0..4 {
+            assert_eq!(pred_high[i], 0.0);
+            assert_eq!(pred_low[i], 0.0);
+        }
+    }
+
+    #[test]
+    fn test_bernoulli_nb_feature_log_prob() {
+        let x = Array2::from_shape_vec(
+            (4, 2),
+            vec![
+                1.0, 0.0, 1.0, 0.0, // Class 0: feature 0 always present, feature 1 never
+                0.0, 1.0, 0.0, 1.0, // Class 1: feature 0 never, feature 1 always
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut model = BernoulliNB::new().with_alpha(1.0).with_binarize(None);
+        model.fit(&x, &y).unwrap();
+
+        let log_prob = model.feature_log_prob().unwrap();
+
+        // With alpha=1, n_class=2:
+        // P(feature 0 = 1 | class 0) = (2 + 1) / (2 + 2) = 0.75
+        // P(feature 1 = 1 | class 0) = (0 + 1) / (2 + 2) = 0.25
+        assert_relative_eq!(log_prob[[0, 0]], 0.75_f64.ln(), epsilon = 1e-10);
+        assert_relative_eq!(log_prob[[0, 1]], 0.25_f64.ln(), epsilon = 1e-10);
+
+        // P(feature 0 = 1 | class 1) = (0 + 1) / (2 + 2) = 0.25
+        // P(feature 1 = 1 | class 1) = (2 + 1) / (2 + 2) = 0.75
+        assert_relative_eq!(log_prob[[1, 0]], 0.25_f64.ln(), epsilon = 1e-10);
+        assert_relative_eq!(log_prob[[1, 1]], 0.75_f64.ln(), epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_bernoulli_nb_feature_importance() {
+        let (x, y) = create_bernoulli_dataset();
+
+        let mut model = BernoulliNB::new().with_binarize(None);
+        model.fit(&x, &y).unwrap();
+
+        let importance = model.feature_importance().unwrap();
+        assert_eq!(importance.len(), 4);
+
+        // All features should have non-negative importance
+        for i in 0..4 {
+            assert!(importance[i] >= 0.0);
+        }
+    }
+
+    #[test]
+    fn test_bernoulli_nb_prediction_interval() {
+        let (x, y) = create_bernoulli_dataset();
+
+        let mut model = BernoulliNB::new().with_binarize(None);
+        model.fit(&x, &y).unwrap();
+
+        let interval = model.predict_interval(&x, 0.95).unwrap();
+
+        assert_eq!(interval.predictions.len(), 8);
+        assert_eq!(interval.lower.len(), 8);
+        assert_eq!(interval.upper.len(), 8);
+
+        for i in 0..8 {
+            assert!(interval.lower[i] >= 0.0);
+            assert!(interval.upper[i] <= 1.0);
+            assert!(interval.lower[i] <= interval.predictions[i]);
+            assert!(interval.predictions[i] <= interval.upper[i]);
+        }
+    }
+
+    #[test]
+    fn test_bernoulli_nb_multiclass() {
+        // 3-class dataset
+        let x = Array2::from_shape_vec(
+            (9, 3),
+            vec![
+                1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, // Class 0: feature 0
+                0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, // Class 1: feature 1
+                0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, // Class 2: feature 2
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0]);
+
+        let mut model = BernoulliNB::new().with_binarize(None);
+        model.fit(&x, &y).unwrap();
+
+        let classes = model.classes().unwrap();
+        assert_eq!(classes.len(), 3);
+
+        let probas = model.predict_proba(&x).unwrap();
+        assert_eq!(probas.ncols(), 3);
+
+        // Each row should sum to 1
+        for i in 0..9 {
+            let sum: f64 = probas.row(i).sum();
+            assert_relative_eq!(sum, 1.0, epsilon = 1e-10);
+        }
+    }
+
+    #[test]
+    fn test_bernoulli_nb_not_fitted_error() {
+        let model = BernoulliNB::new();
+        let x = Array2::from_shape_vec((2, 2), vec![1.0; 4]).unwrap();
+
+        assert!(model.predict(&x).is_err());
+        assert!(model.predict_proba(&x).is_err());
+    }
+
+    #[test]
+    fn test_bernoulli_nb_single_class_error() {
+        let x = Array2::from_shape_vec((4, 2), vec![1.0; 8]).unwrap();
+        let y = Array1::from_vec(vec![0.0; 4]);
+
+        let mut model = BernoulliNB::new();
+        assert!(model.fit(&x, &y).is_err());
+    }
+}

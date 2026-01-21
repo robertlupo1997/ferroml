@@ -1,0 +1,59 @@
+[package]
+name = "ferroml-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Core AutoML engine with statistical rigor"
+
+[dependencies]
+# Numerical computing
+ndarray.workspace = true
+ndarray-stats.workspace = true
+nalgebra.workspace = true
+
+# Data
+polars.workspace = true
+arrow.workspace = true
+
+# Statistics
+statrs.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
+argmin.workspace = true
+argmin-math.workspace = true
+
+# Parallel
+rayon.workspace = true
+crossbeam.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+rmp-serde.workspace = true
+prost.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+
+[dev-dependencies]
+criterion = "0.5"
+approx = "0.5"
+proptest = "1.5"
+tempfile = "3.15"
+
+[[bench]]
+name = "benchmarks"
+harness = false
+
+[features]
+default = ["parallel", "onnx"]
+parallel = []
+simd = []
+gpu = []  # Future CUDA/Metal support
+onnx = []  # ONNX export support

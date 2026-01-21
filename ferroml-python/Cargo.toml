@@ -1,0 +1,28 @@
+[package]
+name = "ferroml-python"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Python bindings for FerroML"
+
+[lib]
+name = "ferroml"
+crate-type = ["cdylib"]
+
+[dependencies]
+ferroml-core = { path = "../ferroml-core" }
+pyo3.workspace = true
+numpy.workspace = true
+ndarray.workspace = true
+serde.workspace = true
+
+# Optional dependencies for DataFrame support
+pyo3-polars = { workspace = true, optional = true }
+polars = { workspace = true, optional = true }
+
+[features]
+default = ["polars", "pandas", "sparse"]
+polars = ["dep:pyo3-polars", "dep:polars"]
+pandas = []  # Uses PyO3 Python interop to call PyArrow/Pandas methods
+sparse = []  # Uses PyO3 Python interop to call scipy.sparse methods

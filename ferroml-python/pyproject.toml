@@ -1,0 +1,101 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "ferroml"
+version = "0.1.0"
+description = "Statistically rigorous AutoML in Rust with Python bindings"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
+authors = [
+    { name = "FerroML Contributors" }
+]
+keywords = [
+    "machine-learning",
+    "automl",
+    "statistics",
+    "data-science",
+    "rust",
+    "scikit-learn"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
+dependencies = [
+    "numpy>=1.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+    "ruff>=0.1",
+]
+polars = [
+    "polars>=0.19",
+]
+pandas = [
+    "pandas>=1.5",
+]
+all = [
+    "ferroml[polars,pandas]",
+]
+
+[project.urls]
+Homepage = "https://github.com/user/ferroml"
+Documentation = "https://github.com/user/ferroml#readme"
+Repository = "https://github.com/user/ferroml"
+Issues = "https://github.com/user/ferroml/issues"
+
+[tool.maturin]
+# Build configuration
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "ferroml"
+bindings = "pyo3"
+
+# Wheel compatibility - uses abi3-py310 from pyo3 config
+compatibility = "linux"
+
+# Strip debug symbols for smaller wheel size
+strip = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]

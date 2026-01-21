@@ -1,0 +1,32 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+NUL
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+
+# Logs
+*.log
+ralph.log
+
+# Local settings
+.claude/settings.local.json
