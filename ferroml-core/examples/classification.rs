@@ -236,10 +236,7 @@ fn main() -> ferroml_core::Result<()> {
     let acc_rf = accuracy(&y_test, &y_pred_rf)?;
     let acc_tree = accuracy(&y_test, &y_pred_tree)?;
 
-    println!(
-        "{:<25} {:>15} {:>15}",
-        "Model", "Task", "Accuracy"
-    );
+    println!("{:<25} {:>15} {:>15}", "Model", "Task", "Accuracy");
     println!("{}", "-".repeat(55));
     println!(
         "{:<25} {:>15} {:>15.4}",

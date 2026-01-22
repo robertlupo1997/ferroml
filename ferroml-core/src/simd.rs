@@ -68,18 +68,8 @@ pub fn squared_euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
 
     for i in 0..chunks {
         let offset = i * 4;
-        let a_vec = f64x4::new([
-            a[offset],
-            a[offset + 1],
-            a[offset + 2],
-            a[offset + 3],
-        ]);
-        let b_vec = f64x4::new([
-            b[offset],
-            b[offset + 1],
-            b[offset + 2],
-            b[offset + 3],
-        ]);
+        let a_vec = f64x4::new([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]);
+        let b_vec = f64x4::new([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
 
         let diff = a_vec - b_vec;
         sum_vec = sum_vec + diff * diff;
@@ -161,18 +151,8 @@ pub fn manhattan_distance(a: &[f64], b: &[f64]) -> f64 {
 
     for i in 0..chunks {
         let offset = i * 4;
-        let a_vec = f64x4::new([
-            a[offset],
-            a[offset + 1],
-            a[offset + 2],
-            a[offset + 3],
-        ]);
-        let b_vec = f64x4::new([
-            b[offset],
-            b[offset + 1],
-            b[offset + 2],
-            b[offset + 3],
-        ]);
+        let a_vec = f64x4::new([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]);
+        let b_vec = f64x4::new([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
 
         let diff = a_vec - b_vec;
         sum_vec = sum_vec + diff.abs();
@@ -204,9 +184,22 @@ pub fn manhattan_distance(a: &[f64], b: &[f64]) -> f64 {
 ///
 /// Vector of squared Euclidean distances from query to each reference.
 #[inline]
-pub fn batch_squared_euclidean(query: &[f64], references: &[f64], n_samples: usize, n_features: usize) -> Vec<f64> {
-    debug_assert_eq!(query.len(), n_features, "Query must have n_features dimensions");
-    debug_assert_eq!(references.len(), n_samples * n_features, "References must have n_samples * n_features elements");
+pub fn batch_squared_euclidean(
+    query: &[f64],
+    references: &[f64],
+    n_samples: usize,
+    n_features: usize,
+) -> Vec<f64> {
+    debug_assert_eq!(
+        query.len(),
+        n_features,
+        "Query must have n_features dimensions"
+    );
+    debug_assert_eq!(
+        references.len(),
+        n_samples * n_features,
+        "References must have n_samples * n_features elements"
+    );
 
     let mut distances = Vec::with_capacity(n_samples);
 
@@ -242,18 +235,8 @@ pub fn dot_product(a: &[f64], b: &[f64]) -> f64 {
 
     for i in 0..chunks {
         let offset = i * 4;
-        let a_vec = f64x4::new([
-            a[offset],
-            a[offset + 1],
-            a[offset + 2],
-            a[offset + 3],
-        ]);
-        let b_vec = f64x4::new([
-            b[offset],
-            b[offset + 1],
-            b[offset + 2],
-            b[offset + 3],
-        ]);
+        let a_vec = f64x4::new([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]);
+        let b_vec = f64x4::new([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
 
         sum_vec = sum_vec + a_vec * b_vec;
     }
@@ -291,12 +274,7 @@ pub fn sum(a: &[f64]) -> f64 {
 
     for i in 0..chunks {
         let offset = i * 4;
-        let a_vec = f64x4::new([
-            a[offset],
-            a[offset + 1],
-            a[offset + 2],
-            a[offset + 3],
-        ]);
+        let a_vec = f64x4::new([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]);
         sum_vec = sum_vec + a_vec;
     }
 
@@ -333,12 +311,7 @@ pub fn sum_of_squares(a: &[f64]) -> f64 {
 
     for i in 0..chunks {
         let offset = i * 4;
-        let a_vec = f64x4::new([
-            a[offset],
-            a[offset + 1],
-            a[offset + 2],
-            a[offset + 3],
-        ]);
+        let a_vec = f64x4::new([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]);
         sum_vec = sum_vec + a_vec * a_vec;
     }
 
@@ -380,18 +353,8 @@ pub fn squared_differences(a: &[f64], b: &[f64]) -> Vec<f64> {
     // Process 4 elements at a time using SIMD
     for i in 0..chunks {
         let offset = i * 4;
-        let a_vec = f64x4::new([
-            a[offset],
-            a[offset + 1],
-            a[offset + 2],
-            a[offset + 3],
-        ]);
-        let b_vec = f64x4::new([
-            b[offset],
-            b[offset + 1],
-            b[offset + 2],
-            b[offset + 3],
-        ]);
+        let a_vec = f64x4::new([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]);
+        let b_vec = f64x4::new([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
 
         let diff = a_vec - b_vec;
         let sq = diff * diff;
@@ -455,18 +418,8 @@ pub fn minkowski_distance(a: &[f64], b: &[f64], p: f64) -> f64 {
     // We still benefit from SIMD for the abs(diff) computation
     for i in 0..chunks {
         let offset = i * 4;
-        let a_vec = f64x4::new([
-            a[offset],
-            a[offset + 1],
-            a[offset + 2],
-            a[offset + 3],
-        ]);
-        let b_vec = f64x4::new([
-            b[offset],
-            b[offset + 1],
-            b[offset + 2],
-            b[offset + 3],
-        ]);
+        let a_vec = f64x4::new([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]);
+        let b_vec = f64x4::new([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
 
         let diff = a_vec - b_vec;
         let abs_diff = diff.abs();
@@ -482,7 +435,9 @@ pub fn minkowski_distance(a: &[f64], b: &[f64], p: f64) -> f64 {
     // Handle remainder elements
     let remainder_start = chunks * 4;
     for i in 0..remainder {
-        sum += (a[remainder_start + i] - b[remainder_start + i]).abs().powf(p);
+        sum += (a[remainder_start + i] - b[remainder_start + i])
+            .abs()
+            .powf(p);
     }
 
     sum.powf(1.0 / p)
@@ -592,7 +547,13 @@ pub fn matrix_vector_mul(matrix: &[f64], vector: &[f64], m: usize, n: usize) -> 
 /// * `m` - Number of rows
 /// * `n` - Number of columns
 #[inline]
-pub fn matrix_vector_mul_into(matrix: &[f64], vector: &[f64], result: &mut [f64], m: usize, n: usize) {
+pub fn matrix_vector_mul_into(
+    matrix: &[f64],
+    vector: &[f64],
+    result: &mut [f64],
+    m: usize,
+    n: usize,
+) {
     debug_assert_eq!(matrix.len(), m * n, "Matrix must have m * n elements");
     debug_assert_eq!(vector.len(), n, "Vector must have n elements");
     debug_assert_eq!(result.len(), m, "Result must have m elements");
@@ -1594,9 +1555,9 @@ mod tests {
     fn test_batch_squared_euclidean() {
         let query = [0.0, 0.0];
         let references = [
-            1.0, 0.0,  // distance^2 = 1
-            0.0, 2.0,  // distance^2 = 4
-            3.0, 4.0,  // distance^2 = 25
+            1.0, 0.0, // distance^2 = 1
+            0.0, 2.0, // distance^2 = 4
+            3.0, 4.0, // distance^2 = 25
         ];
 
         let distances = batch_squared_euclidean(&query, &references, 3, 2);
@@ -1648,7 +1609,8 @@ mod tests {
         let b: [f64; 9] = [2.1, 3.4, 4.0, 5.5, 6.1, 7.2, 8.0, 9.1, 10.5];
 
         // Scalar computation
-        let scalar_result: f64 = a.iter()
+        let scalar_result: f64 = a
+            .iter()
             .zip(b.iter())
             .map(|(&ai, &bi): (&f64, &f64)| (ai - bi).powi(2))
             .sum::<f64>()
@@ -1665,7 +1627,8 @@ mod tests {
         let b: [f64; 9] = [2.1, 3.4, 4.0, 5.5, 6.1, 7.2, 8.0, 9.1, 10.5];
 
         // Scalar computation
-        let scalar_result: f64 = a.iter()
+        let scalar_result: f64 = a
+            .iter()
             .zip(b.iter())
             .map(|(&ai, &bi): (&f64, &f64)| (ai - bi).abs())
             .sum();

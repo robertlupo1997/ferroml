@@ -29,7 +29,9 @@ pub use classification::{
     ConfusionMatrix, MatthewsCorrCoefMetric,
 };
 pub use comparison::{
-    corrected_resampled_ttest, mcnemar_test, paired_ttest, ModelComparisonResult,
+    corrected_resampled_ttest, five_by_two_cv_paired_ttest,
+    five_by_two_cv_paired_ttest_from_scores, mcnemar_test, paired_ttest, wilcoxon_signed_rank_test,
+    ModelComparisonResult,
 };
 pub use probabilistic::{
     average_precision_score, brier_score, brier_skill_score, log_loss, pr_auc_score, roc_auc_score,

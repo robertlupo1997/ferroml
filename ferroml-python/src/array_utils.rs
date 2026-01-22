@@ -35,7 +35,10 @@
 //! - Output arrays use `into_pyarray` which transfers ownership efficiently.
 
 use ndarray::{Array1, Array2, ArrayView1, ArrayView2};
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyUntypedArrayMethods, ToPyArray};
+use numpy::{
+    IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyUntypedArrayMethods,
+    ToPyArray,
+};
 use pyo3::prelude::*;
 
 /// Convert a PyReadonlyArray2 to an ArrayView2 (zero-copy).
@@ -98,10 +101,7 @@ pub fn to_owned_array_1d(x: PyReadonlyArray1<'_, f64>) -> Array1<f64> {
 /// This is efficient as it transfers ownership rather than copying data.
 /// The Rust array is consumed and becomes owned by Python.
 #[inline]
-pub fn array1_into_pyarray<'py>(
-    py: Python<'py>,
-    arr: Array1<f64>,
-) -> Bound<'py, PyArray1<f64>> {
+pub fn array1_into_pyarray<'py>(py: Python<'py>, arr: Array1<f64>) -> Bound<'py, PyArray1<f64>> {
     arr.into_pyarray(py)
 }
 
@@ -110,10 +110,7 @@ pub fn array1_into_pyarray<'py>(
 /// This is efficient as it transfers ownership rather than copying data.
 /// The Rust array is consumed and becomes owned by Python.
 #[inline]
-pub fn array2_into_pyarray<'py>(
-    py: Python<'py>,
-    arr: Array2<f64>,
-) -> Bound<'py, PyArray2<f64>> {
+pub fn array2_into_pyarray<'py>(py: Python<'py>, arr: Array2<f64>) -> Bound<'py, PyArray2<f64>> {
     arr.into_pyarray(py)
 }
 
@@ -122,10 +119,7 @@ pub fn array2_into_pyarray<'py>(
 /// Use this when you need to keep the Rust array and also return a copy to Python.
 /// For most cases, prefer `array1_into_pyarray` which avoids the copy.
 #[inline]
-pub fn array1_to_pyarray<'py>(
-    py: Python<'py>,
-    arr: &Array1<f64>,
-) -> Bound<'py, PyArray1<f64>> {
+pub fn array1_to_pyarray<'py>(py: Python<'py>, arr: &Array1<f64>) -> Bound<'py, PyArray1<f64>> {
     arr.to_pyarray(py)
 }
 
@@ -134,10 +128,7 @@ pub fn array1_to_pyarray<'py>(
 /// Use this when you need to keep the Rust array and also return a copy to Python.
 /// For most cases, prefer `array2_into_pyarray` which avoids the copy.
 #[inline]
-pub fn array2_to_pyarray<'py>(
-    py: Python<'py>,
-    arr: &Array2<f64>,
-) -> Bound<'py, PyArray2<f64>> {
+pub fn array2_to_pyarray<'py>(py: Python<'py>, arr: &Array2<f64>) -> Bound<'py, PyArray2<f64>> {
     arr.to_pyarray(py)
 }
 

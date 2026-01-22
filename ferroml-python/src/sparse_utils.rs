@@ -87,7 +87,11 @@ impl std::fmt::Display for SparseConversionError {
             }
             Self::EmptyMatrix => write!(f, "Sparse matrix is empty"),
             Self::NonNumericData(dtype) => {
-                write!(f, "Non-numeric data type '{}'. Expected float or int.", dtype)
+                write!(
+                    f,
+                    "Non-numeric data type '{}'. Expected float or int.",
+                    dtype
+                )
             }
             Self::PythonError(e) => write!(f, "Python error: {}", e),
             Self::InvalidValues(msg) => write!(f, "Invalid values: {}", msg),
@@ -176,9 +180,9 @@ pub fn sparse_to_dense<'py>(
         "csr" | "csc" | "csr_matrix" | "csr_array" | "csc_matrix" | "csc_array"
     ) {
         // Try to convert to CSR first
-        let converted = sparse_matrix.call_method0("tocsr").map_err(|_| {
-            SparseConversionError::UnsupportedFormat(format_str.clone())
-        })?;
+        let converted = sparse_matrix
+            .call_method0("tocsr")
+            .map_err(|_| SparseConversionError::UnsupportedFormat(format_str.clone()))?;
         return sparse_to_dense(py, &converted);
     }
 
@@ -191,8 +195,7 @@ pub fn sparse_to_dense<'py>(
     }
 
     // Convert to dense using toarray() method
-    let dense_array = sparse_matrix
-        .call_method0("toarray")?;
+    let dense_array = sparse_matrix.call_method0("toarray")?;
 
     // Convert to float64 if needed
     let dense_float = dense_array
@@ -334,9 +337,7 @@ pub fn sparse_to_dense_efficient<'py>(
 /// # Returns
 ///
 /// A `SparseMatrixInfo` struct with matrix metadata.
-pub fn get_sparse_info<'py>(
-    sparse_matrix: &Bound<'py, PyAny>,
-) -> SparseResult<SparseMatrixInfo> {
+pub fn get_sparse_info<'py>(sparse_matrix: &Bound<'py, PyAny>) -> SparseResult<SparseMatrixInfo> {
     let format = get_sparse_format(sparse_matrix)?;
 
     let shape: (usize, usize) = sparse_matrix.getattr("shape")?.extract()?;

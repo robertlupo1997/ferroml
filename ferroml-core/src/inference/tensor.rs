@@ -282,7 +282,11 @@ impl Tensor {
 
     /// Apply sigmoid function element-wise
     pub fn sigmoid(&self) -> Tensor {
-        let data: Vec<f32> = self.data.iter().map(|&x| 1.0 / (1.0 + (-x).exp())).collect();
+        let data: Vec<f32> = self
+            .data
+            .iter()
+            .map(|&x| 1.0 / (1.0 + (-x).exp()))
+            .collect();
         Tensor::from_vec(data, self.shape.clone())
     }
 

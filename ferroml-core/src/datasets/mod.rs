@@ -113,8 +113,8 @@ pub use loaders::{
     CsvEncoding, CsvOptions, ParquetOptions,
 };
 pub use mmap::{
-    MemmappedArray1, MemmappedArray2, MemmappedArray2Mut, MemmappedDataset,
-    MemmappedDatasetBuilder, peek_mmap_info,
+    peek_mmap_info, MemmappedArray1, MemmappedArray2, MemmappedArray2Mut, MemmappedDataset,
+    MemmappedDatasetBuilder,
 };
 pub use toy::{load_diabetes, load_iris, load_linnerud, load_wine};
 
@@ -391,8 +391,7 @@ impl Dataset {
         let all_integer = unique.iter().all(|&v| (v - v.round()).abs() < 1e-10);
         // For small datasets, be more generous with the classification heuristic
         let n_samples = self.n_samples();
-        let few_unique = unique.len() <= 20
-            && (n_samples < 50 || unique.len() < n_samples / 5);
+        let few_unique = unique.len() <= 20 && (n_samples < 50 || unique.len() < n_samples / 5);
 
         if all_integer && few_unique {
             Task::Classification
@@ -803,12 +802,17 @@ pub fn make_regression(
 
     let dataset = Dataset::new(x, y).with_feature_names(feature_names.clone());
 
-    let info = DatasetInfo::new("synthetic_regression", Task::Regression, n_samples, n_features)
-        .with_description(format!(
-            "Synthetic regression dataset with {} samples, {} features ({} informative), noise std {}",
-            n_samples, n_features, n_informative, noise
-        ))
-        .with_feature_names(feature_names);
+    let info = DatasetInfo::new(
+        "synthetic_regression",
+        Task::Regression,
+        n_samples,
+        n_features,
+    )
+    .with_description(format!(
+        "Synthetic regression dataset with {} samples, {} features ({} informative), noise std {}",
+        n_samples, n_features, n_informative, noise
+    ))
+    .with_feature_names(feature_names);
 
     (dataset, info)
 }
@@ -854,11 +858,7 @@ pub fn make_blobs(
 
     // Generate cluster centers
     let center_coords: Vec<Vec<f64>> = (0..centers)
-        .map(|_| {
-            (0..n_features)
-                .map(|_| uniform.sample(&mut rng))
-                .collect()
-        })
+        .map(|_| (0..n_features).map(|_| uniform.sample(&mut rng)).collect())
         .collect();
 
     // Generate samples
@@ -903,14 +903,19 @@ pub fn make_blobs(
         .with_feature_names(feature_names.clone())
         .with_target_names(target_names.clone());
 
-    let info = DatasetInfo::new("synthetic_blobs", Task::Classification, n_samples, n_features)
-        .with_description(format!(
-            "Synthetic blob dataset with {} samples, {} features, {} centers (std={})",
-            n_samples, n_features, centers, cluster_std
-        ))
-        .with_n_classes(centers)
-        .with_feature_names(feature_names)
-        .with_target_names(target_names);
+    let info = DatasetInfo::new(
+        "synthetic_blobs",
+        Task::Classification,
+        n_samples,
+        n_features,
+    )
+    .with_description(format!(
+        "Synthetic blob dataset with {} samples, {} features, {} centers (std={})",
+        n_samples, n_features, centers, cluster_std
+    ))
+    .with_n_classes(centers)
+    .with_feature_names(feature_names)
+    .with_target_names(target_names);
 
     (dataset, info)
 }
@@ -934,7 +939,11 @@ pub fn make_blobs(
 /// assert_eq!(dataset.n_samples(), 100);
 /// assert_eq!(dataset.n_features(), 2);
 /// ```
-pub fn make_moons(n_samples: usize, noise: f64, random_state: Option<u64>) -> (Dataset, DatasetInfo) {
+pub fn make_moons(
+    n_samples: usize,
+    noise: f64,
+    random_state: Option<u64>,
+) -> (Dataset, DatasetInfo) {
     use rand::{rngs::StdRng, SeedableRng};
     use rand_distr::{Distribution, Normal};
     use std::f64::consts::PI;
@@ -1307,20 +1316,14 @@ mod tests {
         let dataset = Dataset::new(x, y);
 
         // Split with shuffle
-        let (train1, _test1) = dataset
-            .train_test_split(0.2, true, Some(42))
-            .unwrap();
-        let (train2, _test2) = dataset
-            .train_test_split(0.2, true, Some(42))
-            .unwrap();
+        let (train1, _test1) = dataset.train_test_split(0.2, true, Some(42)).unwrap();
+        let (train2, _test2) = dataset.train_test_split(0.2, true, Some(42)).unwrap();
 
         // Same seed should give same results
         assert_eq!(train1.x(), train2.x());
 
         // Different seed should (likely) give different results
-        let (train3, _test3) = dataset
-            .train_test_split(0.2, true, Some(123))
-            .unwrap();
+        let (train3, _test3) = dataset.train_test_split(0.2, true, Some(123)).unwrap();
         // Note: this could theoretically fail but is extremely unlikely
         assert_ne!(train1.x(), train3.x());
     }

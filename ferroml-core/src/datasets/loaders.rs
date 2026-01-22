@@ -239,7 +239,8 @@ pub fn load_csv_with_options<P: AsRef<Path>>(
 
     // Set null values
     if let Some(nulls) = &options.null_values {
-        let pl_nulls: Vec<PlSmallStr> = nulls.iter().map(|s| PlSmallStr::from(s.as_str())).collect();
+        let pl_nulls: Vec<PlSmallStr> =
+            nulls.iter().map(|s| PlSmallStr::from(s.as_str())).collect();
         parse_options = parse_options.with_null_values(Some(NullValues::AllColumns(pl_nulls)));
     }
 
@@ -391,9 +392,9 @@ fn dataframe_to_dataset<P: AsRef<Path>>(
     // Reshape from column-major to row-major
     let mut x = Array2::zeros((n_samples, n_features));
     for (j, col_name) in feature_cols.iter().enumerate() {
-        let series = df
-            .column(col_name)
-            .map_err(|e| FerroError::invalid_input(format!("Failed to get column '{}': {}", col_name, e)))?;
+        let series = df.column(col_name).map_err(|e| {
+            FerroError::invalid_input(format!("Failed to get column '{}': {}", col_name, e))
+        })?;
         let values = series_to_f64_vec(series)?;
         for (i, &val) in values.iter().enumerate() {
             x[[i, j]] = val;
@@ -401,9 +402,12 @@ fn dataframe_to_dataset<P: AsRef<Path>>(
     }
 
     // Extract target vector
-    let target_series = df
-        .column(&target_col)
-        .map_err(|e| FerroError::invalid_input(format!("Failed to get target column '{}': {}", target_col, e)))?;
+    let target_series = df.column(&target_col).map_err(|e| {
+        FerroError::invalid_input(format!(
+            "Failed to get target column '{}': {}",
+            target_col, e
+        ))
+    })?;
     let y_vec = series_to_f64_vec(target_series)?;
     let y = Array1::from_vec(y_vec);
 
@@ -453,24 +457,24 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
     let series = series.as_materialized_series();
     match series.dtype() {
         DataType::Float64 => {
-            let chunked = series.f64().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to f64: {}", e))
-            })?;
+            let chunked = series
+                .f64()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to f64: {}", e)))?;
             Ok(chunked.into_iter().map(|v| v.unwrap_or(f64::NAN)).collect())
         }
         DataType::Float32 => {
-            let chunked = series.f32().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to f32: {}", e))
-            })?;
+            let chunked = series
+                .f32()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to f32: {}", e)))?;
             Ok(chunked
                 .into_iter()
                 .map(|v: Option<f32>| v.map(|f| f64::from(f)).unwrap_or(f64::NAN))
                 .collect())
         }
         DataType::Int64 => {
-            let chunked = series.i64().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to i64: {}", e))
-            })?;
+            let chunked = series
+                .i64()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to i64: {}", e)))?;
             #[allow(clippy::cast_precision_loss)]
             let result = chunked
                 .into_iter()
@@ -479,36 +483,36 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
             Ok(result)
         }
         DataType::Int32 => {
-            let chunked = series.i32().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to i32: {}", e))
-            })?;
+            let chunked = series
+                .i32()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to i32: {}", e)))?;
             Ok(chunked
                 .into_iter()
                 .map(|v: Option<i32>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
         DataType::Int16 => {
-            let chunked = series.i16().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to i16: {}", e))
-            })?;
+            let chunked = series
+                .i16()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to i16: {}", e)))?;
             Ok(chunked
                 .into_iter()
                 .map(|v: Option<i16>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
         DataType::Int8 => {
-            let chunked = series.i8().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to i8: {}", e))
-            })?;
+            let chunked = series
+                .i8()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to i8: {}", e)))?;
             Ok(chunked
                 .into_iter()
                 .map(|v: Option<i8>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
         DataType::UInt64 => {
-            let chunked = series.u64().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to u64: {}", e))
-            })?;
+            let chunked = series
+                .u64()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to u64: {}", e)))?;
             #[allow(clippy::cast_precision_loss)]
             let result = chunked
                 .into_iter()
@@ -517,27 +521,27 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
             Ok(result)
         }
         DataType::UInt32 => {
-            let chunked = series.u32().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to u32: {}", e))
-            })?;
+            let chunked = series
+                .u32()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to u32: {}", e)))?;
             Ok(chunked
                 .into_iter()
                 .map(|v: Option<u32>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
         DataType::UInt16 => {
-            let chunked = series.u16().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to u16: {}", e))
-            })?;
+            let chunked = series
+                .u16()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to u16: {}", e)))?;
             Ok(chunked
                 .into_iter()
                 .map(|v: Option<u16>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
         DataType::UInt8 => {
-            let chunked = series.u8().map_err(|e| {
-                FerroError::invalid_input(format!("Failed to cast to u8: {}", e))
-            })?;
+            let chunked = series
+                .u8()
+                .map_err(|e| FerroError::invalid_input(format!("Failed to cast to u8: {}", e)))?;
             Ok(chunked
                 .into_iter()
                 .map(|v: Option<u8>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
@@ -619,10 +623,7 @@ mod tests {
             .with_columns(vec!["a".to_string(), "b".to_string()])
             .with_parallel(false);
 
-        assert_eq!(
-            opts.columns,
-            Some(vec!["a".to_string(), "b".to_string()])
-        );
+        assert_eq!(opts.columns, Some(vec!["a".to_string(), "b".to_string()]));
         assert!(!opts.parallel);
     }
 
@@ -671,8 +672,7 @@ mod tests {
         file.flush().unwrap();
 
         let opts = CsvOptions::new().with_delimiter(b';');
-        let (dataset, _info) =
-            load_csv_with_options(file.path(), Some("target"), opts).unwrap();
+        let (dataset, _info) = load_csv_with_options(file.path(), Some("target"), opts).unwrap();
 
         assert_eq!(dataset.n_samples(), 2);
         assert_eq!(dataset.n_features(), 2);
@@ -790,8 +790,7 @@ mod tests {
         file.flush().unwrap();
 
         let opts = CsvOptions::new().with_skip_rows(1);
-        let (dataset, _info) =
-            load_csv_with_options(file.path(), Some("target"), opts).unwrap();
+        let (dataset, _info) = load_csv_with_options(file.path(), Some("target"), opts).unwrap();
 
         assert_eq!(dataset.n_samples(), 2);
     }
@@ -807,8 +806,7 @@ mod tests {
         file.flush().unwrap();
 
         let opts = CsvOptions::new().with_n_rows(2);
-        let (dataset, _info) =
-            load_csv_with_options(file.path(), Some("target"), opts).unwrap();
+        let (dataset, _info) = load_csv_with_options(file.path(), Some("target"), opts).unwrap();
 
         assert_eq!(dataset.n_samples(), 2);
     }

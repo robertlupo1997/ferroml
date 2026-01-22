@@ -91,10 +91,10 @@ fn main() -> ferroml_core::Result<()> {
         .with_learning_rate(0.1)
         .with_max_depth(Some(5))
         .with_monotonic_constraints(vec![
-            MonotonicConstraint::Positive,  // debt_to_income: higher = higher risk
-            MonotonicConstraint::Negative,  // credit_history: longer = lower risk
-            MonotonicConstraint::Positive,  // num_delinquencies: more = higher risk
-            MonotonicConstraint::Negative,  // account_age: older = lower risk
+            MonotonicConstraint::Positive, // debt_to_income: higher = higher risk
+            MonotonicConstraint::Negative, // credit_history: longer = lower risk
+            MonotonicConstraint::Positive, // num_delinquencies: more = higher risk
+            MonotonicConstraint::Negative, // account_age: older = lower risk
         ])
         .with_random_state(42);
 
@@ -146,9 +146,13 @@ fn main() -> ferroml_core::Result<()> {
 
     // Further split train into train/validation for early stopping
     let n_valid = 100;
-    let x_subtrain = x_train.slice(ndarray::s![..n_train - n_valid, ..]).to_owned();
+    let x_subtrain = x_train
+        .slice(ndarray::s![..n_train - n_valid, ..])
+        .to_owned();
     let y_subtrain = y_train.slice(ndarray::s![..n_train - n_valid]).to_owned();
-    let _x_valid = x_train.slice(ndarray::s![n_train - n_valid.., ..]).to_owned();
+    let _x_valid = x_train
+        .slice(ndarray::s![n_train - n_valid.., ..])
+        .to_owned();
     let _y_valid = y_train.slice(ndarray::s![n_train - n_valid..]).to_owned();
 
     let mut model_early = HistGradientBoostingRegressor::new()
@@ -248,8 +252,14 @@ fn main() -> ferroml_core::Result<()> {
 
     println!("{:<20} {:>12} {:>12}", "Loss Function", "MSE", "MAE");
     println!("{}", "-".repeat(46));
-    println!("{:<20} {:>12.4} {:>12.4}", "Squared Error (L2)", mse_l2, mae_l2);
-    println!("{:<20} {:>12.4} {:>12.4}", "Absolute Error (L1)", mse_l1, mae_l1);
+    println!(
+        "{:<20} {:>12.4} {:>12.4}",
+        "Squared Error (L2)", mse_l2, mae_l2
+    );
+    println!(
+        "{:<20} {:>12.4} {:>12.4}",
+        "Absolute Error (L1)", mse_l1, mae_l1
+    );
     println!("{:<20} {:>12.4} {:>12.4}", "Huber", mse_huber, mae_huber);
 
     // =========================================================================
@@ -376,7 +386,10 @@ FerroML's monotonic constraints provide:
 }
 
 /// Generate synthetic credit risk data with known monotonic relationships
-fn generate_credit_risk_data(n_samples: usize, seed: u64) -> ferroml_core::Result<(Array2<f64>, Array1<f64>)> {
+fn generate_credit_risk_data(
+    n_samples: usize,
+    seed: u64,
+) -> ferroml_core::Result<(Array2<f64>, Array1<f64>)> {
     use rand::prelude::*;
     use rand_distr::Normal;
 
@@ -388,10 +401,10 @@ fn generate_credit_risk_data(n_samples: usize, seed: u64) -> ferroml_core::Resul
 
     for _ in 0..n_samples {
         // Features (all scaled to roughly [0, 1] range)
-        let debt_to_income: f64 = rng.random();        // 0-1, higher = more debt
-        let credit_history: f64 = rng.random();        // 0-1, higher = longer history
-        let num_delinquencies: f64 = rng.random();     // 0-1, higher = more delinquencies
-        let account_age: f64 = rng.random();           // 0-1, higher = older account
+        let debt_to_income: f64 = rng.random(); // 0-1, higher = more debt
+        let credit_history: f64 = rng.random(); // 0-1, higher = longer history
+        let num_delinquencies: f64 = rng.random(); // 0-1, higher = more delinquencies
+        let account_age: f64 = rng.random(); // 0-1, higher = older account
 
         // Target: risk score with known monotonic relationships
         // Higher debt_to_income -> higher risk (positive)
@@ -404,7 +417,7 @@ fn generate_credit_risk_data(n_samples: usize, seed: u64) -> ferroml_core::Resul
             + 2.5 * num_delinquencies       // Positive effect
             - 1.0 * account_age             // Negative effect
             + 0.5 * debt_to_income * num_delinquencies  // Interaction term
-            + normal.sample(&mut rng);      // Noise
+            + normal.sample(&mut rng); // Noise
 
         x_data.push(debt_to_income);
         x_data.push(credit_history);
@@ -452,16 +465,18 @@ fn check_monotonicity(
     ];
     let expected_directions = ["Positive", "Negative", "Positive", "Negative"];
 
-    for (feature_idx, (name, expected)) in feature_names.iter().zip(expected_directions.iter()).enumerate() {
+    for (feature_idx, (name, expected)) in feature_names
+        .iter()
+        .zip(expected_directions.iter())
+        .enumerate()
+    {
         // Create test points varying only this feature
         let n_points = 20;
         let mut violations = 0;
         let mut total_checks = 0;
 
         // Use the mean of other features
-        let means: Vec<f64> = (0..4)
-            .map(|i| x.column(i).mean().unwrap_or(0.5))
-            .collect();
+        let means: Vec<f64> = (0..4).map(|i| x.column(i).mean().unwrap_or(0.5)).collect();
 
         // Generate predictions at different feature values
         let mut prev_pred = None;

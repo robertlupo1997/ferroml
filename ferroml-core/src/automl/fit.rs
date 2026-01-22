@@ -154,7 +154,10 @@ impl AutoMLResult {
             .map(|c| c.models_competitive_with_best())
             .unwrap_or_else(|| {
                 // If no comparisons, consider top model competitive
-                self.leaderboard.first().map(|e| vec![e.trial_id]).unwrap_or_default()
+                self.leaderboard
+                    .first()
+                    .map(|e| vec![e.trial_id])
+                    .unwrap_or_default()
             });
 
         self.leaderboard
@@ -166,9 +169,9 @@ impl AutoMLResult {
     /// Check if a specific model is significantly different from another
     #[must_use]
     pub fn models_significantly_different(&self, trial_id_1: usize, trial_id_2: usize) -> bool {
-        self.model_comparisons
-            .as_ref()
-            .map_or(false, |c| c.are_significantly_different(trial_id_1, trial_id_2))
+        self.model_comparisons.as_ref().map_or(false, |c| {
+            c.are_significantly_different(trial_id_1, trial_id_2)
+        })
     }
 
     /// Get a comprehensive summary of the AutoML results
@@ -179,26 +182,48 @@ impl AutoMLResult {
             "║                    AutoML Results Summary                     ║".to_string(),
             "╚══════════════════════════════════════════════════════════════╝".to_string(),
             String::new(),
-            format!("Task: {:?} | Metric: {} | Time: {:.1}s", self.task, self.metric_name, self.total_time_seconds),
-            format!("Trials: {} successful, {} failed", self.n_successful_trials, self.n_failed_trials),
+            format!(
+                "Task: {:?} | Metric: {} | Time: {:.1}s",
+                self.task, self.metric_name, self.total_time_seconds
+            ),
+            format!(
+                "Trials: {} successful, {} failed",
+                self.n_successful_trials, self.n_failed_trials
+            ),
             String::new(),
         ];
 
         // Best model summary
         if let Some(best) = self.best_model() {
-            lines.push("┌─ Best Model ─────────────────────────────────────────────────┐".to_string());
+            lines.push(
+                "┌─ Best Model ─────────────────────────────────────────────────┐".to_string(),
+            );
             lines.push(format!("│  Algorithm: {:?}", best.algorithm));
-            lines.push(format!("│  Score: {:.4} ± {:.4}", best.cv_score, best.cv_std));
-            lines.push(format!("│  95% CI: [{:.4}, {:.4}]", best.ci_lower, best.ci_upper));
-            lines.push(format!("│  Training time: {:.2}s", best.training_time_seconds));
-            lines.push("└──────────────────────────────────────────────────────────────┘".to_string());
+            lines.push(format!(
+                "│  Score: {:.4} ± {:.4}",
+                best.cv_score, best.cv_std
+            ));
+            lines.push(format!(
+                "│  95% CI: [{:.4}, {:.4}]",
+                best.ci_lower, best.ci_upper
+            ));
+            lines.push(format!(
+                "│  Training time: {:.2}s",
+                best.training_time_seconds
+            ));
+            lines.push(
+                "└──────────────────────────────────────────────────────────────┘".to_string(),
+            );
             lines.push(String::new());
         }
 
         // Leaderboard
         lines.push("┌─ Leaderboard (Top 10) ──────────────────────────────────────┐".to_string());
         for entry in self.leaderboard.iter().take(10) {
-            let competitive = self.competitive_models().iter().any(|c| c.trial_id == entry.trial_id);
+            let competitive = self
+                .competitive_models()
+                .iter()
+                .any(|c| c.trial_id == entry.trial_id);
             let marker = if competitive { "●" } else { " " };
             lines.push(format!(
                 "│ {} {:2}. {:25} {:.4} ± {:.4}",
@@ -210,7 +235,10 @@ impl AutoMLResult {
             ));
         }
         if self.leaderboard.len() > 10 {
-            lines.push(format!("│    ... and {} more models", self.leaderboard.len() - 10));
+            lines.push(format!(
+                "│    ... and {} more models",
+                self.leaderboard.len() - 10
+            ));
         }
         lines.push("└──────────────────────────────────────────────────────────────┘".to_string());
         lines.push("  ● = statistically competitive with best".to_string());
@@ -218,42 +246,60 @@ impl AutoMLResult {
 
         // Ensemble
         if let Some(ensemble) = &self.ensemble {
-            lines.push("┌─ Ensemble ───────────────────────────────────────────────────┐".to_string());
+            lines.push(
+                "┌─ Ensemble ───────────────────────────────────────────────────┐".to_string(),
+            );
             lines.push(format!("│  Score: {:.4}", ensemble.ensemble_score));
-            lines.push(format!("│  Improvement over best: {:.4} ({:.2}%)",
+            lines.push(format!(
+                "│  Improvement over best: {:.4} ({:.2}%)",
                 ensemble.improvement,
                 if self.best_model().map_or(0.0, |b| b.cv_score) != 0.0 {
                     (ensemble.improvement / self.best_model().unwrap().cv_score.abs()) * 100.0
-                } else { 0.0 }
+                } else {
+                    0.0
+                }
             ));
             lines.push(format!("│  Models in ensemble: {}", ensemble.members.len()));
-            lines.push("└──────────────────────────────────────────────────────────────┘".to_string());
+            lines.push(
+                "└──────────────────────────────────────────────────────────────┘".to_string(),
+            );
             lines.push(String::new());
         }
 
         // Feature importance
         if let Some(importance) = &self.aggregated_importance {
-            lines.push("┌─ Top 5 Features ─────────────────────────────────────────────┐".to_string());
+            lines.push(
+                "┌─ Top 5 Features ─────────────────────────────────────────────┐".to_string(),
+            );
             for (name, imp, ci_l, ci_u) in importance.top_k(5) {
-                lines.push(format!("│  {}: {:.4} (95% CI: [{:.4}, {:.4}])", name, imp, ci_l, ci_u));
+                lines.push(format!(
+                    "│  {}: {:.4} (95% CI: [{:.4}, {:.4}])",
+                    name, imp, ci_l, ci_u
+                ));
             }
-            lines.push("└──────────────────────────────────────────────────────────────┘".to_string());
+            lines.push(
+                "└──────────────────────────────────────────────────────────────┘".to_string(),
+            );
             lines.push(String::new());
         }
 
         // Model comparisons
         if let Some(comparisons) = &self.model_comparisons {
-            lines.push("┌─ Model Significance ────────────────────────────────────────┐".to_string());
-            lines.push(format!("│  Correction: {} (α = {:.4})",
-                comparisons.correction_method,
-                comparisons.corrected_alpha
+            lines.push(
+                "┌─ Model Significance ────────────────────────────────────────┐".to_string(),
+            );
+            lines.push(format!(
+                "│  Correction: {} (α = {:.4})",
+                comparisons.correction_method, comparisons.corrected_alpha
             ));
             lines.push(format!(
                 "│  Best significantly better than {}/{} models",
                 comparisons.n_significantly_worse,
                 comparisons.pairwise_comparisons.len()
             ));
-            lines.push("└──────────────────────────────────────────────────────────────┘".to_string());
+            lines.push(
+                "└──────────────────────────────────────────────────────────────┘".to_string(),
+            );
         }
 
         lines.join("\n")
@@ -1775,9 +1821,7 @@ mod tests {
 
         // First competitive model should be the best
         if let Some(best) = result.best_model() {
-            assert!(competitive
-                .iter()
-                .any(|c| c.trial_id == best.trial_id));
+            assert!(competitive.iter().any(|c| c.trial_id == best.trial_id));
         }
     }
 

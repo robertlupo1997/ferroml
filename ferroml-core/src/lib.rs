@@ -96,10 +96,10 @@ pub mod ensemble;
 pub mod error;
 pub mod explainability;
 pub mod hpo;
-pub mod metrics;
-pub mod models;
 #[cfg(feature = "onnx")]
 pub mod inference;
+pub mod metrics;
+pub mod models;
 #[cfg(feature = "onnx")]
 pub mod onnx;
 pub mod pipeline;
@@ -118,11 +118,6 @@ pub use automl::{
     ModelFeatureImportance, ModelStatistics, PairwiseComparison,
 };
 pub use error::{FerroError, Result};
-pub use serialization::{
-    from_bytes, from_bytes_with_metadata, load_model, load_model_auto, load_model_with_metadata,
-    peek_metadata, save_model, save_model_with_description, to_bytes, Format, ModelContainer,
-    ModelSerialize, SerializationMetadata, FERROML_VERSION,
-};
 #[cfg(feature = "onnx")]
 pub use inference::{InferenceSession, SessionMetadata, Tensor, TensorI64, Value};
 #[cfg(feature = "onnx")]
@@ -130,6 +125,11 @@ pub use onnx::{OnnxConfig, OnnxExportable};
 pub use schema::{
     FeatureSchema, FeatureSpec, FeatureType, IssueSeverity, SchemaValidated, ValidationIssue,
     ValidationMode, ValidationResult,
+};
+pub use serialization::{
+    from_bytes, from_bytes_with_metadata, load_model, load_model_auto, load_model_with_metadata,
+    peek_metadata, save_model, save_model_with_description, to_bytes, Format, ModelContainer,
+    ModelSerialize, SerializationMetadata, FERROML_VERSION,
 };
 
 /// Core traits that all FerroML components implement

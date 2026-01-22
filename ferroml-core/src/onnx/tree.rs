@@ -79,11 +79,15 @@ impl TreeEnsembleBuilder {
                 }
                 self.n_targets = self.n_targets.max(node.value.len());
             } else {
-                self.nodes_featureids.push(node.feature_index.unwrap_or(0) as i64);
+                self.nodes_featureids
+                    .push(node.feature_index.unwrap_or(0) as i64);
                 self.nodes_values.push(node.threshold.unwrap_or(0.0) as f32);
-                self.nodes_modes.push(NODE_MODE_BRANCH_LEQ.as_bytes().to_vec());
-                self.nodes_truenodeids.push(node.left_child.unwrap_or(0) as i64);
-                self.nodes_falsenodeids.push(node.right_child.unwrap_or(0) as i64);
+                self.nodes_modes
+                    .push(NODE_MODE_BRANCH_LEQ.as_bytes().to_vec());
+                self.nodes_truenodeids
+                    .push(node.left_child.unwrap_or(0) as i64);
+                self.nodes_falsenodeids
+                    .push(node.right_child.unwrap_or(0) as i64);
                 self.nodes_missing_value_tracks_true.push(1); // NaN goes left
             }
         }
@@ -297,7 +301,8 @@ fn create_tree_regressor_graph(
     );
 
     // Output: [batch_size]
-    let output = create_tensor_output_1d(&config.output_name, batch_size, TensorProtoDataType::Float);
+    let output =
+        create_tensor_output_1d(&config.output_name, batch_size, TensorProtoDataType::Float);
 
     // Build tree ensemble attributes
     let mut builder = TreeEnsembleBuilder::new();
@@ -389,11 +394,7 @@ fn create_tree_classifier_graph(
 }
 
 /// Create probability output for classifier (ZipMap in ONNX-ML returns a map)
-fn create_proba_output(
-    name: &str,
-    _n_classes: usize,
-    _batch_size: Option<i64>,
-) -> ValueInfoProto {
+fn create_proba_output(name: &str, _n_classes: usize, _batch_size: Option<i64>) -> ValueInfoProto {
     use crate::onnx::{type_proto, TypeProto, TypeProtoMap, TypeProtoSequence};
 
     // TreeEnsembleClassifier outputs a sequence of maps: sequence<map<int64, float>>
@@ -401,23 +402,25 @@ fn create_proba_output(
     ValueInfoProto {
         name: name.to_string(),
         r#type: Some(TypeProto {
-            value: Some(type_proto::Value::SequenceType(Box::new(TypeProtoSequence {
-                elem_type: Some(Box::new(TypeProto {
-                    value: Some(type_proto::Value::MapType(Box::new(TypeProtoMap {
-                        key_type: TensorProtoDataType::Int64 as i32,
-                        value_type: Some(Box::new(TypeProto {
-                            value: Some(type_proto::Value::TensorType(
-                                crate::onnx::TypeProtoTensor {
-                                    elem_type: TensorProtoDataType::Float as i32,
-                                    shape: None,
-                                },
-                            )),
-                            denotation: String::new(),
-                        })),
-                    }))),
-                    denotation: String::new(),
-                })),
-            }))),
+            value: Some(type_proto::Value::SequenceType(Box::new(
+                TypeProtoSequence {
+                    elem_type: Some(Box::new(TypeProto {
+                        value: Some(type_proto::Value::MapType(Box::new(TypeProtoMap {
+                            key_type: TensorProtoDataType::Int64 as i32,
+                            value_type: Some(Box::new(TypeProto {
+                                value: Some(type_proto::Value::TensorType(
+                                    crate::onnx::TypeProtoTensor {
+                                        elem_type: TensorProtoDataType::Float as i32,
+                                        shape: None,
+                                    },
+                                )),
+                                denotation: String::new(),
+                            })),
+                        }))),
+                        denotation: String::new(),
+                    })),
+                },
+            ))),
             denotation: String::new(),
         }),
         doc_string: String::new(),
@@ -489,10 +492,8 @@ impl OnnxExportable for RandomForestRegressor {
             .ok_or_else(|| FerroError::not_fitted("ONNX export"))?;
 
         // Collect tree structures from each estimator
-        let tree_refs: Vec<&TreeStructure> = estimators
-            .iter()
-            .filter_map(|est| est.tree())
-            .collect();
+        let tree_refs: Vec<&TreeStructure> =
+            estimators.iter().filter_map(|est| est.tree()).collect();
 
         if tree_refs.is_empty() {
             return Err(FerroError::not_fitted("No trees found in forest"));
@@ -528,10 +529,8 @@ impl OnnxExportable for RandomForestClassifier {
         let n_classes = classes.len();
 
         // Collect tree structures from each estimator
-        let tree_refs: Vec<&TreeStructure> = estimators
-            .iter()
-            .filter_map(|est| est.tree())
-            .collect();
+        let tree_refs: Vec<&TreeStructure> =
+            estimators.iter().filter_map(|est| est.tree()).collect();
 
         if tree_refs.is_empty() {
             return Err(FerroError::not_fitted("No trees found in forest"));

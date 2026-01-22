@@ -202,7 +202,11 @@ impl Operator for ReshapeOp {
 
         // Shape can be int64 tensor
         let new_shape: Vec<usize> = if let Some(shape_tensor) = inputs[1].as_tensor_i64() {
-            shape_tensor.as_slice().iter().map(|&x| x as usize).collect()
+            shape_tensor
+                .as_slice()
+                .iter()
+                .map(|&x| x as usize)
+                .collect()
         } else if let Some(shape_tensor) = inputs[1].as_tensor() {
             shape_tensor
                 .as_slice()
@@ -466,10 +470,7 @@ impl TreeEnsembleRegressorOp {
                 return node_id;
             }
 
-            let feature_value = features
-                .get(node.feature_id)
-                .copied()
-                .unwrap_or(f32::NAN);
+            let feature_value = features.get(node.feature_id).copied().unwrap_or(f32::NAN);
 
             // Handle missing values
             let go_left = if feature_value.is_nan() {
@@ -530,12 +531,8 @@ impl Operator for TreeEnsembleRegressorOp {
                 let values: Vec<f32> = tree_preds.iter().map(|p| p[target_id]).collect();
                 let agg_value = match self.aggregate {
                     AggregateFunction::Sum => values.iter().sum(),
-                    AggregateFunction::Average => {
-                        values.iter().sum::<f32>() / values.len() as f32
-                    }
-                    AggregateFunction::Min => {
-                        values.iter().cloned().fold(f32::INFINITY, f32::min)
-                    }
+                    AggregateFunction::Average => values.iter().sum::<f32>() / values.len() as f32,
+                    AggregateFunction::Min => values.iter().cloned().fold(f32::INFINITY, f32::min),
                     AggregateFunction::Max => {
                         values.iter().cloned().fold(f32::NEG_INFINITY, f32::max)
                     }
@@ -687,10 +684,7 @@ impl TreeEnsembleClassifierOp {
                 return node_id;
             }
 
-            let feature_value = features
-                .get(node.feature_id)
-                .copied()
-                .unwrap_or(f32::NAN);
+            let feature_value = features.get(node.feature_id).copied().unwrap_or(f32::NAN);
 
             let go_left = if feature_value.is_nan() {
                 node.missing_tracks_true
@@ -808,9 +802,7 @@ mod tests {
         let b = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![3, 2]);
 
         let op = MatMulOp;
-        let result = op
-            .execute(&[&Value::Tensor(a), &Value::Tensor(b)])
-            .unwrap();
+        let result = op.execute(&[&Value::Tensor(a), &Value::Tensor(b)]).unwrap();
 
         let out = result[0].as_tensor().unwrap();
         assert_eq!(out.shape(), &[2, 2]);
@@ -823,9 +815,7 @@ mod tests {
         let b = Tensor::from_vec(vec![10.0, 20.0, 30.0], vec![3]);
 
         let op = AddOp;
-        let result = op
-            .execute(&[&Value::Tensor(a), &Value::Tensor(b)])
-            .unwrap();
+        let result = op.execute(&[&Value::Tensor(a), &Value::Tensor(b)]).unwrap();
 
         let out = result[0].as_tensor().unwrap();
         assert_eq!(out.as_slice(), &[11.0, 22.0, 33.0]);

@@ -33,7 +33,9 @@ use ferroml_core::models::linear::LinearRegression;
 use ferroml_core::models::regularized::{LassoRegression, RidgeRegression};
 use ferroml_core::models::tree::{DecisionTreeClassifier, DecisionTreeRegressor};
 use ferroml_core::models::Model;
-use ferroml_core::preprocessing::scalers::{MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler};
+use ferroml_core::preprocessing::scalers::{
+    MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler,
+};
 use ferroml_core::preprocessing::Transformer;
 use ndarray::{Array1, Array2};
 
@@ -147,8 +149,16 @@ fn test_linear_regression_noisy_data() {
     // Coefficients should be positive and reasonable
     // The relationship is approximately y = 2*x1 + 1*x2 + 1
     // With noise and small sample, exact values may vary
-    assert!(coef[0] > 1.0 && coef[0] < 3.0, "First coefficient should be positive: {}", coef[0]);
-    assert!(coef[1] > 0.0 && coef[1] < 2.0, "Second coefficient should be positive: {}", coef[1]);
+    assert!(
+        coef[0] > 1.0 && coef[0] < 3.0,
+        "First coefficient should be positive: {}",
+        coef[0]
+    );
+    assert!(
+        coef[1] > 0.0 && coef[1] < 2.0,
+        "Second coefficient should be positive: {}",
+        coef[1]
+    );
 }
 
 // =============================================================================
@@ -180,9 +190,18 @@ fn test_ridge_regression_coefficients() {
 
     // Ridge with alpha=1 should produce shrunk coefficients
     // The exact values depend on implementation, but should be reasonable
-    assert!(coef[0] > 0.5 && coef[0] < 1.5, "Coefficient should be regularized");
-    assert!(coef[1] > 1.0 && coef[1] < 2.5, "Coefficient should be regularized");
-    assert!(intercept > 2.0 && intercept < 5.0, "Intercept should be reasonable");
+    assert!(
+        coef[0] > 0.5 && coef[0] < 1.5,
+        "Coefficient should be regularized"
+    );
+    assert!(
+        coef[1] > 1.0 && coef[1] < 2.5,
+        "Coefficient should be regularized"
+    );
+    assert!(
+        intercept > 2.0 && intercept < 5.0,
+        "Intercept should be reasonable"
+    );
 }
 
 /// Test RidgeRegression with different alpha values
@@ -288,7 +307,11 @@ fn test_lasso_regression_convergence() {
         .sum::<f64>()
         / y.len() as f64;
 
-    assert!(mse < 1.0, "Lasso should produce reasonable fit: MSE = {}", mse);
+    assert!(
+        mse < 1.0,
+        "Lasso should produce reasonable fit: MSE = {}",
+        mse
+    );
 }
 
 // =============================================================================
@@ -308,8 +331,7 @@ fn test_lasso_regression_convergence() {
 /// ```
 #[test]
 fn test_decision_tree_classifier_predictions() {
-    let x =
-        Array2::from_shape_vec((4, 2), vec![0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0]).unwrap();
+    let x = Array2::from_shape_vec((4, 2), vec![0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0]).unwrap();
     let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
 
     let mut model = DecisionTreeClassifier::new();
@@ -476,11 +498,8 @@ fn test_minmax_scaler_transform() {
 #[test]
 fn test_robust_scaler_outlier_resistance() {
     // Data with outlier
-    let x = Array2::from_shape_vec(
-        (4, 2),
-        vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 100.0, 100.0],
-    )
-    .unwrap();
+    let x =
+        Array2::from_shape_vec((4, 2), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 100.0, 100.0]).unwrap();
 
     let mut scaler = RobustScaler::new();
     let x_scaled = scaler.fit_transform(&x).unwrap();
@@ -488,9 +507,18 @@ fn test_robust_scaler_outlier_resistance() {
     // The non-outlier values should be scaled reasonably
     // RobustScaler uses median and IQR, which are resistant to outliers
     // The first three rows should have reasonable scaled values
-    assert!(x_scaled[[0, 0]].abs() < 5.0, "Non-outlier should be scaled reasonably");
-    assert!(x_scaled[[1, 0]].abs() < 5.0, "Non-outlier should be scaled reasonably");
-    assert!(x_scaled[[2, 0]].abs() < 5.0, "Non-outlier should be scaled reasonably");
+    assert!(
+        x_scaled[[0, 0]].abs() < 5.0,
+        "Non-outlier should be scaled reasonably"
+    );
+    assert!(
+        x_scaled[[1, 0]].abs() < 5.0,
+        "Non-outlier should be scaled reasonably"
+    );
+    assert!(
+        x_scaled[[2, 0]].abs() < 5.0,
+        "Non-outlier should be scaled reasonably"
+    );
 
     // The outlier will have a large magnitude (much larger than non-outliers)
     assert!(

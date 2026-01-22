@@ -108,7 +108,12 @@ fn param_value_to_py(py: Python<'_>, value: &ParamValue) -> PyObject {
         ParamValue::Int(v) => v.into_pyobject(py).unwrap().into_any().unbind(),
         ParamValue::Float(v) => v.into_pyobject(py).unwrap().into_any().unbind(),
         ParamValue::String(v) => v.into_pyobject(py).unwrap().into_any().unbind(),
-        ParamValue::Bool(v) => (*v).into_pyobject(py).unwrap().to_owned().into_any().unbind(),
+        ParamValue::Bool(v) => (*v)
+            .into_pyobject(py)
+            .unwrap()
+            .to_owned()
+            .into_any()
+            .unbind(),
     }
 }
 
@@ -787,7 +792,10 @@ impl PyAutoMLResult {
         match &self.inner.model_comparisons {
             Some(comp) => {
                 let dict = PyDict::new(py);
-                dict.set_item("best_is_significantly_better", comp.best_is_significantly_better)?;
+                dict.set_item(
+                    "best_is_significantly_better",
+                    comp.best_is_significantly_better,
+                )?;
                 dict.set_item("n_significantly_worse", comp.n_significantly_worse)?;
                 dict.set_item("corrected_alpha", comp.corrected_alpha)?;
                 dict.set_item("correction_method", &comp.correction_method)?;
@@ -899,20 +907,18 @@ impl PyAutoML {
     #[new]
     #[pyo3(signature = (config=None))]
     fn new(config: Option<PyAutoMLConfig>) -> PyResult<Self> {
-        let config = config.unwrap_or_else(|| {
-            PyAutoMLConfig {
-                task: "classification".to_string(),
-                metric: "roc_auc".to_string(),
-                time_budget_seconds: 3600,
-                cv_folds: 5,
-                statistical_tests: true,
-                confidence_level: 0.95,
-                multiple_testing: "bh".to_string(),
-                seed: None,
-                n_jobs: std::thread::available_parallelism()
-                    .map(|p| p.get())
-                    .unwrap_or(1),
-            }
+        let config = config.unwrap_or_else(|| PyAutoMLConfig {
+            task: "classification".to_string(),
+            metric: "roc_auc".to_string(),
+            time_budget_seconds: 3600,
+            cv_folds: 5,
+            statistical_tests: true,
+            confidence_level: 0.95,
+            multiple_testing: "bh".to_string(),
+            seed: None,
+            n_jobs: std::thread::available_parallelism()
+                .map(|p| p.get())
+                .unwrap_or(1),
         });
         Ok(Self { config })
     }

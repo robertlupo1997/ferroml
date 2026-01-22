@@ -720,11 +720,7 @@ impl StackingRegressor {
     }
 
     /// Generate out-of-fold meta-features using cross-validation
-    fn generate_cv_meta_features(
-        &self,
-        x: &Array2<f64>,
-        y: &Array1<f64>,
-    ) -> Result<Array2<f64>> {
+    fn generate_cv_meta_features(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<Array2<f64>> {
         let n_samples = x.nrows();
 
         // Each regressor contributes 1 meta-feature (its prediction)

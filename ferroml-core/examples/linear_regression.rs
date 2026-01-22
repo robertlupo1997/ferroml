@@ -40,8 +40,10 @@ fn main() -> ferroml_core::Result<()> {
     println!("-----------------------");
 
     let coefs = model.coefficients_with_ci(0.95);
-    println!("{:<20} {:>12} {:>12} {:>12} {:>12} {:>10}",
-             "Variable", "Estimate", "Std.Error", "t-value", "p-value", "Signif");
+    println!(
+        "{:<20} {:>12} {:>12} {:>12} {:>12} {:>10}",
+        "Variable", "Estimate", "Std.Error", "t-value", "p-value", "Signif"
+    );
     println!("{}", "-".repeat(80));
 
     for coef in &coefs {
@@ -57,13 +59,10 @@ fn main() -> ferroml_core::Result<()> {
             ""
         };
 
-        println!("{:<20} {:>12.4} {:>12.4} {:>12.4} {:>12.6} {:>10}",
-                 coef.name,
-                 coef.estimate,
-                 coef.std_error,
-                 coef.t_statistic,
-                 coef.p_value,
-                 sig);
+        println!(
+            "{:<20} {:>12.4} {:>12.4} {:>12.4} {:>12.6} {:>10}",
+            coef.name, coef.estimate, coef.std_error, coef.t_statistic, coef.p_value, sig
+        );
     }
     println!("\nSignif. codes: 0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1");
 
@@ -71,8 +70,10 @@ fn main() -> ferroml_core::Result<()> {
     println!("{:<20} [{:>12}, {:>12}]", "Variable", "Lower", "Upper");
     println!("{}", "-".repeat(50));
     for coef in &coefs {
-        println!("{:<20} [{:>12.4}, {:>12.4}]",
-                 coef.name, coef.ci_lower, coef.ci_upper);
+        println!(
+            "{:<20} [{:>12.4}, {:>12.4}]",
+            coef.name, coef.ci_lower, coef.ci_upper
+        );
     }
 
     // =========================================================================
@@ -124,12 +125,10 @@ fn main() -> ferroml_core::Result<()> {
     println!("\nAssumption Tests:");
     for test in &diagnostics.assumption_tests {
         let status = if test.passed { "PASS" } else { "FAIL" };
-        println!("  {:?}: {} = {:.4}, p = {:.4} [{}]",
-                 test.assumption,
-                 test.test_name,
-                 test.statistic,
-                 test.p_value,
-                 status);
+        println!(
+            "  {:?}: {} = {:.4}, p = {:.4} [{}]",
+            test.assumption, test.test_name, test.statistic, test.p_value, status
+        );
     }
 
     // Durbin-Watson
@@ -154,7 +153,8 @@ fn main() -> ferroml_core::Result<()> {
         let threshold = 4.0 / n_samples as f64;
         println!("Cook's Distance threshold (4/n): {:.4}", threshold);
 
-        let high_influence: Vec<_> = cooks.iter()
+        let high_influence: Vec<_> = cooks
+            .iter()
             .enumerate()
             .filter(|(_, &d)| d > threshold)
             .collect();
@@ -172,14 +172,21 @@ fn main() -> ferroml_core::Result<()> {
 
     if !diagnostics.influential_observations.is_empty() {
         println!("\nDetailed influential observations:");
-        println!("{:<8} {:>12} {:>12} {:>12} {:>12}",
-                 "Index", "Cook's D", "Leverage", "Stud.Resid", "DFFITS");
+        println!(
+            "{:<8} {:>12} {:>12} {:>12} {:>12}",
+            "Index", "Cook's D", "Leverage", "Stud.Resid", "DFFITS"
+        );
         for obs in &diagnostics.influential_observations {
-            let stud_str = obs.studentized_residual.map_or("N/A".to_string(), |s| format!("{:.4}", s));
-            let dffits_str = obs.dffits.map_or("N/A".to_string(), |d| format!("{:.4}", d));
-            println!("{:<8} {:>12.4} {:>12.4} {:>12} {:>12}",
-                     obs.index, obs.cooks_distance, obs.leverage,
-                     stud_str, dffits_str);
+            let stud_str = obs
+                .studentized_residual
+                .map_or("N/A".to_string(), |s| format!("{:.4}", s));
+            let dffits_str = obs
+                .dffits
+                .map_or("N/A".to_string(), |d| format!("{:.4}", d));
+            println!(
+                "{:<8} {:>12.4} {:>12.4} {:>12} {:>12}",
+                obs.index, obs.cooks_distance, obs.leverage, stud_str, dffits_str
+            );
         }
     }
 
@@ -191,9 +198,7 @@ fn main() -> ferroml_core::Result<()> {
 
     if let Some(importance) = model.feature_importance() {
         let feature_names = ["education_years", "experience_years"];
-        let mut pairs: Vec<_> = feature_names.iter()
-            .zip(importance.iter())
-            .collect();
+        let mut pairs: Vec<_> = feature_names.iter().zip(importance.iter()).collect();
         pairs.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
 
         for (name, &imp) in pairs {
@@ -213,26 +218,31 @@ fn main() -> ferroml_core::Result<()> {
     let x_new = Array2::from_shape_vec(
         (3, 2),
         vec![
-            12.0, 5.0,   // 12 years education, 5 years experience
-            16.0, 10.0,  // 16 years education, 10 years experience
-            20.0, 15.0,  // 20 years education, 15 years experience
+            12.0, 5.0, // 12 years education, 5 years experience
+            16.0, 10.0, // 16 years education, 10 years experience
+            20.0, 15.0, // 20 years education, 15 years experience
         ],
-    ).expect("Valid shape for new data");
+    )
+    .expect("Valid shape for new data");
 
     let intervals = model.predict_interval(&x_new, 0.95)?;
 
-    println!("{:<10} {:>12} {:>12} {:>12} {:>12}",
-             "Obs", "Prediction", "Std.Error", "Lower 95%", "Upper 95%");
+    println!(
+        "{:<10} {:>12} {:>12} {:>12} {:>12}",
+        "Obs", "Prediction", "Std.Error", "Lower 95%", "Upper 95%"
+    );
     println!("{}", "-".repeat(60));
 
     for i in 0..x_new.nrows() {
         let se = intervals.std_errors.as_ref().map(|s| s[i]).unwrap_or(0.0);
-        println!("{:<10} {:>12.4} {:>12.4} {:>12.4} {:>12.4}",
-                 i + 1,
-                 intervals.predictions[i],
-                 se,
-                 intervals.lower[i],
-                 intervals.upper[i]);
+        println!(
+            "{:<10} {:>12.4} {:>12.4} {:>12.4} {:>12.4}",
+            i + 1,
+            intervals.predictions[i],
+            se,
+            intervals.lower[i],
+            intervals.upper[i]
+        );
     }
 
     // Calculate interval width statistics
@@ -249,13 +259,20 @@ fn main() -> ferroml_core::Result<()> {
     if let (Some(residuals), Some(fitted)) = (model.residuals(), model.fitted_values()) {
         // Show first few residuals
         println!("\nFirst 10 observations:");
-        println!("{:<6} {:>12} {:>12} {:>12}",
-                 "Obs", "Actual", "Fitted", "Residual");
+        println!(
+            "{:<6} {:>12} {:>12} {:>12}",
+            "Obs", "Actual", "Fitted", "Residual"
+        );
         println!("{}", "-".repeat(45));
 
         for i in 0..10.min(residuals.len()) {
-            println!("{:<6} {:>12.4} {:>12.4} {:>12.4}",
-                     i + 1, y[i], fitted[i], residuals[i]);
+            println!(
+                "{:<6} {:>12.4} {:>12.4} {:>12.4}",
+                i + 1,
+                y[i],
+                fitted[i],
+                residuals[i]
+            );
         }
 
         // Residual quartiles
@@ -280,26 +297,36 @@ fn main() -> ferroml_core::Result<()> {
     let mut model_no_intercept = LinearRegression::without_intercept();
     model_no_intercept.fit(&x, &y)?;
 
-    println!("{:<30} {:>15} {:>15}",
-             "Metric", "With Intercept", "Without Intercept");
+    println!(
+        "{:<30} {:>15} {:>15}",
+        "Metric", "With Intercept", "Without Intercept"
+    );
     println!("{}", "-".repeat(60));
 
-    println!("{:<30} {:>15.6} {:>15.6}",
-             "R-squared",
-             model.r_squared().unwrap_or(0.0),
-             model_no_intercept.r_squared().unwrap_or(0.0));
-    println!("{:<30} {:>15.6} {:>15.6}",
-             "Adjusted R-squared",
-             model.adjusted_r_squared().unwrap_or(0.0),
-             model_no_intercept.adjusted_r_squared().unwrap_or(0.0));
-    println!("{:<30} {:>15.4} {:>15.4}",
-             "AIC",
-             model.aic().unwrap_or(0.0),
-             model_no_intercept.aic().unwrap_or(0.0));
-    println!("{:<30} {:>15.4} {:>15.4}",
-             "BIC",
-             model.bic().unwrap_or(0.0),
-             model_no_intercept.bic().unwrap_or(0.0));
+    println!(
+        "{:<30} {:>15.6} {:>15.6}",
+        "R-squared",
+        model.r_squared().unwrap_or(0.0),
+        model_no_intercept.r_squared().unwrap_or(0.0)
+    );
+    println!(
+        "{:<30} {:>15.6} {:>15.6}",
+        "Adjusted R-squared",
+        model.adjusted_r_squared().unwrap_or(0.0),
+        model_no_intercept.adjusted_r_squared().unwrap_or(0.0)
+    );
+    println!(
+        "{:<30} {:>15.4} {:>15.4}",
+        "AIC",
+        model.aic().unwrap_or(0.0),
+        model_no_intercept.aic().unwrap_or(0.0)
+    );
+    println!(
+        "{:<30} {:>15.4} {:>15.4}",
+        "BIC",
+        model.bic().unwrap_or(0.0),
+        model_no_intercept.bic().unwrap_or(0.0)
+    );
 
     // =========================================================================
     // Summary
@@ -307,7 +334,8 @@ fn main() -> ferroml_core::Result<()> {
     println!("\n=============================================================");
     println!("SUMMARY: FerroML Linear Regression Capabilities");
     println!("=============================================================");
-    println!("
+    println!(
+        "
 FerroML provides R-style statistical output including:
   ✓ Coefficient estimates with standard errors, t-stats, and p-values
   ✓ Confidence intervals at configurable levels
@@ -320,7 +348,8 @@ FerroML provides R-style statistical output including:
 
 This goes far beyond sklearn's basic fit/predict API, matching or exceeding
 statsmodels' OLS output while being written in pure Rust for performance.
-");
+"
+    );
 
     Ok(())
 }
@@ -341,7 +370,7 @@ fn generate_data(n: usize) -> (Array2<f64>, Array1<f64>) {
     for _ in 0..n {
         // Generate features with some realistic ranges
         let x1 = 10.0 + 10.0 * rand(); // Education: 10-20 years
-        let x2 = 5.0 * rand();          // Experience: 0-5 years
+        let x2 = 5.0 * rand(); // Experience: 0-5 years
 
         x_data.push(x1);
         x_data.push(x2);

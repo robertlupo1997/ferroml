@@ -66,12 +66,19 @@ fn main() -> ferroml_core::Result<()> {
     // Create synthetic data with missing values
     let (x_with_missing, y_regression) = create_data_with_missing(100, 5, 0.1);
     let n_missing = x_with_missing.iter().filter(|v| v.is_nan()).count();
-    println!("Created data with {} missing values (10% of data)", n_missing);
+    println!(
+        "Created data with {} missing values (10% of data)",
+        n_missing
+    );
 
     // Split
     let split_idx = 80;
-    let x_train_missing = x_with_missing.slice(ndarray::s![..split_idx, ..]).to_owned();
-    let x_test_missing = x_with_missing.slice(ndarray::s![split_idx.., ..]).to_owned();
+    let x_train_missing = x_with_missing
+        .slice(ndarray::s![..split_idx, ..])
+        .to_owned();
+    let x_test_missing = x_with_missing
+        .slice(ndarray::s![split_idx.., ..])
+        .to_owned();
     let y_train_missing = y_regression.slice(ndarray::s![..split_idx]).to_owned();
     let y_test_missing = y_regression.slice(ndarray::s![split_idx..]).to_owned();
 
@@ -119,11 +126,17 @@ fn main() -> ferroml_core::Result<()> {
         .collect();
     println!(
         "Column means (should be ~0): {:?}",
-        col_means.iter().map(|v| format!("{:.4}", v)).collect::<Vec<_>>()
+        col_means
+            .iter()
+            .map(|v| format!("{:.4}", v))
+            .collect::<Vec<_>>()
     );
     println!(
         "Column stds (should be ~1): {:?}",
-        col_stds.iter().map(|v| format!("{:.4}", v)).collect::<Vec<_>>()
+        col_stds
+            .iter()
+            .map(|v| format!("{:.4}", v))
+            .collect::<Vec<_>>()
     );
 
     // =========================================================================
@@ -149,7 +162,10 @@ fn main() -> ferroml_core::Result<()> {
     // Create classification pipeline
     let mut classification_pipeline = Pipeline::new()
         .add_transformer("scaler", StandardScaler::new())
-        .add_model("classifier", LogisticRegression::new().with_confidence_level(0.95));
+        .add_model(
+            "classifier",
+            LogisticRegression::new().with_confidence_level(0.95),
+        );
 
     classification_pipeline.fit(&x_iris_train, &y_train_binary)?;
 
@@ -253,7 +269,11 @@ data handling at each step.
 }
 
 /// Create synthetic data with missing values
-fn create_data_with_missing(n_samples: usize, n_features: usize, missing_rate: f64) -> (Array2<f64>, Array1<f64>) {
+fn create_data_with_missing(
+    n_samples: usize,
+    n_features: usize,
+    missing_rate: f64,
+) -> (Array2<f64>, Array1<f64>) {
     // Generate data using make_regression
     // make_regression(n_samples, n_features, n_informative, noise, random_state)
     let (dataset, _) = make_regression(n_samples, n_features, n_features, 0.0, Some(42));

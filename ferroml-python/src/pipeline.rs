@@ -98,7 +98,11 @@ impl PyPipeline {
             let has_predict = obj.bind(py).hasattr("predict")?;
             let is_model = has_predict;
 
-            pipeline_steps.push(PipelineStepInner { name, obj, is_model });
+            pipeline_steps.push(PipelineStepInner {
+                name,
+                obj,
+                is_model,
+            });
         }
 
         // Validate: only the last step can be a model
@@ -317,9 +321,10 @@ impl PyPipeline {
         }
 
         // Check if the last step is a model
-        let last_step = self.steps.last().ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>("Pipeline is empty.")
-        })?;
+        let last_step = self
+            .steps
+            .last()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Pipeline is empty."))?;
 
         if !last_step.is_model {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -410,12 +415,16 @@ impl PyPipeline {
                 let (step_name, param_name) = (parts[0], parts[1]);
 
                 // Find the step
-                let step = slf.steps.iter().find(|s| s.name == step_name).ok_or_else(|| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                        "Step '{}' not found in pipeline",
-                        step_name
-                    ))
-                })?;
+                let step = slf
+                    .steps
+                    .iter()
+                    .find(|s| s.name == step_name)
+                    .ok_or_else(|| {
+                        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                            "Step '{}' not found in pipeline",
+                            step_name
+                        ))
+                    })?;
 
                 // Set the parameter on the step's object
                 let obj = step.obj.bind(py);

@@ -196,8 +196,7 @@ pub fn extract_xy_from_pydf(
 
     // Reshape from column-major to row-major
     // Data is stored column by column, we need to transpose
-    let x =
-        Array2::from_shape_fn((n_samples, n_features), |(i, j)| x_data[j * n_samples + i]);
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| x_data[j * n_samples + i]);
 
     Ok(DataFrameData {
         x,
@@ -268,8 +267,7 @@ pub fn extract_x_from_pydf(
     }
 
     // Reshape from column-major to row-major
-    let x =
-        Array2::from_shape_fn((n_samples, n_features), |(i, j)| x_data[j * n_samples + i]);
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| x_data[j * n_samples + i]);
 
     Ok((x, feature_names))
 }
@@ -313,12 +311,12 @@ fn series_to_array1(series: &Series, column_name: &str) -> PolarsResult<Array1<f
         }
     })?;
 
-    let chunked = f64_series.f64().map_err(|_| {
-        PolarsConversionError::UnsupportedDataType {
+    let chunked = f64_series
+        .f64()
+        .map_err(|_| PolarsConversionError::UnsupportedDataType {
             column: column_name.to_string(),
             dtype: series.dtype().to_string(),
-        }
-    })?;
+        })?;
 
     // Extract values - we've already checked for nulls, so unwrap is safe
     let values: Vec<f64> = chunked.into_iter().map(|opt| opt.unwrap_or(0.0)).collect();

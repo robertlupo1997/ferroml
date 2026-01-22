@@ -72,7 +72,9 @@ impl PyStandardScaler {
     #[new]
     #[pyo3(signature = (with_mean=true, with_std=true))]
     fn new(with_mean: bool, with_std: bool) -> Self {
-        let inner = StandardScaler::new().with_mean(with_mean).with_std(with_std);
+        let inner = StandardScaler::new()
+            .with_mean(with_mean)
+            .with_std(with_std);
         Self { inner }
     }
 

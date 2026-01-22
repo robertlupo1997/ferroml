@@ -41,7 +41,8 @@ fn main() -> ferroml_core::Result<()> {
     println!("\n=============================================================");
     println!("SUMMARY: FerroML AutoML Capabilities");
     println!("=============================================================");
-    println!("
+    println!(
+        "
 FerroML's AutoML provides statistically rigorous model selection:
 
   Algorithm Selection:
@@ -67,7 +68,8 @@ FerroML's AutoML provides statistically rigorous model selection:
 
 This goes beyond typical AutoML systems by providing statistical
 guarantees and interpretability, not just \"best\" model selection.
-");
+"
+    );
 
     Ok(())
 }
@@ -117,7 +119,10 @@ fn run_classification_example() -> ferroml_core::Result<()> {
     // Run AutoML
     // -------------------------------------------------------------------------
     println!("\n--- Running AutoML ---");
-    println!("(This may take up to {} seconds...)\n", config.time_budget_seconds);
+    println!(
+        "(This may take up to {} seconds...)\n",
+        config.time_budget_seconds
+    );
 
     let automl = AutoML::new(config);
     let result = automl.fit(&x_train, &y_train)?;
@@ -132,7 +137,10 @@ fn run_classification_example() -> ferroml_core::Result<()> {
     println!("  Total time: {:.2}s", result.total_time_seconds);
     println!("  Successful trials: {}", result.n_successful_trials);
     println!("  Failed trials: {}", result.n_failed_trials);
-    println!("  Unique algorithms tried: {}", result.n_successful_algorithms());
+    println!(
+        "  Unique algorithms tried: {}",
+        result.n_successful_algorithms()
+    );
 
     // Best model
     if let Some(best) = result.best_model() {
@@ -145,18 +153,22 @@ fn run_classification_example() -> ferroml_core::Result<()> {
 
     // Leaderboard with confidence intervals
     println!("\nLeaderboard (with 95% CIs):");
-    println!("{:<5} {:<30} {:>12} {:>10} {:>24}",
-             "Rank", "Algorithm", "CV Score", "Std", "95% CI");
+    println!(
+        "{:<5} {:<30} {:>12} {:>10} {:>24}",
+        "Rank", "Algorithm", "CV Score", "Std", "95% CI"
+    );
     println!("{}", "-".repeat(85));
 
     for entry in result.leaderboard.iter().take(10) {
-        println!("{:<5} {:<30} {:>12.4} {:>10.4} [{:>10.4}, {:>10.4}]",
-                 entry.rank,
-                 format!("{:?}", entry.algorithm),
-                 entry.cv_score,
-                 entry.cv_std,
-                 entry.ci_lower,
-                 entry.ci_upper);
+        println!(
+            "{:<5} {:<30} {:>12.4} {:>10.4} [{:>10.4}, {:>10.4}]",
+            entry.rank,
+            format!("{:?}", entry.algorithm),
+            entry.cv_score,
+            entry.cv_std,
+            entry.ci_lower,
+            entry.ci_upper
+        );
     }
 
     // Statistical model comparisons
@@ -164,23 +176,34 @@ fn run_classification_example() -> ferroml_core::Result<()> {
         println!("\nModel Comparison (vs Best):");
         println!("  Correction method: {}", comparisons.correction_method);
         println!("  Corrected alpha: {:.4}", comparisons.corrected_alpha);
-        println!("  Best significantly better than {} models", comparisons.n_significantly_worse);
+        println!(
+            "  Best significantly better than {} models",
+            comparisons.n_significantly_worse
+        );
 
         println!("\nPairwise Comparisons:");
-        println!("{:<35} {:>10} {:>10} {:>10} {:>8}",
-                 "Comparison", "Diff", "p-value", "Corrected", "Signif");
+        println!(
+            "{:<35} {:>10} {:>10} {:>10} {:>8}",
+            "Comparison", "Diff", "p-value", "Corrected", "Signif"
+        );
         println!("{}", "-".repeat(75));
 
         for comp in &comparisons.pairwise_comparisons {
-            let sig = if comp.significant_corrected { "**" }
-                     else if comp.significant { "*" }
-                     else { "" };
-            println!("{:<35} {:>10.4} {:>10.4} {:>10.4} {:>8}",
-                     format!("{} vs {}", comp.model1_name, comp.model2_name),
-                     comp.mean_difference,
-                     comp.p_value,
-                     comp.p_value_corrected,
-                     sig);
+            let sig = if comp.significant_corrected {
+                "**"
+            } else if comp.significant {
+                "*"
+            } else {
+                ""
+            };
+            println!(
+                "{:<35} {:>10.4} {:>10.4} {:>10.4} {:>8}",
+                format!("{} vs {}", comp.model1_name, comp.model2_name),
+                comp.mean_difference,
+                comp.p_value,
+                comp.p_value_corrected,
+                sig
+            );
         }
         println!("\n  * significant at alpha=0.05");
         println!("  ** significant after Holm-Bonferroni correction");
@@ -200,15 +223,22 @@ fn run_classification_example() -> ferroml_core::Result<()> {
     if let Some(ensemble) = &result.ensemble {
         println!("\nEnsemble:");
         println!("  Ensemble score: {:.4}", ensemble.ensemble_score);
-        println!("  Improvement over best: {:.4} ({:.2}%)",
-                 ensemble.improvement,
-                 if result.best_model().map_or(0.0, |b| b.cv_score) != 0.0 {
-                     (ensemble.improvement / result.best_model().unwrap().cv_score.abs()) * 100.0
-                 } else { 0.0 });
+        println!(
+            "  Improvement over best: {:.4} ({:.2}%)",
+            ensemble.improvement,
+            if result.best_model().map_or(0.0, |b| b.cv_score) != 0.0 {
+                (ensemble.improvement / result.best_model().unwrap().cv_score.abs()) * 100.0
+            } else {
+                0.0
+            }
+        );
         println!("  Number of models in ensemble: {}", ensemble.members.len());
         println!("\n  Ensemble members:");
         for member in &ensemble.members {
-            println!("    - {:?} (weight: {:.4})", member.algorithm, member.weight);
+            println!(
+                "    - {:?} (weight: {:.4})",
+                member.algorithm, member.weight
+            );
         }
     }
 
@@ -216,23 +246,32 @@ fn run_classification_example() -> ferroml_core::Result<()> {
     if let Some(importance) = &result.aggregated_importance {
         println!("\nAggregated Feature Importance:");
         println!("  (Weighted across {} models)", importance.n_models);
-        println!("{:<20} {:>12} {:>10} {:>24}",
-                 "Feature", "Importance", "Std", "95% CI");
+        println!(
+            "{:<20} {:>12} {:>10} {:>24}",
+            "Feature", "Importance", "Std", "95% CI"
+        );
         println!("{}", "-".repeat(70));
 
         let feature_names = &info.feature_names;
         for idx in importance.sorted_indices() {
-            let name = feature_names.get(idx)
+            let name = feature_names
+                .get(idx)
                 .map(String::as_str)
                 .unwrap_or(&importance.feature_names[idx]);
-            let sig = if importance.is_significant(idx) { "*" } else { "" };
-            println!("{:<20} {:>12.4} {:>10.4} [{:>10.4}, {:>10.4}]{}",
-                     name,
-                     importance.importance_mean[idx],
-                     importance.importance_std[idx],
-                     importance.ci_lower[idx],
-                     importance.ci_upper[idx],
-                     sig);
+            let sig = if importance.is_significant(idx) {
+                "*"
+            } else {
+                ""
+            };
+            println!(
+                "{:<20} {:>12.4} {:>10.4} [{:>10.4}, {:>10.4}]{}",
+                name,
+                importance.importance_mean[idx],
+                importance.importance_std[idx],
+                importance.ci_lower[idx],
+                importance.ci_upper[idx],
+                sig
+            );
         }
         println!("\n  * indicates CI excludes zero (statistically significant)");
     }
@@ -292,7 +331,10 @@ fn run_regression_example() -> ferroml_core::Result<()> {
     // Run AutoML
     // -------------------------------------------------------------------------
     println!("\n--- Running AutoML ---");
-    println!("(This may take up to {} seconds...)\n", config.time_budget_seconds);
+    println!(
+        "(This may take up to {} seconds...)\n",
+        config.time_budget_seconds
+    );
 
     let automl = AutoML::new(config);
     let result = automl.fit(&x_train, &y_train)?;
@@ -307,7 +349,10 @@ fn run_regression_example() -> ferroml_core::Result<()> {
     println!("  Total time: {:.2}s", result.total_time_seconds);
     println!("  Successful trials: {}", result.n_successful_trials);
     println!("  Failed trials: {}", result.n_failed_trials);
-    println!("  Unique algorithms tried: {}", result.n_successful_algorithms());
+    println!(
+        "  Unique algorithms tried: {}",
+        result.n_successful_algorithms()
+    );
 
     // Best model
     if let Some(best) = result.best_model() {
@@ -320,18 +365,22 @@ fn run_regression_example() -> ferroml_core::Result<()> {
 
     // Leaderboard
     println!("\nTop 5 Models (Leaderboard):");
-    println!("{:<5} {:<30} {:>12} {:>10} {:>24}",
-             "Rank", "Algorithm", "CV R²", "Std", "95% CI");
+    println!(
+        "{:<5} {:<30} {:>12} {:>10} {:>24}",
+        "Rank", "Algorithm", "CV R²", "Std", "95% CI"
+    );
     println!("{}", "-".repeat(85));
 
     for entry in result.leaderboard.iter().take(5) {
-        println!("{:<5} {:<30} {:>12.4} {:>10.4} [{:>10.4}, {:>10.4}]",
-                 entry.rank,
-                 format!("{:?}", entry.algorithm),
-                 entry.cv_score,
-                 entry.cv_std,
-                 entry.ci_lower,
-                 entry.ci_upper);
+        println!(
+            "{:<5} {:<30} {:>12.4} {:>10.4} [{:>10.4}, {:>10.4}]",
+            entry.rank,
+            format!("{:?}", entry.algorithm),
+            entry.cv_score,
+            entry.cv_std,
+            entry.ci_lower,
+            entry.ci_upper
+        );
     }
 
     // Data characteristics detected
@@ -340,16 +389,28 @@ fn run_regression_example() -> ferroml_core::Result<()> {
     println!("  Samples: {}", chars.n_samples);
     println!("  Features: {}", chars.n_features);
     println!("  Has missing values: {}", chars.has_missing_values);
-    println!("  Variance ratio (max/min): {:.2}", chars.feature_variance_ratio);
+    println!(
+        "  Variance ratio (max/min): {:.2}",
+        chars.feature_variance_ratio
+    );
 
     // Model comparisons for regression
     if let Some(comparisons) = &result.model_comparisons {
         println!("\nModel Significance Testing:");
-        println!("  {} pairwise comparisons performed", comparisons.pairwise_comparisons.len());
-        println!("  Best model significantly better than {} others", comparisons.n_significantly_worse);
+        println!(
+            "  {} pairwise comparisons performed",
+            comparisons.pairwise_comparisons.len()
+        );
+        println!(
+            "  Best model significantly better than {} others",
+            comparisons.n_significantly_worse
+        );
 
         let competitive_count = result.competitive_models().len();
-        println!("  {} models statistically competitive with best", competitive_count);
+        println!(
+            "  {} models statistically competitive with best",
+            competitive_count
+        );
     }
 
     // Ensemble

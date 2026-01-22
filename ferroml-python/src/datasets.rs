@@ -334,10 +334,7 @@ impl PyDataset {
             .train_test_split(test_size, shuffle, random_state)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
 
-        Ok((
-            PyDataset { inner: train },
-            PyDataset { inner: test },
-        ))
+        Ok((PyDataset { inner: train }, PyDataset { inner: test }))
     }
 
     fn __repr__(&self) -> String {
@@ -570,24 +567,29 @@ fn load_huggingface(
 
     // Load the dataset from Hub
     let load_dataset = datasets_module.getattr("load_dataset")?;
-    let hf_dataset = load_dataset.call((dataset_name,), Some(&kwargs)).map_err(|e| {
-        // Check if it's a dataset not found error
-        let err_str = e.to_string();
-        if err_str.contains("DatasetNotFoundError") || err_str.contains("FileNotFoundError") {
-            DatasetError::DatasetNotFound(dataset_name.to_string()).into()
-        } else {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Failed to load dataset '{}': {}",
-                dataset_name, e
-            ))
-        }
-    })?;
+    let hf_dataset = load_dataset
+        .call((dataset_name,), Some(&kwargs))
+        .map_err(|e| {
+            // Check if it's a dataset not found error
+            let err_str = e.to_string();
+            if err_str.contains("DatasetNotFoundError") || err_str.contains("FileNotFoundError") {
+                DatasetError::DatasetNotFound(dataset_name.to_string()).into()
+            } else {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Failed to load dataset '{}': {}",
+                    dataset_name, e
+                ))
+            }
+        })?;
 
     // Get the number of rows
-    let n_samples: usize = hf_dataset.call_method0("num_rows")?.extract().unwrap_or_else(|_| {
-        // Try alternative: len(dataset)
-        hf_dataset.len().unwrap_or(0)
-    });
+    let n_samples: usize = hf_dataset
+        .call_method0("num_rows")?
+        .extract()
+        .unwrap_or_else(|_| {
+            // Try alternative: len(dataset)
+            hf_dataset.len().unwrap_or(0)
+        });
 
     if n_samples == 0 {
         return Err(DatasetError::EmptyDataset.into());
@@ -642,8 +644,7 @@ fn load_huggingface(
     let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| x_data[j * n_samples + i]);
 
     // Create Dataset
-    let dataset = RustDataset::new(x, y)
-        .with_feature_names(feature_cols.clone());
+    let dataset = RustDataset::new(x, y).with_feature_names(feature_cols.clone());
 
     // Try to infer if classification (target has few unique integer values)
     let task = dataset.infer_task();
@@ -655,7 +656,10 @@ fn load_huggingface(
 
     // Create DatasetInfo
     let mut info = RustDatasetInfo::new(dataset_name, task, n_samples, n_features)
-        .with_description(format!("Dataset loaded from HuggingFace Hub: {}", dataset_name))
+        .with_description(format!(
+            "Dataset loaded from HuggingFace Hub: {}",
+            dataset_name
+        ))
         .with_feature_names(feature_cols)
         .with_source(format!("HuggingFace Hub: {}", dataset_name))
         .with_url(format!("https://huggingface.co/datasets/{}", dataset_name));
@@ -751,10 +755,7 @@ fn extract_column_to_f64(
 #[pyfunction]
 fn load_iris() -> (PyDataset, PyDatasetInfo) {
     let (dataset, info) = datasets::load_iris();
-    (
-        PyDataset { inner: dataset },
-        PyDatasetInfo { inner: info },
-    )
+    (PyDataset { inner: dataset }, PyDatasetInfo { inner: info })
 }
 
 /// Load the Wine recognition dataset.
@@ -769,10 +770,7 @@ fn load_iris() -> (PyDataset, PyDatasetInfo) {
 #[pyfunction]
 fn load_wine() -> (PyDataset, PyDatasetInfo) {
     let (dataset, info) = datasets::load_wine();
-    (
-        PyDataset { inner: dataset },
-        PyDatasetInfo { inner: info },
-    )
+    (PyDataset { inner: dataset }, PyDatasetInfo { inner: info })
 }
 
 /// Load the Diabetes regression dataset.
@@ -787,10 +785,7 @@ fn load_wine() -> (PyDataset, PyDatasetInfo) {
 #[pyfunction]
 fn load_diabetes() -> (PyDataset, PyDatasetInfo) {
     let (dataset, info) = datasets::load_diabetes();
-    (
-        PyDataset { inner: dataset },
-        PyDatasetInfo { inner: info },
-    )
+    (PyDataset { inner: dataset }, PyDatasetInfo { inner: info })
 }
 
 /// Load the Linnerud multi-output regression dataset.
@@ -804,10 +799,7 @@ fn load_diabetes() -> (PyDataset, PyDatasetInfo) {
 #[pyfunction]
 fn load_linnerud() -> (PyDataset, PyDatasetInfo) {
     let (dataset, info) = datasets::load_linnerud();
-    (
-        PyDataset { inner: dataset },
-        PyDatasetInfo { inner: info },
-    )
+    (PyDataset { inner: dataset }, PyDatasetInfo { inner: info })
 }
 
 // =============================================================================
@@ -850,12 +842,14 @@ fn make_classification(
     n_classes: usize,
     random_state: Option<u64>,
 ) -> (PyDataset, PyDatasetInfo) {
-    let (dataset, info) =
-        datasets::make_classification(n_samples, n_features, n_informative, n_classes, random_state);
-    (
-        PyDataset { inner: dataset },
-        PyDatasetInfo { inner: info },
-    )
+    let (dataset, info) = datasets::make_classification(
+        n_samples,
+        n_features,
+        n_informative,
+        n_classes,
+        random_state,
+    );
+    (PyDataset { inner: dataset }, PyDatasetInfo { inner: info })
 }
 
 /// Generate a synthetic regression dataset.
@@ -891,10 +885,7 @@ fn make_regression(
 ) -> (PyDataset, PyDatasetInfo) {
     let (dataset, info) =
         datasets::make_regression(n_samples, n_features, n_informative, noise, random_state);
-    (
-        PyDataset { inner: dataset },
-        PyDatasetInfo { inner: info },
-    )
+    (PyDataset { inner: dataset }, PyDatasetInfo { inner: info })
 }
 
 /// Generate synthetic Gaussian blobs for clustering.
@@ -929,10 +920,7 @@ fn make_blobs(
 ) -> (PyDataset, PyDatasetInfo) {
     let (dataset, info) =
         datasets::make_blobs(n_samples, n_features, centers, cluster_std, random_state);
-    (
-        PyDataset { inner: dataset },
-        PyDatasetInfo { inner: info },
-    )
+    (PyDataset { inner: dataset }, PyDatasetInfo { inner: info })
 }
 
 /// Generate two interleaving half circles (moons).
@@ -960,10 +948,7 @@ fn make_moons(
     random_state: Option<u64>,
 ) -> (PyDataset, PyDatasetInfo) {
     let (dataset, info) = datasets::make_moons(n_samples, noise, random_state);
-    (
-        PyDataset { inner: dataset },
-        PyDatasetInfo { inner: info },
-    )
+    (PyDataset { inner: dataset }, PyDatasetInfo { inner: info })
 }
 
 /// Generate a large circle containing a smaller circle.
@@ -994,10 +979,7 @@ fn make_circles(
     random_state: Option<u64>,
 ) -> (PyDataset, PyDatasetInfo) {
     let (dataset, info) = datasets::make_circles(n_samples, noise, factor, random_state);
-    (
-        PyDataset { inner: dataset },
-        PyDatasetInfo { inner: info },
-    )
+    (PyDataset { inner: dataset }, PyDatasetInfo { inner: info })
 }
 
 // =============================================================================

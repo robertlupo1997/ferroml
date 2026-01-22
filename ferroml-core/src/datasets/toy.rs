@@ -562,12 +562,14 @@ pub fn load_wine() -> (Dataset, DatasetInfo) {
         .with_description(
             "The Wine dataset contains chemical analysis results of wines grown in the same \
              region in Italy but derived from three different cultivars. The dataset has \
-             178 samples with 13 features each, representing various chemical properties."
+             178 samples with 13 features each, representing various chemical properties.",
         )
         .with_n_classes(3)
         .with_feature_names(feature_names)
         .with_target_names(target_names)
-        .with_source("Forina, M. et al. (1988). PARVUS - An Extendible Package for Data Exploration.")
+        .with_source(
+            "Forina, M. et al. (1988). PARVUS - An Extendible Package for Data Exploration.",
+        )
         .with_url("https://archive.ics.uci.edu/ml/datasets/Wine")
         .with_license("Public Domain");
 
@@ -747,7 +749,7 @@ pub fn load_linnerud() -> (Dataset, DatasetInfo) {
             "The Linnerud dataset is a small multi-output regression dataset with \
              physiological measurements and exercise data for 20 middle-aged men. \
              This version uses body weight (kg) as the target variable. \
-             Features are exercise measurements: chin-ups, sit-ups, and jumping jacks."
+             Features are exercise measurements: chin-ups, sit-ups, and jumping jacks.",
         )
         .with_feature_names(feature_names)
         .with_source("Tenenhaus, M. (1998). La Régression PLS. Technip, Paris.")

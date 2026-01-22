@@ -189,9 +189,10 @@ impl InferenceSession {
         let outputs = self.run(inputs)?;
 
         // Return first output
-        let output_name = self.output_names.first().ok_or_else(|| {
-            InferenceError::RuntimeError("Model has no outputs".to_string())
-        })?;
+        let output_name = self
+            .output_names
+            .first()
+            .ok_or_else(|| InferenceError::RuntimeError("Model has no outputs".to_string()))?;
 
         outputs
             .get(output_name)
@@ -435,7 +436,9 @@ mod tests {
             ],
         )
         .unwrap();
-        let y = Array1::from_vec(vec![4.0, 5.5, 9.5, 10.0, 14.5, 15.0, 19.5, 20.0, 24.5, 25.0]);
+        let y = Array1::from_vec(vec![
+            4.0, 5.5, 9.5, 10.0, 14.5, 15.0, 19.5, 20.0, 24.5, 25.0,
+        ]);
         (x, y)
     }
 
@@ -464,7 +467,11 @@ mod tests {
         assert_eq!(output.shape(), &[1]);
         let pred = output.as_slice()[0];
         // y ≈ 2*x1 + x2 + 1, so for [6, 3] we expect ~16
-        assert!(pred > 10.0 && pred < 20.0, "Prediction {} out of range", pred);
+        assert!(
+            pred > 10.0 && pred < 20.0,
+            "Prediction {} out of range",
+            pred
+        );
     }
 
     #[test]
@@ -478,10 +485,7 @@ mod tests {
         let session = InferenceSession::from_bytes(&onnx_bytes).unwrap();
 
         // Batch of 3 samples
-        let test_input = Tensor::from_vec(
-            vec![1.0f32, 2.0, 5.0, 4.5, 10.0, 5.0],
-            vec![3, 2],
-        );
+        let test_input = Tensor::from_vec(vec![1.0f32, 2.0, 5.0, 4.5, 10.0, 5.0], vec![3, 2]);
         let output = session.run_single(&[("input", test_input)]).unwrap();
 
         assert_eq!(output.shape(), &[3]);

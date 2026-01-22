@@ -190,7 +190,6 @@ pub struct AttributeProto {
     pub ref_attr_name: String,
 
     // Exactly one of the following fields must be set depending on type
-
     /// Float value
     #[prost(float, tag = "2")]
     pub f: f32,

@@ -72,8 +72,8 @@ use std::path::{Path, PathBuf};
 use memmap2::{Mmap, MmapMut, MmapOptions};
 use ndarray::{Array1, Array2, ArrayView1, ArrayView2, ArrayViewMut2};
 
-use crate::{FerroError, Result};
 use super::Dataset;
+use crate::{FerroError, Result};
 
 /// Magic bytes identifying FerroML memory-mapped dataset files.
 const MAGIC: &[u8; 4] = b"FRMD";
@@ -134,7 +134,11 @@ impl MemmappedArray2 {
                 .map(&file)?
         };
 
-        Ok(Self { mmap, n_rows, n_cols })
+        Ok(Self {
+            mmap,
+            n_rows,
+            n_cols,
+        })
     }
 
     /// Get the shape of the array as (rows, cols).
@@ -158,9 +162,7 @@ impl MemmappedArray2 {
     pub fn view(&self) -> ArrayView2<'_, f64> {
         let data_ptr = self.mmap.as_ptr() as *const f64;
         // SAFETY: We've verified the size during construction
-        unsafe {
-            ArrayView2::from_shape_ptr((self.n_rows, self.n_cols), data_ptr)
-        }
+        unsafe { ArrayView2::from_shape_ptr((self.n_rows, self.n_cols), data_ptr) }
     }
 
     /// Get a specific row as an array slice.
@@ -171,9 +173,7 @@ impl MemmappedArray2 {
         let start = idx * self.n_cols;
         let data_ptr = self.mmap.as_ptr() as *const f64;
         // SAFETY: We've bounds checked and verified size during construction
-        Some(unsafe {
-            std::slice::from_raw_parts(data_ptr.add(start), self.n_cols)
-        })
+        Some(unsafe { std::slice::from_raw_parts(data_ptr.add(start), self.n_cols) })
     }
 
     /// Get a specific element.
@@ -241,25 +241,25 @@ impl MemmappedArray2Mut {
                 .map_mut(&file)?
         };
 
-        Ok(Self { mmap, n_rows, n_cols })
+        Ok(Self {
+            mmap,
+            n_rows,
+            n_cols,
+        })
     }
 
     /// Get a mutable view of the array.
     pub fn view_mut(&mut self) -> ArrayViewMut2<'_, f64> {
         let data_ptr = self.mmap.as_mut_ptr() as *mut f64;
         // SAFETY: We have exclusive mutable access
-        unsafe {
-            ArrayViewMut2::from_shape_ptr((self.n_rows, self.n_cols), data_ptr)
-        }
+        unsafe { ArrayViewMut2::from_shape_ptr((self.n_rows, self.n_cols), data_ptr) }
     }
 
     /// Get an immutable view of the array.
     pub fn view(&self) -> ArrayView2<'_, f64> {
         let data_ptr = self.mmap.as_ptr() as *const f64;
         // SAFETY: Size verified during construction
-        unsafe {
-            ArrayView2::from_shape_ptr((self.n_rows, self.n_cols), data_ptr)
-        }
+        unsafe { ArrayView2::from_shape_ptr((self.n_rows, self.n_cols), data_ptr) }
     }
 
     /// Set a specific element.
@@ -330,9 +330,7 @@ impl MemmappedArray1 {
     pub fn view(&self) -> ArrayView1<'_, f64> {
         let data_ptr = self.mmap.as_ptr() as *const f64;
         // SAFETY: Size verified during construction
-        unsafe {
-            ArrayView1::from_shape_ptr(self.len, data_ptr)
-        }
+        unsafe { ArrayView1::from_shape_ptr(self.len, data_ptr) }
     }
 
     /// Get a specific element.
@@ -417,7 +415,7 @@ impl MemmappedDataset {
         // Validate magic
         if &header[0..4] != MAGIC {
             return Err(FerroError::invalid_input(
-                "Invalid file format: magic bytes don't match FerroML memory-mapped dataset"
+                "Invalid file format: magic bytes don't match FerroML memory-mapped dataset",
             ));
         }
 
@@ -444,7 +442,8 @@ impl MemmappedDataset {
         if mmap.len() < expected_size {
             return Err(FerroError::invalid_input(format!(
                 "File corrupted: expected {} bytes, got {}",
-                expected_size, mmap.len()
+                expected_size,
+                mmap.len()
             )));
         }
 
@@ -598,9 +597,7 @@ impl MemmappedDataset {
     pub fn x_view(&self) -> ArrayView2<'_, f64> {
         let data_ptr = unsafe { self.mmap.as_ptr().add(HEADER_SIZE) as *const f64 };
         // SAFETY: Size verified during open()
-        unsafe {
-            ArrayView2::from_shape_ptr((self.n_samples, self.n_features), data_ptr)
-        }
+        unsafe { ArrayView2::from_shape_ptr((self.n_samples, self.n_features), data_ptr) }
     }
 
     /// Get a view of the target vector (zero-copy).
@@ -613,9 +610,7 @@ impl MemmappedDataset {
         let offset = HEADER_SIZE + self.n_samples * self.n_features * std::mem::size_of::<f64>();
         let data_ptr = unsafe { self.mmap.as_ptr().add(offset) as *const f64 };
         // SAFETY: Size verified during open()
-        Some(unsafe {
-            ArrayView1::from_shape_ptr(self.n_samples, data_ptr)
-        })
+        Some(unsafe { ArrayView1::from_shape_ptr(self.n_samples, data_ptr) })
     }
 
     /// Get a specific row of features.
@@ -626,9 +621,7 @@ impl MemmappedDataset {
         let row_offset = HEADER_SIZE + idx * self.n_features * std::mem::size_of::<f64>();
         let data_ptr = unsafe { self.mmap.as_ptr().add(row_offset) as *const f64 };
         // SAFETY: Bounds checked
-        Some(unsafe {
-            ArrayView1::from_shape_ptr(self.n_features, data_ptr)
-        })
+        Some(unsafe { ArrayView1::from_shape_ptr(self.n_features, data_ptr) })
     }
 
     /// Get a specific element from the feature matrix.
@@ -692,7 +685,8 @@ impl MemmappedDataset {
     /// for the entire dataset.
     pub fn to_dataset(&self) -> Dataset {
         let x = self.x_view().to_owned();
-        let y = self.y_view()
+        let y = self
+            .y_view()
             .map(|v| v.to_owned())
             .unwrap_or_else(|| Array1::zeros(self.n_samples));
         Dataset::new(x, y)
@@ -845,9 +839,9 @@ impl MemmappedDatasetBuilder {
 
     /// Build the memory-mapped dataset.
     pub fn build(self) -> Result<MemmappedDataset> {
-        let x = self.x.ok_or_else(|| {
-            FerroError::invalid_input("Feature matrix (x) is required")
-        })?;
+        let x = self
+            .x
+            .ok_or_else(|| FerroError::invalid_input("Feature matrix (x) is required"))?;
 
         MemmappedDataset::create(&self.path, &x, self.y.as_ref())
     }
@@ -871,7 +865,7 @@ pub fn peek_mmap_info<P: AsRef<Path>>(path: P) -> Result<(usize, usize, bool)> {
     // Validate magic
     if &header[0..4] != MAGIC {
         return Err(FerroError::invalid_input(
-            "Invalid file format: not a FerroML memory-mapped dataset"
+            "Invalid file format: not a FerroML memory-mapped dataset",
         ));
     }
 
@@ -1188,7 +1182,9 @@ mod tests {
         // Create a larger dataset
         let n_samples = 10_000;
         let n_features = 100;
-        let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| (i * n_features + j) as f64);
+        let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| {
+            (i * n_features + j) as f64
+        });
         let y = Array1::from_shape_fn(n_samples, |i| (i % 10) as f64);
 
         let dataset = MemmappedDataset::create(path, &x, Some(&y)).unwrap();

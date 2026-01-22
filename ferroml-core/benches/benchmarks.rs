@@ -55,12 +55,16 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use ferroml_core::datasets::{make_classification, make_regression};
 use ferroml_core::models::boosting::{GradientBoostingClassifier, GradientBoostingRegressor};
 use ferroml_core::models::forest::{RandomForestClassifier, RandomForestRegressor};
-use ferroml_core::models::hist_boosting::{HistGradientBoostingClassifier, HistGradientBoostingRegressor};
+use ferroml_core::models::hist_boosting::{
+    HistGradientBoostingClassifier, HistGradientBoostingRegressor,
+};
 use ferroml_core::models::linear::LinearRegression;
 use ferroml_core::models::regularized::{LassoRegression, RidgeRegression};
 use ferroml_core::models::tree::{DecisionTreeClassifier, DecisionTreeRegressor};
 use ferroml_core::models::Model;
-use ferroml_core::preprocessing::scalers::{MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler};
+use ferroml_core::preprocessing::scalers::{
+    MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler,
+};
 use ferroml_core::preprocessing::Transformer;
 use ndarray::{Array1, Array2};
 
@@ -82,7 +86,8 @@ fn generate_classification_data(
     n_classes: usize,
 ) -> (Array2<f64>, Array1<f64>) {
     let n_informative = n_features / 2;
-    let (dataset, _) = make_classification(n_samples, n_features, n_informative, n_classes, Some(42));
+    let (dataset, _) =
+        make_classification(n_samples, n_features, n_informative, n_classes, Some(42));
     dataset.into_arrays()
 }
 
@@ -128,9 +133,7 @@ fn bench_linear_regression_predict(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
             &x,
-            |b, x| {
-                b.iter(|| model.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| model.predict(black_box(x)).unwrap()),
         );
     }
 
@@ -226,9 +229,7 @@ fn bench_decision_tree_classifier_predict(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
             &x,
-            |b, x| {
-                b.iter(|| model.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| model.predict(black_box(x)).unwrap()),
         );
     }
 
@@ -304,9 +305,7 @@ fn bench_random_forest_classifier_predict(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
             &x,
-            |b, x| {
-                b.iter(|| model.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| model.predict(black_box(x)).unwrap()),
         );
     }
 
@@ -397,9 +396,7 @@ fn bench_gradient_boosting_classifier_predict(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
             &x,
-            |b, x| {
-                b.iter(|| model.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| model.predict(black_box(x)).unwrap()),
         );
     }
 
@@ -452,9 +449,7 @@ fn bench_gradient_boosting_regressor_predict(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
             &x,
-            |b, x| {
-                b.iter(|| model.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| model.predict(black_box(x)).unwrap()),
         );
     }
 
@@ -515,9 +510,7 @@ fn bench_hist_gradient_boosting_classifier_predict(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
             &x,
-            |b, x| {
-                b.iter(|| model.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| model.predict(black_box(x)).unwrap()),
         );
     }
 
@@ -570,9 +563,7 @@ fn bench_hist_gradient_boosting_regressor_predict(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
             &x,
-            |b, x| {
-                b.iter(|| model.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| model.predict(black_box(x)).unwrap()),
         );
     }
 
@@ -719,21 +710,13 @@ fn bench_gradient_boosting_predict_comparison(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(n_samples as u64));
 
-        group.bench_with_input(
-            BenchmarkId::new("standard", n_samples),
-            &x_test,
-            |b, x| {
-                b.iter(|| standard.predict(black_box(x)).unwrap())
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("standard", n_samples), &x_test, |b, x| {
+            b.iter(|| standard.predict(black_box(x)).unwrap())
+        });
 
-        group.bench_with_input(
-            BenchmarkId::new("histogram", n_samples),
-            &x_test,
-            |b, x| {
-                b.iter(|| hist.predict(black_box(x)).unwrap())
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("histogram", n_samples), &x_test, |b, x| {
+            b.iter(|| hist.predict(black_box(x)).unwrap())
+        });
     }
 
     group.finish();
@@ -940,25 +923,19 @@ fn bench_prediction_scaling(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("LinearRegression", n_samples),
             &x_test,
-            |b, x| {
-                b.iter(|| linear.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| linear.predict(black_box(x)).unwrap()),
         );
 
         group.bench_with_input(
             BenchmarkId::new("RidgeRegression", n_samples),
             &x_test,
-            |b, x| {
-                b.iter(|| ridge.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| ridge.predict(black_box(x)).unwrap()),
         );
 
         group.bench_with_input(
             BenchmarkId::new("DecisionTree", n_samples),
             &x_test,
-            |b, x| {
-                b.iter(|| tree.predict(black_box(x)).unwrap())
-            },
+            |b, x| b.iter(|| tree.predict(black_box(x)).unwrap()),
         );
     }
 
@@ -1023,4 +1000,11 @@ criterion_group!(
     bench_gradient_boosting_predict_comparison,
 );
 
-criterion_main!(linear_models, tree_models, gradient_boosting, hist_gradient_boosting, preprocessing, scaling);
+criterion_main!(
+    linear_models,
+    tree_models,
+    gradient_boosting,
+    hist_gradient_boosting,
+    preprocessing,
+    scaling
+);

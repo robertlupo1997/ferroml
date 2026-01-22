@@ -223,17 +223,16 @@ impl FeatureSpec {
         }
 
         // Determine feature type
-        let feature_type = if unique_values.len() == 2
-            && unique_values.iter().all(|&v| v == 0.0 || v == 1.0)
-        {
-            FeatureType::Binary
-        } else if is_integer && unique_values.len() <= 20 {
-            FeatureType::Categorical
-        } else if is_integer {
-            FeatureType::Integer
-        } else {
-            FeatureType::Continuous
-        };
+        let feature_type =
+            if unique_values.len() == 2 && unique_values.iter().all(|&v| v == 0.0 || v == 1.0) {
+                FeatureType::Binary
+            } else if is_integer && unique_values.len() <= 20 {
+                FeatureType::Categorical
+            } else if is_integer {
+                FeatureType::Integer
+            } else {
+                FeatureType::Continuous
+            };
 
         let categories = if feature_type == FeatureType::Categorical {
             let mut cats = unique_values.clone();
@@ -593,7 +592,10 @@ impl ValidationResult {
     /// Get issues by severity
     #[must_use]
     pub fn issues_by_severity(&self, severity: IssueSeverity) -> Vec<&ValidationIssue> {
-        self.issues.iter().filter(|i| i.severity() == severity).collect()
+        self.issues
+            .iter()
+            .filter(|i| i.severity() == severity)
+            .collect()
     }
 
     /// Get all critical issues
@@ -1031,18 +1033,12 @@ mod tests {
         // Below minimum
         let issues = spec.validate_value(-5.0, 0);
         assert_eq!(issues.len(), 1);
-        assert!(matches!(
-            issues[0],
-            ValidationIssue::ValueBelowMin { .. }
-        ));
+        assert!(matches!(issues[0], ValidationIssue::ValueBelowMin { .. }));
 
         // Above maximum
         let issues = spec.validate_value(150.0, 0);
         assert_eq!(issues.len(), 1);
-        assert!(matches!(
-            issues[0],
-            ValidationIssue::ValueAboveMax { .. }
-        ));
+        assert!(matches!(issues[0], ValidationIssue::ValueAboveMax { .. }));
 
         // Missing value not allowed
         let issues = spec.validate_value(f64::NAN, 0);
@@ -1079,10 +1075,7 @@ mod tests {
         // Unknown category
         let issues = spec.validate_value(4.0, 0);
         assert_eq!(issues.len(), 1);
-        assert!(matches!(
-            issues[0],
-            ValidationIssue::UnknownCategory { .. }
-        ));
+        assert!(matches!(issues[0], ValidationIssue::UnknownCategory { .. }));
     }
 
     #[test]
@@ -1173,18 +1166,17 @@ mod tests {
         let schema = FeatureSchema::new(3).with_feature_names(vec!["a", "b", "c"]);
 
         // Matching names
-        let issues = schema.validate_feature_names(&["a".to_string(), "b".to_string(), "c".to_string()]);
+        let issues =
+            schema.validate_feature_names(&["a".to_string(), "b".to_string(), "c".to_string()]);
         assert!(issues.is_empty());
 
         // Mismatched name
-        let issues = schema.validate_feature_names(&["a".to_string(), "x".to_string(), "c".to_string()]);
+        let issues =
+            schema.validate_feature_names(&["a".to_string(), "x".to_string(), "c".to_string()]);
         assert_eq!(issues.len(), 1);
         assert!(matches!(
             issues[0],
-            ValidationIssue::FeatureNameMismatch {
-                feature_idx: 1,
-                ..
-            }
+            ValidationIssue::FeatureNameMismatch { feature_idx: 1, .. }
         ));
 
         // Wrong count
@@ -1238,11 +1230,8 @@ mod tests {
 
     #[test]
     fn test_schema_sample_validation() {
-        let x = Array2::from_shape_vec(
-            (1000, 2),
-            (0..2000).map(|i| i as f64).collect::<Vec<_>>(),
-        )
-        .unwrap();
+        let x = Array2::from_shape_vec((1000, 2), (0..2000).map(|i| i as f64).collect::<Vec<_>>())
+            .unwrap();
 
         let schema = FeatureSchema::from_array(&x).with_sample_validation(0.1);
 
@@ -1354,8 +1343,7 @@ mod tests {
 
     #[test]
     fn test_schema_summary() {
-        let schema =
-            FeatureSchema::new(2).with_feature_names(vec!["feature_a", "feature_b"]);
+        let schema = FeatureSchema::new(2).with_feature_names(vec!["feature_a", "feature_b"]);
 
         let summary = schema.summary();
         assert!(summary.contains("2 features"));

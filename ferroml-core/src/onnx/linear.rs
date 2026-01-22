@@ -33,7 +33,8 @@ fn create_linear_graph(
     );
 
     // Output: [batch_size]
-    let output = create_tensor_output_1d(&config.output_name, batch_size, TensorProtoDataType::Float);
+    let output =
+        create_tensor_output_1d(&config.output_name, batch_size, TensorProtoDataType::Float);
 
     // Weights: [n_features, 1]
     let weights: Vec<f32> = coefficients.iter().map(|&c| c as f32).collect();
@@ -53,7 +54,8 @@ fn create_linear_graph(
     let add_node = create_add_node("matmul_out", "bias", "add_out", "Add_0");
 
     // 3. Squeeze: add_out -> output [batch_size]
-    let squeeze_node = create_squeeze_node("add_out", "squeeze_axes", &config.output_name, "Squeeze_0");
+    let squeeze_node =
+        create_squeeze_node("add_out", "squeeze_axes", &config.output_name, "Squeeze_0");
 
     GraphProto {
         name: config.model_name.clone(),
@@ -188,7 +190,12 @@ fn create_binary_logistic_graph(
     );
 
     // Output: [batch_size, 1] probabilities
-    let output = create_tensor_output(&config.output_name, 1, batch_size, TensorProtoDataType::Float);
+    let output = create_tensor_output(
+        &config.output_name,
+        1,
+        batch_size,
+        TensorProtoDataType::Float,
+    );
 
     // Weights: [n_features, 1]
     let weights: Vec<f32> = coefficients.iter().map(|&c| c as f32).collect();
@@ -266,16 +273,16 @@ mod tests {
         )
         .unwrap();
         // y = 2*x1 + x2 + noise
-        let y = Array1::from_vec(vec![4.0, 5.5, 9.5, 10.0, 14.5, 15.0, 19.5, 20.0, 24.5, 25.0]);
+        let y = Array1::from_vec(vec![
+            4.0, 5.5, 9.5, 10.0, 14.5, 15.0, 19.5, 20.0, 24.5, 25.0,
+        ]);
         (x, y)
     }
 
     fn create_classification_data() -> (Array2<f64>, Array1<f64>) {
         let x = Array2::from_shape_vec(
             (6, 2),
-            vec![
-                1.0, 1.0, 2.0, 2.0, 3.0, 1.0, 4.0, 4.0, 5.0, 5.0, 6.0, 4.0,
-            ],
+            vec![1.0, 1.0, 2.0, 2.0, 3.0, 1.0, 4.0, 4.0, 5.0, 5.0, 6.0, 4.0],
         )
         .unwrap();
         let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);

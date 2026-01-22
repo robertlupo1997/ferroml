@@ -152,10 +152,7 @@ pub fn extract_xy_from_pandas<'py>(
     }
 
     // Get all column names
-    let columns: Vec<String> = df
-        .getattr("columns")?
-        .call_method0("tolist")?
-        .extract()?;
+    let columns: Vec<String> = df.getattr("columns")?.call_method0("tolist")?.extract()?;
 
     // Verify target column exists
     if !columns.contains(&target_column.to_string()) {
@@ -242,10 +239,7 @@ pub fn extract_x_from_pandas<'py>(
     }
 
     // Get all column names
-    let columns: Vec<String> = df
-        .getattr("columns")?
-        .call_method0("tolist")?
-        .extract()?;
+    let columns: Vec<String> = df.getattr("columns")?.call_method0("tolist")?.extract()?;
 
     // Determine feature columns
     let feature_names: Vec<String> = match feature_columns {
@@ -289,10 +283,7 @@ pub fn extract_x_from_pandas<'py>(
 }
 
 /// Get list of numeric column names from a Pandas DataFrame.
-fn get_numeric_columns<'py>(
-    py: Python<'py>,
-    df: &Bound<'py, PyAny>,
-) -> PandasResult<Vec<String>> {
+fn get_numeric_columns<'py>(py: Python<'py>, df: &Bound<'py, PyAny>) -> PandasResult<Vec<String>> {
     // Use pandas.api.types.is_numeric_dtype or select_dtypes
     // df.select_dtypes(include=['number']).columns.tolist()
     let include_list = PyList::new(py, &[PyString::new(py, "number")])?;
@@ -319,7 +310,10 @@ fn extract_column_as_array1<'py>(
     let series = df.get_item(column_name)?;
 
     // Check for null values using isna().sum()
-    let null_count: usize = series.call_method0("isna")?.call_method0("sum")?.extract()?;
+    let null_count: usize = series
+        .call_method0("isna")?
+        .call_method0("sum")?
+        .extract()?;
     if null_count > 0 {
         return Err(PandasConversionError::NullValues {
             column: column_name.to_string(),
@@ -329,12 +323,12 @@ fn extract_column_as_array1<'py>(
 
     // Try to convert to float64 numpy array
     // series.astype('float64').to_numpy()
-    let float_series = series
-        .call_method1("astype", ("float64",))
-        .map_err(|e| PandasConversionError::UnsupportedDataType {
+    let float_series = series.call_method1("astype", ("float64",)).map_err(|e| {
+        PandasConversionError::UnsupportedDataType {
             column: column_name.to_string(),
             dtype: format!("(conversion error: {})", e),
-        })?;
+        }
+    })?;
 
     let numpy_array = float_series.call_method0("to_numpy")?;
 
@@ -345,10 +339,7 @@ fn extract_column_as_array1<'py>(
 
 /// Get column names from a Pandas DataFrame as a Vec<String>.
 pub fn get_column_names<'py>(df: &Bound<'py, PyAny>) -> PandasResult<Vec<String>> {
-    let columns: Vec<String> = df
-        .getattr("columns")?
-        .call_method0("tolist")?
-        .extract()?;
+    let columns: Vec<String> = df.getattr("columns")?.call_method0("tolist")?.extract()?;
     Ok(columns)
 }
 
@@ -362,14 +353,8 @@ pub fn is_pandas_dataframe<'py>(obj: &Bound<'py, PyAny>) -> bool {
 }
 
 /// Validate that specified columns exist in the DataFrame.
-pub fn validate_columns<'py>(
-    df: &Bound<'py, PyAny>,
-    columns: &[String],
-) -> PandasResult<()> {
-    let available: Vec<String> = df
-        .getattr("columns")?
-        .call_method0("tolist")?
-        .extract()?;
+pub fn validate_columns<'py>(df: &Bound<'py, PyAny>, columns: &[String]) -> PandasResult<()> {
+    let available: Vec<String> = df.getattr("columns")?.call_method0("tolist")?.extract()?;
 
     for col in columns {
         if !available.contains(col) {
@@ -387,7 +372,10 @@ pub fn check_for_nulls<'py>(
 ) -> PandasResult<()> {
     for col_name in columns {
         let series = df.get_item(col_name)?;
-        let null_count: usize = series.call_method0("isna")?.call_method0("sum")?.extract()?;
+        let null_count: usize = series
+            .call_method0("isna")?
+            .call_method0("sum")?
+            .extract()?;
 
         if null_count > 0 {
             return Err(PandasConversionError::NullValues {

@@ -40,10 +40,10 @@ use pyo3::types::{PyBytes, PyDict};
 use crate::pandas_utils::{extract_x_from_pandas, extract_xy_from_pandas};
 #[cfg(feature = "polars")]
 use crate::polars_utils::{extract_x_from_pydf, extract_xy_from_pydf};
-#[cfg(feature = "polars")]
-use pyo3_polars::PyDataFrame;
 #[cfg(feature = "sparse")]
 use crate::sparse_utils::{extract_sparse_x, extract_sparse_xy};
+#[cfg(feature = "polars")]
+use pyo3_polars::PyDataFrame;
 
 // =============================================================================
 // LinearRegression
@@ -313,7 +313,11 @@ impl PyLinearRegression {
     /// coef_info : list of dict
     ///     List of coefficient information dictionaries.
     #[pyo3(signature = (level=0.95))]
-    fn coefficients_with_ci<'py>(&self, py: Python<'py>, level: f64) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    fn coefficients_with_ci<'py>(
+        &self,
+        py: Python<'py>,
+        level: f64,
+    ) -> PyResult<Vec<Bound<'py, PyDict>>> {
         if !self.inner.is_fitted() {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "Model not fitted. Call fit() first.",
@@ -835,7 +839,11 @@ impl PyLogisticRegression {
     /// or_info : list of dict
     ///     List of odds ratio information dictionaries.
     #[pyo3(signature = (level=0.95))]
-    fn odds_ratios_with_ci<'py>(&self, py: Python<'py>, level: f64) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    fn odds_ratios_with_ci<'py>(
+        &self,
+        py: Python<'py>,
+        level: f64,
+    ) -> PyResult<Vec<Bound<'py, PyDict>>> {
         if !self.inner.is_fitted() {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "Model not fitted. Call fit() first.",
