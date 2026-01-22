@@ -63,16 +63,23 @@ jobs:
       - name: Run Rust tests
         run: cargo test -p ferroml-core --all-features
 
-      - name: Install maturin and test dependencies
-        run: pip install maturin pytest numpy
+      - name: Create virtualenv and install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install maturin pytest numpy
 
       - name: Build and install for testing
         working-directory: ${{ env.PACKAGE_DIR }}
-        run: maturin develop --release
+        run: |
+          source ../.venv/bin/activate
+          maturin develop --release
 
       - name: Run Python tests
         working-directory: ${{ env.PACKAGE_DIR }}
-        run: pytest tests/ -v --tb=short || true  # Allow test failures for now
+        run: |
+          source ../.venv/bin/activate
+          pytest tests/ -v --tb=short || true  # Allow test failures for now
 
       - name: Extract version from tag
         if: github.event_name == 'push'
