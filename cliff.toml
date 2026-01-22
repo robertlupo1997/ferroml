@@ -26,8 +26,7 @@ body = """
     ### {{ group | striptags | trim | upper_first }}
     {% for commit in commits %}
         - {% if commit.scope %}**{{ commit.scope }}**: {% endif %}\
-            {{ commit.message | upper_first }}\
-            {% if commit.github.pr_number %} ([#{{ commit.github.pr_number }}](https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}/pull/{{ commit.github.pr_number }})){% endif %}\
+            {{ commit.message | upper_first }}
     {% endfor %}
 {% endfor %}
 """
@@ -97,6 +96,7 @@ sort_commits = "oldest"
 # Limit the number of commits included in the changelog
 # limit_commits = 42
 
-[remote.github]
-owner = "ferroml"
-repo = "ferroml"
+# Disable remote integration for private repos
+# [remote.github]
+# owner = "robertlupo1997"
+# repo = "ferroml"

@@ -6,7 +6,12 @@
 
 ## Current Phase: Phase 12 - CI/CD & Release
 
-**Last Updated**: TASK-137 completed - GitHub Release creation with artifacts:
+**Last Updated**: TASK-006 fully completed - Added remaining model comparison tests:
+- Wilcoxon signed-rank test (non-parametric alternative to paired t-test)
+- 5x2cv paired t-test (Dietterich, 1998) for classifier comparison
+- All comparison tests now in `ferroml-core/src/metrics/comparison.rs`
+
+Previously: TASK-137 completed - GitHub Release creation with artifacts:
 - Created `.github/workflows/release.yml` for automated GitHub Release creation
   - Triggers on version tags (v*) and manual workflow_dispatch with tag input
   - Generates changelog using git-cliff for release notes
@@ -48,7 +53,7 @@ FerroML v0.1.0 is ready for release!
   - Correlation-based: Matthews Correlation Coefficient (MCC), Cohen's Kappa
   - Regression: MSE, RMSE, MAE, R², Explained Variance, Max Error, Median Absolute Error, MAPE
   - Probabilistic: ROC-AUC (with CI), PR-AUC, Average Precision, Log Loss, Brier Score
-  - Comparison: Paired t-test, Corrected Resampled t-test, McNemar's test
+  - Comparison: Paired t-test, Corrected Resampled t-test, McNemar's test, Wilcoxon signed-rank test, 5x2cv paired t-test
 
 - **CV Module** (`ferroml-core/src/cv/`):
   - CrossValidator trait (core abstraction for all CV strategies)
@@ -333,12 +338,12 @@ FerroML v0.1.0 is ready for release!
 - [x] **TASK-005**: Implement regression metrics
   - MSE, RMSE, MAE, MAPE, R², Adjusted R²
   - Explained variance, Max error, Median absolute error
-- [x] **TASK-006**: Implement model comparison statistics (partial - missing Wilcoxon, 5x2cv)
+- [x] **TASK-006**: Implement model comparison statistics
   - Paired t-test for CV scores
   - Corrected resampled t-test (Nadeau & Bengio)
   - McNemar's test for classifier comparison
-  - Wilcoxon signed-rank test (TODO)
-  - 5x2cv paired t-test (TODO)
+  - Wilcoxon signed-rank test (non-parametric alternative to paired t-test)
+  - 5x2cv paired t-test (Dietterich, 1998) for classifier comparison
 
 ### 1.2 Cross-Validation Module
 - [x] **TASK-007**: Implement `CrossValidator` trait in `cv/mod.rs`
