@@ -1543,7 +1543,7 @@ pub struct BOHBScheduler {
 pub struct BOHBObservation {
     /// Trial ID
     pub trial_id: usize,
-    /// Encoded configuration (normalized [0,1])
+    /// Encoded configuration (normalized \[0,1\])
     pub config: Vec<f64>,
     /// Fidelity level at which this was evaluated
     pub fidelity: f64,

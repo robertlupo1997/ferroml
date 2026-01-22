@@ -8,8 +8,6 @@
 //! ### Classification
 //! - [`load_iris`] - Fisher's Iris dataset (150 samples, 4 features, 3 classes)
 //! - [`load_wine`] - Wine recognition dataset (178 samples, 13 features, 3 classes)
-//! - [`load_breast_cancer`] - Wisconsin breast cancer dataset (569 samples, 30 features, 2 classes)
-//! - [`load_digits`] - Handwritten digits dataset (1797 samples, 64 features, 10 classes)
 //!
 //! ### Regression
 //! - [`load_diabetes`] - Diabetes progression dataset (442 samples, 10 features)

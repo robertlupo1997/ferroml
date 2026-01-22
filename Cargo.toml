@@ -13,6 +13,9 @@ edition = "2021"
 authors = ["FerroML Contributors"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/user/ferroml"
+homepage = "https://github.com/user/ferroml"
+documentation = "https://docs.rs/ferroml-core"
+readme = "README.md"
 description = "Statistically rigorous AutoML in Rust with Python bindings"
 keywords = ["machine-learning", "automl", "statistics", "data-science"]
 categories = ["science", "mathematics"]
@@ -39,6 +42,15 @@ argmin-math = "0.4"
 rayon = "1.10"
 crossbeam = "0.8"
 tokio = { version = "1", features = ["full"] }
+
+# SIMD
+wide = "0.7"                 # Portable SIMD operations
+
+# Sparse matrices
+sprs = "0.11"                # Sparse matrix operations (CSR/CSC)
+
+# Memory mapping
+memmap2 = "0.9"              # Memory-mapped files for large datasets
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

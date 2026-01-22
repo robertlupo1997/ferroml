@@ -32,6 +32,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "alga"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f823d037a7ec6ea2197046bafd4ae150e6bc36f9ca347404f46a46823fa84f2"
+dependencies = [
+ "approx 0.3.2",
+ "num-complex 0.2.4",
+ "num-traits",
+]
+
+[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -81,6 +92,15 @@ checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
 name = "approx"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0e60b75072ecd4168020818c0107f2857bb6c4e64252d8d3983f6263b40a5c3"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
@@ -121,7 +141,7 @@ checksum = "d93a0d0269b60bd1cd674de70314e3f0da97406cf8c1936ce760d2a46e0f13fe"
 dependencies = [
  "anyhow",
  "cfg-if",
- "num-complex",
+ "num-complex 0.4.6",
  "num-integer",
  "num-traits",
  "rand 0.8.5",
@@ -1025,13 +1045,14 @@ name = "ferroml-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "approx",
+ "approx 0.5.1",
  "argmin",
  "argmin-math",
  "arrow",
  "bincode",
  "criterion",
  "crossbeam",
+ "memmap2",
  "nalgebra",
  "ndarray",
  "ndarray-stats",
@@ -1044,10 +1065,12 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_json",
+ "sprs",
  "statrs",
  "tempfile",
  "thiserror 2.0.18",
  "tracing",
+ "wide",
 ]
 
 [[package]]
@@ -1906,10 +1929,10 @@ version = "0.33.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26aecdf64b707efd1310e3544d709c5c0ac61c13756046aaaba41be5c4f66a3b"
 dependencies = [
- "approx",
+ "approx 0.5.1",
  "matrixmultiply",
  "nalgebra-macros",
- "num-complex",
+ "num-complex 0.4.6",
  "num-rational",
  "num-traits",
  "rand 0.8.5",
@@ -1937,7 +1960,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "882ed72dce9365842bf196bdeedf5055305f11fc8c03dee7bb0194a6cad34841"
 dependencies = [
  "matrixmultiply",
- "num-complex",
+ "num-complex 0.4.6",
  "num-integer",
  "num-traits",
  "portable-atomic",
@@ -1996,7 +2019,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
 dependencies = [
  "num-bigint",
- "num-complex",
+ "num-complex 0.4.6",
  "num-integer",
  "num-iter",
  "num-rational",
@@ -2010,6 +2033,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
 dependencies = [
  "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
+dependencies = [
+ "autocfg",
  "num-traits",
 ]
 
@@ -2065,6 +2098,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_cpus"
+version = "1.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
+dependencies = [
+ "hermit-abi",
+ "libc",
+]
+
+[[package]]
 name = "numpy"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2072,7 +2115,7 @@ checksum = "a7cfbf3f0feededcaa4d289fe3079b03659e85c5b5a177f4ba6fb01ab4fb3e39"
 dependencies = [
  "libc",
  "ndarray",
- "num-complex",
+ "num-complex 0.4.6",
  "num-integer",
  "num-traits",
  "pyo3",
@@ -4112,8 +4155,8 @@ version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c99284beb21666094ba2b75bbceda012e610f5479dfcc2d6e2426f53197ffd95"
 dependencies = [
- "approx",
- "num-complex",
+ "approx 0.5.1",
+ "num-complex 0.4.6",
  "num-traits",
  "paste",
  "wide",
@@ -4201,6 +4244,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sprs"
+version = "0.11.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6dca58a33be2188d4edc71534f8bafa826e787cc28ca1c47f31be3423f0d6e55"
+dependencies = [
+ "alga",
+ "ndarray",
+ "num-complex 0.4.6",
+ "num-traits",
+ "num_cpus",
+ "rayon",
+ "smallvec",
+]
+
+[[package]]
 name = "sqlparser"
 version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4240,7 +4298,7 @@ version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a3fe7c28c6512e766b0874335db33c94ad7b8f9054228ae1c2abd47ce7d335e"
 dependencies = [
- "approx",
+ "approx 0.5.1",
  "nalgebra",
  "num-traits",
  "rand 0.8.5",

@@ -56,13 +56,15 @@
 //! ```
 
 use crate::cv::{select_elements, select_rows, CrossValidator, KFold};
-use crate::ensemble::voting::VotingClassifierEstimator;
+use crate::ensemble::voting::{VotingClassifierEstimator, VotingRegressorEstimator};
 use crate::hpo::SearchSpace;
 use crate::models::{check_is_fitted, validate_fit_input, validate_predict_input, Model};
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::sync::Arc;
 
 // =============================================================================
 // Stacking Method Enum
@@ -111,6 +113,8 @@ pub struct StackingClassifier {
     passthrough: bool,
     /// Method for generating meta-features from base classifiers
     stack_method: StackMethod,
+    /// Number of parallel jobs (None or 1 means sequential)
+    n_jobs: Option<i32>,
 
     // Fitted parameters
     fitted: bool,
@@ -157,6 +161,7 @@ impl StackingClassifier {
             cv: Box::new(KFold::new(5)),
             passthrough: false,
             stack_method: StackMethod::PredictProba,
+            n_jobs: None,
             fitted: false,
             n_features: None,
             classes: None,
@@ -201,6 +206,17 @@ impl StackingClassifier {
     #[must_use]
     pub fn with_stack_method(mut self, method: StackMethod) -> Self {
         self.stack_method = method;
+        self
+    }
+
+    /// Set number of parallel jobs for training
+    ///
+    /// - `None` or `Some(1)`: Sequential training
+    /// - `Some(-1)`: Use all available cores
+    /// - `Some(n)` where n > 1: Use n parallel jobs
+    #[must_use]
+    pub fn with_n_jobs(mut self, n_jobs: Option<i32>) -> Self {
+        self.n_jobs = n_jobs;
         self
     }
 
@@ -435,12 +451,46 @@ impl Model for StackingClassifier {
 
         // Step 2: Fit all base estimators on the full training data
         self.fitted_estimators.clear();
-        for (name, estimator) in &self.estimators {
-            let mut fitted = estimator.clone_boxed();
-            fitted.fit(x, y).map_err(|e| {
-                FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
-            })?;
-            self.fitted_estimators.push((name.clone(), fitted));
+
+        // Check if parallel training is enabled
+        let use_parallel = matches!(self.n_jobs, Some(n) if n != 1);
+
+        if use_parallel {
+            // Parallel training
+            let x_arc = Arc::new(x.clone());
+            let y_arc = Arc::new(y.clone());
+
+            // Clone estimators for parallel training
+            let estimator_data: Vec<(String, Box<dyn VotingClassifierEstimator>)> = self
+                .estimators
+                .iter()
+                .map(|(name, est)| (name.clone(), est.clone_boxed()))
+                .collect();
+
+            // Train in parallel
+            let trained: Vec<Result<(String, Box<dyn VotingClassifierEstimator>)>> = estimator_data
+                .into_par_iter()
+                .map(|(name, mut estimator)| {
+                    estimator.fit(&x_arc, &y_arc).map_err(|e| {
+                        FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
+                    })?;
+                    Ok((name, estimator))
+                })
+                .collect();
+
+            // Check for errors and collect results
+            for result in trained {
+                self.fitted_estimators.push(result?);
+            }
+        } else {
+            // Sequential training
+            for (name, estimator) in &self.estimators {
+                let mut fitted = estimator.clone_boxed();
+                fitted.fit(x, y).map_err(|e| {
+                    FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
+                })?;
+                self.fitted_estimators.push((name.clone(), fitted));
+            }
         }
 
         // Step 3: Fit the final estimator on meta-features
@@ -519,19 +569,21 @@ impl Model for StackingClassifier {
 /// - Named estimators for access
 pub struct StackingRegressor {
     /// Named base estimators: (name, estimator) pairs
-    estimators: Vec<(String, Box<dyn Model>)>,
+    estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)>,
     /// Meta-learner (final estimator)
     final_estimator: Option<Box<dyn Model>>,
     /// Cross-validation strategy for generating meta-features
     cv: Box<dyn CrossValidator>,
     /// Whether to include original features with meta-features
     passthrough: bool,
+    /// Number of parallel jobs (None or 1 means sequential)
+    n_jobs: Option<i32>,
 
     // Fitted parameters
     fitted: bool,
     n_features: Option<usize>,
     /// Fitted base estimators (trained on full training data after CV)
-    fitted_estimators: Vec<(String, Box<dyn Model>)>,
+    fitted_estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)>,
     /// Fitted final estimator
     fitted_final: Option<Box<dyn Model>>,
 }
@@ -557,7 +609,7 @@ impl StackingRegressor {
     /// # Panics
     ///
     /// Panics if no estimators are provided
-    pub fn new(estimators: Vec<(impl Into<String>, Box<dyn Model>)>) -> Self {
+    pub fn new(estimators: Vec<(impl Into<String>, Box<dyn VotingRegressorEstimator>)>) -> Self {
         assert!(!estimators.is_empty(), "At least one estimator is required");
         let estimators = estimators
             .into_iter()
@@ -568,6 +620,7 @@ impl StackingRegressor {
             final_estimator: None,
             cv: Box::new(KFold::new(5)),
             passthrough: false,
+            n_jobs: None,
             fitted: false,
             n_features: None,
             fitted_estimators: Vec::new(),
@@ -607,6 +660,17 @@ impl StackingRegressor {
         self
     }
 
+    /// Set number of parallel jobs for training
+    ///
+    /// - `None` or `Some(1)`: Sequential training
+    /// - `Some(-1)`: Use all available cores
+    /// - `Some(n)` where n > 1: Use n parallel jobs
+    #[must_use]
+    pub fn with_n_jobs(mut self, n_jobs: Option<i32>) -> Self {
+        self.n_jobs = n_jobs;
+        self
+    }
+
     /// Get the estimator names
     #[must_use]
     pub fn estimator_names(&self) -> Vec<&str> {
@@ -618,7 +682,7 @@ impl StackingRegressor {
 
     /// Get an estimator by name (before fitting)
     #[must_use]
-    pub fn get_estimator(&self, name: &str) -> Option<&dyn Model> {
+    pub fn get_estimator(&self, name: &str) -> Option<&dyn VotingRegressorEstimator> {
         self.estimators
             .iter()
             .find(|(n, _)| n == name)
@@ -627,7 +691,7 @@ impl StackingRegressor {
 
     /// Get a fitted estimator by name (after fitting)
     #[must_use]
-    pub fn get_fitted_estimator(&self, name: &str) -> Option<&dyn Model> {
+    pub fn get_fitted_estimator(&self, name: &str) -> Option<&dyn VotingRegressorEstimator> {
         self.fitted_estimators
             .iter()
             .find(|(n, _)| n == name)
@@ -653,6 +717,61 @@ impl StackingRegressor {
             .iter()
             .map(|(_, est)| est.predict(x))
             .collect()
+    }
+
+    /// Generate out-of-fold meta-features using cross-validation
+    fn generate_cv_meta_features(
+        &self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+    ) -> Result<Array2<f64>> {
+        let n_samples = x.nrows();
+
+        // Each regressor contributes 1 meta-feature (its prediction)
+        let n_meta_features = self.estimators.len();
+        let total_features = if self.passthrough {
+            n_meta_features + x.ncols()
+        } else {
+            n_meta_features
+        };
+
+        let mut meta_features = Array2::zeros((n_samples, total_features));
+
+        // Get CV splits
+        let folds = self.cv.split(n_samples, Some(y), None)?;
+
+        // For each fold, train estimators on train set and predict on test set
+        for fold in &folds {
+            let x_train = select_rows(x, &fold.train_indices);
+            let y_train = select_elements(y, &fold.train_indices);
+            let x_test = select_rows(x, &fold.test_indices);
+
+            // Train and predict with each estimator
+            for (col_idx, (_, estimator)) in self.estimators.iter().enumerate() {
+                // Clone and fit estimator on training fold
+                let mut fold_estimator = estimator.clone_boxed();
+                fold_estimator.fit(&x_train, &y_train)?;
+
+                // Generate predictions on test fold
+                let preds = fold_estimator.predict(&x_test)?;
+                for (i, &pred) in preds.iter().enumerate() {
+                    let sample_idx = fold.test_indices[i];
+                    meta_features[[sample_idx, col_idx]] = pred;
+                }
+            }
+        }
+
+        // Add original features if passthrough is enabled
+        if self.passthrough {
+            let offset = n_meta_features;
+            for i in 0..n_samples {
+                for j in 0..x.ncols() {
+                    meta_features[[i, offset + j]] = x[[i, j]];
+                }
+            }
+        }
+
+        Ok(meta_features)
     }
 
     /// Generate meta-features from base estimators
@@ -698,66 +817,50 @@ impl Model for StackingRegressor {
         self.n_features = Some(x.ncols());
 
         // Step 1: Generate out-of-fold meta-features using CV
-        // Note: This currently has limitations due to Model not being Clone
-        // For now, we'll use a simplified approach
-
-        let n_samples = x.nrows();
-        let n_meta_features = self.estimators.len();
-        let total_features = if self.passthrough {
-            n_meta_features + x.ncols()
-        } else {
-            n_meta_features
-        };
-
-        let mut meta_features = Array2::zeros((n_samples, total_features));
-
-        // Get CV splits
-        let folds = self.cv.split(n_samples, Some(y), None)?;
-
-        // For each fold, we need to train fresh estimators
-        // Since we can't clone the estimators, we'll use a simplified approach:
-        // Train each estimator on the full data and use leave-one-out style predictions
-        // This is not ideal but provides a working implementation
-
-        // Actually, let's implement proper CV stacking by fitting fresh instances
-        for fold in &folds {
-            let x_train = select_rows(x, &fold.train_indices);
-            let y_train = select_elements(y, &fold.train_indices);
-            let x_test = select_rows(x, &fold.test_indices);
-
-            for (col_idx, (name, _estimator)) in self.estimators.iter().enumerate() {
-                // Create a fresh estimator instance based on the name/type
-                // This is a workaround - in practice, users should provide cloneable estimators
-                let mut fold_estimator = create_regressor_for_fold(name)?;
-                fold_estimator.fit(&x_train, &y_train)?;
-
-                let preds = fold_estimator.predict(&x_test)?;
-                for (i, &pred) in preds.iter().enumerate() {
-                    let sample_idx = fold.test_indices[i];
-                    meta_features[[sample_idx, col_idx]] = pred;
-                }
-            }
-        }
-
-        // Add original features if passthrough is enabled
-        if self.passthrough {
-            let offset = n_meta_features;
-            for i in 0..n_samples {
-                for j in 0..x.ncols() {
-                    meta_features[[i, offset + j]] = x[[i, j]];
-                }
-            }
-        }
+        let meta_features = self.generate_cv_meta_features(x, y)?;
 
         // Step 2: Fit all base estimators on the full training data
-        // We need to store fitted versions
         self.fitted_estimators.clear();
-        for (name, _estimator) in &self.estimators {
-            let mut fitted = create_regressor_for_fold(name)?;
-            fitted.fit(x, y).map_err(|e| {
-                FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
-            })?;
-            self.fitted_estimators.push((name.clone(), fitted));
+
+        // Check if parallel training is enabled
+        let use_parallel = matches!(self.n_jobs, Some(n) if n != 1);
+
+        if use_parallel {
+            // Parallel training
+            let x_arc = Arc::new(x.clone());
+            let y_arc = Arc::new(y.clone());
+
+            // Clone estimators for parallel training
+            let estimator_data: Vec<(String, Box<dyn VotingRegressorEstimator>)> = self
+                .estimators
+                .iter()
+                .map(|(name, est)| (name.clone(), est.clone_boxed()))
+                .collect();
+
+            // Train in parallel
+            let trained: Vec<Result<(String, Box<dyn VotingRegressorEstimator>)>> = estimator_data
+                .into_par_iter()
+                .map(|(name, mut estimator)| {
+                    estimator.fit(&x_arc, &y_arc).map_err(|e| {
+                        FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
+                    })?;
+                    Ok((name, estimator))
+                })
+                .collect();
+
+            // Check for errors and collect results
+            for result in trained {
+                self.fitted_estimators.push(result?);
+            }
+        } else {
+            // Sequential training
+            for (name, estimator) in &self.estimators {
+                let mut fitted = estimator.clone_boxed();
+                fitted.fit(x, y).map_err(|e| {
+                    FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
+                })?;
+                self.fitted_estimators.push((name.clone(), fitted));
+            }
         }
 
         // Step 3: Fit the final estimator on meta-features
@@ -810,26 +913,6 @@ impl Model for StackingRegressor {
 
     fn n_features(&self) -> Option<usize> {
         self.n_features
-    }
-}
-
-/// Helper function to create a regressor for a CV fold
-fn create_regressor_for_fold(name: &str) -> Result<Box<dyn Model>> {
-    // Create appropriate regressor based on naming convention
-    // This is a workaround for the lack of Clone on Model
-
-    use crate::models::{
-        DecisionTreeRegressor, LinearRegression, RandomForestRegressor, RidgeRegression,
-    };
-
-    match name.to_lowercase().as_str() {
-        n if n.contains("linear") => Ok(Box::new(LinearRegression::new())),
-        n if n.contains("ridge") => Ok(Box::new(RidgeRegression::default())),
-        n if n.contains("tree") => Ok(Box::new(DecisionTreeRegressor::new())),
-        n if n.contains("forest") => {
-            Ok(Box::new(RandomForestRegressor::new().with_n_estimators(10)))
-        }
-        _ => Ok(Box::new(LinearRegression::new())), // Default fallback
     }
 }
 
@@ -1004,7 +1087,7 @@ mod tests {
     fn test_stacking_regressor_basic() {
         let (x, y) = create_regression_data();
 
-        let estimators: Vec<(String, Box<dyn Model>)> = vec![
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
             ("linear".to_string(), Box::new(LinearRegression::new())),
             (
                 "tree".to_string(),
@@ -1036,7 +1119,7 @@ mod tests {
     fn test_stacking_regressor_with_passthrough() {
         let (x, y) = create_regression_data();
 
-        let estimators: Vec<(String, Box<dyn Model>)> = vec![
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
             ("linear".to_string(), Box::new(LinearRegression::new())),
             (
                 "tree".to_string(),
@@ -1059,7 +1142,7 @@ mod tests {
     fn test_stacking_regressor_individual_predictions() {
         let (x, y) = create_regression_data();
 
-        let estimators: Vec<(String, Box<dyn Model>)> = vec![
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
             ("linear".to_string(), Box::new(LinearRegression::new())),
             (
                 "tree".to_string(),
@@ -1078,7 +1161,7 @@ mod tests {
 
     #[test]
     fn test_stacking_regressor_estimator_access() {
-        let estimators: Vec<(String, Box<dyn Model>)> = vec![
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
             ("linear".to_string(), Box::new(LinearRegression::new())),
             ("tree".to_string(), Box::new(DecisionTreeRegressor::new())),
         ];
@@ -1095,7 +1178,7 @@ mod tests {
 
     #[test]
     fn test_stacking_regressor_not_fitted_error() {
-        let estimators: Vec<(String, Box<dyn Model>)> =
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> =
             vec![("linear".to_string(), Box::new(LinearRegression::new()))];
 
         let stacker = StackingRegressor::new(estimators);

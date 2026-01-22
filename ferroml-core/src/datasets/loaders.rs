@@ -448,7 +448,7 @@ fn is_numeric_dtype(dtype: &DataType) -> bool {
     )
 }
 
-/// Convert a Polars Series to a Vec<f64>.
+/// Convert a Polars Series to a `Vec<f64>`.
 fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
     let series = series.as_materialized_series();
     match series.dtype() {

@@ -13,12 +13,37 @@
 //! To generate sklearn reference timings, run the Python script in
 //! `benchmarks/sklearn_timing.py` (TODO: create this script).
 //!
+//! ## Comparison with XGBoost/LightGBM
+//!
+//! The gradient boosting benchmarks can be compared against XGBoost and LightGBM.
+//! Run `benchmarks/xgboost_lightgbm_timing.py` to generate reference timings.
+//!
+//! Key differences to note:
+//! - **XGBoost**: Highly optimized C++, histogram-based by default since 1.0
+//! - **LightGBM**: Leaf-wise growth, histogram-based, fastest for large datasets
+//! - **FerroML GradientBoosting**: Standard CART-based gradient boosting
+//! - **FerroML HistGradientBoosting**: Histogram-based like LightGBM, with
+//!   monotonic constraints and feature interaction constraints
+//!
+//! Expected relative performance:
+//! - Small datasets (<10K): FerroML competitive, XGBoost/LightGBM 2-5x faster
+//! - Medium datasets (10K-100K): XGBoost/LightGBM 5-10x faster
+//! - Large datasets (>100K): XGBoost/LightGBM 10-50x faster (due to SIMD, cache optimization)
+//!
+//! FerroML's advantages:
+//! - Pure Rust, no external dependencies
+//! - Statistical rigor (feature importance with CIs)
+//! - Native monotonic constraints
+//! - Feature interaction constraints
+//! - Seamless integration with FerroML pipeline
+//!
 //! ## Benchmark Categories
 //!
 //! 1. **Linear Models**: OLS, Ridge, Lasso - O(n·p²) or O(n·p) complexity
 //! 2. **Tree Models**: Decision trees, Random forests - O(n·p·log(n)) complexity
-//! 3. **Preprocessing**: Scalers - O(n·p) complexity
-//! 4. **Prediction**: All models - typically O(n·p) or O(n·trees·depth)
+//! 3. **Gradient Boosting**: Standard and histogram-based - O(n·p·d·trees) complexity
+//! 4. **Preprocessing**: Scalers - O(n·p) complexity
+//! 5. **Prediction**: All models - typically O(n·p) or O(n·trees·depth)
 //!
 //! ## Dataset Sizes
 //!
@@ -28,10 +53,12 @@
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use ferroml_core::datasets::{make_classification, make_regression};
+use ferroml_core::models::boosting::{GradientBoostingClassifier, GradientBoostingRegressor};
+use ferroml_core::models::forest::{RandomForestClassifier, RandomForestRegressor};
+use ferroml_core::models::hist_boosting::{HistGradientBoostingClassifier, HistGradientBoostingRegressor};
 use ferroml_core::models::linear::LinearRegression;
 use ferroml_core::models::regularized::{LassoRegression, RidgeRegression};
 use ferroml_core::models::tree::{DecisionTreeClassifier, DecisionTreeRegressor};
-use ferroml_core::models::forest::{RandomForestClassifier, RandomForestRegressor};
 use ferroml_core::models::Model;
 use ferroml_core::preprocessing::scalers::{MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler};
 use ferroml_core::preprocessing::Transformer;
@@ -315,6 +342,404 @@ fn bench_random_forest_regressor_fit(c: &mut Criterion) {
 }
 
 // =============================================================================
+// GRADIENT BOOSTING BENCHMARKS
+// =============================================================================
+
+/// Benchmark GradientBoostingClassifier training time
+///
+/// Compares against XGBoost/LightGBM. Expected to be slower due to:
+/// - No histogram-based split finding
+/// - Pure Rust without SIMD optimizations
+fn bench_gradient_boosting_classifier_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("GradientBoostingClassifier/fit");
+    group.sample_size(10); // Gradient boosting is slow, reduce sample size
+
+    for (n_samples, n_features) in [(100, 10), (500, 20), (1000, 20)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    // Use small model for benchmarking (10 trees, max depth 3)
+                    let mut model = GradientBoostingClassifier::new()
+                        .with_n_estimators(10)
+                        .with_max_depth(Some(3))
+                        .with_learning_rate(0.1)
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark GradientBoostingClassifier prediction time
+fn bench_gradient_boosting_classifier_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("GradientBoostingClassifier/predict");
+
+    for (n_samples, n_features) in [(100, 10), (1000, 50), (5000, 50)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+        // Train model once
+        let mut model = GradientBoostingClassifier::new()
+            .with_n_estimators(10)
+            .with_max_depth(Some(3))
+            .with_learning_rate(0.1)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &x,
+            |b, x| {
+                b.iter(|| model.predict(black_box(x)).unwrap())
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark GradientBoostingRegressor training time
+fn bench_gradient_boosting_regressor_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("GradientBoostingRegressor/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(100, 10), (500, 20), (1000, 20)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = GradientBoostingRegressor::new()
+                        .with_n_estimators(10)
+                        .with_max_depth(Some(3))
+                        .with_learning_rate(0.1)
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark GradientBoostingRegressor prediction time
+fn bench_gradient_boosting_regressor_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("GradientBoostingRegressor/predict");
+
+    for (n_samples, n_features) in [(100, 10), (1000, 50), (5000, 50)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        let mut model = GradientBoostingRegressor::new()
+            .with_n_estimators(10)
+            .with_max_depth(Some(3))
+            .with_learning_rate(0.1)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &x,
+            |b, x| {
+                b.iter(|| model.predict(black_box(x)).unwrap())
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// HISTOGRAM GRADIENT BOOSTING BENCHMARKS (LightGBM-style)
+// =============================================================================
+
+/// Benchmark HistGradientBoostingClassifier training time
+///
+/// This is FerroML's histogram-based gradient boosting, similar to LightGBM.
+/// Expected to be faster than standard GradientBoosting but slower than
+/// LightGBM due to pure Rust implementation without SIMD.
+fn bench_hist_gradient_boosting_classifier_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("HistGradientBoostingClassifier/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(100, 10), (500, 20), (1000, 20), (2000, 30)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = HistGradientBoostingClassifier::new()
+                        .with_max_iter(10)
+                        .with_max_depth(Some(3))
+                        .with_learning_rate(0.1)
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark HistGradientBoostingClassifier prediction time
+fn bench_hist_gradient_boosting_classifier_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("HistGradientBoostingClassifier/predict");
+
+    for (n_samples, n_features) in [(100, 10), (1000, 50), (5000, 50)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+        let mut model = HistGradientBoostingClassifier::new()
+            .with_max_iter(10)
+            .with_max_depth(Some(3))
+            .with_learning_rate(0.1)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &x,
+            |b, x| {
+                b.iter(|| model.predict(black_box(x)).unwrap())
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark HistGradientBoostingRegressor training time
+fn bench_hist_gradient_boosting_regressor_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("HistGradientBoostingRegressor/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(100, 10), (500, 20), (1000, 20), (2000, 30)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = HistGradientBoostingRegressor::new()
+                        .with_max_iter(10)
+                        .with_max_depth(Some(3))
+                        .with_learning_rate(0.1)
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark HistGradientBoostingRegressor prediction time
+fn bench_hist_gradient_boosting_regressor_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("HistGradientBoostingRegressor/predict");
+
+    for (n_samples, n_features) in [(100, 10), (1000, 50), (5000, 50)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        let mut model = HistGradientBoostingRegressor::new()
+            .with_max_iter(10)
+            .with_max_depth(Some(3))
+            .with_learning_rate(0.1)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &x,
+            |b, x| {
+                b.iter(|| model.predict(black_box(x)).unwrap())
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark gradient boosting scaling with number of trees
+///
+/// This shows how training time scales as we add more trees.
+/// Important for understanding the trade-off between model complexity and training time.
+fn bench_gradient_boosting_tree_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Scaling/GradientBoosting/Trees");
+    group.sample_size(10);
+
+    let n_samples = 500;
+    let n_features = 20;
+    let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+    for n_trees in [5, 10, 20, 50] {
+        group.throughput(Throughput::Elements(n_trees as u64));
+        group.bench_with_input(
+            BenchmarkId::new("n_estimators", n_trees),
+            &n_trees,
+            |b, &n_trees| {
+                b.iter(|| {
+                    let mut model = GradientBoostingClassifier::new()
+                        .with_n_estimators(n_trees)
+                        .with_max_depth(Some(3))
+                        .with_learning_rate(0.1)
+                        .with_random_state(42);
+                    model.fit(black_box(&x), black_box(&y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark HistGradientBoosting scaling with number of trees
+fn bench_hist_gradient_boosting_tree_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Scaling/HistGradientBoosting/Trees");
+    group.sample_size(10);
+
+    let n_samples = 500;
+    let n_features = 20;
+    let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+    for n_trees in [5, 10, 20, 50, 100] {
+        group.throughput(Throughput::Elements(n_trees as u64));
+        group.bench_with_input(
+            BenchmarkId::new("max_iter", n_trees),
+            &n_trees,
+            |b, &n_trees| {
+                b.iter(|| {
+                    let mut model = HistGradientBoostingClassifier::new()
+                        .with_max_iter(n_trees)
+                        .with_max_depth(Some(3))
+                        .with_learning_rate(0.1)
+                        .with_random_state(42);
+                    model.fit(black_box(&x), black_box(&y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark gradient boosting scaling with dataset size
+///
+/// This shows O(n) scaling for histogram-based vs O(n log n) for standard.
+fn bench_gradient_boosting_sample_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Scaling/GradientBoosting/Samples");
+    group.sample_size(10);
+
+    let n_features = 20;
+    for n_samples in [100, 250, 500, 1000] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("standard", n_samples),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = GradientBoostingClassifier::new()
+                        .with_n_estimators(10)
+                        .with_max_depth(Some(3))
+                        .with_learning_rate(0.1)
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("histogram", n_samples),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = HistGradientBoostingClassifier::new()
+                        .with_max_iter(10)
+                        .with_max_depth(Some(3))
+                        .with_learning_rate(0.1)
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark gradient boosting prediction time comparison
+///
+/// Prediction time for gradient boosting is O(n_samples * n_trees * depth).
+/// This benchmark compares standard vs histogram-based prediction.
+fn bench_gradient_boosting_predict_comparison(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Comparison/GradientBoosting/Predict");
+
+    let n_train = 500;
+    let n_features = 20;
+    let (x_train, y_train) = generate_classification_data(n_train, n_features, 2);
+
+    // Train models
+    let mut standard = GradientBoostingClassifier::new()
+        .with_n_estimators(50)
+        .with_max_depth(Some(5))
+        .with_learning_rate(0.1)
+        .with_random_state(42);
+    standard.fit(&x_train, &y_train).unwrap();
+
+    let mut hist = HistGradientBoostingClassifier::new()
+        .with_max_iter(50)
+        .with_max_depth(Some(5))
+        .with_learning_rate(0.1)
+        .with_random_state(42);
+    hist.fit(&x_train, &y_train).unwrap();
+
+    for n_samples in [100, 1000, 5000, 10000] {
+        let (x_test, _) = generate_classification_data(n_samples, n_features, 2);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+
+        group.bench_with_input(
+            BenchmarkId::new("standard", n_samples),
+            &x_test,
+            |b, x| {
+                b.iter(|| standard.predict(black_box(x)).unwrap())
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("histogram", n_samples),
+            &x_test,
+            |b, x| {
+                b.iter(|| hist.predict(black_box(x)).unwrap())
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
 // PREPROCESSING BENCHMARKS
 // =============================================================================
 
@@ -563,6 +988,22 @@ criterion_group!(
 );
 
 criterion_group!(
+    gradient_boosting,
+    bench_gradient_boosting_classifier_fit,
+    bench_gradient_boosting_classifier_predict,
+    bench_gradient_boosting_regressor_fit,
+    bench_gradient_boosting_regressor_predict,
+);
+
+criterion_group!(
+    hist_gradient_boosting,
+    bench_hist_gradient_boosting_classifier_fit,
+    bench_hist_gradient_boosting_classifier_predict,
+    bench_hist_gradient_boosting_regressor_fit,
+    bench_hist_gradient_boosting_regressor_predict,
+);
+
+criterion_group!(
     preprocessing,
     bench_standard_scaler,
     bench_minmax_scaler,
@@ -576,6 +1017,10 @@ criterion_group!(
     bench_linear_regression_scaling,
     bench_decision_tree_scaling,
     bench_prediction_scaling,
+    bench_gradient_boosting_tree_scaling,
+    bench_hist_gradient_boosting_tree_scaling,
+    bench_gradient_boosting_sample_scaling,
+    bench_gradient_boosting_predict_comparison,
 );
 
-criterion_main!(linear_models, tree_models, preprocessing, scaling);
+criterion_main!(linear_models, tree_models, gradient_boosting, hist_gradient_boosting, preprocessing, scaling);

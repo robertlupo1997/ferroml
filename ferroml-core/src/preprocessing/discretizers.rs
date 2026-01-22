@@ -140,7 +140,7 @@ pub struct KBinsDiscretizer {
     strategy: BinningStrategy,
     /// Output encoding format
     encode: BinEncoding,
-    /// Bin edges for each feature: bin_edges[j] contains n_bins_[j] + 1 edges
+    /// Bin edges for each feature: bin_edges\[j\] contains n_bins_\[j\] + 1 edges
     bin_edges: Option<Vec<Array1<f64>>>,
     /// Actual number of bins per feature (may be less than n_bins for constant features)
     n_bins_per_feature: Option<Vec<usize>>,

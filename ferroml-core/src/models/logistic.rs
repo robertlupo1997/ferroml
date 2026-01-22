@@ -35,7 +35,7 @@
 //! let probas = model.predict_proba(&x).unwrap();
 //! ```
 
-use crate::hpo::SearchSpace;
+use crate::hpo::{ParameterValue, SearchSpace};
 use crate::metrics::probabilistic::{roc_auc_score, roc_auc_with_ci};
 use crate::models::{
     check_is_fitted, compute_sample_weights, get_unique_classes, validate_fit_input,
@@ -43,6 +43,7 @@ use crate::models::{
     Diagnostics, FitStatistics, Model, ModelSummary, PredictionInterval, ProbabilisticModel,
     ResidualStatistics, StatisticalModel,
 };
+use crate::pipeline::PipelineModel;
 use crate::{FerroError, Result};
 use ndarray::{s, Array1, Array2};
 use serde::{Deserialize, Serialize};
@@ -1102,6 +1103,65 @@ fn chi_squared_cdf(x: f64, df: f64) -> f64 {
     let z = z / (2.0 / (9.0 * df)).sqrt();
 
     normal_cdf(z)
+}
+
+// =============================================================================
+// PipelineModel Implementation
+// =============================================================================
+
+impl PipelineModel for LogisticRegression {
+    fn clone_boxed(&self) -> Box<dyn PipelineModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &ParameterValue) -> Result<()> {
+        match name {
+            "fit_intercept" => {
+                if let Some(v) = value.as_bool() {
+                    self.fit_intercept = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("fit_intercept must be a boolean"))
+                }
+            }
+            "confidence_level" => {
+                if let Some(v) = value.as_f64() {
+                    self.confidence_level = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input(
+                        "confidence_level must be a number",
+                    ))
+                }
+            }
+            "l2_penalty" => {
+                if let Some(v) = value.as_f64() {
+                    self.l2_penalty = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input(
+                        "l2_penalty (regularization) must be a number",
+                    ))
+                }
+            }
+            "max_iter" => {
+                if let Some(v) = value.as_i64() {
+                    self.max_iter = v as usize;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("max_iter must be an integer"))
+                }
+            }
+            _ => Err(FerroError::invalid_input(format!(
+                "Unknown parameter: {}",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "LogisticRegression"
+    }
 }
 
 #[cfg(test)]

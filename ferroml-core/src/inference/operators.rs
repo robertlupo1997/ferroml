@@ -344,7 +344,7 @@ pub struct TreeEnsembleRegressorOp {
     pub n_targets: usize,
     /// Number of trees
     pub n_trees: usize,
-    /// Tree structures: trees[tree_id][node_id] = TreeNode
+    /// Tree structures: trees\[tree_id\]\[node_id\] = TreeNode
     trees: Vec<Vec<TreeNode>>,
     /// Target values: (tree_id, node_id, target_id) -> weight
     target_weights: HashMap<(usize, usize, usize), f32>,

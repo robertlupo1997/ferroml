@@ -625,7 +625,7 @@ pub trait MulticlassCalibrator: Send + Sync {
 /// ## Algorithm
 ///
 /// 1. Convert probabilities to pseudo-logits: z = log(p + ε)
-/// 2. Learn temperature T by minimizing NLL: -Σ log(softmax(z/T)[y])
+/// 2. Learn temperature T by minimizing NLL: -Σ log(softmax(z/T)\[y\])
 /// 3. At prediction time: p_calibrated = softmax(z/T)
 ///
 /// ## Example

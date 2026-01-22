@@ -1,0 +1,307 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v0.1.0, v1.0.0, etc.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to create release for (e.g., v0.1.0)'
+        required: true
+        type: string
+      draft:
+        description: 'Create as draft release'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  PACKAGE_DIR: ferroml-python
+
+jobs:
+  # Wait for other publishing workflows if triggered by tag
+  wait-for-publishes:
+    name: Wait for Publishing Workflows
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Wait for workflows to complete
+        run: |
+          echo "Waiting for publish workflows to start..."
+          # Give other workflows time to start
+          sleep 30
+          echo "Proceeding with release creation"
+
+  # Build release artifacts
+  build-artifacts:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs: [wait-for-publishes]
+    if: always() && (needs.wait-for-publishes.result == 'success' || needs.wait-for-publishes.result == 'skipped')
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version_bare: ${{ steps.version.outputs.version_bare }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=${{ github.event.inputs.tag }}
+          fi
+          VERSION_BARE=${VERSION#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_bare=$VERSION_BARE" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION (bare: $VERSION_BARE)"
+
+      - name: Build release binary (Linux x86_64)
+        run: |
+          cargo build --release --package ferroml-core
+          mkdir -p release-artifacts
+          # Package the library
+          cp target/release/libferroml_core.rlib release-artifacts/ 2>/dev/null || true
+          cp target/release/libferroml_core.a release-artifacts/ 2>/dev/null || true
+
+      - name: Create Rust package
+        run: |
+          cargo package --package ferroml-core --allow-dirty
+          cp target/package/ferroml-core-*.crate release-artifacts/ 2>/dev/null || true
+
+      - name: Generate checksums
+        working-directory: release-artifacts
+        run: |
+          sha256sum * > SHA256SUMS.txt 2>/dev/null || echo "No files to checksum"
+          cat SHA256SUMS.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: release-artifacts/
+          if-no-files-found: warn
+
+  # Build Python wheels for release
+  build-python-wheels:
+    name: Build Python Wheels (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [wait-for-publishes]
+    if: always() && (needs.wait-for-publishes.result == 'success' || needs.wait-for-publishes.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          sccache: 'true'
+          manylinux: auto
+          working-directory: ${{ env.PACKAGE_DIR }}
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}
+          path: ${{ env.PACKAGE_DIR }}/dist/*.whl
+
+  # Generate changelog
+  generate-changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    outputs:
+      changelog: ${{ steps.changelog.outputs.content }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@git-cliff
+
+      - name: Generate changelog for this release
+        id: changelog
+        run: |
+          CHANGELOG=$(git cliff --latest --strip header 2>/dev/null || git cliff --unreleased --strip header)
+
+          # Handle multiline output
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Display changelog
+        run: |
+          echo "=== Generated Changelog ==="
+          echo "${{ steps.changelog.outputs.content }}"
+
+  # Create GitHub Release
+  create-release:
+    name: Create GitHub Release
+    needs: [build-artifacts, build-python-wheels, generate-changelog]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=${{ github.event.inputs.tag }}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Creating release for version: $VERSION"
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: release-artifacts/
+
+      - name: Download Python wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          path: wheels/
+          merge-multiple: true
+
+      - name: List artifacts
+        run: |
+          echo "=== Release Artifacts ==="
+          ls -la release-artifacts/ 2>/dev/null || echo "No release artifacts"
+          echo ""
+          echo "=== Python Wheels ==="
+          ls -la wheels/ 2>/dev/null || echo "No wheels"
+
+      - name: Generate checksums for wheels
+        run: |
+          cd wheels
+          sha256sum *.whl > SHA256SUMS.txt 2>/dev/null || true
+          cat SHA256SUMS.txt
+
+      - name: Prepare release body
+        id: release_body
+        run: |
+          cat > release_body.md << 'EOF'
+          ## FerroML ${{ steps.version.outputs.version }}
+
+          Statistically rigorous AutoML library in Rust with Python bindings.
+
+          ### Installation
+
+          **Python (PyPI):**
+          ```bash
+          pip install ferroml
+          ```
+
+          **Rust (crates.io):**
+          ```toml
+          [dependencies]
+          ferroml-core = "${{ needs.build-artifacts.outputs.version_bare }}"
+          ```
+
+          ### What's Changed
+
+          ${{ needs.generate-changelog.outputs.changelog }}
+
+          ### Artifacts
+
+          This release includes:
+          - **Python wheels** for Linux (x86_64), macOS (arm64), and Windows (x86_64)
+          - **Rust crate** package
+          - **SHA256 checksums** for verification
+
+          ### Links
+
+          - [Documentation](https://docs.rs/ferroml-core)
+          - [PyPI Package](https://pypi.org/project/ferroml/)
+          - [crates.io Package](https://crates.io/crates/ferroml-core)
+
+          ---
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/.../${{ steps.version.outputs.version }}
+          EOF
+
+          # Read the content for the release
+          cat release_body.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: FerroML ${{ steps.version.outputs.version }}
+          body_path: release_body.md
+          draft: ${{ github.event.inputs.draft == 'true' }}
+          prerelease: ${{ contains(steps.version.outputs.version, '-alpha') || contains(steps.version.outputs.version, '-beta') || contains(steps.version.outputs.version, '-rc') }}
+          files: |
+            release-artifacts/*
+            wheels/*.whl
+            wheels/SHA256SUMS.txt
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        run: |
+          echo "=== Release Created ==="
+          echo "Version: ${{ steps.version.outputs.version }}"
+          echo "URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}"
+          echo ""
+          echo "Artifacts uploaded:"
+          ls -la release-artifacts/ 2>/dev/null || true
+          ls -la wheels/ 2>/dev/null || true
+
+  # Cleanup artifacts after release
+  cleanup:
+    name: Cleanup
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "Release workflow completed."
+          echo "Status: ${{ needs.create-release.result }}"

@@ -106,6 +106,10 @@ pub mod pipeline;
 pub mod preprocessing;
 pub mod schema;
 pub mod serialization;
+#[cfg(feature = "simd")]
+pub mod simd;
+#[cfg(feature = "sparse")]
+pub mod sparse;
 pub mod stats;
 
 // Re-exports for convenience

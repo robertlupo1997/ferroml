@@ -87,11 +87,18 @@ impl Default for DistanceMetric {
 
 impl DistanceMetric {
     /// Compute distance between two points.
+    ///
+    /// When the `simd` feature is enabled, this uses SIMD-accelerated implementations
+    /// for Euclidean and Manhattan distances.
     #[inline]
     pub fn compute(&self, a: &[f64], b: &[f64]) -> f64 {
         debug_assert_eq!(a.len(), b.len(), "Points must have same dimension");
 
         match self {
+            #[cfg(feature = "simd")]
+            DistanceMetric::Euclidean => crate::simd::euclidean_distance(a, b),
+
+            #[cfg(not(feature = "simd"))]
             DistanceMetric::Euclidean => {
                 let sum_sq: f64 = a
                     .iter()
@@ -100,9 +107,19 @@ impl DistanceMetric {
                     .sum();
                 sum_sq.sqrt()
             }
+
+            #[cfg(feature = "simd")]
+            DistanceMetric::Manhattan => crate::simd::manhattan_distance(a, b),
+
+            #[cfg(not(feature = "simd"))]
             DistanceMetric::Manhattan => {
                 a.iter().zip(b.iter()).map(|(ai, bi)| (ai - bi).abs()).sum()
             }
+
+            #[cfg(feature = "simd")]
+            DistanceMetric::Minkowski(p) => crate::simd::minkowski_distance(a, b, *p),
+
+            #[cfg(not(feature = "simd"))]
             DistanceMetric::Minkowski(p) => {
                 let sum: f64 = a
                     .iter()
@@ -115,14 +132,21 @@ impl DistanceMetric {
     }
 
     /// Compute squared distance (for Euclidean, avoids sqrt for efficiency).
+    ///
+    /// When the `simd` feature is enabled, this uses SIMD-accelerated implementations.
     #[inline]
     pub fn compute_squared(&self, a: &[f64], b: &[f64]) -> f64 {
         match self {
+            #[cfg(feature = "simd")]
+            DistanceMetric::Euclidean => crate::simd::squared_euclidean_distance(a, b),
+
+            #[cfg(not(feature = "simd"))]
             DistanceMetric::Euclidean => a
                 .iter()
                 .zip(b.iter())
                 .map(|(ai, bi)| (ai - bi).powi(2))
                 .sum(),
+
             _ => {
                 let d = self.compute(a, b);
                 d * d
@@ -184,9 +208,9 @@ struct KDNode {
     split_dim: usize,
     /// The split value.
     split_val: f64,
-    /// Left child (points with x[split_dim] < split_val).
+    /// Left child (points with x\[split_dim\] < split_val).
     left: Option<Box<KDNode>>,
-    /// Right child (points with x[split_dim] >= split_val).
+    /// Right child (points with x\[split_dim\] >= split_val).
     right: Option<Box<KDNode>>,
     /// Whether this is a leaf node.
     is_leaf: bool,

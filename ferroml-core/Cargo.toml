@@ -4,7 +4,11 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Core AutoML engine with statistical rigor"
+readme = "../README.md"
+keywords = ["machine-learning", "automl", "statistics", "data-science", "rust"]
+categories = ["science", "mathematics", "algorithms"]
 
 [dependencies]
 # Numerical computing
@@ -26,6 +30,15 @@ argmin-math.workspace = true
 # Parallel
 rayon.workspace = true
 crossbeam.workspace = true
+
+# SIMD (optional)
+wide = { workspace = true, optional = true }
+
+# Sparse matrices (optional)
+sprs = { workspace = true, optional = true }
+
+# Memory mapping
+memmap2.workspace = true
 
 # Serialization
 serde.workspace = true
@@ -51,9 +64,39 @@ tempfile = "3.15"
 name = "benchmarks"
 harness = false
 
+[[example]]
+name = "linear_regression"
+path = "examples/linear_regression.rs"
+
+[[example]]
+name = "classification"
+path = "examples/classification.rs"
+
+[[example]]
+name = "pipeline"
+path = "examples/pipeline.rs"
+
+[[example]]
+name = "automl"
+path = "examples/automl.rs"
+
+[[example]]
+name = "gradient_boosting"
+path = "examples/gradient_boosting.rs"
+
 [features]
 default = ["parallel", "onnx"]
 parallel = []
-simd = []
+simd = ["wide"]  # SIMD acceleration for distance calculations
+sparse = ["sprs"]  # Native sparse matrix operations
 gpu = []  # Future CUDA/Metal support
 onnx = []  # ONNX export support
+
+# docs.rs configuration
+[package.metadata.docs.rs]
+# Build documentation with all features enabled
+all-features = true
+# Document all feature flags
+rustdoc-args = ["--cfg", "docsrs"]
+# Targets to build docs for
+targets = ["x86_64-unknown-linux-gnu"]

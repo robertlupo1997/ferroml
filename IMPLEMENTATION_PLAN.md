@@ -4,16 +4,34 @@
 >
 > This file is the shared state for the Ralph loop. Update after each task.
 
-## Current Phase: Phase 9 - Datasets & Benchmarks
+## Current Phase: Phase 12 - CI/CD & Release
 
-**Last Updated**: TASK-108 completed - Added sklearn performance benchmark suite. Updated `ferroml_core/benches/benchmarks.rs` with:
-- Linear model benchmarks: LinearRegression, RidgeRegression, LassoRegression (fit + predict)
-- Tree model benchmarks: DecisionTreeClassifier/Regressor, RandomForestClassifier/Regressor (fit + predict)
-- Preprocessing benchmarks: StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler (fit_transform + transform)
-- Scaling benchmarks: How fit/predict time scales with dataset size (100 to 100,000 samples)
-- Dataset size variations: Small (100x10), Medium (1000x50), Large (10000x100)
-- Throughput metrics: Samples per second for comparative analysis
-- Criterion integration: Benchmark groups for linear_models, tree_models, preprocessing, scaling
+**Last Updated**: TASK-137 completed - GitHub Release creation with artifacts:
+- Created `.github/workflows/release.yml` for automated GitHub Release creation
+  - Triggers on version tags (v*) and manual workflow_dispatch with tag input
+  - Generates changelog using git-cliff for release notes
+  - Builds release artifacts:
+    - Rust library files (rlib, static lib)
+    - Rust crate package (.crate file)
+    - Python wheels for Linux (x86_64), macOS (arm64), Windows (x86_64)
+  - Creates GitHub Release with softprops/action-gh-release@v2
+  - Auto-detects prereleases from version tags (-alpha, -beta, -rc)
+  - Generates SHA256 checksums for all artifacts
+  - Includes installation instructions for PyPI and crates.io
+  - Supports draft release creation via workflow_dispatch
+
+### Phase 12 Complete!
+All CI/CD & Release tasks have been completed:
+- [x] TASK-130: GitHub Actions: cargo check, clippy, fmt
+- [x] TASK-131: GitHub Actions: cargo test on Linux, macOS, Windows
+- [x] TASK-132: GitHub Actions: Python binding tests
+- [x] TASK-133: Code coverage with codecov.io
+- [x] TASK-134: Automated crates.io publishing on tag
+- [x] TASK-135: Automated PyPI wheel building via maturin
+- [x] TASK-136: Changelog generation from commits
+- [x] TASK-137: GitHub Release creation with artifacts
+
+FerroML v0.1.0 is ready for release!
 
 ---
 
@@ -280,6 +298,17 @@
   - File loading: load_csv, load_parquet, load_file (auto-detect format)
   - CsvOptions: Delimiter, header, skip_rows, n_rows, column selection, null values, encoding
   - ParquetOptions: Column selection, parallel reading configuration
+
+- **Sparse Module** (`ferroml-core/src/sparse.rs`, feature-gated):
+  - CsrMatrix: Compressed Sparse Row format with row slicing, transpose, matrix-vector ops
+  - CscMatrix: Compressed Sparse Column format for column operations
+  - SparseVector: Sparse 1D vector, SparseRowView: Zero-copy row view
+  - Sparse distance calculations: euclidean, manhattan, cosine (O(nnz) complexity)
+  - sparse_pairwise_distances: Batch distance with SparseDistanceMetric enum
+  - Matrix ops: normalize_rows_l2, column_sums/means, row_norms, scale_rows
+  - Utilities: sparse_eye, sparse_diag, sparse_vstack, sparse_hstack
+  - SparseMatrixInfo: Memory analysis, sparsity metrics, storage recommendations
+  - Uses sprs crate, 23 comprehensive tests
 
 ### 🔲 Not Implemented (Stubs Only)
 - (None in current phase)
@@ -769,61 +798,108 @@
   - Preprocessing: All scalers (Standard, MinMax, Robust, MaxAbs) fit_transform/transform timing
   - Scaling analysis: Measures how performance scales with dataset size (100 to 100K samples)
   - Throughput metrics: Elements/sec for comparative analysis with sklearn
-- [ ] **TASK-109**: Benchmark vs XGBoost/LightGBM for gradient boosting
-- [ ] **TASK-110**: Publish benchmark results to HuggingFace Hub
+- [x] **TASK-109**: Benchmark vs XGBoost/LightGBM for gradient boosting
+  - Added gradient boosting benchmarks to `ferroml_core/benches/benchmarks.rs`
+  - GradientBoostingClassifier/Regressor fit and predict benchmarks
+  - HistGradientBoostingClassifier/Regressor fit and predict benchmarks (LightGBM-style)
+  - Tree scaling benchmarks: Training time vs number of trees (5, 10, 20, 50, 100)
+  - Sample scaling benchmarks: Standard vs histogram-based with dataset size
+  - Prediction comparison: Standard vs histogram across different batch sizes
+  - Python comparison script: `benchmarks/xgboost_lightgbm_timing.py`
+  - Documentation of expected performance tradeoffs and FerroML's advantages
+- [x] **TASK-110**: Publish benchmark results to HuggingFace Hub
+  - Created `benchmarks/publish_to_huggingface.py` script
+  - Parses Criterion benchmark output (Rust benchmarks)
+  - Collects XGBoost/LightGBM comparison results
+  - System metadata collection (OS, CPU, Rust version, FerroML version)
+  - HuggingFace Hub dataset publishing with dataset card
+  - Local JSON output option for offline use
+  - Automatic README generation with benchmark documentation
 
 ---
 
 ## Phase 10: Performance Optimization
 
 ### 10.1 Parallelization
-- [ ] **TASK-111**: Rayon parallelism for CV folds
-- [ ] **TASK-112**: Rayon parallelism for ensemble training
-- [ ] **TASK-113**: Parallel tree building in Random Forest
+- [x] **TASK-111**: Rayon parallelism for CV folds
+- [x] **TASK-112**: Rayon parallelism for ensemble training
+- [x] **TASK-113**: Parallel tree building in Random Forest (already implemented with rayon par_iter in forest.rs)
 
 ### 10.2 Low-Level Optimization
-- [ ] **TASK-114**: SIMD acceleration for distance calculations
-- [ ] **TASK-115**: SIMD acceleration for matrix operations
-- [ ] **TASK-116**: Memory-mapped datasets for large data
-- [ ] **TASK-117**: Sparse matrix optimization throughout
+- [x] **TASK-114**: SIMD acceleration for distance calculations
+  - Created `simd` module using `wide` crate for portable SIMD
+  - Euclidean, Manhattan, Minkowski distance with f64x4 vectorization
+  - Dot product, sum, sum of squares, cosine similarity
+  - Integrated with KNN via conditional compilation
+  - 26 unit tests, works with and without `simd` feature
+- [x] **TASK-115**: SIMD acceleration for matrix operations
+  - Matrix-vector multiplication: `matrix_vector_mul`, `matrix_vector_mul_into`, `vector_matrix_mul`
+  - Element-wise operations: `vector_add`, `vector_sub`, `vector_mul`, `vector_div`, scalar variants
+  - BLAS-like operations: `axpy`, `axpby`, `outer_product`
+  - Row/column aggregations: `sum_rows`, `sum_cols`, `row_means`, `col_means`, `row_norms_l2`, `row_norms_l1`
+  - In-place transforms: `normalize_rows_l2`, `center_rows`, `scale_rows_by_std`
+  - 29 new matrix operation tests (55 total SIMD tests)
+- [x] **TASK-116**: Memory-mapped datasets for large data
+  - `MemmappedDataset`: Zero-copy access to features and targets via memory-mapped files
+  - `MemmappedArray2`, `MemmappedArray1`, `MemmappedArray2Mut`: Low-level mmap arrays
+  - `MemmappedDatasetBuilder`: Fluent API for creating mmap datasets
+  - Binary format with "FRMD" magic, version, shape metadata
+  - Batch and sample iterators for processing large datasets
+  - `peek_mmap_info()` for quick metadata inspection
+  - 21 comprehensive tests covering all functionality
+- [x] **TASK-117**: Sparse matrix optimization throughout
+  - `CsrMatrix`, `CscMatrix`, `SparseVector`: Native sparse matrix types
+  - Sparse distance calculations: euclidean, manhattan, cosine (O(nnz) complexity)
+  - `sparse_pairwise_distances`: Batch distance with `SparseDistanceMetric` enum
+  - Matrix operations: normalize_rows_l2, column_sums/means, vstack/hstack
+  - Utility functions: sparse_eye, sparse_diag, dense conversion
+  - `SparseMatrixInfo`: Memory analysis and storage recommendations
+  - 23 comprehensive tests, uses `sprs` crate, feature-gated as `sparse`
 
 ---
 
 ## Phase 11: Documentation & Examples
 
 ### 11.1 Rust Examples
-- [ ] **TASK-118**: `examples/linear_regression.rs` - Diagnostics showcase
-- [ ] **TASK-119**: `examples/classification.rs` - Full workflow
-- [ ] **TASK-120**: `examples/pipeline.rs` - Preprocessing + model
-- [ ] **TASK-121**: `examples/automl.rs` - AutoML with statistical output
-- [ ] **TASK-122**: `examples/gradient_boosting.rs` - Monotonic constraints
+- [x] **TASK-118**: `examples/linear_regression.rs` - Diagnostics showcase
+- [x] **TASK-119**: `examples/classification.rs` - Full workflow
+- [x] **TASK-120**: `examples/pipeline.rs` - Preprocessing + model
+- [x] **TASK-121**: `examples/automl.rs` - AutoML with statistical output
+- [x] **TASK-122**: `examples/gradient_boosting.rs` - Monotonic constraints
 
 ### 11.2 Python Examples
-- [ ] **TASK-123**: Jupyter notebook: "Getting Started with FerroML"
-- [ ] **TASK-124**: Jupyter notebook: "Statistical Diagnostics Deep Dive"
-- [ ] **TASK-125**: Jupyter notebook: "FerroML vs sklearn Comparison"
-- [ ] **TASK-126**: Jupyter notebook: "Production Deployment Guide"
+- [x] **TASK-123**: Jupyter notebook: "Getting Started with FerroML"
+- [x] **TASK-124**: Jupyter notebook: "Statistical Diagnostics Deep Dive"
+- [x] **TASK-125**: Jupyter notebook: "FerroML vs sklearn Comparison"
+- [x] **TASK-126**: Jupyter notebook: "Production Deployment Guide"
 
 ### 11.3 API Documentation
-- [ ] **TASK-127**: Comprehensive doc comments for all public APIs
-- [ ] **TASK-128**: Host documentation on docs.rs / GitHub Pages
-- [ ] **TASK-129**: User guide with conceptual explanations
+- [x] **TASK-127**: Comprehensive doc comments for all public APIs
+- [x] **TASK-128**: Host documentation on docs.rs / GitHub Pages
+  - Added docs.rs metadata with all-features enabled
+  - Created GitHub Actions workflow for GitHub Pages deployment
+  - Documentation accessible at https://user.github.io/ferroml/ferroml_core/ (after pages setup)
+  - docs.rs will auto-build when published to crates.io
+- [x] **TASK-129**: User guide with conceptual explanations
+  - Created `docs/user-guide.md` with comprehensive documentation
+  - Covers philosophy, core concepts, all modules, deployment, best practices
+  - Includes glossary and further reading references
 
 ---
 
 ## Phase 12: CI/CD & Release
 
 ### 12.1 Continuous Integration
-- [ ] **TASK-130**: GitHub Actions: cargo check, clippy, fmt
-- [ ] **TASK-131**: GitHub Actions: cargo test on Linux, macOS, Windows
-- [ ] **TASK-132**: GitHub Actions: Python binding tests
-- [ ] **TASK-133**: Code coverage with codecov.io
+- [x] **TASK-130**: GitHub Actions: cargo check, clippy, fmt
+- [x] **TASK-131**: GitHub Actions: cargo test on Linux, macOS, Windows
+- [x] **TASK-132**: GitHub Actions: Python binding tests
+- [x] **TASK-133**: Code coverage with codecov.io
 
 ### 12.2 Release Automation
-- [ ] **TASK-134**: Automated crates.io publishing on tag
-- [ ] **TASK-135**: Automated PyPI wheel building via maturin
-- [ ] **TASK-136**: Changelog generation from commits
-- [ ] **TASK-137**: GitHub Release creation with artifacts
+- [x] **TASK-134**: Automated crates.io publishing on tag
+- [x] **TASK-135**: Automated PyPI wheel building via maturin
+- [x] **TASK-136**: Changelog generation from commits
+- [x] **TASK-137**: GitHub Release creation with artifacts
 
 ---
 
@@ -880,9 +956,17 @@ cargo check && cargo clippy -- -D warnings && cargo test && cargo fmt --check
 4. **Rust-native inference** - Deploy without Python runtime
 5. **Production-ready** - ONNX export, schema validation, versioning
 
-### Next Task: TASK-109 - Benchmark vs XGBoost/LightGBM for gradient boosting
-Continue Phase 9 (Datasets & Benchmarks):
-- Create benchmark comparing FerroML gradient boosting to XGBoost and LightGBM
-- Measure training time and prediction latency
-- Compare accuracy/AUC on standard datasets
-- Document performance tradeoffs vs specialized gradient boosting libraries
+### All Tasks Complete!
+FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have been implemented:
+- Phase 1: Foundation (Core Infrastructure)
+- Phase 2: Core ML Algorithms
+- Phase 3: Ensemble & Pipeline
+- Phase 4: Probability & Class Imbalance
+- Phase 5: Explainability & Interpretability
+- Phase 6: Hyperparameter Optimization
+- Phase 7: AutoML Orchestration
+- Phase 8: Python Bindings & Serialization
+- Phase 9: Datasets & Benchmarks
+- Phase 10: Performance Optimization
+- Phase 11: Documentation & Examples
+- Phase 12: CI/CD & Release

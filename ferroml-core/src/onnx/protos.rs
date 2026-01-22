@@ -68,8 +68,10 @@ pub struct OperatorSetIdProto {
 /// String key-value pair for metadata
 #[derive(Clone, PartialEq, Message)]
 pub struct StringStringEntryProto {
+    /// Metadata key
     #[prost(string, tag = "1")]
     pub key: String,
+    /// Metadata value
     #[prost(string, tag = "2")]
     pub value: String,
 }
@@ -77,8 +79,10 @@ pub struct StringStringEntryProto {
 /// Training information (stub)
 #[derive(Clone, PartialEq, Message)]
 pub struct TrainingInfoProto {
+    /// Initialization graph for training
     #[prost(message, optional, tag = "1")]
     pub initialization: Option<GraphProto>,
+    /// Training algorithm graph
     #[prost(message, optional, tag = "2")]
     pub algorithm: Option<GraphProto>,
 }
@@ -86,8 +90,10 @@ pub struct TrainingInfoProto {
 /// Function definition (stub)
 #[derive(Clone, PartialEq, Message)]
 pub struct FunctionProto {
+    /// Function name
     #[prost(string, tag = "1")]
     pub name: String,
+    /// Function domain
     #[prost(string, tag = "4")]
     pub domain: String,
 }
@@ -246,20 +252,35 @@ pub struct AttributeProto {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(i32)]
 pub enum AttributeProtoType {
+    /// Undefined/unset attribute type
     Undefined = 0,
+    /// Single float value
     Float = 1,
+    /// Single integer value
     Int = 2,
+    /// Single string value
     String = 3,
+    /// Single tensor value
     Tensor = 4,
+    /// Single graph value
     Graph = 5,
+    /// Single sparse tensor value
     SparseTensor = 11,
+    /// Single type proto value
     TypeProto = 13,
+    /// List of float values
     Floats = 6,
+    /// List of integer values
     Ints = 7,
+    /// List of string values
     Strings = 8,
+    /// List of tensor values
     Tensors = 9,
+    /// List of graph values
     Graphs = 10,
+    /// List of sparse tensor values
     SparseTensors = 12,
+    /// List of type proto values
     TypeProtos = 14,
 }
 
@@ -291,9 +312,11 @@ pub struct TypeProto {
     pub denotation: String,
 }
 
+/// Type proto value variants for type information
 pub mod type_proto {
     use super::*;
 
+    /// Type value variant - one of tensor, sequence, map, or optional type
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
         /// Tensor type
@@ -367,7 +390,9 @@ pub struct TensorShapeProtoDimension {
     pub value: Option<tensor_shape_proto_dimension::Value>,
 }
 
+/// Tensor shape dimension value variants
 pub mod tensor_shape_proto_dimension {
+    /// Dimension value - either a concrete value or a symbolic parameter name
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
         /// Concrete dimension value
@@ -443,30 +468,49 @@ pub struct TensorProto {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(i32)]
 pub enum TensorProtoDataType {
+    /// Undefined/unset data type
     Undefined = 0,
+    /// 32-bit floating point (IEEE 754)
     Float = 1,
+    /// 8-bit unsigned integer
     Uint8 = 2,
+    /// 8-bit signed integer
     Int8 = 3,
+    /// 16-bit unsigned integer
     Uint16 = 4,
+    /// 16-bit signed integer
     Int16 = 5,
+    /// 32-bit signed integer
     Int32 = 6,
+    /// 64-bit signed integer
     Int64 = 7,
+    /// Variable-length string
     String = 8,
+    /// Boolean (true/false)
     Bool = 9,
+    /// 16-bit floating point (IEEE 754)
     Float16 = 10,
+    /// 64-bit floating point (IEEE 754)
     Double = 11,
+    /// 32-bit unsigned integer
     Uint32 = 12,
+    /// 64-bit unsigned integer
     Uint64 = 13,
+    /// 64-bit complex (2x32-bit floats)
     Complex64 = 14,
+    /// 128-bit complex (2x64-bit floats)
     Complex128 = 15,
+    /// Brain floating point (truncated 32-bit float)
     Bfloat16 = 16,
 }
 
-/// Tensor segment
+/// Tensor segment for external data
 #[derive(Clone, PartialEq, Message)]
 pub struct TensorProtoSegment {
+    /// Begin index of segment
     #[prost(int64, tag = "1")]
     pub begin: i64,
+    /// End index of segment (exclusive)
     #[prost(int64, tag = "2")]
     pub end: i64,
 }

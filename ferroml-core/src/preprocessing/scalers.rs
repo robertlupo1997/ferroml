@@ -42,6 +42,7 @@ use super::{
     check_is_fitted, check_non_empty, check_shape, column_max, column_median, column_min,
     column_quantile, compute_column_statistics, generate_feature_names, Transformer,
 };
+use crate::pipeline::PipelineTransformer;
 use crate::Result;
 
 /// Standardize features by removing the mean and scaling to unit variance.
@@ -848,6 +849,50 @@ impl Transformer for MaxAbsScaler {
 
     fn n_features_out(&self) -> Option<usize> {
         self.n_features_in
+    }
+}
+
+// =============================================================================
+// PipelineTransformer Implementations
+// =============================================================================
+
+impl PipelineTransformer for StandardScaler {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "StandardScaler"
+    }
+}
+
+impl PipelineTransformer for MinMaxScaler {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "MinMaxScaler"
+    }
+}
+
+impl PipelineTransformer for RobustScaler {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "RobustScaler"
+    }
+}
+
+impl PipelineTransformer for MaxAbsScaler {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "MaxAbsScaler"
     }
 }
 

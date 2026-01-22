@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::{check_is_fitted, check_non_empty, check_shape, generate_feature_names, Transformer};
+use crate::pipeline::PipelineTransformer;
 use crate::{FerroError, Result};
 
 /// Strategy for imputing missing values.
@@ -890,6 +891,30 @@ impl Transformer for KNNImputer {
 
     fn n_features_out(&self) -> Option<usize> {
         self.n_features_in
+    }
+}
+
+// =============================================================================
+// PipelineTransformer Implementations
+// =============================================================================
+
+impl PipelineTransformer for SimpleImputer {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "SimpleImputer"
+    }
+}
+
+impl PipelineTransformer for KNNImputer {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "KNNImputer"
     }
 }
 

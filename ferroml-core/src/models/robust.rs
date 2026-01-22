@@ -585,7 +585,7 @@ impl RobustRegression {
 
     /// Compute asymptotic covariance matrix for M-estimators
     ///
-    /// Based on sandwich estimator: (X'WX)^{-1} * (E[ψ²]) / (E[ψ'])² * scale²
+    /// Based on sandwich estimator: (X'WX)^{-1} * (E\[ψ²\]) / (E\[ψ'\])² * scale²
     fn compute_asymptotic_se(
         &self,
         x_design: &Array2<f64>,

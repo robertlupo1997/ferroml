@@ -109,7 +109,7 @@ pub struct PolynomialFeatures {
     n_features_in: Option<usize>,
     /// Number of output features (computed during fit)
     n_features_out: Option<usize>,
-    /// Powers for each output feature: powers[i] = vec of (input_feature_idx, power)
+    /// Powers for each output feature: powers\[i\] = vec of (input_feature_idx, power)
     /// This encodes which input features and what powers to multiply
     powers: Option<Vec<Vec<(usize, usize)>>>,
 }

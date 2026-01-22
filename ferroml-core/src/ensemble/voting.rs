@@ -56,8 +56,10 @@ use crate::models::{
 };
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::sync::Arc;
 
 // =============================================================================
 // Voting Method Enum
@@ -95,6 +97,19 @@ pub trait VotingClassifierEstimator: Model {
 }
 
 // =============================================================================
+// Regressor Wrapper Trait
+// =============================================================================
+
+/// Trait for regressors that can be used in VotingRegressor with parallel training
+///
+/// This trait abstracts over different regressor types to allow heterogeneous
+/// ensembles with clone support for parallel training.
+pub trait VotingRegressorEstimator: Model {
+    /// Clone the estimator into a box
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator>;
+}
+
+// =============================================================================
 // VotingClassifier
 // =============================================================================
 
@@ -116,6 +131,8 @@ pub struct VotingClassifier {
     voting: VotingMethod,
     /// Weights for each estimator (None means equal weights)
     weights: Option<Vec<f64>>,
+    /// Number of parallel jobs (None or 1 means sequential)
+    n_jobs: Option<i32>,
 
     // Fitted parameters
     fitted: bool,
@@ -156,6 +173,7 @@ impl VotingClassifier {
             estimators,
             voting: VotingMethod::Hard,
             weights: None,
+            n_jobs: None,
             fitted: false,
             n_features: None,
             classes: None,
@@ -196,6 +214,17 @@ impl VotingClassifier {
             "Number of weights must match number of estimators"
         );
         self.weights = Some(weights);
+        self
+    }
+
+    /// Set number of parallel jobs for training
+    ///
+    /// - `None` or `Some(1)`: Sequential training
+    /// - `Some(-1)`: Use all available cores
+    /// - `Some(n)` where n > 1: Use n parallel jobs
+    #[must_use]
+    pub fn with_n_jobs(mut self, n_jobs: Option<i32>) -> Self {
+        self.n_jobs = n_jobs;
         self
     }
 
@@ -357,11 +386,46 @@ impl Model for VotingClassifier {
         self.classes = Some(Self::extract_classes(y));
         self.n_features = Some(x.ncols());
 
-        // Fit all estimators
-        for (name, estimator) in &mut self.estimators {
-            estimator.fit(x, y).map_err(|e| {
-                FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
-            })?;
+        // Check if parallel training is enabled
+        let use_parallel = matches!(self.n_jobs, Some(n) if n != 1);
+
+        if use_parallel {
+            // Parallel training: clone estimators, train in parallel, replace originals
+            let x_arc = Arc::new(x.clone());
+            let y_arc = Arc::new(y.clone());
+
+            // Clone estimators for parallel training
+            let estimator_data: Vec<(String, Box<dyn VotingClassifierEstimator>)> = self
+                .estimators
+                .iter()
+                .map(|(name, est)| (name.clone(), est.clone_boxed()))
+                .collect();
+
+            // Train in parallel
+            let trained: Vec<Result<(String, Box<dyn VotingClassifierEstimator>)>> = estimator_data
+                .into_par_iter()
+                .map(|(name, mut estimator)| {
+                    estimator.fit(&x_arc, &y_arc).map_err(|e| {
+                        FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
+                    })?;
+                    Ok((name, estimator))
+                })
+                .collect();
+
+            // Check for errors and collect results
+            let mut fitted_estimators = Vec::with_capacity(trained.len());
+            for result in trained {
+                fitted_estimators.push(result?);
+            }
+
+            self.estimators = fitted_estimators;
+        } else {
+            // Sequential training: fit estimators in place
+            for (name, estimator) in &mut self.estimators {
+                estimator.fit(x, y).map_err(|e| {
+                    FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
+                })?;
+            }
         }
 
         self.fitted = true;
@@ -434,9 +498,11 @@ impl Model for VotingClassifier {
 /// - Named estimators for access
 pub struct VotingRegressor {
     /// Named estimators: (name, estimator) pairs
-    estimators: Vec<(String, Box<dyn Model>)>,
+    estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)>,
     /// Weights for each estimator (None means equal weights)
     weights: Option<Vec<f64>>,
+    /// Number of parallel jobs (None or 1 means sequential)
+    n_jobs: Option<i32>,
 
     // Fitted parameters
     fitted: bool,
@@ -464,7 +530,7 @@ impl VotingRegressor {
     /// # Panics
     ///
     /// Panics if no estimators are provided
-    pub fn new(estimators: Vec<(impl Into<String>, Box<dyn Model>)>) -> Self {
+    pub fn new(estimators: Vec<(impl Into<String>, Box<dyn VotingRegressorEstimator>)>) -> Self {
         assert!(!estimators.is_empty(), "At least one estimator is required");
         let estimators = estimators
             .into_iter()
@@ -473,6 +539,7 @@ impl VotingRegressor {
         Self {
             estimators,
             weights: None,
+            n_jobs: None,
             fitted: false,
             n_features: None,
         }
@@ -494,6 +561,17 @@ impl VotingRegressor {
         self
     }
 
+    /// Set number of parallel jobs for training
+    ///
+    /// - `None` or `Some(1)`: Sequential training
+    /// - `Some(-1)`: Use all available cores
+    /// - `Some(n)` where n > 1: Use n parallel jobs
+    #[must_use]
+    pub fn with_n_jobs(mut self, n_jobs: Option<i32>) -> Self {
+        self.n_jobs = n_jobs;
+        self
+    }
+
     /// Get the estimator names
     #[must_use]
     pub fn estimator_names(&self) -> Vec<&str> {
@@ -505,7 +583,7 @@ impl VotingRegressor {
 
     /// Get an estimator by name
     #[must_use]
-    pub fn get_estimator(&self, name: &str) -> Option<&dyn Model> {
+    pub fn get_estimator(&self, name: &str) -> Option<&dyn VotingRegressorEstimator> {
         self.estimators
             .iter()
             .find(|(n, _)| n == name)
@@ -554,11 +632,46 @@ impl Model for VotingRegressor {
 
         self.n_features = Some(x.ncols());
 
-        // Fit all estimators
-        for (name, estimator) in &mut self.estimators {
-            estimator.fit(x, y).map_err(|e| {
-                FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
-            })?;
+        // Check if parallel training is enabled
+        let use_parallel = matches!(self.n_jobs, Some(n) if n != 1);
+
+        if use_parallel {
+            // Parallel training: clone estimators, train in parallel, replace originals
+            let x_arc = Arc::new(x.clone());
+            let y_arc = Arc::new(y.clone());
+
+            // Clone estimators for parallel training
+            let estimator_data: Vec<(String, Box<dyn VotingRegressorEstimator>)> = self
+                .estimators
+                .iter()
+                .map(|(name, est)| (name.clone(), est.clone_boxed()))
+                .collect();
+
+            // Train in parallel
+            let trained: Vec<Result<(String, Box<dyn VotingRegressorEstimator>)>> = estimator_data
+                .into_par_iter()
+                .map(|(name, mut estimator)| {
+                    estimator.fit(&x_arc, &y_arc).map_err(|e| {
+                        FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
+                    })?;
+                    Ok((name, estimator))
+                })
+                .collect();
+
+            // Check for errors and collect results
+            let mut fitted_estimators = Vec::with_capacity(trained.len());
+            for result in trained {
+                fitted_estimators.push(result?);
+            }
+
+            self.estimators = fitted_estimators;
+        } else {
+            // Sequential training: fit estimators in place
+            for (name, estimator) in &mut self.estimators {
+                estimator.fit(x, y).map_err(|e| {
+                    FerroError::invalid_input(format!("Failed to fit estimator '{name}': {e}"))
+                })?;
+            }
         }
 
         self.fitted = true;
@@ -742,6 +855,82 @@ impl VotingClassifierEstimator for HistGradientBoostingClassifier {
 }
 
 // =============================================================================
+// VotingRegressorEstimator Implementations
+// =============================================================================
+
+// Implement VotingRegressorEstimator for common regressors
+// This allows them to be used in VotingRegressor with parallel training
+
+use crate::models::boosting::GradientBoostingRegressor;
+use crate::models::forest::RandomForestRegressor;
+use crate::models::hist_boosting::HistGradientBoostingRegressor;
+use crate::models::knn::KNeighborsRegressor;
+use crate::models::linear::LinearRegression;
+use crate::models::regularized::{ElasticNet, LassoRegression, RidgeRegression};
+use crate::models::svm::SVR;
+use crate::models::tree::DecisionTreeRegressor;
+
+impl VotingRegressorEstimator for LinearRegression {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+impl VotingRegressorEstimator for RidgeRegression {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+impl VotingRegressorEstimator for LassoRegression {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+impl VotingRegressorEstimator for ElasticNet {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+impl VotingRegressorEstimator for DecisionTreeRegressor {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+impl VotingRegressorEstimator for RandomForestRegressor {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+impl VotingRegressorEstimator for KNeighborsRegressor {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+impl VotingRegressorEstimator for SVR {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+impl VotingRegressorEstimator for GradientBoostingRegressor {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+impl VotingRegressorEstimator for HistGradientBoostingRegressor {
+    fn clone_boxed(&self) -> Box<dyn VotingRegressorEstimator> {
+        Box::new(self.clone())
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
@@ -918,7 +1107,7 @@ mod tests {
     fn test_voting_regressor() {
         let (x, y) = create_regression_data();
 
-        let estimators: Vec<(String, Box<dyn Model>)> = vec![
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
             ("linear".to_string(), Box::new(LinearRegression::new())),
             (
                 "tree".to_string(),
@@ -950,7 +1139,7 @@ mod tests {
     fn test_voting_regressor_weighted() {
         let (x, y) = create_regression_data();
 
-        let estimators: Vec<(String, Box<dyn Model>)> = vec![
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
             ("linear".to_string(), Box::new(LinearRegression::new())),
             (
                 "tree".to_string(),
@@ -975,7 +1164,7 @@ mod tests {
     fn test_voting_regressor_individual_predictions() {
         let (x, y) = create_regression_data();
 
-        let estimators: Vec<(String, Box<dyn Model>)> = vec![
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
             ("linear".to_string(), Box::new(LinearRegression::new())),
             (
                 "tree".to_string(),
@@ -994,7 +1183,7 @@ mod tests {
 
     #[test]
     fn test_voting_regressor_estimator_access() {
-        let estimators: Vec<(String, Box<dyn Model>)> = vec![
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
             ("linear".to_string(), Box::new(LinearRegression::new())),
             (
                 "tree".to_string(),
@@ -1027,7 +1216,7 @@ mod tests {
 
     #[test]
     fn test_voting_regressor_not_fitted_error() {
-        let estimators: Vec<(String, Box<dyn Model>)> =
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> =
             vec![("linear".to_string(), Box::new(LinearRegression::new()))];
 
         let voter = VotingRegressor::new(estimators);

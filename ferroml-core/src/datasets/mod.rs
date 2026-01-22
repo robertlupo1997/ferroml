@@ -52,6 +52,31 @@
 //! - [`load_file`] - Automatically detect format from file extension
 //! - NumPy arrays (through Python bindings)
 //!
+//! ## Memory-Mapped Datasets
+//!
+//! For datasets that don't fit in RAM, the module provides memory-mapped file support:
+//!
+//! - [`MemmappedDataset`] - Memory-mapped dataset with zero-copy access
+//! - [`MemmappedDatasetBuilder`] - Builder for creating memory-mapped datasets
+//! - [`MemmappedArray2`], [`MemmappedArray1`] - Low-level memory-mapped arrays
+//!
+//! ```ignore
+//! use ferroml_core::datasets::{Dataset, MemmappedDataset, MemmappedDatasetBuilder};
+//!
+//! // Create a memory-mapped dataset from arrays
+//! let dataset = MemmappedDatasetBuilder::new("large_data.fmm")
+//!     .with_features(x)
+//!     .with_targets(y)
+//!     .build()?;
+//!
+//! // Or from an existing Dataset
+//! let mmap_dataset = MemmappedDataset::from_dataset("large_data.fmm", &dataset)?;
+//!
+//! // Access data with zero-copy views
+//! let x_view = mmap_dataset.x_view();
+//! let y_view = mmap_dataset.y_view();
+//! ```
+//!
 //! ### Loading from Files
 //!
 //! ```ignore
@@ -80,11 +105,16 @@
 //! - Citation information where applicable
 
 mod loaders;
+pub mod mmap;
 mod toy;
 
 pub use loaders::{
     load_csv, load_csv_with_options, load_file, load_parquet, load_parquet_with_options,
     CsvEncoding, CsvOptions, ParquetOptions,
+};
+pub use mmap::{
+    MemmappedArray1, MemmappedArray2, MemmappedArray2Mut, MemmappedDataset,
+    MemmappedDatasetBuilder, peek_mmap_info,
 };
 pub use toy::{load_diabetes, load_iris, load_linnerud, load_wine};
 

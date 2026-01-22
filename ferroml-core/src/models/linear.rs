@@ -41,12 +41,13 @@
 //! let pred = model.predict_interval(&x, 0.95).unwrap();
 //! ```
 
-use crate::hpo::SearchSpace;
+use crate::hpo::{ParameterValue, SearchSpace};
 use crate::models::{
     check_is_fitted, validate_fit_input, validate_predict_input, Assumption, AssumptionTestResult,
     CoefficientInfo, Diagnostics, FitStatistics, InfluentialObservation, Model, ModelSummary,
     PredictionInterval, ProbabilisticModel, ResidualStatistics, StatisticalModel,
 };
+use crate::pipeline::PipelineModel;
 use crate::stats::diagnostics::{durbin_watson, NormalityTest, ShapiroWilkTest};
 use crate::{FerroError, Result};
 use ndarray::{s, Array1, Array2, Axis};
@@ -1195,6 +1196,47 @@ fn upper_incomplete_gamma_cf(a: f64, x: f64) -> f64 {
     }
 
     x.powf(a) * (-x).exp() * h
+}
+
+// =============================================================================
+// PipelineModel Implementation
+// =============================================================================
+
+impl PipelineModel for LinearRegression {
+    fn clone_boxed(&self) -> Box<dyn PipelineModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &ParameterValue) -> Result<()> {
+        match name {
+            "fit_intercept" => {
+                if let Some(v) = value.as_bool() {
+                    self.fit_intercept = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("fit_intercept must be a boolean"))
+                }
+            }
+            "confidence_level" => {
+                if let Some(v) = value.as_f64() {
+                    self.confidence_level = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input(
+                        "confidence_level must be a number",
+                    ))
+                }
+            }
+            _ => Err(FerroError::invalid_input(format!(
+                "Unknown parameter: {}",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "LinearRegression"
+    }
 }
 
 #[cfg(test)]

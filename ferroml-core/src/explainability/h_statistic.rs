@@ -1026,7 +1026,7 @@ where
 /// Core H² computation using PDP values
 ///
 /// The H-statistic formula (Friedman & Popescu, 2008):
-/// H²_{jk} = Σ [PD_{jk}(xᵢ, yᵢ) - PD_j(xᵢ) - PD_k(yᵢ) + E[f]]² / Σ [PD_{jk}(xᵢ, yᵢ) - E[f]]²
+/// H²_{jk} = Σ \[PD_{jk}(xᵢ, yᵢ) - PD_j(xᵢ) - PD_k(yᵢ) + E\[f\]\]² / Σ \[PD_{jk}(xᵢ, yᵢ) - E\[f\]\]²
 ///
 /// This measures the proportion of variance in the joint effect that is due to
 /// interaction (not explained by the additive main effects).
