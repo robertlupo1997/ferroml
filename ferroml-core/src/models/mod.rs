@@ -46,6 +46,9 @@ pub mod svm;
 pub mod traits;
 pub mod tree;
 
+#[cfg(test)]
+mod compliance_tests;
+
 // Re-export models for convenience
 pub use boosting::{
     ClassificationLoss, EarlyStopping, GradientBoostingClassifier, GradientBoostingRegressor,

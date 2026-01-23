@@ -60,6 +60,9 @@ pub mod sampling;
 pub mod scalers;
 pub mod selection;
 
+#[cfg(test)]
+mod compliance_tests;
+
 /// Core trait for all preprocessing transformers.
 ///
 /// All transformers follow the fit/transform pattern:
