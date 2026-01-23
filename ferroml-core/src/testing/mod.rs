@@ -29,12 +29,14 @@
 
 pub mod assertions;
 pub mod checks;
+pub mod nan_inf_validation;
 pub mod probabilistic;
 pub mod transformer;
 pub mod utils;
 
 pub use assertions::*;
 pub use checks::*;
+pub use nan_inf_validation::*;
 pub use probabilistic::*;
 pub use utils::*;
 
