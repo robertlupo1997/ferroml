@@ -48,6 +48,7 @@ pub mod assertions;
 pub mod checks;
 pub mod nan_inf_validation;
 pub mod probabilistic;
+pub mod properties;
 pub mod serialization;
 pub mod transformer;
 pub mod utils;
