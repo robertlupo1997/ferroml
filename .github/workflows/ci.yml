@@ -174,7 +174,7 @@ jobs:
         working-directory: ferroml-python
         run: pytest tests/ -v --tb=short
 
-  # Code coverage
+  # Code coverage with threshold enforcement
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
@@ -204,7 +204,36 @@ jobs:
 
       - name: Run coverage
         run: |
-          cargo tarpaulin --workspace --all-features --out xml --output-dir coverage --timeout 600
+          cargo tarpaulin -p ferroml-core --all-features \
+            --out xml --out html \
+            --output-dir coverage \
+            --timeout 600 \
+            --skip-clean
+
+      - name: Check coverage threshold
+        run: |
+          # Extract coverage percentage from XML
+          COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' coverage/cobertura.xml | head -1)
+          COVERAGE_PCT=$(echo "$COVERAGE * 100" | bc -l | cut -d. -f1)
+          echo "Coverage: ${COVERAGE_PCT}%"
+
+          # Fail if below 70%
+          if [ "$COVERAGE_PCT" -lt 70 ]; then
+            echo "::error::Coverage ${COVERAGE_PCT}% is below the 70% threshold"
+            exit 1
+          fi
+
+          # Warn if below 75% target
+          if [ "$COVERAGE_PCT" -lt 75 ]; then
+            echo "::warning::Coverage ${COVERAGE_PCT}% is below the 75% target"
+          fi
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -214,3 +243,86 @@ jobs:
           verbose: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # Benchmarks for performance tracking
+  benchmark:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    # Only run on PRs to compare against base
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bench-
+
+      - name: Run benchmarks
+        run: |
+          cargo bench -p ferroml-core -- --noplot --save-baseline pr-${{ github.event.pull_request.number }}
+        continue-on-error: true
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: target/criterion/
+          retention-days: 30
+
+  # Benchmark baseline (runs on main branch pushes)
+  benchmark-baseline:
+    name: Benchmark Baseline
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bench-
+
+      - name: Cache benchmark baseline
+        uses: actions/cache@v4
+        with:
+          path: target/criterion/
+          key: ${{ runner.os }}-benchmark-baseline-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-benchmark-baseline-
+
+      - name: Run benchmarks and save baseline
+        run: |
+          cargo bench -p ferroml-core -- --noplot --save-baseline main
+        continue-on-error: true
+
+      - name: Upload benchmark baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-baseline
+          path: target/criterion/
+          retention-days: 90
