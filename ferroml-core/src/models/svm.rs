@@ -664,8 +664,8 @@ impl BinarySVC {
         Ok(())
     }
 
-    /// Predict probability for the positive class.
-    fn predict_proba_positive(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+    /// Predict probability for the positive class (internal method for future public API).
+    fn _predict_proba_positive(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         if !self.probability_fitted {
             return Err(FerroError::invalid_input(
                 "Probability estimates not fitted. Call fit with probability=true",

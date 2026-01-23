@@ -102,7 +102,8 @@ impl SplitCriterion {
     }
 }
 
-/// Compute Gini impurity for a set of class counts
+/// Compute Gini impurity for a set of class counts (used by classifier implementation)
+#[allow(dead_code)]
 fn gini_impurity(class_counts: &[usize], total: usize) -> f64 {
     if total == 0 {
         return 0.0;
@@ -133,7 +134,8 @@ fn weighted_gini_impurity(class_weights: &[f64], total_weight: f64) -> f64 {
     1.0 - sum_sq
 }
 
-/// Compute entropy for a set of class counts
+/// Compute entropy for a set of class counts (used by classifier implementation)
+#[allow(dead_code)]
 fn entropy(class_counts: &[usize], total: usize) -> f64 {
     if total == 0 {
         return 0.0;
@@ -590,7 +592,8 @@ impl DecisionTreeClassifier {
         node_id
     }
 
-    /// Build the tree recursively
+    /// Build the tree recursively (classifier tree-building, kept for future use)
+    #[allow(dead_code)]
     fn build_tree(
         &self,
         x: &Array2<f64>,
@@ -883,7 +886,8 @@ impl DecisionTreeClassifier {
         best_split
     }
 
-    /// Find the best split for a node
+    /// Find the best split for a node (classifier split-finding, kept for future use)
+    #[allow(dead_code)]
     fn find_best_split(
         &self,
         x: &Array2<f64>,

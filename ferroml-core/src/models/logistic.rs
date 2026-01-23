@@ -918,8 +918,8 @@ fn sigmoid(x: f64) -> f64 {
     }
 }
 
-/// Compute log-likelihood for logistic regression
-fn compute_log_likelihood(y: &Array1<f64>, mu: &Array1<f64>) -> f64 {
+/// Compute log-likelihood for logistic regression (unweighted variant kept for reference)
+fn _compute_log_likelihood(y: &Array1<f64>, mu: &Array1<f64>) -> f64 {
     y.iter()
         .zip(mu.iter())
         .map(|(&yi, &mi)| {

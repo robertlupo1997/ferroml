@@ -57,8 +57,7 @@
 use crate::hpo::SearchSpace;
 use crate::models::tree::{DecisionTreeRegressor, SplitCriterion};
 use crate::models::{
-    check_is_fitted, compute_sample_weights, get_unique_classes, validate_fit_input,
-    validate_predict_input, ClassWeight, Model,
+    check_is_fitted, validate_fit_input, validate_predict_input, ClassWeight, Model,
 };
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};

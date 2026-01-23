@@ -170,7 +170,8 @@ impl SimpleRng {
         x
     }
 
-    fn next_f64(&mut self) -> f64 {
+    /// Generate a random f64 in [0, 1) (kept for API completeness)
+    fn _next_f64(&mut self) -> f64 {
         (self.next_u64() as f64) / (u64::MAX as f64)
     }
 
