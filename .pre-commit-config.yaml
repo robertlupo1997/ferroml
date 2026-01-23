@@ -1,0 +1,113 @@
+# Pre-commit hooks for FerroML
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+default_stages: [pre-commit]
+
+repos:
+  # =============================================================================
+  # Rust Formatting (cargo fmt)
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        description: Format Rust code with rustfmt
+        entry: cargo fmt --all -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  # =============================================================================
+  # Rust Linting (cargo clippy)
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: cargo-clippy
+        name: cargo clippy
+        description: Lint Rust code with Clippy
+        entry: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  # =============================================================================
+  # Quick Tests (fast subset only)
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: cargo-test-quick
+        name: cargo test (quick)
+        description: Run quick unit tests
+        entry: cargo test --workspace --lib -- --test-threads=4
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # =============================================================================
+  # Check for Debug Macros in Production Code
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: no-debug-macros
+        name: no debug macros
+        description: Check for todo!(), unimplemented!(), dbg!() in non-test code
+        entry: python scripts/check_debug_macros.py
+        language: python
+        types: [rust]
+        pass_filenames: true
+
+  # =============================================================================
+  # Large File Warning
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        name: check large files
+        description: Warn if files larger than 1MB are added
+        args: ['--maxkb=1024']
+
+  # =============================================================================
+  # Cargo.toml Formatting Check
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: cargo-toml-format
+        name: check Cargo.toml
+        description: Validate Cargo.toml files are well-formed
+        entry: python scripts/check_cargo_toml.py
+        language: python
+        files: Cargo\.toml$
+        pass_filenames: true
+
+  # =============================================================================
+  # General File Hygiene
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+        name: fix end of file
+      - id: check-yaml
+        name: check yaml
+      - id: check-toml
+        name: check toml
+      - id: check-merge-conflict
+        name: check merge conflict
+      - id: mixed-line-ending
+        name: check line endings
+        args: ['--fix=lf']
+
+  # =============================================================================
+  # Prevent Secrets from Being Committed
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key
+        name: detect private keys

@@ -212,3 +212,34 @@ at your option.
 ## Contributing
 
 Contributions are welcome! Please read the contributing guidelines before submitting PRs.
+
+### Development Setup
+
+1. **Install pre-commit hooks** (recommended):
+
+   ```bash
+   # Install pre-commit (if not already installed)
+   pip install pre-commit
+
+   # Install the git hooks
+   pre-commit install
+   ```
+
+   Pre-commit hooks will automatically run on every commit to ensure:
+   - Code is formatted with `cargo fmt`
+   - Code passes `cargo clippy` lints
+   - Quick unit tests pass
+   - No debug macros (`todo!()`, `unimplemented!()`, `dbg!()`) in production code
+   - No large files (>1MB) are accidentally committed
+
+2. **Run hooks manually** (useful before pushing):
+
+   ```bash
+   pre-commit run --all-files
+   ```
+
+3. **Skip hooks temporarily** (use sparingly):
+
+   ```bash
+   git commit --no-verify -m "WIP: work in progress"
+   ```
