@@ -1,28 +1,10 @@
 //! Test utilities and fixtures for FerroML testing
+//!
+//! This module provides data generation utilities for testing.
+//! For assertion macros and tolerance constants, see [`crate::testing::assertions`].
 
 use ndarray::{Array1, Array2};
 use rand_chacha::ChaCha8Rng;
-
-/// Tolerance constants calibrated for different algorithm types
-pub mod tolerances {
-    /// Closed-form solutions (QR decomposition, direct solve)
-    pub const CLOSED_FORM: f64 = 1e-10;
-
-    /// Iterative algorithms (gradient descent, IRLS, coordinate descent)
-    pub const ITERATIVE: f64 = 1e-4;
-
-    /// Tree-based algorithms (deterministic splits)
-    pub const TREE: f64 = 1e-12;
-
-    /// Probabilistic algorithms (sampling-based)
-    pub const PROBABILISTIC: f64 = 1e-2;
-
-    /// Neural network / deep learning
-    pub const NEURAL: f64 = 1e-3;
-
-    /// sklearn comparison (accounts for implementation differences)
-    pub const SKLEARN_COMPAT: f64 = 1e-5;
-}
 
 /// Generate reproducible regression data
 pub fn make_regression(
@@ -182,49 +164,11 @@ pub mod sklearn_reference {
     }
 }
 
-/// Macro to assert approximate equality with tolerance
-#[macro_export]
-macro_rules! assert_approx_eq {
-    ($left:expr, $right:expr, $tol:expr) => {
-        let left_val = $left;
-        let right_val = $right;
-        let diff = (left_val - right_val).abs();
-        assert!(
-            diff < $tol,
-            "assertion failed: |{} - {}| = {} >= {}",
-            left_val,
-            right_val,
-            diff,
-            $tol
-        );
-    };
-}
-
-/// Macro to assert array approximate equality
-#[macro_export]
-macro_rules! assert_array_approx_eq {
-    ($left:expr, $right:expr, $tol:expr) => {
-        let left_arr = &$left;
-        let right_arr = &$right;
-        assert_eq!(left_arr.len(), right_arr.len(), "Array lengths differ");
-        for (i, (l, r)) in left_arr.iter().zip(right_arr.iter()).enumerate() {
-            let diff = (l - r).abs();
-            assert!(
-                diff < $tol,
-                "assertion failed at index {}: |{} - {}| = {} >= {}",
-                i,
-                l,
-                r,
-                diff,
-                $tol
-            );
-        }
-    };
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::assertions::tolerances;
+    use crate::assert_approx_eq;
 
     #[test]
     fn test_make_regression() {
@@ -250,7 +194,7 @@ mod tests {
         // y = 2x + 1
         for i in 0..5 {
             let expected = 2.0 * x[[i, 0]] + 1.0;
-            assert!((y[i] - expected).abs() < 1e-10);
+            assert_approx_eq!(y[i], expected, tolerances::CLOSED_FORM, "y = 2x + 1 at index {}", i);
         }
     }
 }

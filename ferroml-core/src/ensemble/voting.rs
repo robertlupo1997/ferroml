@@ -938,6 +938,8 @@ impl VotingRegressorEstimator for HistGradientBoostingRegressor {
 mod tests {
     use super::*;
     use crate::models::linear::LinearRegression;
+    use crate::testing::assertions::tolerances;
+    use crate::assert_approx_eq;
 
     fn create_classification_data() -> (Array2<f64>, Array1<f64>) {
         // Data with some overlap to avoid perfect separation issues with logistic regression
@@ -1042,13 +1044,9 @@ mod tests {
         assert_eq!(probas.ncols(), 2); // 2 classes
 
         // Probabilities should sum to 1
-        for row in probas.rows() {
+        for (i, row) in probas.rows().into_iter().enumerate() {
             let sum: f64 = row.iter().sum();
-            assert!(
-                (sum - 1.0).abs() < 1e-6,
-                "Probabilities should sum to 1: {}",
-                sum
-            );
+            assert_approx_eq!(sum, 1.0, tolerances::PROBABILITY, "row {} probabilities should sum to 1", i);
         }
     }
 
@@ -1073,8 +1071,8 @@ mod tests {
         // Check weights are stored correctly
         let weights = voter.weights().unwrap();
         assert_eq!(weights.len(), 2);
-        assert!((weights[0] - 2.0).abs() < 1e-10);
-        assert!((weights[1] - 1.0).abs() < 1e-10);
+        assert_approx_eq!(weights[0], 2.0, tolerances::CLOSED_FORM, "first weight");
+        assert_approx_eq!(weights[1], 1.0, tolerances::CLOSED_FORM, "second weight");
     }
 
     #[test]
@@ -1157,7 +1155,7 @@ mod tests {
         // Check normalized weights sum to 1
         let weights = voter.get_normalized_weights();
         let sum: f64 = weights.iter().sum();
-        assert!((sum - 1.0).abs() < 1e-10);
+        assert_approx_eq!(sum, 1.0, tolerances::CLOSED_FORM, "normalized weights should sum to 1");
     }
 
     #[test]

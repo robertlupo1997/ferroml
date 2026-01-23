@@ -14,12 +14,26 @@
 //!     assert!(result.passed, "{}: {}", result.name, result.message.as_deref().unwrap_or(""));
 //! }
 //! ```
+//!
+//! # Assertions
+//!
+//! For writing tests with proper floating-point tolerance:
+//!
+//! ```ignore
+//! use ferroml_core::testing::assertions::{tolerances, assert_approx_eq, assert_array_approx_eq};
+//!
+//! // Use calibrated tolerances for different algorithm types
+//! assert_approx_eq!(actual, expected, tolerances::CLOSED_FORM);
+//! assert_array_approx_eq!(predictions, expected, tolerances::ITERATIVE);
+//! ```
 
+pub mod assertions;
 pub mod checks;
 pub mod probabilistic;
 pub mod transformer;
 pub mod utils;
 
+pub use assertions::*;
 pub use checks::*;
 pub use probabilistic::*;
 pub use utils::*;
