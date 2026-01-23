@@ -34,16 +34,17 @@ Example
 >>> print(f"Feature importances: {model.feature_importances_}")
 """
 
-from ferroml.ferroml.trees import (
-    DecisionTreeClassifier,
-    DecisionTreeRegressor,
-    RandomForestClassifier,
-    RandomForestRegressor,
-    GradientBoostingClassifier,
-    GradientBoostingRegressor,
-    HistGradientBoostingClassifier,
-    HistGradientBoostingRegressor,
-)
+# Import from the native extension's trees submodule
+from ferroml import ferroml as _native
+
+DecisionTreeClassifier = _native.trees.DecisionTreeClassifier
+DecisionTreeRegressor = _native.trees.DecisionTreeRegressor
+RandomForestClassifier = _native.trees.RandomForestClassifier
+RandomForestRegressor = _native.trees.RandomForestRegressor
+GradientBoostingClassifier = _native.trees.GradientBoostingClassifier
+GradientBoostingRegressor = _native.trees.GradientBoostingRegressor
+HistGradientBoostingClassifier = _native.trees.HistGradientBoostingClassifier
+HistGradientBoostingRegressor = _native.trees.HistGradientBoostingRegressor
 
 __all__ = [
     "DecisionTreeClassifier",

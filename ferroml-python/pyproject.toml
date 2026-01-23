@@ -49,8 +49,12 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "pytest-xdist>=3.0",
     "mypy>=1.0",
     "ruff>=0.1",
+]
+sklearn = [
+    "scikit-learn>=1.0",
 ]
 polars = [
     "polars>=0.19",
@@ -58,8 +62,11 @@ polars = [
 pandas = [
     "pandas>=1.5",
 ]
+test = [
+    "ferroml[dev,sklearn,pandas]",
+]
 all = [
-    "ferroml[polars,pandas]",
+    "ferroml[polars,pandas,sklearn]",
 ]
 
 [project.urls]
@@ -84,7 +91,16 @@ strip = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "sklearn_compat: marks tests that require sklearn",
+    "automl: marks AutoML integration tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
 
 [tool.mypy]
 python_version = "3.10"

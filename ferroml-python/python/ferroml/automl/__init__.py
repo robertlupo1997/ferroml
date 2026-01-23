@@ -50,14 +50,15 @@ Example
 >>> print(f"Competitive models: {len(competitive)}")
 """
 
-from ferroml.ferroml.automl import (
-    AutoMLConfig,
-    AutoML,
-    AutoMLResult,
-    LeaderboardEntry,
-    EnsembleResult,
-    EnsembleMember,
-)
+# Import from the native extension's automl submodule
+from ferroml import ferroml as _native
+
+AutoMLConfig = _native.automl.AutoMLConfig
+AutoML = _native.automl.AutoML
+AutoMLResult = _native.automl.AutoMLResult
+LeaderboardEntry = _native.automl.LeaderboardEntry
+EnsembleResult = _native.automl.EnsembleResult
+EnsembleMember = _native.automl.EnsembleMember
 
 __all__ = [
     "AutoMLConfig",

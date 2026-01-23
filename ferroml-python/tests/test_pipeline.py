@@ -44,7 +44,8 @@ class TestPipeline:
             ('scaler2', MinMaxScaler()),
         ])
 
-        X_transformed = pipe.fit_transform(X)
+        # FerroML Pipeline.fit_transform requires y argument
+        X_transformed = pipe.fit_transform(X, y)
 
         assert X_transformed.shape == X.shape
         # After StandardScaler -> MinMaxScaler, data should be in roughly [0, 1]

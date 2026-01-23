@@ -39,16 +39,17 @@ Example
 >>> X_imputed = imputer.fit_transform(X_with_missing)
 """
 
-from ferroml.ferroml.preprocessing import (
-    StandardScaler,
-    MinMaxScaler,
-    RobustScaler,
-    MaxAbsScaler,
-    OneHotEncoder,
-    OrdinalEncoder,
-    LabelEncoder,
-    SimpleImputer,
-)
+# Import from the native extension's preprocessing submodule
+from ferroml import ferroml as _native
+
+StandardScaler = _native.preprocessing.StandardScaler
+MinMaxScaler = _native.preprocessing.MinMaxScaler
+RobustScaler = _native.preprocessing.RobustScaler
+MaxAbsScaler = _native.preprocessing.MaxAbsScaler
+OneHotEncoder = _native.preprocessing.OneHotEncoder
+OrdinalEncoder = _native.preprocessing.OrdinalEncoder
+LabelEncoder = _native.preprocessing.LabelEncoder
+SimpleImputer = _native.preprocessing.SimpleImputer
 
 __all__ = [
     "StandardScaler",

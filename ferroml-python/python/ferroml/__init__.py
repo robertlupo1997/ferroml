@@ -37,7 +37,8 @@ Example
 """
 
 # Import from the native extension
-from ferroml.ferroml import __version__
+from ferroml import ferroml as _native
+__version__ = _native.__version__
 
 # Re-export submodules for cleaner imports
 from ferroml import linear

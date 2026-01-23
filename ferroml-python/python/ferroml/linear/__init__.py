@@ -30,13 +30,14 @@ Example
 >>> print(f"R-squared: {model.r_squared():.4f}")
 """
 
-from ferroml.ferroml.linear import (
-    LinearRegression,
-    LogisticRegression,
-    RidgeRegression,
-    LassoRegression,
-    ElasticNet,
-)
+# Import from the native extension's linear submodule
+from ferroml import ferroml as _native
+
+LinearRegression = _native.linear.LinearRegression
+LogisticRegression = _native.linear.LogisticRegression
+RidgeRegression = _native.linear.RidgeRegression
+LassoRegression = _native.linear.LassoRegression
+ElasticNet = _native.linear.ElasticNet
 
 __all__ = [
     "LinearRegression",

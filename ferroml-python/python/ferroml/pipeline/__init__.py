@@ -34,11 +34,12 @@ Example
 >>> X_transformed = ct.fit_transform(X)
 """
 
-from ferroml.ferroml.pipeline import (
-    Pipeline,
-    ColumnTransformer,
-    FeatureUnion,
-)
+# Import from the native extension's pipeline submodule
+from ferroml import ferroml as _native
+
+Pipeline = _native.pipeline.Pipeline
+ColumnTransformer = _native.pipeline.ColumnTransformer
+FeatureUnion = _native.pipeline.FeatureUnion
 
 __all__ = [
     "Pipeline",
