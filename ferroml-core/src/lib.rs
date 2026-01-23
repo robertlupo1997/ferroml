@@ -111,6 +111,7 @@ pub mod simd;
 #[cfg(feature = "sparse")]
 pub mod sparse;
 pub mod stats;
+pub mod testing;
 
 // Re-exports for convenience
 pub use automl::{

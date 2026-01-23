@@ -51,6 +51,15 @@ pub enum FerroError {
     #[error("Not implemented: {0}")]
     NotImplemented(String),
 
+    /// Feature not implemented for a specific model
+    #[error("Feature '{feature}' is not implemented for {model}")]
+    NotImplementedFor {
+        /// The feature that is not implemented
+        feature: String,
+        /// The model type
+        model: String,
+    },
+
     /// Model not fitted
     #[error("Model not fitted: call fit() before {operation}")]
     NotFitted {
@@ -143,6 +152,14 @@ impl FerroError {
     pub fn not_fitted(operation: impl Into<String>) -> Self {
         Self::NotFitted {
             operation: operation.into(),
+        }
+    }
+
+    /// Create a not implemented for specific model error
+    pub fn not_implemented_for(feature: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::NotImplementedFor {
+            feature: feature.into(),
+            model: model.into(),
         }
     }
 

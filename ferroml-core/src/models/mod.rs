@@ -43,6 +43,7 @@ pub mod quantile;
 pub mod regularized;
 pub mod robust;
 pub mod svm;
+pub mod traits;
 pub mod tree;
 
 // Re-export models for convenience
@@ -79,6 +80,7 @@ pub use svm::{
     ClassWeight, Kernel, LinearSVC, LinearSVCLoss, LinearSVR, LinearSVRLoss, MulticlassStrategy,
     SVC, SVR,
 };
+pub use traits::*;
 pub use tree::{
     DecisionTreeClassifier, DecisionTreeRegressor, SplitCriterion, TreeNode, TreeStructure,
 };
@@ -147,6 +149,40 @@ pub trait Model: Send + Sync {
     ///
     /// Returns `None` if the model hasn't been fitted yet.
     fn n_features(&self) -> Option<usize>;
+
+    /// Fit with sample weights (optional, returns NotImplemented by default)
+    fn fit_weighted(
+        &mut self,
+        _x: &Array2<f64>,
+        _y: &Array1<f64>,
+        _sample_weight: &Array1<f64>,
+    ) -> Result<()> {
+        Err(FerroError::NotImplemented(format!(
+            "fit_weighted not implemented for {}",
+            self.model_name()
+        )))
+    }
+
+    /// Get model name for error messages
+    fn model_name(&self) -> &str {
+        std::any::type_name::<Self>()
+    }
+
+    /// Downcast to concrete type (for trait-specific access)
+    fn as_any(&self) -> &dyn std::any::Any
+    where
+        Self: Sized + 'static,
+    {
+        self
+    }
+
+    /// Downcast to concrete type (mutable)
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any
+    where
+        Self: Sized + 'static,
+    {
+        self
+    }
 }
 
 /// Extended trait for models with statistical diagnostics

@@ -24,6 +24,7 @@ arrow.workspace = true
 statrs.workspace = true
 rand.workspace = true
 rand_distr.workspace = true
+rand_chacha = "0.9"
 argmin.workspace = true
 argmin-math.workspace = true
 
@@ -59,6 +60,19 @@ criterion = "0.5"
 approx = "0.5"
 proptest = "1.5"
 tempfile = "3.15"
+test-case = "3.3"
+rstest = "0.23"
+
+# Optional dependencies for advanced testing
+[dependencies.ort]
+version = "2.0.0-rc.11"
+optional = true
+default-features = false
+features = ["half"]
+
+[dependencies.faer]
+version = "0.20"
+optional = true
 
 [[bench]]
 name = "benchmarks"
@@ -91,6 +105,8 @@ simd = ["wide"]  # SIMD acceleration for distance calculations
 sparse = ["sprs"]  # Native sparse matrix operations
 gpu = []  # Future CUDA/Metal support
 onnx = []  # ONNX export support
+onnx-validation = ["ort"]  # For ONNX round-trip testing
+faer-backend = ["faer"]    # High-performance linear algebra
 
 # docs.rs configuration
 [package.metadata.docs.rs]
