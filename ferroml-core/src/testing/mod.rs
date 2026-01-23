@@ -26,11 +26,29 @@
 //! assert_approx_eq!(actual, expected, tolerances::CLOSED_FORM);
 //! assert_array_approx_eq!(predictions, expected, tolerances::ITERATIVE);
 //! ```
+//!
+//! # Serialization Testing
+//!
+//! For testing model and transformer serialization across multiple formats:
+//!
+//! ```ignore
+//! use ferroml_core::testing::serialization::{check_model_serialization, SerializationFormat};
+//! use ferroml_core::models::LinearRegression;
+//!
+//! let results = check_model_serialization(
+//!     LinearRegression::new(),
+//!     SerializationTestConfig::default(),
+//! );
+//! for result in &results {
+//!     assert!(result.passed, "{}: {}", result.name, result.message.as_deref().unwrap_or(""));
+//! }
+//! ```
 
 pub mod assertions;
 pub mod checks;
 pub mod nan_inf_validation;
 pub mod probabilistic;
+pub mod serialization;
 pub mod transformer;
 pub mod utils;
 
