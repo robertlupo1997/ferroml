@@ -1,0 +1,13 @@
+# Rust toolchain configuration for FerroML
+# This sets the Minimum Supported Rust Version (MSRV)
+
+[toolchain]
+# MSRV: 1.75.0
+# Required by:
+# - polars 0.46+ (modern DataFrame operations)
+# - arrow 54+ (Arrow columnar format)
+# - Modern async features in tokio
+# - Edition 2021 with full feature support
+channel = "1.75.0"
+components = ["rustfmt", "clippy"]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]
