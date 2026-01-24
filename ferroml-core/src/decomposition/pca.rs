@@ -1165,8 +1165,8 @@ fn qr_decomposition(a: &Array2<f64>) -> Result<(Array2<f64>, Array2<f64>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::assertions::tolerances;
     use crate::assert_approx_eq;
+    use crate::testing::assertions::tolerances;
     use ndarray::array;
 
     // Use calibrated tolerance constants from assertions module
@@ -1213,7 +1213,12 @@ mod tests {
 
         // Check explained variance ratio sums to ~1
         let ratio_sum: f64 = pca.explained_variance_ratio().unwrap().sum();
-        assert_approx_eq!(ratio_sum, 1.0, TOLERANCE, "explained variance ratio should sum to 1");
+        assert_approx_eq!(
+            ratio_sum,
+            1.0,
+            TOLERANCE,
+            "explained variance ratio should sum to 1"
+        );
     }
 
     #[test]
@@ -1383,7 +1388,12 @@ mod tests {
         }
 
         // Last value should be 1.0
-        assert_approx_eq!(*cum_var.last().unwrap(), 1.0, TOLERANCE, "cumulative variance should end at 1");
+        assert_approx_eq!(
+            *cum_var.last().unwrap(),
+            1.0,
+            TOLERANCE,
+            "cumulative variance should end at 1"
+        );
     }
 
     #[test]
@@ -1426,7 +1436,12 @@ mod tests {
 
         // Covariance matrix should be symmetric
         assert_eq!(cov.dim(), (2, 2));
-        assert_approx_eq!(cov[[0, 1]], cov[[1, 0]], TOLERANCE, "covariance matrix should be symmetric");
+        assert_approx_eq!(
+            cov[[0, 1]],
+            cov[[1, 0]],
+            TOLERANCE,
+            "covariance matrix should be symmetric"
+        );
     }
 
     // ========== IncrementalPCA Tests ==========

@@ -87,7 +87,11 @@ macro_rules! test_model_compliance {
 test_model_compliance!(
     test_linear_regression_compliance,
     LinearRegression::new(),
-    skip = ["check_nan_handling", "check_inf_handling", "check_fit_twice_different_data"]
+    skip = [
+        "check_nan_handling",
+        "check_inf_handling",
+        "check_fit_twice_different_data"
+    ]
 );
 
 test_model_compliance!(
@@ -119,7 +123,13 @@ fn test_decision_tree_regressor_compliance() {
     if !failures.is_empty() {
         let msg = failures
             .iter()
-            .map(|r| format!("  - {}: {}", r.name, r.message.as_deref().unwrap_or("failed")))
+            .map(|r| {
+                format!(
+                    "  - {}: {}",
+                    r.name,
+                    r.message.as_deref().unwrap_or("failed")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         panic!("Estimator failed {} checks:\n{}", failures.len(), msg);
@@ -189,7 +199,13 @@ fn test_decision_tree_classifier_compliance() {
     if !failures.is_empty() {
         let msg = failures
             .iter()
-            .map(|r| format!("  - {}: {}", r.name, r.message.as_deref().unwrap_or("failed")))
+            .map(|r| {
+                format!(
+                    "  - {}: {}",
+                    r.name,
+                    r.message.as_deref().unwrap_or("failed")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         panic!("Estimator failed {} checks:\n{}", failures.len(), msg);
@@ -211,7 +227,13 @@ fn test_random_forest_classifier_compliance() {
     if !failures.is_empty() {
         let msg = failures
             .iter()
-            .map(|r| format!("  - {}: {}", r.name, r.message.as_deref().unwrap_or("failed")))
+            .map(|r| {
+                format!(
+                    "  - {}: {}",
+                    r.name,
+                    r.message.as_deref().unwrap_or("failed")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         panic!("Estimator failed {} checks:\n{}", failures.len(), msg);
@@ -226,10 +248,7 @@ test_model_compliance!(
     skip = ["check_large_input"]
 );
 
-test_model_compliance!(
-    test_gaussian_nb_compliance,
-    GaussianNB::new()
-);
+test_model_compliance!(test_gaussian_nb_compliance, GaussianNB::new());
 
 test_model_compliance!(
     test_kneighbors_classifier_compliance,
@@ -276,31 +295,107 @@ fn all_models_compliance_summary() {
         "check_inf_handling",
     ];
 
-    let models: Vec<(&str, Vec<&str>, Box<dyn Fn() -> Vec<crate::testing::CheckResult> + Send + Sync>)> = vec![
+    let models: Vec<(
+        &str,
+        Vec<&str>,
+        Box<dyn Fn() -> Vec<crate::testing::CheckResult> + Send + Sync>,
+    )> = vec![
         // Regression models
-        ("LinearRegression", regression_skip.clone(), Box::new(|| check_estimator(LinearRegression::new()))),
-        ("RidgeRegression", regression_skip.clone(), Box::new(|| check_estimator(RidgeRegression::new(1.0)))),
-        ("LassoRegression", regression_skip.clone(), Box::new(|| check_estimator(LassoRegression::new(0.1)))),
-        ("ElasticNet", regression_skip.clone(), Box::new(|| check_estimator(ElasticNet::new(0.1, 0.5)))),
-        ("DecisionTreeRegressor", vec![], Box::new(|| check_estimator(DecisionTreeRegressor::new()))),
-        ("RandomForestRegressor", forest_skip.clone(), Box::new(|| {
-            check_estimator(RandomForestRegressor::new().with_n_estimators(5).with_random_state(42))
-        })),
-        ("GradientBoostingRegressor", vec!["check_large_input"], Box::new(|| {
-            check_estimator(GradientBoostingRegressor::new().with_n_estimators(5).with_random_state(42))
-        })),
-        ("KNeighborsRegressor", vec![], Box::new(|| check_estimator(KNeighborsRegressor::new(5)))),
+        (
+            "LinearRegression",
+            regression_skip.clone(),
+            Box::new(|| check_estimator(LinearRegression::new())),
+        ),
+        (
+            "RidgeRegression",
+            regression_skip.clone(),
+            Box::new(|| check_estimator(RidgeRegression::new(1.0))),
+        ),
+        (
+            "LassoRegression",
+            regression_skip.clone(),
+            Box::new(|| check_estimator(LassoRegression::new(0.1))),
+        ),
+        (
+            "ElasticNet",
+            regression_skip.clone(),
+            Box::new(|| check_estimator(ElasticNet::new(0.1, 0.5))),
+        ),
+        (
+            "DecisionTreeRegressor",
+            vec![],
+            Box::new(|| check_estimator(DecisionTreeRegressor::new())),
+        ),
+        (
+            "RandomForestRegressor",
+            forest_skip.clone(),
+            Box::new(|| {
+                check_estimator(
+                    RandomForestRegressor::new()
+                        .with_n_estimators(5)
+                        .with_random_state(42),
+                )
+            }),
+        ),
+        (
+            "GradientBoostingRegressor",
+            vec!["check_large_input"],
+            Box::new(|| {
+                check_estimator(
+                    GradientBoostingRegressor::new()
+                        .with_n_estimators(5)
+                        .with_random_state(42),
+                )
+            }),
+        ),
+        (
+            "KNeighborsRegressor",
+            vec![],
+            Box::new(|| check_estimator(KNeighborsRegressor::new(5))),
+        ),
         // Classification models
-        ("LogisticRegression", classifier_skip.clone(), Box::new(|| check_estimator(LogisticRegression::new()))),
-        ("DecisionTreeClassifier", vec![], Box::new(|| check_estimator(DecisionTreeClassifier::new()))),
-        ("RandomForestClassifier", classifier_skip.clone(), Box::new(|| {
-            check_estimator(RandomForestClassifier::new().with_n_estimators(5).with_random_state(42))
-        })),
-        ("GradientBoostingClassifier", vec!["check_large_input"], Box::new(|| {
-            check_estimator(GradientBoostingClassifier::new().with_n_estimators(5).with_random_state(42))
-        })),
-        ("GaussianNB", vec![], Box::new(|| check_estimator(GaussianNB::new()))),
-        ("KNeighborsClassifier", vec![], Box::new(|| check_estimator(KNeighborsClassifier::new(5)))),
+        (
+            "LogisticRegression",
+            classifier_skip.clone(),
+            Box::new(|| check_estimator(LogisticRegression::new())),
+        ),
+        (
+            "DecisionTreeClassifier",
+            vec![],
+            Box::new(|| check_estimator(DecisionTreeClassifier::new())),
+        ),
+        (
+            "RandomForestClassifier",
+            classifier_skip.clone(),
+            Box::new(|| {
+                check_estimator(
+                    RandomForestClassifier::new()
+                        .with_n_estimators(5)
+                        .with_random_state(42),
+                )
+            }),
+        ),
+        (
+            "GradientBoostingClassifier",
+            vec!["check_large_input"],
+            Box::new(|| {
+                check_estimator(
+                    GradientBoostingClassifier::new()
+                        .with_n_estimators(5)
+                        .with_random_state(42),
+                )
+            }),
+        ),
+        (
+            "GaussianNB",
+            vec![],
+            Box::new(|| check_estimator(GaussianNB::new())),
+        ),
+        (
+            "KNeighborsClassifier",
+            vec![],
+            Box::new(|| check_estimator(KNeighborsClassifier::new(5))),
+        ),
     ];
 
     println!("\n{}", "=".repeat(80));
@@ -388,7 +483,11 @@ fn all_models_compliance_summary() {
 #[test]
 fn test_compliance_by_category() {
     let config = CheckConfig {
-        skip_checks: vec!["check_nan_handling", "check_inf_handling", "check_fit_twice_different_data"],
+        skip_checks: vec![
+            "check_nan_handling",
+            "check_inf_handling",
+            "check_fit_twice_different_data",
+        ],
         ..Default::default()
     };
     let model = LinearRegression::new();
@@ -421,7 +520,10 @@ fn test_compliance_by_category() {
     }
 
     // Verify all categories pass after excluding known issues
-    assert!(summary.failed == 0, "LinearRegression should pass all non-skipped checks");
+    assert!(
+        summary.failed == 0,
+        "LinearRegression should pass all non-skipped checks"
+    );
 }
 
 #[cfg(test)]

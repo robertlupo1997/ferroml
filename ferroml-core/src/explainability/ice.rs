@@ -827,9 +827,9 @@ pub fn ice_from_curves(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assert_approx_eq;
     use crate::models::linear::LinearRegression;
     use crate::testing::assertions::tolerances;
-    use crate::assert_approx_eq;
     use ndarray::Axis as NdAxis;
 
     fn create_linear_dataset(n_samples: usize) -> (Array2<f64>, Array1<f64>) {
@@ -1109,9 +1109,24 @@ mod tests {
         };
 
         let ranges = result.per_sample_effect_range();
-        assert_approx_eq!(ranges[0], 2.0, tolerances::CLOSED_FORM, "sample 0 effect range");
-        assert_approx_eq!(ranges[1], 5.0, tolerances::CLOSED_FORM, "sample 1 effect range");
-        assert_approx_eq!(ranges[2], 0.0, tolerances::CLOSED_FORM, "sample 2 effect range");
+        assert_approx_eq!(
+            ranges[0],
+            2.0,
+            tolerances::CLOSED_FORM,
+            "sample 0 effect range"
+        );
+        assert_approx_eq!(
+            ranges[1],
+            5.0,
+            tolerances::CLOSED_FORM,
+            "sample 1 effect range"
+        );
+        assert_approx_eq!(
+            ranges[2],
+            0.0,
+            tolerances::CLOSED_FORM,
+            "sample 2 effect range"
+        );
     }
 
     #[test]

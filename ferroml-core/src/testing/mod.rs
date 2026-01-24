@@ -162,17 +162,9 @@ pub fn check_estimator_with_config<M: Model + Clone + Send + Sync + 'static>(
     let mut results = Vec::new();
 
     // Generate test data
-    let (x_reg, y_reg) = utils::make_regression(
-        config.n_samples_regression,
-        5,
-        0.1,
-        config.seed,
-    );
-    let (_x_clf, _y_clf) = utils::make_binary_classification(
-        config.n_samples_classification,
-        5,
-        config.seed,
-    );
+    let (x_reg, y_reg) = utils::make_regression(config.n_samples_regression, 5, 0.1, config.seed);
+    let (_x_clf, _y_clf) =
+        utils::make_binary_classification(config.n_samples_classification, 5, config.seed);
 
     // Clone references for closures
     let x_reg_ref = &x_reg;
@@ -180,56 +172,137 @@ pub fn check_estimator_with_config<M: Model + Clone + Send + Sync + 'static>(
 
     // Define all checks as (name, category, check_fn)
     let checks: Vec<(&str, CheckCategory, Box<dyn Fn(&M) -> CheckResult + '_>)> = vec![
-        ("check_not_fitted", CheckCategory::Api,
-            Box::new(|m: &M| checks::check_not_fitted(m))),
-        ("check_n_features_in", CheckCategory::Api,
-            Box::new(move |m: &M| checks::check_n_features_in(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_nan_handling", CheckCategory::InputValidation,
-            Box::new(|m: &M| checks::check_nan_handling(m.clone()))),
-        ("check_inf_handling", CheckCategory::InputValidation,
-            Box::new(|m: &M| checks::check_inf_handling(m.clone()))),
-        ("check_empty_data", CheckCategory::InputValidation,
-            Box::new(|m: &M| checks::check_empty_data(m.clone()))),
-        ("check_fit_idempotent", CheckCategory::Numerical,
-            Box::new(move |m: &M| checks::check_fit_idempotent(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_single_sample", CheckCategory::InputValidation,
-            Box::new(|m: &M| checks::check_single_sample(m.clone()))),
-        ("check_single_feature", CheckCategory::InputValidation,
-            Box::new(|m: &M| checks::check_single_feature(m.clone()))),
-        ("check_shape_mismatch", CheckCategory::InputValidation,
-            Box::new(|m: &M| checks::check_shape_mismatch(m.clone()))),
-        ("check_subset_invariance", CheckCategory::Numerical,
-            Box::new(move |m: &M| checks::check_subset_invariance(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_clone_equivalence", CheckCategory::Api,
-            Box::new(move |m: &M| checks::check_clone_equivalence(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_fit_does_not_modify_input", CheckCategory::Api,
-            Box::new(move |m: &M| checks::check_fit_does_not_modify_input(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_predict_shape", CheckCategory::Api,
-            Box::new(move |m: &M| checks::check_predict_shape(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_no_side_effects", CheckCategory::Numerical,
-            Box::new(move |m: &M| checks::check_no_side_effects(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_multithread_safe", CheckCategory::Concurrency,
-            Box::new(move |m: &M| checks::check_multithread_safe(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_large_input", CheckCategory::Performance,
-            Box::new(move |m: &M| checks::check_large_input(m.clone(), config.seed))),
-        ("check_negative_values", CheckCategory::Numerical,
-            Box::new(|m: &M| checks::check_negative_values(m.clone()))),
-        ("check_very_small_values", CheckCategory::Numerical,
-            Box::new(|m: &M| checks::check_very_small_values(m.clone()))),
-        ("check_very_large_values", CheckCategory::Numerical,
-            Box::new(|m: &M| checks::check_very_large_values(m.clone()))),
-        ("check_mixed_scale_features", CheckCategory::Numerical,
-            Box::new(|m: &M| checks::check_mixed_scale_features(m.clone()))),
-        ("check_constant_feature", CheckCategory::Numerical,
-            Box::new(|m: &M| checks::check_constant_feature(m.clone()))),
-        ("check_fit_twice_different_data", CheckCategory::Api,
-            Box::new(|m: &M| checks::check_fit_twice_different_data(m.clone()))),
-        ("check_dtype_consistency", CheckCategory::Api,
-            Box::new(move |m: &M| checks::check_dtype_consistency(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_zero_samples_predict", CheckCategory::InputValidation,
-            Box::new(move |m: &M| checks::check_zero_samples_predict(m.clone(), x_reg_ref, y_reg_ref))),
-        ("check_deterministic_predictions", CheckCategory::Numerical,
-            Box::new(move |m: &M| checks::check_deterministic_predictions(m.clone(), x_reg_ref, y_reg_ref))),
+        (
+            "check_not_fitted",
+            CheckCategory::Api,
+            Box::new(|m: &M| checks::check_not_fitted(m)),
+        ),
+        (
+            "check_n_features_in",
+            CheckCategory::Api,
+            Box::new(move |m: &M| checks::check_n_features_in(m.clone(), x_reg_ref, y_reg_ref)),
+        ),
+        (
+            "check_nan_handling",
+            CheckCategory::InputValidation,
+            Box::new(|m: &M| checks::check_nan_handling(m.clone())),
+        ),
+        (
+            "check_inf_handling",
+            CheckCategory::InputValidation,
+            Box::new(|m: &M| checks::check_inf_handling(m.clone())),
+        ),
+        (
+            "check_empty_data",
+            CheckCategory::InputValidation,
+            Box::new(|m: &M| checks::check_empty_data(m.clone())),
+        ),
+        (
+            "check_fit_idempotent",
+            CheckCategory::Numerical,
+            Box::new(move |m: &M| checks::check_fit_idempotent(m.clone(), x_reg_ref, y_reg_ref)),
+        ),
+        (
+            "check_single_sample",
+            CheckCategory::InputValidation,
+            Box::new(|m: &M| checks::check_single_sample(m.clone())),
+        ),
+        (
+            "check_single_feature",
+            CheckCategory::InputValidation,
+            Box::new(|m: &M| checks::check_single_feature(m.clone())),
+        ),
+        (
+            "check_shape_mismatch",
+            CheckCategory::InputValidation,
+            Box::new(|m: &M| checks::check_shape_mismatch(m.clone())),
+        ),
+        (
+            "check_subset_invariance",
+            CheckCategory::Numerical,
+            Box::new(move |m: &M| checks::check_subset_invariance(m.clone(), x_reg_ref, y_reg_ref)),
+        ),
+        (
+            "check_clone_equivalence",
+            CheckCategory::Api,
+            Box::new(move |m: &M| checks::check_clone_equivalence(m.clone(), x_reg_ref, y_reg_ref)),
+        ),
+        (
+            "check_fit_does_not_modify_input",
+            CheckCategory::Api,
+            Box::new(move |m: &M| {
+                checks::check_fit_does_not_modify_input(m.clone(), x_reg_ref, y_reg_ref)
+            }),
+        ),
+        (
+            "check_predict_shape",
+            CheckCategory::Api,
+            Box::new(move |m: &M| checks::check_predict_shape(m.clone(), x_reg_ref, y_reg_ref)),
+        ),
+        (
+            "check_no_side_effects",
+            CheckCategory::Numerical,
+            Box::new(move |m: &M| checks::check_no_side_effects(m.clone(), x_reg_ref, y_reg_ref)),
+        ),
+        (
+            "check_multithread_safe",
+            CheckCategory::Concurrency,
+            Box::new(move |m: &M| checks::check_multithread_safe(m.clone(), x_reg_ref, y_reg_ref)),
+        ),
+        (
+            "check_large_input",
+            CheckCategory::Performance,
+            Box::new(move |m: &M| checks::check_large_input(m.clone(), config.seed)),
+        ),
+        (
+            "check_negative_values",
+            CheckCategory::Numerical,
+            Box::new(|m: &M| checks::check_negative_values(m.clone())),
+        ),
+        (
+            "check_very_small_values",
+            CheckCategory::Numerical,
+            Box::new(|m: &M| checks::check_very_small_values(m.clone())),
+        ),
+        (
+            "check_very_large_values",
+            CheckCategory::Numerical,
+            Box::new(|m: &M| checks::check_very_large_values(m.clone())),
+        ),
+        (
+            "check_mixed_scale_features",
+            CheckCategory::Numerical,
+            Box::new(|m: &M| checks::check_mixed_scale_features(m.clone())),
+        ),
+        (
+            "check_constant_feature",
+            CheckCategory::Numerical,
+            Box::new(|m: &M| checks::check_constant_feature(m.clone())),
+        ),
+        (
+            "check_fit_twice_different_data",
+            CheckCategory::Api,
+            Box::new(|m: &M| checks::check_fit_twice_different_data(m.clone())),
+        ),
+        (
+            "check_dtype_consistency",
+            CheckCategory::Api,
+            Box::new(move |m: &M| checks::check_dtype_consistency(m.clone(), x_reg_ref, y_reg_ref)),
+        ),
+        (
+            "check_zero_samples_predict",
+            CheckCategory::InputValidation,
+            Box::new(move |m: &M| {
+                checks::check_zero_samples_predict(m.clone(), x_reg_ref, y_reg_ref)
+            }),
+        ),
+        (
+            "check_deterministic_predictions",
+            CheckCategory::Numerical,
+            Box::new(move |m: &M| {
+                checks::check_deterministic_predictions(m.clone(), x_reg_ref, y_reg_ref)
+            }),
+        ),
     ];
 
     // Run checks with filtering
@@ -242,25 +315,24 @@ pub fn check_estimator_with_config<M: Model + Clone + Send + Sync + 'static>(
         }
 
         let start = Instant::now();
-        let mut result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            check_fn(&model)
-        }))
-        .unwrap_or_else(|e| {
-            let msg = if let Some(s) = e.downcast_ref::<&str>() {
-                format!("Check panicked: {}", s)
-            } else if let Some(s) = e.downcast_ref::<String>() {
-                format!("Check panicked: {}", s)
-            } else {
-                "Check panicked!".into()
-            };
-            CheckResult {
-                name,
-                passed: false,
-                message: Some(msg),
-                duration: Duration::ZERO,
-                category,
-            }
-        });
+        let mut result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| check_fn(&model)))
+                .unwrap_or_else(|e| {
+                    let msg = if let Some(s) = e.downcast_ref::<&str>() {
+                        format!("Check panicked: {}", s)
+                    } else if let Some(s) = e.downcast_ref::<String>() {
+                        format!("Check panicked: {}", s)
+                    } else {
+                        "Check panicked!".into()
+                    };
+                    CheckResult {
+                        name,
+                        passed: false,
+                        message: Some(msg),
+                        duration: Duration::ZERO,
+                        category,
+                    }
+                });
 
         result.duration = start.elapsed();
         result.category = category;
@@ -278,7 +350,13 @@ pub fn assert_estimator_valid<M: Model + Clone + Send + Sync + 'static>(model: M
     if !failures.is_empty() {
         let msg = failures
             .iter()
-            .map(|r| format!("  - {}: {}", r.name, r.message.as_deref().unwrap_or("failed")))
+            .map(|r| {
+                format!(
+                    "  - {}: {}",
+                    r.name,
+                    r.message.as_deref().unwrap_or("failed")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         panic!("Estimator failed {} checks:\n{}", failures.len(), msg);
@@ -328,9 +406,17 @@ pub struct CheckSummary {
 
 impl std::fmt::Display for CheckSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Check Results: {}/{} passed ({:.1}%)",
-            self.passed, self.total,
-            if self.total > 0 { 100.0 * self.passed as f64 / self.total as f64 } else { 0.0 })?;
+        writeln!(
+            f,
+            "Check Results: {}/{} passed ({:.1}%)",
+            self.passed,
+            self.total,
+            if self.total > 0 {
+                100.0 * self.passed as f64 / self.total as f64
+            } else {
+                0.0
+            }
+        )?;
         writeln!(f, "Total time: {:?}", self.total_duration)?;
         writeln!(f, "\nBy category:")?;
         for (cat, (p, fail)) in &self.by_category {

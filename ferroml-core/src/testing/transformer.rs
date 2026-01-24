@@ -81,11 +81,7 @@ pub fn check_fit_transform_equivalence<T: Transformer + Clone>(transformer: T) -
                 return CheckResult::fail(
                     "check_fit_transform_equivalence",
                     CheckCategory::Api,
-                    format!(
-                        "Shapes differ: {:?} vs {:?}",
-                        r1.shape(),
-                        r2.shape()
-                    ),
+                    format!("Shapes differ: {:?} vs {:?}", r1.shape(), r2.shape()),
                 );
             }
 
@@ -141,11 +137,7 @@ pub fn check_transform_shape<T: Transformer + Clone>(mut transformer: T) -> Chec
                 return CheckResult::fail(
                     "check_transform_shape",
                     CheckCategory::Api,
-                    format!(
-                        "Row count changed from {} to {}",
-                        x.nrows(),
-                        result.nrows()
-                    ),
+                    format!("Row count changed from {} to {}", x.nrows(), result.nrows()),
                 );
             }
 
@@ -244,13 +236,17 @@ pub fn check_transformer_empty_data<T: Transformer + Clone>(mut transformer: T) 
     let x = Array2::zeros((0, 5));
 
     match transformer.fit(&x) {
-        Err(_) => CheckResult::pass("check_transformer_empty_data", CheckCategory::InputValidation),
+        Err(_) => CheckResult::pass(
+            "check_transformer_empty_data",
+            CheckCategory::InputValidation,
+        ),
         Ok(()) => {
             // Some transformers might accept empty data, check transform too
             match transformer.transform(&x) {
-                Ok(result) if result.nrows() == 0 => {
-                    CheckResult::pass("check_transformer_empty_data", CheckCategory::InputValidation)
-                }
+                Ok(result) if result.nrows() == 0 => CheckResult::pass(
+                    "check_transformer_empty_data",
+                    CheckCategory::InputValidation,
+                ),
                 Ok(_) => CheckResult::fail(
                     "check_transformer_empty_data",
                     CheckCategory::InputValidation,
@@ -273,7 +269,10 @@ pub fn check_transformer_nan_handling<T: Transformer + Clone>(mut transformer: T
     match transformer.fit(&x) {
         Err(_) => {
             // Rejecting NaN is acceptable
-            CheckResult::pass("check_transformer_nan_handling", CheckCategory::InputValidation)
+            CheckResult::pass(
+                "check_transformer_nan_handling",
+                CheckCategory::InputValidation,
+            )
         }
         Ok(()) => {
             // Accepting NaN means it should handle it consistently
@@ -320,7 +319,11 @@ pub fn check_transformer_n_features_in<T: Transformer + Clone>(mut transformer: 
             return CheckResult::fail(
                 "check_transformer_n_features_in",
                 CheckCategory::Api,
-                format!("n_features_in()={} but fitted on {} features", n_in, x.ncols()),
+                format!(
+                    "n_features_in()={} but fitted on {} features",
+                    n_in,
+                    x.ncols()
+                ),
             );
         }
     }
@@ -350,9 +353,10 @@ pub fn check_transformer_fit_no_modify<T: Transformer + Clone>(mut transformer: 
 
     let _ = transformer.fit(&x);
 
-    let unchanged = x.iter().zip(x_copy.iter()).all(|(a, b)| {
-        (a == b) || (a.is_nan() && b.is_nan())
-    });
+    let unchanged = x
+        .iter()
+        .zip(x_copy.iter())
+        .all(|(a, b)| (a == b) || (a.is_nan() && b.is_nan()));
 
     if unchanged {
         CheckResult::pass("check_transformer_fit_no_modify", CheckCategory::Api)
@@ -382,9 +386,10 @@ pub fn check_transformer_transform_no_modify<T: Transformer + Clone>(
     let x_copy = x.clone();
     let _ = transformer.transform(&x);
 
-    let unchanged = x.iter().zip(x_copy.iter()).all(|(a, b)| {
-        (a == b) || (a.is_nan() && b.is_nan())
-    });
+    let unchanged = x
+        .iter()
+        .zip(x_copy.iter())
+        .all(|(a, b)| (a == b) || (a.is_nan() && b.is_nan()));
 
     if unchanged {
         CheckResult::pass("check_transformer_transform_no_modify", CheckCategory::Api)
@@ -405,9 +410,7 @@ pub fn check_transformer_constant_feature<T: Transformer + Clone>(
     // Make first column constant
     x.column_mut(0).fill(5.0);
 
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        transformer.fit(&x)
-    }));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| transformer.fit(&x)));
 
     match result {
         Ok(Ok(())) => {
@@ -424,17 +427,26 @@ pub fn check_transformer_constant_feature<T: Transformer + Clone>(
                             );
                         }
                     }
-                    CheckResult::pass("check_transformer_constant_feature", CheckCategory::Numerical)
+                    CheckResult::pass(
+                        "check_transformer_constant_feature",
+                        CheckCategory::Numerical,
+                    )
                 }
                 Err(_) => {
                     // Transform failed on constant feature, acceptable
-                    CheckResult::pass("check_transformer_constant_feature", CheckCategory::Numerical)
+                    CheckResult::pass(
+                        "check_transformer_constant_feature",
+                        CheckCategory::Numerical,
+                    )
                 }
             }
         }
         Ok(Err(_)) => {
             // Fit rejected constant feature, acceptable
-            CheckResult::pass("check_transformer_constant_feature", CheckCategory::Numerical)
+            CheckResult::pass(
+                "check_transformer_constant_feature",
+                CheckCategory::Numerical,
+            )
         }
         Err(_) => CheckResult::fail(
             "check_transformer_constant_feature",

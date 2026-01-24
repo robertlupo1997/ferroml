@@ -72,7 +72,6 @@ where
     }
 }
 
-
 /// Check if predictions are all finite
 fn predictions_are_finite(preds: &Array1<f64>) -> bool {
     preds.iter().all(|v| v.is_finite())
@@ -150,7 +149,10 @@ pub fn check_nan_entire_row<M: Model + Clone>(mut model: M) -> CheckResult {
                 let x_clean = Array2::from_shape_fn((3, 4), |(i, j)| (i + j + 1) as f64);
                 match model.predict(&x_clean) {
                     Ok(preds) if predictions_are_finite(&preds) => (true, None),
-                    _ => (false, Some("Model doesn't handle entire NaN row properly".to_string())),
+                    _ => (
+                        false,
+                        Some("Model doesn't handle entire NaN row properly".to_string()),
+                    ),
                 }
             }
         }
@@ -277,7 +279,10 @@ pub fn check_both_inf<M: Model + Clone>(mut model: M) -> CheckResult {
                 let x_clean = Array2::from_shape_fn((5, 3), |(i, j)| (i + j + 1) as f64);
                 match model.predict(&x_clean) {
                     Ok(preds) if predictions_are_finite(&preds) => (true, None),
-                    _ => (false, Some("Model doesn't handle ±Inf properly".to_string())),
+                    _ => (
+                        false,
+                        Some("Model doesn't handle ±Inf properly".to_string()),
+                    ),
                 }
             }
         }
@@ -548,14 +553,14 @@ pub fn check_transformer_nan_fit<T: Transformer + Clone>(mut transformer: T) -> 
                         } else {
                             (
                                 false,
-                                Some("Transformer produces non-finite output after NaN fit".to_string()),
+                                Some(
+                                    "Transformer produces non-finite output after NaN fit"
+                                        .to_string(),
+                                ),
                             )
                         }
                     }
-                    Err(_) => (
-                        false,
-                        Some("Transform failed after NaN fit".to_string()),
-                    ),
+                    Err(_) => (false, Some("Transform failed after NaN fit".to_string())),
                 }
             }
         }
@@ -579,14 +584,14 @@ pub fn check_transformer_inf_fit<T: Transformer + Clone>(mut transformer: T) -> 
                         } else {
                             (
                                 false,
-                                Some("Transformer produces non-finite output after Inf fit".to_string()),
+                                Some(
+                                    "Transformer produces non-finite output after Inf fit"
+                                        .to_string(),
+                                ),
                             )
                         }
                     }
-                    Err(_) => (
-                        false,
-                        Some("Transform failed after Inf fit".to_string()),
-                    ),
+                    Err(_) => (false, Some("Transform failed after Inf fit".to_string())),
                 }
             }
         }
@@ -713,7 +718,13 @@ pub fn assert_nan_inf_handling_valid<M: Model + Clone>(model: M) {
     if !failures.is_empty() {
         let msg = failures
             .iter()
-            .map(|r| format!("  - {}: {}", r.name, r.message.as_deref().unwrap_or("failed")))
+            .map(|r| {
+                format!(
+                    "  - {}: {}",
+                    r.name,
+                    r.message.as_deref().unwrap_or("failed")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         panic!(
@@ -732,7 +743,13 @@ pub fn assert_transformer_nan_inf_handling_valid<T: Transformer + Clone>(transfo
     if !failures.is_empty() {
         let msg = failures
             .iter()
-            .map(|r| format!("  - {}: {}", r.name, r.message.as_deref().unwrap_or("failed")))
+            .map(|r| {
+                format!(
+                    "  - {}: {}",
+                    r.name,
+                    r.message.as_deref().unwrap_or("failed")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         panic!(
@@ -912,10 +929,7 @@ mod tests {
         // Target NaN checks should fail because lenient model accepts NaN in targets
         // (which is considered incorrect behavior)
         let result = check_nan_in_target(model);
-        assert!(
-            !result.passed,
-            "Lenient model should fail NaN target check"
-        );
+        assert!(!result.passed, "Lenient model should fail NaN target check");
     }
 
     #[test]

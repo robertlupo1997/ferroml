@@ -330,11 +330,7 @@ pub fn rmse(a: &Array1<f64>, b: &Array1<f64>) -> Option<f64> {
     if a.len() != b.len() || a.is_empty() {
         return None;
     }
-    let sum_sq: f64 = a
-        .iter()
-        .zip(b.iter())
-        .map(|(x, y)| (x - y).powi(2))
-        .sum();
+    let sum_sq: f64 = a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum();
     Some((sum_sq / a.len() as f64).sqrt())
 }
 
@@ -440,7 +436,12 @@ mod tests {
 
     #[test]
     fn test_approx_eq_with_message() {
-        assert_approx_eq!(1.0_f64, 1.0_f64 + 1e-11, tolerances::CLOSED_FORM, "testing coefficient");
+        assert_approx_eq!(
+            1.0_f64,
+            1.0_f64 + 1e-11,
+            tolerances::CLOSED_FORM,
+            "testing coefficient"
+        );
     }
 
     #[test]
@@ -546,7 +547,8 @@ mod tests {
     #[test]
     fn test_array2_approx_eq() {
         let a: Array2<f64> = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
-        let b: Array2<f64> = Array2::from_shape_vec((2, 2), vec![1.0 + 1e-11, 2.0, 3.0, 4.0]).unwrap();
+        let b: Array2<f64> =
+            Array2::from_shape_vec((2, 2), vec![1.0 + 1e-11, 2.0, 3.0, 4.0]).unwrap();
         assert_array2_approx_eq!(a, b, tolerances::CLOSED_FORM);
     }
 }

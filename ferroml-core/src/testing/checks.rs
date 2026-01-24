@@ -149,37 +149,44 @@ pub fn check_n_features_in<M: Model + Clone>(
 ///
 /// Models should either reject NaN inputs with an error or handle them gracefully.
 pub fn check_nan_handling<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_nan_handling", CheckCategory::InputValidation, move || {
-        let x_with_nan = Array2::from_shape_vec(
-            (5, 2),
-            vec![1.0, 2.0, f64::NAN, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+    run_check(
+        "check_nan_handling",
+        CheckCategory::InputValidation,
+        move || {
+            let x_with_nan = Array2::from_shape_vec(
+                (5, 2),
+                vec![1.0, 2.0, f64::NAN, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
 
-        match model.fit(&x_with_nan, &y) {
-            Err(FerroError::InvalidInput(_)) | Err(FerroError::NumericalError(_)) => {
-                (true, None)
-            }
-            Err(_) => (true, None), // Any error is acceptable for NaN handling
-            Ok(_) => {
-                // If fit succeeds, check if model handles NaN gracefully
-                // by producing finite predictions for non-NaN data
-                let x_clean = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
-                match model.predict(&x_clean) {
-                    Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
-                    Ok(_) => (
-                        false,
-                        Some("Model fit with NaN but produces non-finite predictions".to_string()),
-                    ),
-                    Err(e) => (
-                        false,
-                        Some(format!("Model fit with NaN but predict fails: {:?}", e)),
-                    ),
+            match model.fit(&x_with_nan, &y) {
+                Err(FerroError::InvalidInput(_)) | Err(FerroError::NumericalError(_)) => {
+                    (true, None)
+                }
+                Err(_) => (true, None), // Any error is acceptable for NaN handling
+                Ok(_) => {
+                    // If fit succeeds, check if model handles NaN gracefully
+                    // by producing finite predictions for non-NaN data
+                    let x_clean = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
+                    match model.predict(&x_clean) {
+                        Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
+                        Ok(_) => (
+                            false,
+                            Some(
+                                "Model fit with NaN but produces non-finite predictions"
+                                    .to_string(),
+                            ),
+                        ),
+                        Err(e) => (
+                            false,
+                            Some(format!("Model fit with NaN but predict fails: {:?}", e)),
+                        ),
+                    }
                 }
             }
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -190,36 +197,57 @@ pub fn check_nan_handling<M: Model + Clone>(mut model: M) -> CheckResult {
 ///
 /// Models should either reject infinite inputs with an error or handle them gracefully.
 pub fn check_inf_handling<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_inf_handling", CheckCategory::InputValidation, move || {
-        let x_with_inf = Array2::from_shape_vec(
-            (5, 2),
-            vec![1.0, 2.0, f64::INFINITY, 4.0, 5.0, 6.0, 7.0, f64::NEG_INFINITY, 9.0, 10.0],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+    run_check(
+        "check_inf_handling",
+        CheckCategory::InputValidation,
+        move || {
+            let x_with_inf = Array2::from_shape_vec(
+                (5, 2),
+                vec![
+                    1.0,
+                    2.0,
+                    f64::INFINITY,
+                    4.0,
+                    5.0,
+                    6.0,
+                    7.0,
+                    f64::NEG_INFINITY,
+                    9.0,
+                    10.0,
+                ],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
 
-        match model.fit(&x_with_inf, &y) {
-            Err(FerroError::InvalidInput(_)) | Err(FerroError::NumericalError(_)) => {
-                (true, None)
-            }
-            Err(_) => (true, None), // Any error is acceptable
-            Ok(_) => {
-                // If fit succeeds, check if model handles inf gracefully
-                let x_clean = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
-                match model.predict(&x_clean) {
-                    Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
-                    Ok(_) => (
-                        false,
-                        Some("Model fit with infinity but produces non-finite predictions".to_string()),
-                    ),
-                    Err(e) => (
-                        false,
-                        Some(format!("Model fit with infinity but predict fails: {:?}", e)),
-                    ),
+            match model.fit(&x_with_inf, &y) {
+                Err(FerroError::InvalidInput(_)) | Err(FerroError::NumericalError(_)) => {
+                    (true, None)
+                }
+                Err(_) => (true, None), // Any error is acceptable
+                Ok(_) => {
+                    // If fit succeeds, check if model handles inf gracefully
+                    let x_clean = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
+                    match model.predict(&x_clean) {
+                        Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
+                        Ok(_) => (
+                            false,
+                            Some(
+                                "Model fit with infinity but produces non-finite predictions"
+                                    .to_string(),
+                            ),
+                        ),
+                        Err(e) => (
+                            false,
+                            Some(format!(
+                                "Model fit with infinity but predict fails: {:?}",
+                                e
+                            )),
+                        ),
+                    }
                 }
             }
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -230,21 +258,25 @@ pub fn check_inf_handling<M: Model + Clone>(mut model: M) -> CheckResult {
 ///
 /// Models should reject empty feature matrices with an appropriate error.
 pub fn check_empty_data<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_empty_data", CheckCategory::InputValidation, move || {
-        let x_empty: Array2<f64> = Array2::from_shape_vec((0, 3), vec![]).unwrap();
-        let y_empty: Array1<f64> = Array1::from_vec(vec![]);
+    run_check(
+        "check_empty_data",
+        CheckCategory::InputValidation,
+        move || {
+            let x_empty: Array2<f64> = Array2::from_shape_vec((0, 3), vec![]).unwrap();
+            let y_empty: Array1<f64> = Array1::from_vec(vec![]);
 
-        match model.fit(&x_empty, &y_empty) {
-            Err(FerroError::InvalidInput(_)) | Err(FerroError::ShapeMismatch { .. }) => {
-                (true, None)
+            match model.fit(&x_empty, &y_empty) {
+                Err(FerroError::InvalidInput(_)) | Err(FerroError::ShapeMismatch { .. }) => {
+                    (true, None)
+                }
+                Err(_) => (true, None), // Any error is acceptable
+                Ok(_) => (
+                    false,
+                    Some("Fit succeeded on empty data (should fail)".to_string()),
+                ),
             }
-            Err(_) => (true, None), // Any error is acceptable
-            Ok(_) => (
-                false,
-                Some("Fit succeeded on empty data (should fail)".to_string()),
-            ),
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -261,37 +293,41 @@ pub fn check_fit_idempotent<M: Model + Clone>(
 ) -> CheckResult {
     let x = x.clone();
     let y = y.clone();
-    run_check("check_fit_idempotent", CheckCategory::Numerical, move || {
-        // First fit
-        if let Err(e) = model.fit(&x, &y) {
-            return (false, Some(format!("First fit failed: {:?}", e)));
-        }
+    run_check(
+        "check_fit_idempotent",
+        CheckCategory::Numerical,
+        move || {
+            // First fit
+            if let Err(e) = model.fit(&x, &y) {
+                return (false, Some(format!("First fit failed: {:?}", e)));
+            }
 
-        let preds1 = match model.predict(&x) {
-            Ok(p) => p,
-            Err(e) => return (false, Some(format!("First predict failed: {:?}", e))),
-        };
+            let preds1 = match model.predict(&x) {
+                Ok(p) => p,
+                Err(e) => return (false, Some(format!("First predict failed: {:?}", e))),
+            };
 
-        // Second fit on same data
-        if let Err(e) = model.fit(&x, &y) {
-            return (false, Some(format!("Second fit failed: {:?}", e)));
-        }
+            // Second fit on same data
+            if let Err(e) = model.fit(&x, &y) {
+                return (false, Some(format!("Second fit failed: {:?}", e)));
+            }
 
-        let preds2 = match model.predict(&x) {
-            Ok(p) => p,
-            Err(e) => return (false, Some(format!("Second predict failed: {:?}", e))),
-        };
+            let preds2 = match model.predict(&x) {
+                Ok(p) => p,
+                Err(e) => return (false, Some(format!("Second predict failed: {:?}", e))),
+            };
 
-        // Compare predictions
-        if arrays_approx_equal(&preds1, &preds2, 1e-10) {
-            (true, None)
-        } else {
-            (
-                false,
-                Some("Predictions differ after refitting with same data".to_string()),
-            )
-        }
-    })
+            // Compare predictions
+            if arrays_approx_equal(&preds1, &preds2, 1e-10) {
+                (true, None)
+            } else {
+                (
+                    false,
+                    Some("Predictions differ after refitting with same data".to_string()),
+                )
+            }
+        },
+    )
 }
 
 // ============================================================================
@@ -303,26 +339,33 @@ pub fn check_fit_idempotent<M: Model + Clone>(
 /// Some models may not support single samples (e.g., need variance estimates),
 /// but they should not panic - they should return an appropriate error.
 pub fn check_single_sample<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_single_sample", CheckCategory::InputValidation, move || {
-        let x_single = Array2::from_shape_vec((1, 3), vec![1.0, 2.0, 3.0]).unwrap();
-        let y_single = Array1::from_vec(vec![1.0]);
+    run_check(
+        "check_single_sample",
+        CheckCategory::InputValidation,
+        move || {
+            let x_single = Array2::from_shape_vec((1, 3), vec![1.0, 2.0, 3.0]).unwrap();
+            let y_single = Array1::from_vec(vec![1.0]);
 
-        // Fit may succeed or fail, but should not panic
-        match model.fit(&x_single, &y_single) {
-            Ok(_) => {
-                // If fit succeeds, predict should work too
-                match model.predict(&x_single) {
-                    Ok(preds) if preds.len() == 1 => (true, None),
-                    Ok(preds) => (
-                        false,
-                        Some(format!("Prediction has wrong length: {} (expected 1)", preds.len())),
-                    ),
-                    Err(_) => (true, None), // Graceful error is acceptable
+            // Fit may succeed or fail, but should not panic
+            match model.fit(&x_single, &y_single) {
+                Ok(_) => {
+                    // If fit succeeds, predict should work too
+                    match model.predict(&x_single) {
+                        Ok(preds) if preds.len() == 1 => (true, None),
+                        Ok(preds) => (
+                            false,
+                            Some(format!(
+                                "Prediction has wrong length: {} (expected 1)",
+                                preds.len()
+                            )),
+                        ),
+                        Err(_) => (true, None), // Graceful error is acceptable
+                    }
                 }
+                Err(_) => (true, None), // Graceful rejection is acceptable
             }
-            Err(_) => (true, None), // Graceful rejection is acceptable
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -333,28 +376,33 @@ pub fn check_single_sample<M: Model + Clone>(mut model: M) -> CheckResult {
 ///
 /// Models should work correctly with datasets that have only one feature.
 pub fn check_single_feature<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_single_feature", CheckCategory::InputValidation, move || {
-        let x_single_feature = Array2::from_shape_vec(
-            (10, 1),
-            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]);
+    run_check(
+        "check_single_feature",
+        CheckCategory::InputValidation,
+        move || {
+            let x_single_feature = Array2::from_shape_vec(
+                (10, 1),
+                vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]);
 
-        match model.fit(&x_single_feature, &y) {
-            Ok(_) => {
-                match model.predict(&x_single_feature) {
+            match model.fit(&x_single_feature, &y) {
+                Ok(_) => match model.predict(&x_single_feature) {
                     Ok(preds) if preds.len() == 10 => (true, None),
                     Ok(preds) => (
                         false,
-                        Some(format!("Prediction has wrong length: {} (expected 10)", preds.len())),
+                        Some(format!(
+                            "Prediction has wrong length: {} (expected 10)",
+                            preds.len()
+                        )),
                     ),
                     Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
-                }
+                },
+                Err(_) => (true, None), // Graceful rejection is acceptable
             }
-            Err(_) => (true, None), // Graceful rejection is acceptable
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -365,22 +413,28 @@ pub fn check_single_feature<M: Model + Clone>(mut model: M) -> CheckResult {
 ///
 /// When X has a different number of rows than y has elements, an error should be raised.
 pub fn check_shape_mismatch<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_shape_mismatch", CheckCategory::InputValidation, move || {
-        let x = Array2::from_shape_vec((10, 3), vec![1.0; 30]).unwrap();
-        let y = Array1::from_vec(vec![1.0; 5]); // Mismatch: 10 vs 5
+    run_check(
+        "check_shape_mismatch",
+        CheckCategory::InputValidation,
+        move || {
+            let x = Array2::from_shape_vec((10, 3), vec![1.0; 30]).unwrap();
+            let y = Array1::from_vec(vec![1.0; 5]); // Mismatch: 10 vs 5
 
-        match model.fit(&x, &y) {
-            Err(FerroError::ShapeMismatch { .. }) => (true, None),
-            Err(FerroError::InvalidInput(msg)) if msg.contains("shape") || msg.contains("length") => {
-                (true, None)
+            match model.fit(&x, &y) {
+                Err(FerroError::ShapeMismatch { .. }) => (true, None),
+                Err(FerroError::InvalidInput(msg))
+                    if msg.contains("shape") || msg.contains("length") =>
+                {
+                    (true, None)
+                }
+                Err(_) => (true, None), // Any error is acceptable for shape mismatch
+                Ok(_) => (
+                    false,
+                    Some("Fit succeeded despite X/y shape mismatch".to_string()),
+                ),
             }
-            Err(_) => (true, None), // Any error is acceptable for shape mismatch
-            Ok(_) => (
-                false,
-                Some("Fit succeeded despite X/y shape mismatch".to_string()),
-            ),
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -398,43 +452,55 @@ pub fn check_subset_invariance<M: Model + Clone>(
 ) -> CheckResult {
     let x = x.clone();
     let y = y.clone();
-    run_check("check_subset_invariance", CheckCategory::Numerical, move || {
-        if let Err(e) = model.fit(&x, &y) {
-            return (false, Some(format!("Fit failed: {:?}", e)));
-        }
-
-        // Get batch predictions
-        let batch_preds = match model.predict(&x) {
-            Ok(p) => p,
-            Err(e) => return (false, Some(format!("Batch predict failed: {:?}", e))),
-        };
-
-        // Get individual predictions
-        let mut individual_preds = Vec::with_capacity(x.nrows());
-        for i in 0..x.nrows() {
-            let x_single = x.slice(s![i..i+1, ..]).to_owned();
-            match model.predict(&x_single) {
-                Ok(p) => individual_preds.push(p[0]),
-                Err(e) => return (false, Some(format!("Individual predict failed at {}: {:?}", i, e))),
+    run_check(
+        "check_subset_invariance",
+        CheckCategory::Numerical,
+        move || {
+            if let Err(e) = model.fit(&x, &y) {
+                return (false, Some(format!("Fit failed: {:?}", e)));
             }
-        }
-        let individual_preds = Array1::from_vec(individual_preds);
 
-        // Compare
-        if arrays_approx_equal(&batch_preds, &individual_preds, 1e-10) {
-            (true, None)
-        } else {
-            let max_diff = batch_preds
-                .iter()
-                .zip(individual_preds.iter())
-                .map(|(a, b)| (a - b).abs())
-                .fold(0.0_f64, f64::max);
-            (
-                false,
-                Some(format!("Batch/individual predictions differ (max diff: {:.2e})", max_diff)),
-            )
-        }
-    })
+            // Get batch predictions
+            let batch_preds = match model.predict(&x) {
+                Ok(p) => p,
+                Err(e) => return (false, Some(format!("Batch predict failed: {:?}", e))),
+            };
+
+            // Get individual predictions
+            let mut individual_preds = Vec::with_capacity(x.nrows());
+            for i in 0..x.nrows() {
+                let x_single = x.slice(s![i..i + 1, ..]).to_owned();
+                match model.predict(&x_single) {
+                    Ok(p) => individual_preds.push(p[0]),
+                    Err(e) => {
+                        return (
+                            false,
+                            Some(format!("Individual predict failed at {}: {:?}", i, e)),
+                        )
+                    }
+                }
+            }
+            let individual_preds = Array1::from_vec(individual_preds);
+
+            // Compare
+            if arrays_approx_equal(&batch_preds, &individual_preds, 1e-10) {
+                (true, None)
+            } else {
+                let max_diff = batch_preds
+                    .iter()
+                    .zip(individual_preds.iter())
+                    .map(|(a, b)| (a - b).abs())
+                    .fold(0.0_f64, f64::max);
+                (
+                    false,
+                    Some(format!(
+                        "Batch/individual predictions differ (max diff: {:.2e})",
+                        max_diff
+                    )),
+                )
+            }
+        },
+    )
 }
 
 // ============================================================================
@@ -567,7 +633,12 @@ pub fn check_predict_shape<M: Model + Clone>(
                         );
                     }
                 }
-                Err(e) => return (false, Some(format!("Predict failed for {} samples: {:?}", n_samples, e))),
+                Err(e) => {
+                    return (
+                        false,
+                        Some(format!("Predict failed for {} samples: {:?}", n_samples, e)),
+                    )
+                }
             }
         }
 
@@ -589,37 +660,41 @@ pub fn check_no_side_effects<M: Model + Clone>(
 ) -> CheckResult {
     let x = x.clone();
     let y = y.clone();
-    run_check("check_no_side_effects", CheckCategory::Numerical, move || {
-        if let Err(e) = model.fit(&x, &y) {
-            return (false, Some(format!("Fit failed: {:?}", e)));
-        }
+    run_check(
+        "check_no_side_effects",
+        CheckCategory::Numerical,
+        move || {
+            if let Err(e) = model.fit(&x, &y) {
+                return (false, Some(format!("Fit failed: {:?}", e)));
+            }
 
-        let preds1 = match model.predict(&x) {
-            Ok(p) => p,
-            Err(e) => return (false, Some(format!("First predict failed: {:?}", e))),
-        };
+            let preds1 = match model.predict(&x) {
+                Ok(p) => p,
+                Err(e) => return (false, Some(format!("First predict failed: {:?}", e))),
+            };
 
-        let preds2 = match model.predict(&x) {
-            Ok(p) => p,
-            Err(e) => return (false, Some(format!("Second predict failed: {:?}", e))),
-        };
+            let preds2 = match model.predict(&x) {
+                Ok(p) => p,
+                Err(e) => return (false, Some(format!("Second predict failed: {:?}", e))),
+            };
 
-        let preds3 = match model.predict(&x) {
-            Ok(p) => p,
-            Err(e) => return (false, Some(format!("Third predict failed: {:?}", e))),
-        };
+            let preds3 = match model.predict(&x) {
+                Ok(p) => p,
+                Err(e) => return (false, Some(format!("Third predict failed: {:?}", e))),
+            };
 
-        if arrays_approx_equal(&preds1, &preds2, 1e-12)
-            && arrays_approx_equal(&preds2, &preds3, 1e-12)
-        {
-            (true, None)
-        } else {
-            (
-                false,
-                Some("Predictions differ across multiple calls".to_string()),
-            )
-        }
-    })
+            if arrays_approx_equal(&preds1, &preds2, 1e-12)
+                && arrays_approx_equal(&preds2, &preds3, 1e-12)
+            {
+                (true, None)
+            } else {
+                (
+                    false,
+                    Some("Predictions differ across multiple calls".to_string()),
+                )
+            }
+        },
+    )
 }
 
 // ============================================================================
@@ -636,56 +711,65 @@ pub fn check_multithread_safe<M: Model + Clone + Send + Sync + 'static>(
 ) -> CheckResult {
     let x = x.clone();
     let y = y.clone();
-    run_check("check_multithread_safe", CheckCategory::Concurrency, move || {
-        if let Err(e) = model.fit(&x, &y) {
-            return (false, Some(format!("Fit failed: {:?}", e)));
-        }
-
-        // Get reference predictions
-        let reference_preds = match model.predict(&x) {
-            Ok(p) => p,
-            Err(e) => return (false, Some(format!("Reference predict failed: {:?}", e))),
-        };
-
-        // Spawn multiple threads to predict concurrently
-        let model = std::sync::Arc::new(model);
-        let x = std::sync::Arc::new(x);
-        let reference = std::sync::Arc::new(reference_preds);
-
-        let n_threads = 4;
-        let handles: Vec<_> = (0..n_threads)
-            .map(|_| {
-                let model = std::sync::Arc::clone(&model);
-                let x = std::sync::Arc::clone(&x);
-                let reference = std::sync::Arc::clone(&reference);
-
-                std::thread::spawn(move || {
-                    for _ in 0..10 {
-                        match model.predict(&x) {
-                            Ok(preds) => {
-                                if !arrays_approx_equal(&preds, &reference, 1e-10) {
-                                    return Err("Concurrent prediction differs from reference");
-                                }
-                            }
-                            Err(_) => return Err("Concurrent prediction failed"),
-                        }
-                    }
-                    Ok(())
-                })
-            })
-            .collect();
-
-        // Wait for all threads
-        for handle in handles {
-            match handle.join() {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => return (false, Some(e.to_string())),
-                Err(_) => return (false, Some("Thread panicked during concurrent predict".to_string())),
+    run_check(
+        "check_multithread_safe",
+        CheckCategory::Concurrency,
+        move || {
+            if let Err(e) = model.fit(&x, &y) {
+                return (false, Some(format!("Fit failed: {:?}", e)));
             }
-        }
 
-        (true, None)
-    })
+            // Get reference predictions
+            let reference_preds = match model.predict(&x) {
+                Ok(p) => p,
+                Err(e) => return (false, Some(format!("Reference predict failed: {:?}", e))),
+            };
+
+            // Spawn multiple threads to predict concurrently
+            let model = std::sync::Arc::new(model);
+            let x = std::sync::Arc::new(x);
+            let reference = std::sync::Arc::new(reference_preds);
+
+            let n_threads = 4;
+            let handles: Vec<_> = (0..n_threads)
+                .map(|_| {
+                    let model = std::sync::Arc::clone(&model);
+                    let x = std::sync::Arc::clone(&x);
+                    let reference = std::sync::Arc::clone(&reference);
+
+                    std::thread::spawn(move || {
+                        for _ in 0..10 {
+                            match model.predict(&x) {
+                                Ok(preds) => {
+                                    if !arrays_approx_equal(&preds, &reference, 1e-10) {
+                                        return Err("Concurrent prediction differs from reference");
+                                    }
+                                }
+                                Err(_) => return Err("Concurrent prediction failed"),
+                            }
+                        }
+                        Ok(())
+                    })
+                })
+                .collect();
+
+            // Wait for all threads
+            for handle in handles {
+                match handle.join() {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => return (false, Some(e.to_string())),
+                    Err(_) => {
+                        return (
+                            false,
+                            Some("Thread panicked during concurrent predict".to_string()),
+                        )
+                    }
+                }
+            }
+
+            (true, None)
+        },
+    )
 }
 
 // ============================================================================
@@ -700,18 +784,22 @@ pub fn check_large_input<M: Model + Clone>(mut model: M, seed: u64) -> CheckResu
         let (x, y) = super::utils::make_regression(10000, 10, 0.1, seed);
 
         match model.fit(&x, &y) {
-            Ok(_) => {
-                match model.predict(&x) {
-                    Ok(preds) => {
-                        if preds.len() == 10000 && preds.iter().all(|v| v.is_finite()) {
-                            (true, None)
-                        } else {
-                            (false, Some("Predictions invalid for large input".to_string()))
-                        }
+            Ok(_) => match model.predict(&x) {
+                Ok(preds) => {
+                    if preds.len() == 10000 && preds.iter().all(|v| v.is_finite()) {
+                        (true, None)
+                    } else {
+                        (
+                            false,
+                            Some("Predictions invalid for large input".to_string()),
+                        )
                     }
-                    Err(e) => (false, Some(format!("Predict failed on large input: {:?}", e))),
                 }
-            }
+                Err(e) => (
+                    false,
+                    Some(format!("Predict failed on large input: {:?}", e)),
+                ),
+            },
             Err(e) => (false, Some(format!("Fit failed on large input: {:?}", e))),
         }
     })
@@ -725,36 +813,33 @@ pub fn check_large_input<M: Model + Clone>(mut model: M, seed: u64) -> CheckResu
 ///
 /// Model should work correctly with features that include negative values.
 pub fn check_negative_values<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_negative_values", CheckCategory::Numerical, move || {
-        let x = Array2::from_shape_vec(
-            (10, 3),
-            vec![
-                -5.0, -3.0, -1.0,
-                -4.0, -2.0, 0.0,
-                -3.0, -1.0, 1.0,
-                -2.0, 0.0, 2.0,
-                -1.0, 1.0, 3.0,
-                0.0, 2.0, 4.0,
-                1.0, 3.0, 5.0,
-                2.0, 4.0, 6.0,
-                3.0, 5.0, 7.0,
-                4.0, 6.0, 8.0,
-            ],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![-10.0, -8.0, -6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0]);
+    run_check(
+        "check_negative_values",
+        CheckCategory::Numerical,
+        move || {
+            let x = Array2::from_shape_vec(
+                (10, 3),
+                vec![
+                    -5.0, -3.0, -1.0, -4.0, -2.0, 0.0, -3.0, -1.0, 1.0, -2.0, 0.0, 2.0, -1.0, 1.0,
+                    3.0, 0.0, 2.0, 4.0, 1.0, 3.0, 5.0, 2.0, 4.0, 6.0, 3.0, 5.0, 7.0, 4.0, 6.0, 8.0,
+                ],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![-10.0, -8.0, -6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0]);
 
-        match model.fit(&x, &y) {
-            Ok(_) => {
-                match model.predict(&x) {
+            match model.fit(&x, &y) {
+                Ok(_) => match model.predict(&x) {
                     Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
-                    Ok(_) => (false, Some("Predictions contain non-finite values".to_string())),
+                    Ok(_) => (
+                        false,
+                        Some("Predictions contain non-finite values".to_string()),
+                    ),
                     Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
-                }
+                },
+                Err(_) => (true, None), // Graceful rejection is acceptable
             }
-            Err(_) => (true, None), // Graceful rejection is acceptable
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -765,40 +850,34 @@ pub fn check_negative_values<M: Model + Clone>(mut model: M) -> CheckResult {
 ///
 /// Model should handle features with values like 1e-100 without numerical issues.
 pub fn check_very_small_values<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_very_small_values", CheckCategory::Numerical, move || {
-        let x = Array2::from_shape_vec(
-            (10, 2),
-            vec![
-                1e-100, 1e-99,
-                1e-98, 1e-97,
-                1e-96, 1e-95,
-                1e-94, 1e-93,
-                1e-92, 1e-91,
-                1e-90, 1e-89,
-                1e-88, 1e-87,
-                1e-86, 1e-85,
-                1e-84, 1e-83,
-                1e-82, 1e-81,
-            ],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    run_check(
+        "check_very_small_values",
+        CheckCategory::Numerical,
+        move || {
+            let x = Array2::from_shape_vec(
+                (10, 2),
+                vec![
+                    1e-100, 1e-99, 1e-98, 1e-97, 1e-96, 1e-95, 1e-94, 1e-93, 1e-92, 1e-91, 1e-90,
+                    1e-89, 1e-88, 1e-87, 1e-86, 1e-85, 1e-84, 1e-83, 1e-82, 1e-81,
+                ],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
 
-        match model.fit(&x, &y) {
-            Ok(_) => {
-                match model.predict(&x) {
+            match model.fit(&x, &y) {
+                Ok(_) => match model.predict(&x) {
                     Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
                     Ok(_) => (
                         false,
                         Some("Predictions contain non-finite values for small inputs".to_string()),
                     ),
                     Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
-                }
+                },
+                Err(FerroError::NumericalError(_)) => (true, None), // Acceptable
+                Err(_) => (true, None), // Any graceful error is acceptable
             }
-            Err(FerroError::NumericalError(_)) => (true, None), // Acceptable
-            Err(_) => (true, None), // Any graceful error is acceptable
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -809,40 +888,34 @@ pub fn check_very_small_values<M: Model + Clone>(mut model: M) -> CheckResult {
 ///
 /// Model should handle features with large values like 1e10 without overflow.
 pub fn check_very_large_values<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_very_large_values", CheckCategory::Numerical, move || {
-        let x = Array2::from_shape_vec(
-            (10, 2),
-            vec![
-                1e8, 1e9,
-                2e8, 2e9,
-                3e8, 3e9,
-                4e8, 4e9,
-                5e8, 5e9,
-                6e8, 6e9,
-                7e8, 7e9,
-                8e8, 8e9,
-                9e8, 9e9,
-                1e9, 1e10,
-            ],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    run_check(
+        "check_very_large_values",
+        CheckCategory::Numerical,
+        move || {
+            let x = Array2::from_shape_vec(
+                (10, 2),
+                vec![
+                    1e8, 1e9, 2e8, 2e9, 3e8, 3e9, 4e8, 4e9, 5e8, 5e9, 6e8, 6e9, 7e8, 7e9, 8e8, 8e9,
+                    9e8, 9e9, 1e9, 1e10,
+                ],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
 
-        match model.fit(&x, &y) {
-            Ok(_) => {
-                match model.predict(&x) {
+            match model.fit(&x, &y) {
+                Ok(_) => match model.predict(&x) {
                     Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
                     Ok(_) => (
                         false,
                         Some("Predictions contain non-finite values for large inputs".to_string()),
                     ),
                     Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
-                }
+                },
+                Err(FerroError::NumericalError(_)) => (true, None), // Acceptable
+                Err(_) => (true, None), // Any graceful error is acceptable
             }
-            Err(FerroError::NumericalError(_)) => (true, None), // Acceptable
-            Err(_) => (true, None), // Any graceful error is acceptable
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -853,40 +926,35 @@ pub fn check_very_large_values<M: Model + Clone>(mut model: M) -> CheckResult {
 ///
 /// Model should handle datasets where features vary from 1e-3 to 1e3.
 pub fn check_mixed_scale_features<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_mixed_scale_features", CheckCategory::Numerical, move || {
-        // Features at very different scales: ~1e-3, ~1, ~1e3
-        let x = Array2::from_shape_vec(
-            (10, 3),
-            vec![
-                0.001, 1.0, 1000.0,
-                0.002, 2.0, 2000.0,
-                0.003, 3.0, 3000.0,
-                0.004, 4.0, 4000.0,
-                0.005, 5.0, 5000.0,
-                0.006, 6.0, 6000.0,
-                0.007, 7.0, 7000.0,
-                0.008, 8.0, 8000.0,
-                0.009, 9.0, 9000.0,
-                0.010, 10.0, 10000.0,
-            ],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    run_check(
+        "check_mixed_scale_features",
+        CheckCategory::Numerical,
+        move || {
+            // Features at very different scales: ~1e-3, ~1, ~1e3
+            let x = Array2::from_shape_vec(
+                (10, 3),
+                vec![
+                    0.001, 1.0, 1000.0, 0.002, 2.0, 2000.0, 0.003, 3.0, 3000.0, 0.004, 4.0, 4000.0,
+                    0.005, 5.0, 5000.0, 0.006, 6.0, 6000.0, 0.007, 7.0, 7000.0, 0.008, 8.0, 8000.0,
+                    0.009, 9.0, 9000.0, 0.010, 10.0, 10000.0,
+                ],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
 
-        match model.fit(&x, &y) {
-            Ok(_) => {
-                match model.predict(&x) {
+            match model.fit(&x, &y) {
+                Ok(_) => match model.predict(&x) {
                     Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
                     Ok(_) => (
                         false,
                         Some("Predictions contain non-finite values for mixed scales".to_string()),
                     ),
                     Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
-                }
+                },
+                Err(_) => (true, None), // Graceful handling is acceptable
             }
-            Err(_) => (true, None), // Graceful handling is acceptable
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -897,41 +965,39 @@ pub fn check_mixed_scale_features<M: Model + Clone>(mut model: M) -> CheckResult
 ///
 /// Model should handle datasets where one or more features are constant.
 pub fn check_constant_feature<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_constant_feature", CheckCategory::Numerical, move || {
-        // First feature is constant, others vary
-        let x = Array2::from_shape_vec(
-            (10, 3),
-            vec![
-                5.0, 1.0, 2.0,
-                5.0, 2.0, 4.0,
-                5.0, 3.0, 6.0,
-                5.0, 4.0, 8.0,
-                5.0, 5.0, 10.0,
-                5.0, 6.0, 12.0,
-                5.0, 7.0, 14.0,
-                5.0, 8.0, 16.0,
-                5.0, 9.0, 18.0,
-                5.0, 10.0, 20.0,
-            ],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    run_check(
+        "check_constant_feature",
+        CheckCategory::Numerical,
+        move || {
+            // First feature is constant, others vary
+            let x = Array2::from_shape_vec(
+                (10, 3),
+                vec![
+                    5.0, 1.0, 2.0, 5.0, 2.0, 4.0, 5.0, 3.0, 6.0, 5.0, 4.0, 8.0, 5.0, 5.0, 10.0,
+                    5.0, 6.0, 12.0, 5.0, 7.0, 14.0, 5.0, 8.0, 16.0, 5.0, 9.0, 18.0, 5.0, 10.0,
+                    20.0,
+                ],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
 
-        match model.fit(&x, &y) {
-            Ok(_) => {
-                match model.predict(&x) {
+            match model.fit(&x, &y) {
+                Ok(_) => match model.predict(&x) {
                     Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
                     Ok(_) => (
                         false,
-                        Some("Predictions contain non-finite values with constant feature".to_string()),
+                        Some(
+                            "Predictions contain non-finite values with constant feature"
+                                .to_string(),
+                        ),
                     ),
                     Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
-                }
+                },
+                Err(FerroError::NumericalError(_)) => (true, None), // Acceptable for some models
+                Err(_) => (true, None), // Graceful handling is acceptable
             }
-            Err(FerroError::NumericalError(_)) => (true, None), // Acceptable for some models
-            Err(_) => (true, None), // Graceful handling is acceptable
-        }
-    })
+        },
+    )
 }
 
 // ============================================================================
@@ -950,8 +1016,8 @@ pub fn check_fit_twice_different_data<M: Model + Clone>(mut model: M) -> CheckRe
             let x1 = Array2::from_shape_vec(
                 (10, 2),
                 vec![
-                    1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0, 6.0,
-                    6.0, 7.0, 7.0, 8.0, 8.0, 9.0, 9.0, 10.0, 10.0, 11.0,
+                    1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0, 6.0, 6.0, 7.0, 7.0, 8.0, 8.0, 9.0,
+                    9.0, 10.0, 10.0, 11.0,
                 ],
             )
             .unwrap();
@@ -961,11 +1027,8 @@ pub fn check_fit_twice_different_data<M: Model + Clone>(mut model: M) -> CheckRe
             let x2 = Array2::from_shape_vec(
                 (5, 3),
                 vec![
-                    10.0, 20.0, 30.0,
-                    20.0, 30.0, 40.0,
-                    30.0, 40.0, 50.0,
-                    40.0, 50.0, 60.0,
-                    50.0, 60.0, 70.0,
+                    10.0, 20.0, 30.0, 20.0, 30.0, 40.0, 30.0, 40.0, 50.0, 40.0, 50.0, 60.0, 50.0,
+                    60.0, 70.0,
                 ],
             )
             .unwrap();
@@ -1065,26 +1128,33 @@ pub fn check_zero_samples_predict<M: Model + Clone>(
 ) -> CheckResult {
     let x = x.clone();
     let y = y.clone();
-    run_check("check_zero_samples_predict", CheckCategory::InputValidation, move || {
-        if let Err(e) = model.fit(&x, &y) {
-            return (false, Some(format!("Fit failed: {:?}", e)));
-        }
-
-        let n_features = x.ncols();
-        let x_empty: Array2<f64> = Array2::from_shape_vec((0, n_features), vec![]).unwrap();
-
-        match model.predict(&x_empty) {
-            Ok(preds) if preds.is_empty() => (true, None),
-            Ok(preds) => (
-                false,
-                Some(format!("Zero samples returned {} predictions (expected 0)", preds.len())),
-            ),
-            Err(FerroError::InvalidInput(_)) | Err(FerroError::ShapeMismatch { .. }) => {
-                (true, None) // Graceful rejection is acceptable
+    run_check(
+        "check_zero_samples_predict",
+        CheckCategory::InputValidation,
+        move || {
+            if let Err(e) = model.fit(&x, &y) {
+                return (false, Some(format!("Fit failed: {:?}", e)));
             }
-            Err(_) => (true, None), // Any graceful error is acceptable
-        }
-    })
+
+            let n_features = x.ncols();
+            let x_empty: Array2<f64> = Array2::from_shape_vec((0, n_features), vec![]).unwrap();
+
+            match model.predict(&x_empty) {
+                Ok(preds) if preds.is_empty() => (true, None),
+                Ok(preds) => (
+                    false,
+                    Some(format!(
+                        "Zero samples returned {} predictions (expected 0)",
+                        preds.len()
+                    )),
+                ),
+                Err(FerroError::InvalidInput(_)) | Err(FerroError::ShapeMismatch { .. }) => {
+                    (true, None) // Graceful rejection is acceptable
+                }
+                Err(_) => (true, None), // Any graceful error is acceptable
+            }
+        },
+    )
 }
 
 // ============================================================================
@@ -1158,11 +1228,8 @@ pub fn check_predict_feature_mismatch<M: Model + Clone>(
 
             // Create test data with wrong number of features
             let wrong_features = x.ncols() + 2;
-            let x_wrong = Array2::from_shape_vec(
-                (5, wrong_features),
-                vec![1.0; 5 * wrong_features],
-            )
-            .unwrap();
+            let x_wrong =
+                Array2::from_shape_vec((5, wrong_features), vec![1.0; 5 * wrong_features]).unwrap();
 
             match model.predict(&x_wrong) {
                 Err(FerroError::ShapeMismatch { .. }) => (true, None),
@@ -1199,7 +1266,10 @@ pub fn check_is_fitted_state<M: Model + Clone>(
 
         // Should be fitted now
         if !model.is_fitted() {
-            return (false, Some("Model reports not fitted after fit()".to_string()));
+            return (
+                false,
+                Some("Model reports not fitted after fit()".to_string()),
+            );
         }
 
         (true, None)
@@ -1210,92 +1280,93 @@ pub fn check_is_fitted_state<M: Model + Clone>(
 ///
 /// Data with duplicate rows should be handled without issues.
 pub fn check_duplicate_rows<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_duplicate_rows", CheckCategory::Numerical, move || {
-        // Data with duplicate rows
-        let x = Array2::from_shape_vec(
-            (10, 2),
-            vec![
-                1.0, 2.0,
-                1.0, 2.0,  // duplicate
-                3.0, 4.0,
-                3.0, 4.0,  // duplicate
-                5.0, 6.0,
-                5.0, 6.0,  // duplicate
-                7.0, 8.0,
-                9.0, 10.0,
-                11.0, 12.0,
-                13.0, 14.0,
-            ],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+    run_check(
+        "check_duplicate_rows",
+        CheckCategory::Numerical,
+        move || {
+            // Data with duplicate rows
+            let x = Array2::from_shape_vec(
+                (10, 2),
+                vec![
+                    1.0, 2.0, 1.0, 2.0, // duplicate
+                    3.0, 4.0, 3.0, 4.0, // duplicate
+                    5.0, 6.0, 5.0, 6.0, // duplicate
+                    7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0,
+                ],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
 
-        match model.fit(&x, &y) {
-            Ok(_) => {
-                match model.predict(&x) {
-                    Ok(preds) if preds.iter().all(|v| v.is_finite()) => {
-                        // Check that duplicate rows get same predictions
-                        let tol = 1e-10;
-                        if (preds[0] - preds[1]).abs() < tol
-                            && (preds[2] - preds[3]).abs() < tol
-                            && (preds[4] - preds[5]).abs() < tol
-                        {
-                            (true, None)
-                        } else {
-                            (
-                                false,
-                                Some("Duplicate rows get different predictions".to_string()),
-                            )
+            match model.fit(&x, &y) {
+                Ok(_) => {
+                    match model.predict(&x) {
+                        Ok(preds) if preds.iter().all(|v| v.is_finite()) => {
+                            // Check that duplicate rows get same predictions
+                            let tol = 1e-10;
+                            if (preds[0] - preds[1]).abs() < tol
+                                && (preds[2] - preds[3]).abs() < tol
+                                && (preds[4] - preds[5]).abs() < tol
+                            {
+                                (true, None)
+                            } else {
+                                (
+                                    false,
+                                    Some("Duplicate rows get different predictions".to_string()),
+                                )
+                            }
                         }
+                        Ok(_) => (
+                            false,
+                            Some("Predictions contain non-finite values".to_string()),
+                        ),
+                        Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
                     }
-                    Ok(_) => (false, Some("Predictions contain non-finite values".to_string())),
-                    Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
                 }
+                Err(_) => (true, None), // Graceful handling is acceptable
             }
-            Err(_) => (true, None), // Graceful handling is acceptable
-        }
-    })
+        },
+    )
 }
 
 /// Check 29: Verify model handles perfectly collinear features
 ///
 /// Features where one is a perfect linear combination of others should be handled.
 pub fn check_collinear_features<M: Model + Clone>(mut model: M) -> CheckResult {
-    run_check("check_collinear_features", CheckCategory::Numerical, move || {
-        // x3 = 2*x1 + x2 (perfect collinearity)
-        let x = Array2::from_shape_vec(
-            (10, 3),
-            vec![
-                1.0, 2.0, 4.0,   // 2*1 + 2 = 4
-                2.0, 3.0, 7.0,   // 2*2 + 3 = 7
-                3.0, 4.0, 10.0,  // 2*3 + 4 = 10
-                4.0, 5.0, 13.0,
-                5.0, 6.0, 16.0,
-                6.0, 7.0, 19.0,
-                7.0, 8.0, 22.0,
-                8.0, 9.0, 25.0,
-                9.0, 10.0, 28.0,
-                10.0, 11.0, 31.0,
-            ],
-        )
-        .unwrap();
-        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    run_check(
+        "check_collinear_features",
+        CheckCategory::Numerical,
+        move || {
+            // x3 = 2*x1 + x2 (perfect collinearity)
+            let x = Array2::from_shape_vec(
+                (10, 3),
+                vec![
+                    1.0, 2.0, 4.0, // 2*1 + 2 = 4
+                    2.0, 3.0, 7.0, // 2*2 + 3 = 7
+                    3.0, 4.0, 10.0, // 2*3 + 4 = 10
+                    4.0, 5.0, 13.0, 5.0, 6.0, 16.0, 6.0, 7.0, 19.0, 7.0, 8.0, 22.0, 8.0, 9.0, 25.0,
+                    9.0, 10.0, 28.0, 10.0, 11.0, 31.0,
+                ],
+            )
+            .unwrap();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
 
-        match model.fit(&x, &y) {
-            Ok(_) => {
-                match model.predict(&x) {
+            match model.fit(&x, &y) {
+                Ok(_) => match model.predict(&x) {
                     Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
                     Ok(_) => (
                         false,
-                        Some("Predictions contain non-finite values with collinear features".to_string()),
+                        Some(
+                            "Predictions contain non-finite values with collinear features"
+                                .to_string(),
+                        ),
                     ),
                     Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
-                }
+                },
+                Err(FerroError::NumericalError(_)) => (true, None), // Acceptable
+                Err(_) => (true, None), // Graceful handling is acceptable
             }
-            Err(FerroError::NumericalError(_)) => (true, None), // Acceptable
-            Err(_) => (true, None), // Graceful handling is acceptable
-        }
-    })
+        },
+    )
 }
 
 /// Check 30: Verify model handles all-zero features
@@ -1307,34 +1378,24 @@ pub fn check_zero_feature<M: Model + Clone>(mut model: M) -> CheckResult {
         let x = Array2::from_shape_vec(
             (10, 3),
             vec![
-                1.0, 0.0, 2.0,
-                2.0, 0.0, 4.0,
-                3.0, 0.0, 6.0,
-                4.0, 0.0, 8.0,
-                5.0, 0.0, 10.0,
-                6.0, 0.0, 12.0,
-                7.0, 0.0, 14.0,
-                8.0, 0.0, 16.0,
-                9.0, 0.0, 18.0,
-                10.0, 0.0, 20.0,
+                1.0, 0.0, 2.0, 2.0, 0.0, 4.0, 3.0, 0.0, 6.0, 4.0, 0.0, 8.0, 5.0, 0.0, 10.0, 6.0,
+                0.0, 12.0, 7.0, 0.0, 14.0, 8.0, 0.0, 16.0, 9.0, 0.0, 18.0, 10.0, 0.0, 20.0,
             ],
         )
         .unwrap();
         let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
 
         match model.fit(&x, &y) {
-            Ok(_) => {
-                match model.predict(&x) {
-                    Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
-                    Ok(_) => (
-                        false,
-                        Some("Predictions contain non-finite values with zero feature".to_string()),
-                    ),
-                    Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
-                }
-            }
+            Ok(_) => match model.predict(&x) {
+                Ok(preds) if preds.iter().all(|v| v.is_finite()) => (true, None),
+                Ok(_) => (
+                    false,
+                    Some("Predictions contain non-finite values with zero feature".to_string()),
+                ),
+                Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
+            },
             Err(FerroError::NumericalError(_)) => (true, None), // Acceptable
-            Err(_) => (true, None), // Graceful handling is acceptable
+            Err(_) => (true, None),                             // Graceful handling is acceptable
         }
     })
 }
@@ -1409,7 +1470,11 @@ mod tests {
     fn test_check_not_fitted() {
         let model = MockModel::new();
         let result = check_not_fitted(&model);
-        assert!(result.passed, "check_not_fitted should pass: {:?}", result.message);
+        assert!(
+            result.passed,
+            "check_not_fitted should pass: {:?}",
+            result.message
+        );
     }
 
     #[test]
@@ -1418,28 +1483,44 @@ mod tests {
         let x = Array2::from_shape_vec((10, 3), vec![1.0; 30]).unwrap();
         let y = Array1::from_vec(vec![1.0; 10]);
         let result = check_n_features_in(model, &x, &y);
-        assert!(result.passed, "check_n_features_in should pass: {:?}", result.message);
+        assert!(
+            result.passed,
+            "check_n_features_in should pass: {:?}",
+            result.message
+        );
     }
 
     #[test]
     fn test_check_nan_handling() {
         let model = MockModel::new();
         let result = check_nan_handling(model);
-        assert!(result.passed, "check_nan_handling should pass: {:?}", result.message);
+        assert!(
+            result.passed,
+            "check_nan_handling should pass: {:?}",
+            result.message
+        );
     }
 
     #[test]
     fn test_check_empty_data() {
         let model = MockModel::new();
         let result = check_empty_data(model);
-        assert!(result.passed, "check_empty_data should pass: {:?}", result.message);
+        assert!(
+            result.passed,
+            "check_empty_data should pass: {:?}",
+            result.message
+        );
     }
 
     #[test]
     fn test_check_shape_mismatch() {
         let model = MockModel::new();
         let result = check_shape_mismatch(model);
-        assert!(result.passed, "check_shape_mismatch should pass: {:?}", result.message);
+        assert!(
+            result.passed,
+            "check_shape_mismatch should pass: {:?}",
+            result.message
+        );
     }
 
     #[test]
@@ -1448,7 +1529,11 @@ mod tests {
         let x = Array2::from_shape_vec((10, 3), vec![1.0; 30]).unwrap();
         let y = Array1::from_vec(vec![1.0; 10]);
         let result = check_clone_equivalence(model, &x, &y);
-        assert!(result.passed, "check_clone_equivalence should pass: {:?}", result.message);
+        assert!(
+            result.passed,
+            "check_clone_equivalence should pass: {:?}",
+            result.message
+        );
     }
 
     #[test]
@@ -1457,7 +1542,11 @@ mod tests {
         let x = Array2::from_shape_vec((10, 3), vec![1.0; 30]).unwrap();
         let y = Array1::from_vec(vec![1.0; 10]);
         let result = check_deterministic_predictions(model, &x, &y);
-        assert!(result.passed, "check_deterministic_predictions should pass: {:?}", result.message);
+        assert!(
+            result.passed,
+            "check_deterministic_predictions should pass: {:?}",
+            result.message
+        );
     }
 
     #[test]
@@ -1466,6 +1555,10 @@ mod tests {
         let x = Array2::from_shape_vec((10, 3), vec![1.0; 30]).unwrap();
         let y = Array1::from_vec(vec![1.0; 10]);
         let result = check_is_fitted_state(model, &x, &y);
-        assert!(result.passed, "check_is_fitted_state should pass: {:?}", result.message);
+        assert!(
+            result.passed,
+            "check_is_fitted_state should pass: {:?}",
+            result.message
+        );
     }
 }

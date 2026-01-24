@@ -1055,8 +1055,8 @@ impl Default for LDA {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::assertions::tolerances;
     use crate::assert_approx_eq;
+    use crate::testing::assertions::tolerances;
     use ndarray::{array, s};
 
     // Use calibrated tolerance from assertions module
@@ -1187,7 +1187,13 @@ mod tests {
         // Probabilities should sum to 1
         for i in 0..proba.nrows() {
             let sum: f64 = proba.row(i).sum();
-            assert_approx_eq!(sum, 1.0, tolerances::PROBABILITY, "row {} probabilities should sum to 1", i);
+            assert_approx_eq!(
+                sum,
+                1.0,
+                tolerances::PROBABILITY,
+                "row {} probabilities should sum to 1",
+                i
+            );
         }
 
         // Class 0 samples should have higher prob for class 0

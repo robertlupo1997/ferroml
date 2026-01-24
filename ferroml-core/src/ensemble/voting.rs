@@ -937,9 +937,9 @@ impl VotingRegressorEstimator for HistGradientBoostingRegressor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assert_approx_eq;
     use crate::models::linear::LinearRegression;
     use crate::testing::assertions::tolerances;
-    use crate::assert_approx_eq;
 
     fn create_classification_data() -> (Array2<f64>, Array1<f64>) {
         // Data with some overlap to avoid perfect separation issues with logistic regression
@@ -1046,7 +1046,13 @@ mod tests {
         // Probabilities should sum to 1
         for (i, row) in probas.rows().into_iter().enumerate() {
             let sum: f64 = row.iter().sum();
-            assert_approx_eq!(sum, 1.0, tolerances::PROBABILITY, "row {} probabilities should sum to 1", i);
+            assert_approx_eq!(
+                sum,
+                1.0,
+                tolerances::PROBABILITY,
+                "row {} probabilities should sum to 1",
+                i
+            );
         }
     }
 
@@ -1155,7 +1161,12 @@ mod tests {
         // Check normalized weights sum to 1
         let weights = voter.get_normalized_weights();
         let sum: f64 = weights.iter().sum();
-        assert_approx_eq!(sum, 1.0, tolerances::CLOSED_FORM, "normalized weights should sum to 1");
+        assert_approx_eq!(
+            sum,
+            1.0,
+            tolerances::CLOSED_FORM,
+            "normalized weights should sum to 1"
+        );
     }
 
     #[test]

@@ -120,8 +120,13 @@ pub mod linear_model_properties {
         if let Ok(predictions) = model.predict(&x) {
             // Compute expected: X @ coef + intercept
             for i in 0..n_samples {
-                let expected: f64 =
-                    x.row(i).iter().zip(coefs.iter()).map(|(x, c)| x * c).sum::<f64>() + intercept;
+                let expected: f64 = x
+                    .row(i)
+                    .iter()
+                    .zip(coefs.iter())
+                    .map(|(x, c)| x * c)
+                    .sum::<f64>()
+                    + intercept;
                 let actual = predictions[i];
                 if (expected - actual).abs() > 1e-6 {
                     return false;
@@ -974,11 +979,13 @@ mod proptest_tests {
     #[test]
     #[ignore] // Long running
     fn test_logistic_regression_probabilities_sum_to_one() {
-        assert!(probabilistic_model_properties::prop_probabilities_sum_to_one(
-            LogisticRegression::new,
-            100,
-            5
-        ));
+        assert!(
+            probabilistic_model_properties::prop_probabilities_sum_to_one(
+                LogisticRegression::new,
+                100,
+                5
+            )
+        );
     }
 
     #[test]
@@ -994,10 +1001,8 @@ mod proptest_tests {
     #[test]
     #[ignore] // Long running
     fn test_gaussian_nb_probabilities_sum_to_one() {
-        assert!(probabilistic_model_properties::prop_probabilities_sum_to_one(
-            GaussianNB::new,
-            100,
-            5
-        ));
+        assert!(
+            probabilistic_model_properties::prop_probabilities_sum_to_one(GaussianNB::new, 100, 5)
+        );
     }
 }

@@ -16,7 +16,7 @@
 //! cargo test -p ferroml-core preprocessing::tests::compliance
 //! ```
 
-use crate::decomposition::{PCA, TruncatedSVD};
+use crate::decomposition::{TruncatedSVD, PCA};
 use crate::preprocessing::encoders::{LabelEncoder, OneHotEncoder, OrdinalEncoder};
 use crate::preprocessing::imputers::{ImputeStrategy, SimpleImputer};
 use crate::preprocessing::polynomial::PolynomialFeatures;
@@ -80,25 +80,13 @@ macro_rules! test_transformer_compliance {
 // Scalers
 // =============================================================================
 
-test_transformer_compliance!(
-    test_standard_scaler_compliance,
-    StandardScaler::new()
-);
+test_transformer_compliance!(test_standard_scaler_compliance, StandardScaler::new());
 
-test_transformer_compliance!(
-    test_minmax_scaler_compliance,
-    MinMaxScaler::new()
-);
+test_transformer_compliance!(test_minmax_scaler_compliance, MinMaxScaler::new());
 
-test_transformer_compliance!(
-    test_robust_scaler_compliance,
-    RobustScaler::new()
-);
+test_transformer_compliance!(test_robust_scaler_compliance, RobustScaler::new());
 
-test_transformer_compliance!(
-    test_maxabs_scaler_compliance,
-    MaxAbsScaler::new()
-);
+test_transformer_compliance!(test_maxabs_scaler_compliance, MaxAbsScaler::new());
 
 // =============================================================================
 // Encoders
@@ -181,7 +169,13 @@ fn test_pca_compliance() {
     if !failures.is_empty() {
         let msg = failures
             .iter()
-            .map(|r| format!("  - {}: {}", r.name, r.message.as_deref().unwrap_or("failed")))
+            .map(|r| {
+                format!(
+                    "  - {}: {}",
+                    r.name,
+                    r.message.as_deref().unwrap_or("failed")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         panic!("Transformer failed {} checks:\n{}", failures.len(), msg);
@@ -203,7 +197,13 @@ fn test_truncated_svd_compliance() {
     if !failures.is_empty() {
         let msg = failures
             .iter()
-            .map(|r| format!("  - {}: {}", r.name, r.message.as_deref().unwrap_or("failed")))
+            .map(|r| {
+                format!(
+                    "  - {}: {}",
+                    r.name,
+                    r.message.as_deref().unwrap_or("failed")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         panic!("Transformer failed {} checks:\n{}", failures.len(), msg);
@@ -226,35 +226,83 @@ fn all_transformers_compliance_summary() {
         Vec<&str>,
     )> = vec![
         // Scalers
-        ("StandardScaler", Box::new(|| check_transformer(StandardScaler::new())), vec![]),
-        ("MinMaxScaler", Box::new(|| check_transformer(MinMaxScaler::new())), vec![]),
-        ("RobustScaler", Box::new(|| check_transformer(RobustScaler::new())), vec![]),
-        ("MaxAbsScaler", Box::new(|| check_transformer(MaxAbsScaler::new())), vec![]),
+        (
+            "StandardScaler",
+            Box::new(|| check_transformer(StandardScaler::new())),
+            vec![],
+        ),
+        (
+            "MinMaxScaler",
+            Box::new(|| check_transformer(MinMaxScaler::new())),
+            vec![],
+        ),
+        (
+            "RobustScaler",
+            Box::new(|| check_transformer(RobustScaler::new())),
+            vec![],
+        ),
+        (
+            "MaxAbsScaler",
+            Box::new(|| check_transformer(MaxAbsScaler::new())),
+            vec![],
+        ),
         // Encoders
-        ("OneHotEncoder", Box::new(|| check_transformer(OneHotEncoder::new())), vec!["check_inverse_transform"]),
-        ("OrdinalEncoder", Box::new(|| check_transformer(OrdinalEncoder::new())), vec!["check_inverse_transform"]),
+        (
+            "OneHotEncoder",
+            Box::new(|| check_transformer(OneHotEncoder::new())),
+            vec!["check_inverse_transform"],
+        ),
+        (
+            "OrdinalEncoder",
+            Box::new(|| check_transformer(OrdinalEncoder::new())),
+            vec!["check_inverse_transform"],
+        ),
         // LabelEncoder is for 1D targets, skip all multi-column checks
-        ("LabelEncoder", Box::new(|| check_transformer(LabelEncoder::new())), vec![
-            "check_transformer_not_fitted",
-            "check_transformer_fit",
-            "check_fit_transform_equivalence",
-            "check_transform_shape",
-            "check_inverse_transform",
-            "check_transformer_empty_data",
-            "check_transformer_nan_handling",
-            "check_transformer_n_features_in",
-            "check_transformer_fit_no_modify",
-            "check_transformer_transform_no_modify",
-            "check_transformer_constant_feature",
-        ]),
+        (
+            "LabelEncoder",
+            Box::new(|| check_transformer(LabelEncoder::new())),
+            vec![
+                "check_transformer_not_fitted",
+                "check_transformer_fit",
+                "check_fit_transform_equivalence",
+                "check_transform_shape",
+                "check_inverse_transform",
+                "check_transformer_empty_data",
+                "check_transformer_nan_handling",
+                "check_transformer_n_features_in",
+                "check_transformer_fit_no_modify",
+                "check_transformer_transform_no_modify",
+                "check_transformer_constant_feature",
+            ],
+        ),
         // Imputers
-        ("SimpleImputer(mean)", Box::new(|| check_transformer(SimpleImputer::new(ImputeStrategy::Mean))), vec![]),
-        ("SimpleImputer(median)", Box::new(|| check_transformer(SimpleImputer::new(ImputeStrategy::Median))), vec![]),
+        (
+            "SimpleImputer(mean)",
+            Box::new(|| check_transformer(SimpleImputer::new(ImputeStrategy::Mean))),
+            vec![],
+        ),
+        (
+            "SimpleImputer(median)",
+            Box::new(|| check_transformer(SimpleImputer::new(ImputeStrategy::Median))),
+            vec![],
+        ),
         // Polynomial
-        ("PolynomialFeatures", Box::new(|| check_transformer(PolynomialFeatures::new(2))), vec!["check_inverse_transform"]),
+        (
+            "PolynomialFeatures",
+            Box::new(|| check_transformer(PolynomialFeatures::new(2))),
+            vec!["check_inverse_transform"],
+        ),
         // Decomposition
-        ("PCA", Box::new(|| check_transformer(PCA::new().with_n_components(3))), vec!["check_inverse_transform"]),
-        ("TruncatedSVD", Box::new(|| check_transformer(TruncatedSVD::new().with_n_components(3))), vec!["check_inverse_transform"]),
+        (
+            "PCA",
+            Box::new(|| check_transformer(PCA::new().with_n_components(3))),
+            vec!["check_inverse_transform"],
+        ),
+        (
+            "TruncatedSVD",
+            Box::new(|| check_transformer(TruncatedSVD::new().with_n_components(3))),
+            vec!["check_inverse_transform"],
+        ),
     ];
 
     println!("\n{}", "=".repeat(80));
@@ -335,7 +383,8 @@ fn all_transformers_compliance_summary() {
 
     // Assert all transformers are compliant
     assert_eq!(
-        compliant_transformers, total_transformers,
+        compliant_transformers,
+        total_transformers,
         "Not all transformers are fully compliant! {} of {} failed.",
         total_transformers - compliant_transformers,
         total_transformers
@@ -360,8 +409,14 @@ fn test_standard_scaler_detailed_compliance() {
         ),
         ("Transform shape", check_transform_shape(scaler.clone())),
         ("Inverse transform", check_inverse_transform(scaler.clone())),
-        ("Empty data handling", check_transformer_empty_data(scaler.clone())),
-        ("NaN handling", check_transformer_nan_handling(scaler.clone())),
+        (
+            "Empty data handling",
+            check_transformer_empty_data(scaler.clone()),
+        ),
+        (
+            "NaN handling",
+            check_transformer_nan_handling(scaler.clone()),
+        ),
         (
             "n_features_in tracking",
             check_transformer_n_features_in(scaler.clone()),
@@ -403,7 +458,10 @@ fn test_standard_scaler_detailed_compliance() {
     println!();
     println!("Summary: {}/{} checks passed", passed, passed + failed);
 
-    assert_eq!(failed, 0, "StandardScaler should pass all compliance checks");
+    assert_eq!(
+        failed, 0,
+        "StandardScaler should pass all compliance checks"
+    );
 }
 
 #[cfg(test)]

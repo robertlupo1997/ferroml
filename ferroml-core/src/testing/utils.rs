@@ -167,8 +167,8 @@ pub mod sklearn_reference {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::assertions::tolerances;
     use crate::assert_approx_eq;
+    use crate::testing::assertions::tolerances;
 
     #[test]
     fn test_make_regression() {
@@ -194,7 +194,13 @@ mod tests {
         // y = 2x + 1
         for i in 0..5 {
             let expected = 2.0 * x[[i, 0]] + 1.0;
-            assert_approx_eq!(y[i], expected, tolerances::CLOSED_FORM, "y = 2x + 1 at index {}", i);
+            assert_approx_eq!(
+                y[i],
+                expected,
+                tolerances::CLOSED_FORM,
+                "y = 2x + 1 at index {}",
+                i
+            );
         }
     }
 }

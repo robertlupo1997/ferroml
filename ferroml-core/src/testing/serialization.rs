@@ -244,7 +244,10 @@ where
         return CheckResult::fail(
             "check_model_json_roundtrip",
             CheckCategory::Serialization,
-            format!("Predictions differ by {:.2e} after JSON roundtrip", max_diff),
+            format!(
+                "Predictions differ by {:.2e} after JSON roundtrip",
+                max_diff
+            ),
         );
     }
 
@@ -574,9 +577,7 @@ where
     M: Model + Clone + Serialize + DeserializeOwned,
 {
     // Create data with small values
-    let x = Array2::from_shape_fn((20, 3), |(i, j)| {
-        1e-50 * ((i + 1) * (j + 1)) as f64
-    });
+    let x = Array2::from_shape_fn((20, 3), |(i, j)| 1e-50 * ((i + 1) * (j + 1)) as f64);
     let y = Array1::from_shape_fn(20, |i| 1e-50 * (i + 1) as f64);
 
     if let Err(_) = model.fit(&x, &y) {
@@ -1323,10 +1324,7 @@ where
             return CheckResult::fail(
                 "check_unfitted_transformer_serialization",
                 CheckCategory::Serialization,
-                format!(
-                    "JSON deserialization of unfitted transformer failed: {}",
-                    e
-                ),
+                format!("JSON deserialization of unfitted transformer failed: {}", e),
             )
         }
     };
@@ -1371,7 +1369,9 @@ where
     let tol = config.prediction_tolerance;
 
     // Check unfitted transformer serialization
-    results.push(check_unfitted_transformer_serialization(transformer.clone()));
+    results.push(check_unfitted_transformer_serialization(
+        transformer.clone(),
+    ));
 
     // Check round-trip with each format
     match config.formats {
@@ -1382,17 +1382,26 @@ where
             results.push(check_transformer_binary_roundtrip(transformer.clone(), tol));
         }
         SerializationFormat::MessagePack => {
-            results.push(check_transformer_msgpack_roundtrip(transformer.clone(), tol));
+            results.push(check_transformer_msgpack_roundtrip(
+                transformer.clone(),
+                tol,
+            ));
         }
         SerializationFormat::All => {
             results.push(check_transformer_json_roundtrip(transformer.clone(), tol));
             results.push(check_transformer_binary_roundtrip(transformer.clone(), tol));
-            results.push(check_transformer_msgpack_roundtrip(transformer.clone(), tol));
+            results.push(check_transformer_msgpack_roundtrip(
+                transformer.clone(),
+                tol,
+            ));
         }
     }
 
     // Check fit_transform consistency
-    results.push(check_transformer_fit_transform_consistency(transformer, tol));
+    results.push(check_transformer_fit_transform_consistency(
+        transformer,
+        tol,
+    ));
 
     results
 }
@@ -1437,7 +1446,11 @@ where
             })
             .collect::<Vec<_>>()
             .join("\n");
-        panic!("Model serialization failed {} checks:\n{}", failures.len(), msg);
+        panic!(
+            "Model serialization failed {} checks:\n{}",
+            failures.len(),
+            msg
+        );
     }
 }
 
