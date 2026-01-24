@@ -326,3 +326,285 @@ jobs:
           name: benchmark-baseline
           path: target/criterion/
           retention-days: 90
+
+  # Performance regression detection
+  performance-regression:
+    name: Performance Regression Detection
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-perf-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-perf-
+
+      - name: Install critcmp
+        run: cargo install critcmp || true
+
+      - name: Run base benchmarks
+        working-directory: base
+        run: cargo bench -p ferroml-core -- --noplot --save-baseline base 2>&1 | tee ../base_bench.txt
+        continue-on-error: true
+
+      - name: Run PR benchmarks
+        run: cargo bench -p ferroml-core -- --noplot --save-baseline pr 2>&1 | tee pr_bench.txt
+        continue-on-error: true
+
+      - name: Compare benchmarks
+        id: compare
+        run: |
+          cat > compare_benchmarks.py << 'EOF'
+          import sys
+          import os
+          import re
+
+          THRESHOLD = 10.0  # 10% regression threshold
+
+          def parse_criterion_output(filename):
+              results = {}
+              try:
+                  with open(filename, 'r') as f:
+                      content = f.read()
+                      pattern = r'(\S+)\s+time:\s+\[[\d.]+ \w+ ([\d.]+) (\w+)'
+                      for match in re.finditer(pattern, content):
+                          name = match.group(1)
+                          value = float(match.group(2))
+                          unit = match.group(3)
+                          if unit == 'us':
+                              value *= 1000
+                          elif unit == 'ms':
+                              value *= 1_000_000
+                          elif unit == 's':
+                              value *= 1_000_000_000
+                          results[name] = value
+              except Exception as e:
+                  print(f"Warning: Could not parse {filename}: {e}")
+              return results
+
+          def main():
+              base_results = parse_criterion_output('base_bench.txt')
+              pr_results = parse_criterion_output('pr_bench.txt')
+
+              if not base_results or not pr_results:
+                  print("Could not parse benchmark results, skipping comparison")
+                  return
+
+              regressions = []
+              improvements = []
+
+              for name in pr_results:
+                  if name in base_results:
+                      base_time = base_results[name]
+                      pr_time = pr_results[name]
+                      if base_time > 0:
+                          change_percent = ((pr_time - base_time) / base_time) * 100
+                          if change_percent > THRESHOLD:
+                              regressions.append((name, base_time, pr_time, change_percent))
+                          elif change_percent < -THRESHOLD:
+                              improvements.append((name, base_time, pr_time, change_percent))
+
+              print("=" * 60)
+              print("PERFORMANCE COMPARISON REPORT")
+              print("=" * 60)
+              print(f"Regression threshold: {THRESHOLD}%\n")
+
+              if regressions:
+                  print("REGRESSIONS DETECTED:")
+                  for name, base, pr, pct in sorted(regressions, key=lambda x: -x[3]):
+                      print(f"  {name}: {base:.0f}ns -> {pr:.0f}ns ({pct:+.1f}%)")
+
+              if improvements:
+                  print("\nIMPROVEMENTS:")
+                  for name, base, pr, pct in sorted(improvements, key=lambda x: x[3]):
+                      print(f"  {name}: {base:.0f}ns -> {pr:.0f}ns ({pct:+.1f}%)")
+
+              with open('perf_summary.txt', 'w') as f:
+                  f.write(f"Regressions: {len(regressions)}\n")
+                  f.write(f"Improvements: {len(improvements)}\n")
+
+              if regressions:
+                  print("\n::error::Performance regression detected!")
+                  with open(os.environ.get('GITHUB_OUTPUT', '/dev/null'), 'a') as f:
+                      f.write("regression=true\n")
+                  sys.exit(1)
+
+          if __name__ == '__main__':
+              main()
+          EOF
+          python3 compare_benchmarks.py
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-report
+          path: |
+            base_bench.txt
+            pr_bench.txt
+            perf_summary.txt
+          retention-days: 30
+
+  # Memory profiling (runs on main branch)
+  memory-profiling:
+    name: Memory Profiling
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-memory-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-memory-
+
+      - name: Run memory benchmarks
+        run: cargo bench --bench memory_benchmarks -p ferroml-core 2>&1 | tee memory_profile.txt
+        continue-on-error: true
+
+      - name: Upload memory profile
+        uses: actions/upload-artifact@v4
+        with:
+          name: memory-profile
+          path: |
+            memory_profile.txt
+            memory_profile_results.json
+          retention-days: 30
+
+  # ============================================================
+  # SECURITY & COMPLIANCE
+  # ============================================================
+
+  # Security audit for vulnerabilities
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-audit-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-audit-
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+
+      - name: Run security audit
+        run: cargo audit
+
+  # License compliance check
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-deny-
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked || true
+
+      - name: Check licenses
+        run: cargo deny check licenses
+
+      - name: Check advisories
+        run: cargo deny check advisories
+
+      - name: Check bans
+        run: cargo deny check bans
+
+      - name: Check sources
+        run: cargo deny check sources
+
+  # ============================================================
+  # MSRV (Minimum Supported Rust Version) Testing
+  # ============================================================
+
+  # Test against MSRV to ensure backwards compatibility
+  msrv:
+    name: MSRV (1.75.0)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust (MSRV)
+        uses: dtolnay/rust-toolchain@1.75.0
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-msrv-1.75.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-msrv-1.75.0-
+
+      - name: Check MSRV compatibility
+        run: cargo check -p ferroml-core --all-features
+
+      - name: Run tests on MSRV
+        run: cargo test -p ferroml-core --all-features

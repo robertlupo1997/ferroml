@@ -1,0 +1,292 @@
+name: Fuzzing
+
+# Run fuzzing tests on a schedule (not on every push)
+on:
+  schedule:
+    # Run daily at 2:00 AM UTC
+    - cron: '0 2 * * *'
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      fuzz_duration:
+        description: 'Duration for each fuzz target (seconds)'
+        required: false
+        default: '300'
+      fuzz_target:
+        description: 'Specific fuzz target to run (empty = all)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  # Needed for creating issues on crash
+  issues: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Default fuzz duration: 5 minutes per target
+  FUZZ_DURATION: ${{ github.event.inputs.fuzz_duration || '300' }}
+
+jobs:
+  fuzz:
+    name: Fuzz Testing
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - fuzz_serialization_json
+          - fuzz_serialization_msgpack
+          - fuzz_serialization_bincode
+          - fuzz_onnx_model_loading
+          - fuzz_preprocessing_scalers
+          - fuzz_preprocessing_input_validation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Cache fuzz corpus
+        uses: actions/cache@v4
+        with:
+          path: |
+            ferroml-core/fuzz/corpus/
+            ferroml-core/fuzz/artifacts/
+          key: ${{ runner.os }}-fuzz-corpus-${{ matrix.target }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-fuzz-corpus-${{ matrix.target }}-
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-fuzz-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fuzz-
+
+      - name: Check if specific target requested
+        id: check_target
+        run: |
+          REQUESTED_TARGET="${{ github.event.inputs.fuzz_target }}"
+          if [ -n "$REQUESTED_TARGET" ] && [ "$REQUESTED_TARGET" != "${{ matrix.target }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run fuzzing
+        if: steps.check_target.outputs.skip != 'true'
+        working-directory: ferroml-core/fuzz
+        run: |
+          echo "Running fuzz target: ${{ matrix.target }} for ${{ env.FUZZ_DURATION }} seconds"
+
+          # Create corpus directory if it doesn't exist
+          mkdir -p corpus/${{ matrix.target }}
+
+          # Run fuzzing with timeout
+          # Use -max_total_time to limit total runtime
+          # Use -max_len to limit input size (prevent OOM)
+          # Use -rss_limit_mb to limit memory usage
+          cargo +nightly fuzz run ${{ matrix.target }} -- \
+            -max_total_time=${{ env.FUZZ_DURATION }} \
+            -max_len=65536 \
+            -rss_limit_mb=2048 \
+            -print_final_stats=1 \
+            || true  # Don't fail the job on timeout
+
+          echo "Fuzzing completed for ${{ matrix.target }}"
+
+      - name: Check for crashes
+        if: steps.check_target.outputs.skip != 'true'
+        id: check_crashes
+        working-directory: ferroml-core/fuzz
+        run: |
+          ARTIFACTS_DIR="artifacts/${{ matrix.target }}"
+          if [ -d "$ARTIFACTS_DIR" ] && [ "$(ls -A $ARTIFACTS_DIR 2>/dev/null)" ]; then
+            echo "crashes_found=true" >> $GITHUB_OUTPUT
+            echo "::warning::Crashes found in ${{ matrix.target }}"
+
+            # List crash files
+            echo "Crash artifacts:"
+            ls -la "$ARTIFACTS_DIR"
+
+            # Count crashes
+            CRASH_COUNT=$(ls -1 "$ARTIFACTS_DIR" 2>/dev/null | wc -l)
+            echo "crash_count=$CRASH_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "crashes_found=false" >> $GITHUB_OUTPUT
+            echo "No crashes found in ${{ matrix.target }}"
+          fi
+
+      - name: Upload crash artifacts
+        if: steps.check_crashes.outputs.crashes_found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes-${{ matrix.target }}
+          path: ferroml-core/fuzz/artifacts/${{ matrix.target }}/
+          retention-days: 30
+
+      - name: Upload corpus
+        if: steps.check_target.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-corpus-${{ matrix.target }}
+          path: ferroml-core/fuzz/corpus/${{ matrix.target }}/
+          retention-days: 7
+
+      - name: Create issue on crash
+        if: steps.check_crashes.outputs.crashes_found == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const target = '${{ matrix.target }}';
+            const crashCount = '${{ steps.check_crashes.outputs.crash_count }}';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            const title = `[Fuzzing] Crash found in ${target}`;
+            const body = `## Fuzzing Crash Report
+
+            **Fuzz Target:** \`${target}\`
+            **Number of Crashes:** ${crashCount}
+            **Workflow Run:** [View Run](${runUrl})
+
+            ### Details
+
+            A crash was detected during scheduled fuzzing. Please investigate the crash artifacts
+            uploaded to the workflow run.
+
+            ### Steps to Reproduce
+
+            1. Download the crash artifact from the workflow run
+            2. Run locally:
+               \`\`\`bash
+               cd ferroml-core/fuzz
+               cargo +nightly fuzz run ${target} <path-to-crash-file>
+               \`\`\`
+
+            ### Labels
+            - bug
+            - security
+            - fuzzing
+            `;
+
+            // Check if issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'fuzzing',
+            });
+
+            const existingIssue = issues.data.find(issue =>
+              issue.title.includes(target)
+            );
+
+            if (existingIssue) {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `New crash detected. See [workflow run](${runUrl}) for details.`,
+              });
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['bug', 'security', 'fuzzing'],
+              });
+            }
+
+  # Summary job that runs after all fuzz jobs
+  fuzz-summary:
+    name: Fuzzing Summary
+    needs: fuzz
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "Fuzzing jobs completed"
+          echo "Check individual job results for any crashes found"
+
+      - name: Download all crash artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fuzz-crashes-*
+          path: all-crashes/
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Summarize crashes
+        run: |
+          if [ -d "all-crashes" ] && [ "$(ls -A all-crashes 2>/dev/null)" ]; then
+            echo "::error::Crashes were found during fuzzing!"
+            echo "Crash files:"
+            find all-crashes -type f -ls
+            exit 1
+          else
+            echo "No crashes found across all fuzz targets"
+          fi
+
+  # Coverage-guided corpus minimization (runs weekly)
+  corpus-minimize:
+    name: Minimize Corpus
+    runs-on: ubuntu-latest
+    # Only run on weekly schedule (Sunday at 3 AM UTC)
+    if: github.event.schedule == '0 3 * * 0'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Restore corpus cache
+        uses: actions/cache@v4
+        with:
+          path: ferroml-core/fuzz/corpus/
+          key: ${{ runner.os }}-fuzz-corpus-all-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-fuzz-corpus-
+
+      - name: Minimize corpus for each target
+        working-directory: ferroml-core/fuzz
+        run: |
+          for target in fuzz_serialization_json fuzz_serialization_msgpack fuzz_serialization_bincode fuzz_onnx_model_loading fuzz_preprocessing_scalers fuzz_preprocessing_input_validation; do
+            if [ -d "corpus/$target" ]; then
+              echo "Minimizing corpus for $target"
+              mkdir -p "corpus/${target}_min"
+              cargo +nightly fuzz cmin $target corpus/${target}_min corpus/$target -- -max_len=65536 || true
+              # Replace original with minimized
+              rm -rf "corpus/$target"
+              mv "corpus/${target}_min" "corpus/$target"
+            fi
+          done
+
+      - name: Save minimized corpus
+        uses: actions/cache/save@v4
+        with:
+          path: ferroml-core/fuzz/corpus/
+          key: ${{ runner.os }}-fuzz-corpus-all-${{ github.sha }}-minimized
