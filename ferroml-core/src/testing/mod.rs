@@ -1,6 +1,6 @@
 //! Comprehensive estimator validation framework
 //!
-//! This module provides sklearn-compatible estimator checks for FerroML models.
+//! This module provides sklearn-compatible estimator checks for `FerroML` models.
 //! It ensures all models conform to the expected API and behave correctly.
 //!
 //! # Usage
@@ -57,6 +57,7 @@ pub mod properties;
 pub mod serialization;
 pub mod transformer;
 pub mod utils;
+pub mod weights;
 
 pub use assertions::*;
 pub use checks::*;
@@ -85,6 +86,7 @@ pub struct CheckResult {
 
 impl CheckResult {
     /// Create a passing check result
+    #[must_use] 
     pub fn pass(name: &'static str, category: CheckCategory) -> Self {
         Self {
             name,
@@ -124,7 +126,7 @@ pub enum CheckCategory {
     Serialization,
 }
 
-/// Configuration for check_estimator
+/// Configuration for `check_estimator`
 #[derive(Debug, Clone)]
 pub struct CheckConfig {
     /// Skip checks in these categories
@@ -324,9 +326,9 @@ pub fn check_estimator_with_config<M: Model + Clone + Send + Sync + 'static>(
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| check_fn(&model)))
                 .unwrap_or_else(|e| {
                     let msg = if let Some(s) = e.downcast_ref::<&str>() {
-                        format!("Check panicked: {}", s)
+                        format!("Check panicked: {s}")
                     } else if let Some(s) = e.downcast_ref::<String>() {
-                        format!("Check panicked: {}", s)
+                        format!("Check panicked: {s}")
                     } else {
                         "Check panicked!".into()
                     };
@@ -369,6 +371,7 @@ pub fn assert_estimator_valid<M: Model + Clone + Send + Sync + 'static>(model: M
 }
 
 /// Summary statistics for check results
+#[must_use] 
 pub fn summarize_results(results: &[CheckResult]) -> CheckSummary {
     let total = results.len();
     let passed = results.iter().filter(|r| r.passed).count();

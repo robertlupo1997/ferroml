@@ -1020,14 +1020,14 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 - [x] TASK-T20-007: Model size validation tests
 - [x] TASK-T20-008: Round-trip inference parity tests (**30 tests passing**)
 
-### Phase 21: Sample Weights & Class Weights Tests 🔴 NOT STARTED
-- [ ] TASK-T21-001: Create `ferroml-core/src/testing/weights.rs`
-- [ ] TASK-T21-002: Register module in `mod.rs`
-- [ ] TASK-T21-003: sample_weight parameter tests for supported models
-- [ ] TASK-T21-004: class_weight='balanced' tests
-- [ ] TASK-T21-005: Custom class weights tests
-- [ ] TASK-T21-006: Weighted metrics validation tests
-- [ ] TASK-T21-007: Edge case tests (zero/negative weights)
+### Phase 21: Sample Weights & Class Weights Tests 🟢 COMPLETE
+- [x] TASK-T21-001: Create `ferroml-core/src/testing/weights.rs` (1040 lines)
+- [x] TASK-T21-002: Register module in `mod.rs`
+- [x] TASK-T21-003: sample_weight parameter tests for supported models
+- [x] TASK-T21-004: class_weight='balanced' tests
+- [x] TASK-T21-005: Custom class weights tests
+- [x] TASK-T21-006: Weighted metrics validation tests
+- [x] TASK-T21-007: Edge case tests (zero/negative weights) (**33 tests passing**)
 
 ### Phase 22: Sparse Data Support Tests 🔴 NOT STARTED
 - [ ] TASK-T22-001: Create `ferroml-core/src/testing/sparse_tests.rs`
@@ -1131,10 +1131,10 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 - [ ] TASK-IMP-005: Run `cargo fix --lib -p ferroml-core --tests` to auto-fix 5 clippy suggestions
 
 ### HIGH PRIORITY Testing Phases (Ready for Implementation)
-- [ ] **TASK-IMP-006**: Phase 21 - Sample Weights & Class Weights Tests
-  - Leverage existing weight support in 21 files (boosting.rs, svm.rs, etc.)
-  - Test `class_weight='balanced'`, custom weights, sample_weight parameter
-  - Expected: ~25-30 tests covering all weight scenarios
+- [x] **TASK-IMP-006**: Phase 21 - Sample Weights & Class Weights Tests ✅ COMPLETE
+  - Leveraged existing weight support in 12+ files (boosting.rs, svm.rs, etc.)
+  - Tests `class_weight='balanced'`, custom weights, sample_weight parameter
+  - 33 tests covering all weight scenarios
 
 - [ ] **TASK-IMP-007**: Phase 22 - Sparse Data Support Tests
   - Build on existing sparse.rs implementation (CsrMatrix, CscMatrix)
@@ -1233,9 +1233,9 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 > **Note**: The handoff document `thoughts/shared/handoffs/2026-02-01_ferroml-testing-phases-16-20.md` is now OUTDATED.
 > All testing modules for phases 16-20 are properly registered in `mod.rs` and tests are running.
 
-#### **IMMEDIATE (Phases 21-23)** - Testing for Existing Features
+#### **IMMEDIATE (Phases 22-23)** - Testing for Existing Features
 These phases only require creating test files - the implementations already exist:
-- **Phase 21**: Create `weights.rs` - test sample_weight/class_weight in 12+ model files
+- **Phase 21**: ✅ COMPLETE - `weights.rs` created with 33 tests for sample_weight/class_weight
 - **Phase 22**: Create `sparse_tests.rs` - test comprehensive sparse.rs (CSR/CSC/distances)
 - **Phase 23**: **REQUIRES IMPLEMENTATION** - Multi-output support not found in codebase
 
@@ -1263,7 +1263,7 @@ These phases only require creating test files - the implementations already exis
 | 18 | Early Stopping | ✅ Complete | ✅ Complete | Maintain | - |
 | 19 | Explainability | ✅ Complete | ✅ Complete | Maintain | - |
 | 20 | ONNX Export/Import | ✅ Complete | ✅ Complete | Maintain | - |
-| 21 | Sample/Class Weights | ✅ In 12+ files | 🔴 No test file | **HIGH** | Create weights.rs |
+| 21 | Sample/Class Weights | ✅ In 12+ files | ✅ 33 tests | Complete | - |
 | 22 | Sparse Data | ✅ Comprehensive | 🔴 No test file | **HIGH** | Create sparse_tests.rs |
 | 23 | Multi-output | 🔴 Not found | 🔴 None | **MEDIUM** | Implement + test |
 | 24 | Advanced CV | ✅ group.rs, timeseries.rs | 🔴 No test file | MEDIUM | Create cv_advanced.rs |
@@ -1281,9 +1281,9 @@ These phases only require creating test files - the implementations already exis
 | Metric | Current | Target | Notes |
 |--------|---------|--------|----|
 | Implementation Tasks | 137/137 | Complete | ✅ All core features done |
-| Testing Phases | **5/17 complete** | 17/17 | Phases 16-20 verified, 21-32 pending |
+| Testing Phases | **6/17 complete** | 17/17 | Phases 16-21 complete, 22-32 pending |
 | Test Occurrences | **1,890 #[test]** | 2,500+ | Across 98 source files |
-| Testing Module Lines | **14,652 lines** | Maintain | 14 modules in src/testing/ |
+| Testing Module Lines | **15,692 lines** | Maintain | 15 modules in src/testing/ |
 | Code Coverage | ~75%+ | 90%+ | Need systematic coverage analysis |
 | Testing Infrastructure | ✅ Excellent | Maintain | All modules properly registered |
 
@@ -1305,3 +1305,4 @@ These phases only require creating test files - the implementations already exis
 | serialization.rs | 1,675 | Multi-format serialization tests |
 | transformer.rs | 484 | Transformer API compliance |
 | utils.rs | 206 | Test data generation |
+| weights.rs | 1,040 | Phase 21: Sample/class weight tests |
