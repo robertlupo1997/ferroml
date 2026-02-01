@@ -46,8 +46,12 @@
 
 pub mod assertions;
 pub mod automl;
+pub mod callbacks;
 pub mod checks;
+pub mod explainability;
+pub mod hpo;
 pub mod nan_inf_validation;
+pub mod onnx;
 pub mod probabilistic;
 pub mod properties;
 pub mod serialization;
