@@ -13,7 +13,7 @@ Implement the most important incomplete task from the implementation plan, test 
 0c. Study `thoughts/shared/plans/2026-01-22_comprehensive-testing.md` for testing phase details
 0d. Study relevant source files in `ferroml-core/src/` for the task you'll implement
 
-Use up to 10 parallel subagents for reading. Identify ONE task to implement this iteration.
+Use up to 500 parallel subagents for reading. Identify ONE task to implement this iteration.
 
 ## Phase 1: Select Task
 

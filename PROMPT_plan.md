@@ -14,7 +14,7 @@ Analyze the current state of the project and update the implementation plan with
 0d. Study `ferroml-core/src/testing/` directory structure to understand what test modules exist
 0e. Study `ferroml-core/src/` to understand the codebase structure
 
-Use up to 10 parallel subagents for reading and searching. Do NOT implement anything.
+Use up to 250 parallel subagents for reading and searching. Do NOT implement anything.
 
 ## Phase 1: Gap Analysis
 
