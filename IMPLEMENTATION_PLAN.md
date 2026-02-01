@@ -1192,74 +1192,116 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 
 ---
 
-## Gap Analysis Update (2026-02-01)
+## Gap Analysis Update (2026-02-01 - Planning Session)
 
-> **Analysis completed of testing phases 16-32 against existing codebase**
+> **Comprehensive analysis of testing phases 16-32 against existing codebase**
 
-### Key Findings:
+### Verification Status (as of 2026-02-01):
 
-1. **Strong Foundation**: 14 testing modules with 576 test occurrences, comprehensive testing infrastructure
+1. **Testing Infrastructure**: 14 testing modules, ALL PROPERLY REGISTERED in `mod.rs`
+   - Total lines of testing code: **14,652**
+   - Total `#[test]` occurrences: **1,890** across 98 files
+   - All modules from phases 16-20 are compiled and registered
+
 2. **Testing Phase Status Update**:
-   - Phases 16-20: ✅ **COMPLETE** with 332 test functions running
-   - Phase 21: 🟡 **PARTIALLY IMPLEMENTED** (21 files reference weights, no dedicated testing)
-   - Phase 22: 🟡 **PARTIALLY IMPLEMENTED** (sparse.rs exists, minimal testing)
-   - Phase 23: 🟡 **BASIC IMPLEMENTATION** (2 files mention multi-output)
-   - Phases 24-32: 🔴 **NOT IMPLEMENTED**
+   - **Phases 16-20**: ✅ **COMPLETE** - All test files created, modules registered
+   - **Phase 21**: 🟡 **IMPLEMENTATION EXISTS** (12+ files with weight support), needs dedicated testing
+   - **Phase 22**: 🟡 **IMPLEMENTATION EXISTS** (comprehensive sparse.rs with CSR/CSC), needs testing module
+   - **Phase 23**: 🔴 **NOT IMPLEMENTED** - Multi-output support not found in codebase
+   - **Phase 24**: 🟡 **IMPLEMENTATION EXISTS** (group.rs, timeseries.rs in cv/), needs testing module
+   - **Phase 25**: 🟡 **IMPLEMENTATION EXISTS** (stacking.rs in ensemble/), needs testing module
+   - **Phase 26**: 🟡 **IMPLEMENTATION EXISTS** (encoders.rs with OneHotEncoder, OrdinalEncoder), needs testing
+   - **Phase 27**: 🟡 **PARTIAL IMPLEMENTATION** (partial_fit in NaiveBayes, warm_start in ensembles)
+   - **Phase 28**: 🟡 **BASIC IMPLEMENTATION** (metrics module exists), needs custom metrics testing
+   - **Phases 29-32**: 🔴 **NOT IMPLEMENTED** - Requires new modules/infrastructure
 
-3. **Existing Implementation Strength**:
-   - **AutoML Time Budget**: Extensive implementation with automl/time_budget.rs + testing
-   - **HPO Correctness**: Strong hpo/ modules + comprehensive testing
-   - **Sample/Class Weights**: Found in 21 files, needs testing framework
-   - **Sparse Support**: Basic sparse.rs implementation needs expansion
-   - **Fairness/Bias Detection**: No implementation found
-   - **Drift Detection**: No implementation found
+3. **Implementation Verification Results**:
+   | Feature | Grep Result | Files Found |
+   |---------|-------------|-------------|
+   | sample_weight/class_weight | ✅ Found | 12 files (boosting, tree, svm, logistic, knn, forest, naive_bayes) |
+   | GroupKFold/TimeSeriesSplit | ✅ Found | 3 files (cv/group.rs, cv/timeseries.rs, cv/mod.rs) |
+   | Stacking | ✅ Found | 2 files (ensemble/stacking.rs, ensemble/mod.rs) |
+   | Encoders (OneHot/Ordinal) | ✅ Found | 5 files (preprocessing/encoders.rs, etc.) |
+   | warm_start/partial_fit | ✅ Found | 12 files (automl, naive_bayes, ensemble, etc.) |
+   | multi_output/MultiOutput | ❌ Not found | 0 files |
+   | fairness/demographic_parity | ❌ Not found | 0 files |
+   | drift/DataDrift | ❌ Not found | 0 files |
+   | mutation/mutants workflow | ❌ Not found | 0 files |
 
-### Updated Phase Priorities:
+### Updated Phase Priorities (Verified 2026-02-01):
 
-#### **IMMEDIATE (Next 2 weeks)**
-- **Phase 21**: Sample/Class Weights Testing - leverage existing weight implementations
-- **Phase 22**: Sparse Data Testing - build on existing sparse.rs
-- **Phase 23**: Multi-output Testing - add multi-target support
+> **Note**: The handoff document `thoughts/shared/handoffs/2026-02-01_ferroml-testing-phases-16-20.md` is now OUTDATED.
+> All testing modules for phases 16-20 are properly registered in `mod.rs` and tests are running.
 
-#### **SHORT-TERM (Next month)**
-- **Phase 24**: Advanced CV Testing - extend existing cv/ module
-- **Phase 25**: Ensemble Stacking Testing - build on existing ensemble/
-- **Phase 26**: Categorical Feature Testing - leverage HistGradientBoosting categorical support
+#### **IMMEDIATE (Phases 21-23)** - Testing for Existing Features
+These phases only require creating test files - the implementations already exist:
+- **Phase 21**: Create `weights.rs` - test sample_weight/class_weight in 12+ model files
+- **Phase 22**: Create `sparse_tests.rs` - test comprehensive sparse.rs (CSR/CSC/distances)
+- **Phase 23**: **REQUIRES IMPLEMENTATION** - Multi-output support not found in codebase
 
-#### **MEDIUM-TERM (Next quarter)**
-- **Phases 27-28**: Incremental Learning & Custom Metrics
-- **Phases 29-30**: **NEW FEATURES** - Fairness Testing & Drift Detection (require new implementations)
-- **Phases 31-32**: Regression Baselines & Mutation Testing (infrastructure)
+#### **SHORT-TERM (Phases 24-26)** - Testing for Existing Features
+- **Phase 24**: Create `cv_advanced.rs` - test group.rs, timeseries.rs, nested.rs
+- **Phase 25**: Create `ensemble_advanced.rs` - test stacking.rs passthrough, meta-learners
+- **Phase 26**: Create `categorical.rs` - test encoders.rs, HistGradientBoosting categorical
 
-### Implementation Gap Assessment:
+#### **MEDIUM-TERM (Phases 27-30)** - Mixed Implementation + Testing
+- **Phase 27**: Create `incremental.rs` - test partial_fit (NaiveBayes), warm_start (ensembles)
+- **Phase 28**: Create `metrics_custom.rs` - test custom scoring functions
+- **Phase 29**: **NEW MODULE REQUIRED** - Create `src/fairness/` + tests
+- **Phase 30**: **NEW MODULE REQUIRED** - Create `src/drift/` + tests
 
-| Feature Area | Implementation Status | Testing Status | Priority |
-|--------------|----------------------|----------------|----------|
-| AutoML Time Budget | ✅ Complete | ✅ Complete (39 tests) | Maintain |
-| HPO Correctness | ✅ Complete | ✅ Complete (24 tests) | Maintain |
-| Early Stopping | ✅ Complete | ✅ Complete (33 tests) | Maintain |
-| Explainability | ✅ Complete | ✅ Complete (57 tests) | Maintain |
-| ONNX Export/Import | ✅ Complete | ✅ Complete (30 tests) | Maintain |
-| Sample/Class Weights | 🟡 Partial (21 files) | 🔴 Missing | HIGH |
-| Sparse Data | 🟡 Basic (sparse.rs) | 🔴 Missing | HIGH |
-| Multi-output | 🟡 Minimal (2 files) | 🔴 Missing | MEDIUM |
-| Advanced CV | ✅ Complete | 🔴 Missing | MEDIUM |
-| Ensemble Stacking | ✅ Complete | 🔴 Missing | MEDIUM |
-| Categorical Features | ✅ Complete | 🔴 Missing | MEDIUM |
-| Incremental Learning | 🟡 Partial (partial_fit) | 🔴 Missing | LOW |
-| Custom Metrics | 🟡 Basic | 🔴 Missing | LOW |
-| Fairness Testing | 🔴 None | 🔴 None | NEW |
-| Drift Detection | 🔴 None | 🔴 None | NEW |
-| Regression Baselines | 🔴 None | 🔴 None | INFRA |
-| Mutation Testing | 🔴 None | 🔴 None | INFRA |
+#### **INFRASTRUCTURE (Phases 31-32)**
+- **Phase 31**: Create `tests/regression/baselines.json` + test suite
+- **Phase 32**: Create `.github/workflows/mutation.yml` with cargo-mutants
 
-## Progress Metrics
+### Implementation Gap Assessment (Verified 2026-02-01):
+
+| Phase | Feature Area | Implementation | Testing | Priority | Next Action |
+|-------|--------------|----------------|---------|----------|-------------|
+| 16 | AutoML Time Budget | ✅ Complete | ✅ Complete | Maintain | - |
+| 17 | HPO Correctness | ✅ Complete | ✅ Complete | Maintain | - |
+| 18 | Early Stopping | ✅ Complete | ✅ Complete | Maintain | - |
+| 19 | Explainability | ✅ Complete | ✅ Complete | Maintain | - |
+| 20 | ONNX Export/Import | ✅ Complete | ✅ Complete | Maintain | - |
+| 21 | Sample/Class Weights | ✅ In 12+ files | 🔴 No test file | **HIGH** | Create weights.rs |
+| 22 | Sparse Data | ✅ Comprehensive | 🔴 No test file | **HIGH** | Create sparse_tests.rs |
+| 23 | Multi-output | 🔴 Not found | 🔴 None | **MEDIUM** | Implement + test |
+| 24 | Advanced CV | ✅ group.rs, timeseries.rs | 🔴 No test file | MEDIUM | Create cv_advanced.rs |
+| 25 | Ensemble Stacking | ✅ stacking.rs | 🔴 No test file | MEDIUM | Create ensemble_advanced.rs |
+| 26 | Categorical Features | ✅ encoders.rs | 🔴 No test file | MEDIUM | Create categorical.rs |
+| 27 | Incremental Learning | 🟡 partial_fit exists | 🔴 No test file | LOW | Create incremental.rs |
+| 28 | Custom Metrics | 🟡 metrics/ exists | 🔴 No test file | LOW | Create metrics_custom.rs |
+| 29 | Fairness Testing | 🔴 No implementation | 🔴 None | **NEW** | Create fairness/ module |
+| 30 | Drift Detection | 🔴 No implementation | 🔴 None | **NEW** | Create drift/ module |
+| 31 | Regression Baselines | 🔴 No baselines.json | 🔴 None | INFRA | Create tests/regression/ |
+| 32 | Mutation Testing | 🔴 No workflow | 🔴 None | INFRA | Create mutation.yml |
+
+## Progress Metrics (Updated 2026-02-01)
 
 | Metric | Current | Target | Notes |
 |--------|---------|--------|----|
 | Implementation Tasks | 137/137 | Complete | ✅ All core features done |
-| Testing Phases | **5/17 complete** | 17/17 | Phases 16-20 verified complete |
-| Core Test Functions | **332 functions** | 500+ | Strong testing infrastructure |
-| Test Occurrences | **576 test markers** | 1000+ | Comprehensive coverage |
+| Testing Phases | **5/17 complete** | 17/17 | Phases 16-20 verified, 21-32 pending |
+| Test Occurrences | **1,890 #[test]** | 2,500+ | Across 98 source files |
+| Testing Module Lines | **14,652 lines** | Maintain | 14 modules in src/testing/ |
 | Code Coverage | ~75%+ | 90%+ | Need systematic coverage analysis |
-| Testing Infrastructure | ✅ Excellent | Maintain | 14 modules, comprehensive framework |
+| Testing Infrastructure | ✅ Excellent | Maintain | All modules properly registered |
+
+### Testing Module Breakdown (14 modules):
+
+| Module | Lines | Purpose |
+|--------|-------|---------|
+| assertions.rs | 554 | Tolerance constants, approx_eq macros |
+| automl.rs | 1,357 | Phase 16: Time budget tests |
+| callbacks.rs | 1,670 | Phase 18: Early stopping tests |
+| checks.rs | 1,564 | Core model validation (30+ checks) |
+| explainability.rs | 1,444 | Phase 19: SHAP, PDP, ICE tests |
+| hpo.rs | 1,153 | Phase 17: HPO correctness tests |
+| mod.rs | 474 | Module orchestration |
+| nan_inf_validation.rs | 943 | Numerical stability tests |
+| onnx.rs | 1,702 | Phase 20: ONNX parity tests |
+| probabilistic.rs | 418 | Probabilistic model tests |
+| properties.rs | 1,008 | Property-based testing |
+| serialization.rs | 1,675 | Multi-format serialization tests |
+| transformer.rs | 484 | Transformer API compliance |
+| utils.rs | 206 | Test data generation |
