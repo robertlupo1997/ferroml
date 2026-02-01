@@ -23,6 +23,18 @@ done
 
 PROMPT_FILE="PROMPT_${MODE}.md"
 
+# Find Claude CLI (works in both WSL and Docker)
+if [[ -x "$HOME/.local/bin/claude" ]]; then
+    CLAUDE_CMD="$HOME/.local/bin/claude"
+elif command -v claude &> /dev/null; then
+    CLAUDE_CMD="claude"
+elif [[ -x "/usr/local/bin/claude" ]]; then
+    CLAUDE_CMD="/usr/local/bin/claude"
+else
+    echo "Error: Claude CLI not found"
+    exit 1
+fi
+
 if [[ ! -f "$PROMPT_FILE" ]]; then
     echo "Error: $PROMPT_FILE not found"
     exit 1
@@ -45,11 +57,11 @@ while :; do
     echo "=============================================="
     echo ""
 
-    # Run Claude with the prompt
-    cat "$PROMPT_FILE" | claude -p \
+    # Run Claude with the prompt (using recommended Ralph Wiggum settings)
+    # Note: stream-json removed for Docker compatibility (stdout buffering issues)
+    cat "$PROMPT_FILE" | $CLAUDE_CMD -p \
         --dangerously-skip-permissions \
-        --model claude-sonnet-4-20250514 \
-        --verbose
+        --model opus
 
     EXIT_CODE=$?
 

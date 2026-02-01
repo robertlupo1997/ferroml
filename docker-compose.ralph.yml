@@ -1,0 +1,30 @@
+# FerroML Ralph Wiggum Loop - Docker Compose
+# Usage:
+#   docker-compose -f docker-compose.ralph.yml up --build
+#   docker-compose -f docker-compose.ralph.yml run ralph ./loop.sh build 10
+
+services:
+  ralph:
+    build:
+      context: .
+      dockerfile: Dockerfile.ralph
+    container_name: ferroml-ralph
+    volumes:
+      # Mount project for live updates
+      - .:/workspace
+      # Mount Claude config for API key (to non-root user home)
+      - ~/.claude:/home/ralph/.claude:ro
+    environment:
+      # Pass through API key if set
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    # Limit resources for safety
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    # Network isolation (remove if you need external access)
+    # network_mode: none
+    working_dir: /workspace
+    # Run loop - override with docker-compose run ralph ./loop.sh build 20
+    command: ["./loop.sh", "plan", "1"]

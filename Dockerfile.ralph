@@ -1,0 +1,38 @@
+# FerroML Ralph Wiggum Loop - Sandboxed Environment
+# Based on ghuntley/how-to-ralph-wiggum recommendations
+
+FROM rust:1.75-bookworm
+
+# Install Node.js for Claude CLI
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g @anthropic-ai/claude-code
+
+# Install useful tools
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user (Claude CLI blocks --dangerously-skip-permissions as root)
+RUN useradd -m -s /bin/bash ralph
+
+# Set up git config for ralph user
+RUN su - ralph -c 'git config --global user.email "ralph@ferroml.dev" && git config --global user.name "Ralph Wiggum"'
+
+# Create workspace
+WORKDIR /workspace
+
+# Copy project files and set ownership
+COPY --chown=ralph:ralph . .
+
+# Make loop script executable
+RUN chmod +x loop.sh
+
+# Switch to non-root user
+USER ralph
+
+# Default command runs the Ralph loop in plan mode with 1 iteration (for testing)
+# Override with: docker run ... ./loop.sh build 10
+CMD ["./loop.sh", "plan", "1"]
