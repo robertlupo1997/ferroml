@@ -961,17 +961,190 @@ cargo check && cargo clippy -- -D warnings && cargo test && cargo fmt --check
 4. **Rust-native inference** - Deploy without Python runtime
 5. **Production-ready** - ONNX export, schema validation, versioning
 
-### All Tasks Complete!
-FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have been implemented:
-- Phase 1: Foundation (Core Infrastructure)
-- Phase 2: Core ML Algorithms
-- Phase 3: Ensemble & Pipeline
-- Phase 4: Probability & Class Imbalance
-- Phase 5: Explainability & Interpretability
-- Phase 6: Hyperparameter Optimization
-- Phase 7: AutoML Orchestration
-- Phase 8: Python Bindings & Serialization
-- Phase 9: Datasets & Benchmarks
-- Phase 10: Performance Optimization
-- Phase 11: Documentation & Examples
-- Phase 12: CI/CD & Release
+### Implementation Phases Complete!
+FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have been implemented.
+
+---
+
+## Testing Phases (16-32) - Ralph Loop Active
+
+> These phases implement the comprehensive testing plan from `thoughts/shared/plans/2026-01-22_comprehensive-testing.md`
+
+### Phase 16: AutoML Time Budget Tests 🟡 IN PROGRESS
+- [x] TASK-T16-001: Create `ferroml-core/src/testing/automl.rs` (1357 lines)
+- [x] TASK-T16-002: Register module in `mod.rs`
+- [x] TASK-T16-003: Time budget compliance tests
+- [x] TASK-T16-004: Max trials parameter enforcement tests
+- [x] TASK-T16-005: Early termination tests
+- [x] TASK-T16-006: Resource allocation tests (UCB1, Thompson Sampling, Epsilon-Greedy)
+- [ ] TASK-T16-007: Verify all 177 tests pass consistently
+- [ ] TASK-T16-008: Add edge case tests for zero budget
+
+### Phase 17: HPO Correctness Tests 🟡 IN PROGRESS
+- [x] TASK-T17-001: Create `ferroml-core/src/testing/hpo.rs` (1153 lines)
+- [x] TASK-T17-002: Register module in `mod.rs`
+- [x] TASK-T17-003: TPE sampler correctness tests
+- [x] TASK-T17-004: Grid/Random sampler tests
+- [x] TASK-T17-005: Pruner tests (MedianPruner, Hyperband, ASHA)
+- [x] TASK-T17-006: Acquisition function tests (EI, UCB, PI)
+- [ ] TASK-T17-007: Search space constraint validation tests
+- [ ] TASK-T17-008: Verify all HPO tests pass consistently
+
+### Phase 18: Early Stopping & Callbacks Tests 🟡 IN PROGRESS
+- [x] TASK-T18-001: Create `ferroml-core/src/testing/callbacks.rs` (1670 lines)
+- [x] TASK-T18-002: Register module in `mod.rs`
+- [x] TASK-T18-003: TrainingCallback trait definition
+- [x] TASK-T18-004: EarlyStopping patience tests
+- [ ] TASK-T18-005: Learning rate scheduler tests (step, exponential, cosine)
+- [ ] TASK-T18-006: Checkpoint callback tests
+- [ ] TASK-T18-007: Custom callback integration tests
+- [ ] TASK-T18-008: Callback ordering and composition tests
+
+### Phase 19: Explainability Tests 🟡 IN PROGRESS
+- [x] TASK-T19-001: Create `ferroml-core/src/testing/explainability.rs` (1444 lines)
+- [x] TASK-T19-002: Register module in `mod.rs`
+- [x] TASK-T19-003: TreeSHAP value computation tests
+- [x] TASK-T19-004: KernelSHAP tests
+- [x] TASK-T19-005: Partial Dependence Plot tests
+- [x] TASK-T19-006: ICE plot tests
+- [ ] TASK-T19-007: Feature importance consistency tests
+- [ ] TASK-T19-008: Permutation importance correctness tests
+
+### Phase 20: ONNX Export/Import Parity Tests 🟡 IN PROGRESS
+- [x] TASK-T20-001: Create `ferroml-core/src/testing/onnx.rs` (1702 lines)
+- [x] TASK-T20-002: Register module in `mod.rs`
+- [x] TASK-T20-003: Linear model ONNX export tests
+- [x] TASK-T20-004: Tree model ONNX export tests
+- [ ] TASK-T20-005: ONNX import produces identical predictions tests
+- [ ] TASK-T20-006: Metadata preservation tests
+- [ ] TASK-T20-007: Model size validation tests
+- [ ] TASK-T20-008: Round-trip inference parity tests
+
+### Phase 21: Sample Weights & Class Weights Tests 🔴 NOT STARTED
+- [ ] TASK-T21-001: Create `ferroml-core/src/testing/weights.rs`
+- [ ] TASK-T21-002: Register module in `mod.rs`
+- [ ] TASK-T21-003: sample_weight parameter tests for supported models
+- [ ] TASK-T21-004: class_weight='balanced' tests
+- [ ] TASK-T21-005: Custom class weights tests
+- [ ] TASK-T21-006: Weighted metrics validation tests
+- [ ] TASK-T21-007: Edge case tests (zero/negative weights)
+
+### Phase 22: Sparse Data Support Tests 🔴 NOT STARTED
+- [ ] TASK-T22-001: Create `ferroml-core/src/testing/sparse_tests.rs`
+- [ ] TASK-T22-002: Register module in `mod.rs`
+- [ ] TASK-T22-003: Sparse input handling tests for linear models
+- [ ] TASK-T22-004: CSR/CSC format compatibility tests
+- [ ] TASK-T22-005: Sparse/dense consistency tests
+- [ ] TASK-T22-006: Memory efficiency validation tests
+
+### Phase 23: Multi-output Prediction Tests 🔴 NOT STARTED
+- [ ] TASK-T23-001: Create `ferroml-core/src/testing/multioutput.rs`
+- [ ] TASK-T23-002: Register module in `mod.rs`
+- [ ] TASK-T23-003: Multi-output regression tests
+- [ ] TASK-T23-004: Multi-label classification tests
+- [ ] TASK-T23-005: Prediction shape validation tests
+- [ ] TASK-T23-006: Per-output metrics tests
+
+### Phase 24: Advanced Cross-validation Tests 🔴 NOT STARTED
+- [ ] TASK-T24-001: Create `ferroml-core/src/testing/cv_advanced.rs`
+- [ ] TASK-T24-002: Register module in `mod.rs`
+- [ ] TASK-T24-003: NestedCV data leakage prevention tests
+- [ ] TASK-T24-004: GroupKFold group integrity tests
+- [ ] TASK-T24-005: TimeSeriesSplit temporal order tests
+- [ ] TASK-T24-006: learning_curve validation tests
+- [ ] TASK-T24-007: validation_curve validation tests
+
+### Phase 25: Ensemble Stacking Tests 🔴 NOT STARTED
+- [ ] TASK-T25-001: Create `ferroml-core/src/testing/ensemble_advanced.rs`
+- [ ] TASK-T25-002: Register module in `mod.rs`
+- [ ] TASK-T25-003: StackingClassifier meta-learner tests
+- [ ] TASK-T25-004: StackingRegressor meta-learner tests
+- [ ] TASK-T25-005: Passthrough option tests
+- [ ] TASK-T25-006: CV-based stacking data leakage tests
+- [ ] TASK-T25-007: Ensemble weights optimization tests
+
+### Phase 26: Categorical Feature Handling Tests 🔴 NOT STARTED
+- [ ] TASK-T26-001: Create `ferroml-core/src/testing/categorical.rs`
+- [ ] TASK-T26-002: Register module in `mod.rs`
+- [ ] TASK-T26-003: Native categorical handling tests (HistGradientBoosting)
+- [ ] TASK-T26-004: Ordered target encoding tests
+- [ ] TASK-T26-005: Unknown category handling tests
+- [ ] TASK-T26-006: Mixed categorical/numeric feature tests
+
+### Phase 27: Warm Start / Incremental Learning Tests 🔴 NOT STARTED
+- [ ] TASK-T27-001: Create `ferroml-core/src/testing/incremental.rs`
+- [ ] TASK-T27-002: Register module in `mod.rs`
+- [ ] TASK-T27-003: partial_fit tests for NaiveBayes
+- [ ] TASK-T27-004: warm_start tests for ensemble models
+- [ ] TASK-T27-005: Knowledge preservation tests
+- [ ] TASK-T27-006: Online learning scenario tests
+
+### Phase 28: Custom Metrics Tests 🔴 NOT STARTED
+- [ ] TASK-T28-001: Create `ferroml-core/src/testing/metrics_custom.rs`
+- [ ] TASK-T28-002: Register module in `mod.rs`
+- [ ] TASK-T28-003: Custom scoring function tests for CV
+- [ ] TASK-T28-004: Custom metric tests for HPO
+- [ ] TASK-T28-005: Multi-objective optimization tests
+- [ ] TASK-T28-006: Metric with confidence intervals tests
+
+### Phase 29: Fairness Testing 🔴 NOT STARTED
+- [ ] TASK-T29-001: Create `ferroml-core/src/testing/fairness.rs`
+- [ ] TASK-T29-002: Register module in `mod.rs`
+- [ ] TASK-T29-003: Demographic parity tests
+- [ ] TASK-T29-004: Equalized odds tests
+- [ ] TASK-T29-005: Disparate impact ratio tests
+- [ ] TASK-T29-006: Group accuracy reporting tests
+- [ ] TASK-T29-007: Bias detection integration tests
+
+### Phase 30: Drift Detection Tests 🔴 NOT STARTED
+- [ ] TASK-T30-001: Create `ferroml-core/src/testing/drift.rs`
+- [ ] TASK-T30-002: Register module in `mod.rs`
+- [ ] TASK-T30-003: Data drift detection tests (KS test)
+- [ ] TASK-T30-004: Concept drift detection tests
+- [ ] TASK-T30-005: Label drift detection tests
+- [ ] TASK-T30-006: Feature-wise drift identification tests
+
+### Phase 31: Regression Test Suite 🔴 NOT STARTED
+- [ ] TASK-T31-001: Create `ferroml-core/tests/regression/baselines.json`
+- [ ] TASK-T31-002: Create `ferroml-core/tests/regression/test_baselines.rs`
+- [ ] TASK-T31-003: Accuracy baseline tests for all models
+- [ ] TASK-T31-004: Performance baseline tests (fit time)
+- [ ] TASK-T31-005: Baseline versioning and reproducibility
+- [ ] TASK-T31-006: CI integration for regression detection
+
+### Phase 32: Mutation Testing 🔴 NOT STARTED
+- [ ] TASK-T32-001: Create `.github/workflows/mutation.yml`
+- [ ] TASK-T32-002: Configure cargo-mutants
+- [ ] TASK-T32-003: Set mutation score threshold (80%)
+- [ ] TASK-T32-004: Weekly schedule configuration
+- [ ] TASK-T32-005: Mutation score reporting
+
+---
+
+## Continuous Improvement Tasks
+
+<!-- Ralph loop will add improvement opportunities here -->
+
+### Code Quality
+- [ ] TASK-IMP-001: Fix all clippy warnings in existing code
+- [ ] TASK-IMP-002: Increase test coverage to 90%+
+- [ ] TASK-IMP-003: Add property-based tests with proptest
+
+### Documentation
+- [ ] TASK-IMP-004: Complete API documentation for all public items
+- [ ] TASK-IMP-005: Add more examples in documentation
+
+### Performance
+- [ ] TASK-IMP-006: Profile and optimize hot paths
+- [ ] TASK-IMP-007: Add more SIMD optimizations
+
+---
+
+## Progress Metrics
+
+| Metric | Current | Target |
+|--------|---------|--------|
+| Implementation Tasks | 137/137 | Complete |
+| Testing Phases | 5/17 partial | 17/17 |
+| Test Count | ~1,700 | 3,500+ |
+| Code Coverage | ~73% | 90%+ |
