@@ -970,15 +970,15 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 
 > These phases implement the comprehensive testing plan from `thoughts/shared/plans/2026-01-22_comprehensive-testing.md`
 
-### Phase 16: AutoML Time Budget Tests 🟢 LARGELY COMPLETE
+### Phase 16: AutoML Time Budget Tests 🟢 COMPLETE
 - [x] TASK-T16-001: Create `ferroml-core/src/testing/automl.rs` (1357 lines)
 - [x] TASK-T16-002: Register module in `mod.rs`
 - [x] TASK-T16-003: Time budget compliance tests
 - [x] TASK-T16-004: Max trials parameter enforcement tests
 - [x] TASK-T16-005: Early termination tests
 - [x] TASK-T16-006: Resource allocation tests (UCB1, Thompson Sampling, Epsilon-Greedy)
-- [x] TASK-T16-007: Verify all tests pass consistently (**39 tests passing**)
-- [ ] TASK-T16-008: Add edge case tests for zero budget
+- [x] TASK-T16-007: Verify all tests pass consistently (**51 tests passing**)
+- [x] TASK-T16-008: Add edge case tests for zero budget (**12 tests added**)
 
 ### Phase 17: HPO Correctness Tests 🟢 LARGELY COMPLETE
 - [x] TASK-T17-001: Create `ferroml-core/src/testing/hpo.rs` (1153 lines)

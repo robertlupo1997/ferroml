@@ -1355,3 +1355,348 @@ mod summary_tests {
         assert!((summary_empty.budget_used_percent() - 0.0).abs() < 1e-10);
     }
 }
+
+// =============================================================================
+// Zero Budget Edge Case Tests (TASK-T16-008)
+// =============================================================================
+
+#[cfg(test)]
+mod zero_budget_edge_case_tests {
+    use super::*;
+
+    /// Test that zero budget results in immediate exhaustion
+    #[test]
+    fn test_zero_budget_immediately_exhausted() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(0); // Zero budget
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+        allocator.start();
+
+        // Budget should be immediately exhausted
+        assert!(
+            allocator.is_budget_exhausted(),
+            "Zero budget should be immediately exhausted"
+        );
+
+        // Remaining budget should be 0
+        assert!(
+            (allocator.remaining_budget_seconds() - 0.0).abs() < 1e-10,
+            "Remaining budget should be exactly 0.0"
+        );
+    }
+
+    /// Test that select_arm returns None with zero budget
+    #[test]
+    fn test_zero_budget_select_arm_returns_none() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+        allocator.start();
+
+        let selection = allocator.select_arm();
+        assert!(
+            selection.is_none(),
+            "select_arm should return None with zero budget"
+        );
+    }
+
+    /// Test zero budget with different bandit strategies
+    #[test]
+    fn test_zero_budget_all_strategies() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+
+        // Test UCB1 strategy
+        let config_ucb = TimeBudgetConfig::new(0)
+            .with_strategy(BanditStrategy::UCB1 {
+                exploration_constant: 2.0,
+            });
+        let mut allocator_ucb = TimeBudgetAllocator::new(config_ucb, &portfolio);
+        allocator_ucb.start();
+        assert!(
+            allocator_ucb.select_arm().is_none(),
+            "UCB1 with zero budget should return None"
+        );
+
+        // Test Thompson Sampling strategy
+        let config_ts = TimeBudgetConfig::new(0)
+            .with_strategy(BanditStrategy::ThompsonSampling {
+                prior_alpha: 1.0,
+                prior_beta: 1.0,
+            });
+        let mut allocator_ts = TimeBudgetAllocator::new(config_ts, &portfolio);
+        allocator_ts.start();
+        assert!(
+            allocator_ts.select_arm().is_none(),
+            "Thompson Sampling with zero budget should return None"
+        );
+
+        // Test Epsilon-Greedy strategy
+        let config_eg = TimeBudgetConfig::new(0)
+            .with_strategy(BanditStrategy::EpsilonGreedy {
+                epsilon: 0.5,
+                decay: 0.9,
+            });
+        let mut allocator_eg = TimeBudgetAllocator::new(config_eg, &portfolio);
+        allocator_eg.start();
+        assert!(
+            allocator_eg.select_arm().is_none(),
+            "Epsilon-Greedy with zero budget should return None"
+        );
+
+        // Test Successive Halving strategy
+        let config_sh = TimeBudgetConfig::new(0)
+            .with_strategy(BanditStrategy::SuccessiveHalving {
+                min_resource: 1.0,
+                max_resource: 100.0,
+                eta: 3.0,
+            });
+        let mut allocator_sh = TimeBudgetAllocator::new(config_sh, &portfolio);
+        allocator_sh.start();
+        assert!(
+            allocator_sh.select_arm().is_none(),
+            "Successive Halving with zero budget should return None"
+        );
+    }
+
+    /// Test that no trials are executed with zero budget
+    #[test]
+    fn test_zero_budget_no_trials_executed() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+        allocator.start();
+
+        // Try to run trials
+        let mut iterations = 0;
+        while let Some(_arm) = allocator.select_arm() {
+            iterations += 1;
+            if iterations > 10 {
+                break; // Safety limit
+            }
+        }
+
+        assert_eq!(iterations, 0, "No iterations should be possible with zero budget");
+        assert_eq!(allocator.total_trials, 0, "No trials should have been executed");
+    }
+
+    /// Test zero budget summary is valid
+    #[test]
+    fn test_zero_budget_summary_valid() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+        allocator.start();
+
+        let summary = allocator.summary();
+
+        assert_eq!(summary.total_budget_seconds, 0);
+        assert_eq!(summary.total_trials, 0);
+        assert!(summary.global_best_score.is_infinite() && summary.global_best_score < 0.0);
+        assert!(summary.best_algorithm.is_none());
+        assert!((summary.budget_used_percent() - 0.0).abs() < 1e-10 || summary.budget_used_percent().is_nan(),
+            "Budget used should be 0% or NaN for zero budget");
+    }
+
+    /// Test zero initial trial budget edge case
+    #[test]
+    fn test_zero_initial_trial_budget() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(3600)
+            .with_initial_trial_budget(0.0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+        allocator.start();
+
+        // Should still be able to select arms (total budget is not zero)
+        let selection = allocator.select_arm();
+        assert!(
+            selection.is_some(),
+            "Should still select arms with zero initial trial budget but non-zero total budget"
+        );
+
+        // Trial budget should be capped at something reasonable
+        if let Some(arm) = selection {
+            assert!(
+                arm.trial_budget_seconds >= 0.0,
+                "Trial budget should be non-negative"
+            );
+        }
+    }
+
+    /// Test zero max trial time edge case
+    /// Note: Implementation enforces minimum 1.0 second trial budget
+    #[test]
+    fn test_zero_max_trial_time() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(3600)
+            .with_max_trial_time(0.0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+        allocator.start();
+
+        // Should be able to select arms
+        if let Some(arm) = allocator.select_arm() {
+            // Trial budget has a minimum floor of 1.0 seconds in the implementation
+            // Even with max_trial_time = 0, the budget is clamped to at least 1.0
+            assert!(
+                arm.trial_budget_seconds >= 1.0,
+                "Trial budget should be at least 1.0 due to minimum floor: got {}",
+                arm.trial_budget_seconds
+            );
+            // But should still be reasonable (not huge)
+            assert!(
+                arm.trial_budget_seconds <= 10.0,
+                "Trial budget should be reasonable even with zero max: got {}",
+                arm.trial_budget_seconds
+            );
+        }
+    }
+
+    /// Test very small budget (1 second) behaves correctly
+    #[test]
+    fn test_very_small_budget() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(1) // 1 second budget
+            .with_warmup_trials(0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+        allocator.start();
+
+        // Initially not exhausted
+        assert!(
+            !allocator.is_budget_exhausted(),
+            "1 second budget should not be immediately exhausted"
+        );
+
+        // Should be able to select at least one arm
+        let selection = allocator.select_arm();
+        assert!(
+            selection.is_some(),
+            "Should be able to select an arm with 1 second budget"
+        );
+
+        // Wait for budget to exhaust
+        std::thread::sleep(Duration::from_secs(2));
+
+        assert!(
+            allocator.is_budget_exhausted(),
+            "Budget should be exhausted after waiting"
+        );
+
+        let selection_after = allocator.select_arm();
+        assert!(
+            selection_after.is_none(),
+            "Should return None after budget exhausted"
+        );
+    }
+
+    /// Test that allocator state is consistent with zero budget
+    #[test]
+    fn test_zero_budget_allocator_state_consistency() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+
+        // Before start, check initial state
+        assert_eq!(allocator.total_trials, 0);
+        assert!(allocator.global_best_score.is_infinite());
+        assert!(allocator.best_algorithm_index.is_none());
+
+        // Start the allocator
+        allocator.start();
+
+        // All arms should still be active (no trials to eliminate them)
+        assert_eq!(
+            allocator.n_active_arms(),
+            portfolio.algorithms.len(),
+            "All arms should remain active with zero budget"
+        );
+
+        // Elapsed time tracking should work
+        let elapsed = allocator.elapsed();
+        assert!(
+            elapsed >= Duration::ZERO,
+            "Elapsed time should be valid"
+        );
+    }
+
+    /// Test reset behavior with zero budget
+    #[test]
+    fn test_zero_budget_reset() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+        allocator.start();
+
+        // Verify exhausted
+        assert!(allocator.is_budget_exhausted());
+
+        // Reset should work even with zero budget
+        allocator.reset();
+
+        // After reset, still exhausted (budget is still 0)
+        allocator.start();
+        assert!(allocator.is_budget_exhausted(), "Should still be exhausted after reset");
+    }
+
+    /// Test concurrent zero budget edge cases
+    #[test]
+    fn test_zero_budget_with_deactivated_arms() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+        allocator.start();
+
+        // Deactivate an arm (should work even with zero budget)
+        allocator.deactivate_algorithm(0);
+        assert!(!allocator.arms[0].active);
+
+        // select_arm should still return None (budget exhausted takes precedence)
+        assert!(
+            allocator.select_arm().is_none(),
+            "Should return None due to budget exhaustion"
+        );
+
+        // Reactivate should work
+        allocator.reactivate_algorithm(0);
+        assert!(allocator.arms[0].active);
+    }
+
+    /// Test elapsed time computation with zero budget
+    #[test]
+    fn test_zero_budget_elapsed_time() {
+        let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
+        let config = TimeBudgetConfig::new(0);
+
+        let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
+
+        // Elapsed before start should be zero
+        let elapsed_before = allocator.elapsed();
+        assert_eq!(elapsed_before, Duration::ZERO, "Elapsed before start should be zero");
+
+        allocator.start();
+
+        // Small sleep
+        std::thread::sleep(Duration::from_millis(10));
+
+        // Elapsed should be > 0 after start
+        let elapsed_after = allocator.elapsed();
+        assert!(
+            elapsed_after > Duration::ZERO,
+            "Elapsed should increase after start"
+        );
+
+        // Remaining budget should still be 0 (can't go negative)
+        assert!(
+            (allocator.remaining_budget_seconds() - 0.0).abs() < 1e-10,
+            "Remaining budget should be capped at 0"
+        );
+    }
+}
