@@ -257,7 +257,7 @@ impl Default for LearningRateSchedule {
 
 impl LearningRateSchedule {
     /// Get the learning rate at a given iteration
-    fn get_lr(&self, iteration: usize, n_estimators: usize) -> f64 {
+    pub fn get_lr(&self, iteration: usize, n_estimators: usize) -> f64 {
         match self {
             LearningRateSchedule::Constant(lr) => *lr,
             LearningRateSchedule::LinearDecay { initial, min_lr } => {

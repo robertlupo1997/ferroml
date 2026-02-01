@@ -45,6 +45,7 @@
 //! ```
 
 pub mod assertions;
+pub mod automl;
 pub mod checks;
 pub mod nan_inf_validation;
 pub mod probabilistic;
