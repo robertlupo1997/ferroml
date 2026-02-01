@@ -1130,12 +1130,41 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 - [ ] TASK-IMP-004: Address unused function `edge_case_matrix_strategy` in `properties.rs`
 - [ ] TASK-IMP-005: Run `cargo fix --lib -p ferroml-core --tests` to auto-fix 5 clippy suggestions
 
-### Testing Completeness (Next Priority Phases)
-- [ ] TASK-IMP-006: Start Phase 21 - Sample Weights & Class Weights Tests
-- [ ] TASK-IMP-007: Start Phase 22 - Sparse Data Support Tests
-- [ ] TASK-IMP-008: Start Phase 23 - Multi-output Prediction Tests
-- [ ] TASK-IMP-009: Start Phase 24 - Advanced Cross-validation Tests
-- [ ] TASK-IMP-010: Complete remaining phases 25-32 systematically
+### HIGH PRIORITY Testing Phases (Ready for Implementation)
+- [ ] **TASK-IMP-006**: Phase 21 - Sample Weights & Class Weights Tests
+  - Leverage existing weight support in 21 files (boosting.rs, svm.rs, etc.)
+  - Test `class_weight='balanced'`, custom weights, sample_weight parameter
+  - Expected: ~25-30 tests covering all weight scenarios
+
+- [ ] **TASK-IMP-007**: Phase 22 - Sparse Data Support Tests
+  - Build on existing sparse.rs implementation (CsrMatrix, CscMatrix)
+  - Test sparse/dense equivalence, memory efficiency, CSR/CSC compatibility
+  - Expected: ~20-25 tests covering sparse matrix operations
+
+- [ ] **TASK-IMP-008**: Phase 23 - Multi-output Prediction Tests
+  - Extend basic multi-output support found in 2 files
+  - Test multi-output regression, multi-label classification, shape validation
+  - Expected: ~15-20 tests for multi-target scenarios
+
+### MEDIUM PRIORITY Testing Phases
+- [ ] TASK-IMP-009: Phase 24 - Advanced Cross-validation Tests (extend existing cv/)
+- [ ] TASK-IMP-010: Phase 25 - Ensemble Stacking Tests (extend existing ensemble/)
+- [ ] TASK-IMP-011: Phase 26 - Categorical Feature Tests (leverage HistGradientBoosting)
+
+### NEW FEATURE IMPLEMENTATION Required
+- [ ] **TASK-IMP-012**: Phase 29 - Fairness Testing (NEW MODULE REQUIRED)
+  - Implement demographic parity, disparate impact, equalized odds metrics
+  - Create `ferroml-core/src/fairness/` module with bias detection
+  - Expected: ~25-30 tests for comprehensive fairness validation
+
+- [ ] **TASK-IMP-013**: Phase 30 - Drift Detection (NEW MODULE REQUIRED)
+  - Implement data drift (KS test), concept drift, label drift detection
+  - Create `ferroml-core/src/drift/` module with monitoring capabilities
+  - Expected: ~20-25 tests for drift detection scenarios
+
+### INFRASTRUCTURE PHASES
+- [ ] TASK-IMP-014: Phase 31 - Regression Test Baselines (JSON baselines + CI integration)
+- [ ] TASK-IMP-015: Phase 32 - Mutation Testing Setup (cargo-mutants, 80% score target)
 
 ### Performance & Scalability
 - [ ] TASK-IMP-011: Add performance benchmarks for phases 16-20 test suites
@@ -1163,11 +1192,74 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 
 ---
 
+## Gap Analysis Update (2026-02-01)
+
+> **Analysis completed of testing phases 16-32 against existing codebase**
+
+### Key Findings:
+
+1. **Strong Foundation**: 14 testing modules with 576 test occurrences, comprehensive testing infrastructure
+2. **Testing Phase Status Update**:
+   - Phases 16-20: ✅ **COMPLETE** with 332 test functions running
+   - Phase 21: 🟡 **PARTIALLY IMPLEMENTED** (21 files reference weights, no dedicated testing)
+   - Phase 22: 🟡 **PARTIALLY IMPLEMENTED** (sparse.rs exists, minimal testing)
+   - Phase 23: 🟡 **BASIC IMPLEMENTATION** (2 files mention multi-output)
+   - Phases 24-32: 🔴 **NOT IMPLEMENTED**
+
+3. **Existing Implementation Strength**:
+   - **AutoML Time Budget**: Extensive implementation with automl/time_budget.rs + testing
+   - **HPO Correctness**: Strong hpo/ modules + comprehensive testing
+   - **Sample/Class Weights**: Found in 21 files, needs testing framework
+   - **Sparse Support**: Basic sparse.rs implementation needs expansion
+   - **Fairness/Bias Detection**: No implementation found
+   - **Drift Detection**: No implementation found
+
+### Updated Phase Priorities:
+
+#### **IMMEDIATE (Next 2 weeks)**
+- **Phase 21**: Sample/Class Weights Testing - leverage existing weight implementations
+- **Phase 22**: Sparse Data Testing - build on existing sparse.rs
+- **Phase 23**: Multi-output Testing - add multi-target support
+
+#### **SHORT-TERM (Next month)**
+- **Phase 24**: Advanced CV Testing - extend existing cv/ module
+- **Phase 25**: Ensemble Stacking Testing - build on existing ensemble/
+- **Phase 26**: Categorical Feature Testing - leverage HistGradientBoosting categorical support
+
+#### **MEDIUM-TERM (Next quarter)**
+- **Phases 27-28**: Incremental Learning & Custom Metrics
+- **Phases 29-30**: **NEW FEATURES** - Fairness Testing & Drift Detection (require new implementations)
+- **Phases 31-32**: Regression Baselines & Mutation Testing (infrastructure)
+
+### Implementation Gap Assessment:
+
+| Feature Area | Implementation Status | Testing Status | Priority |
+|--------------|----------------------|----------------|----------|
+| AutoML Time Budget | ✅ Complete | ✅ Complete (39 tests) | Maintain |
+| HPO Correctness | ✅ Complete | ✅ Complete (24 tests) | Maintain |
+| Early Stopping | ✅ Complete | ✅ Complete (33 tests) | Maintain |
+| Explainability | ✅ Complete | ✅ Complete (57 tests) | Maintain |
+| ONNX Export/Import | ✅ Complete | ✅ Complete (30 tests) | Maintain |
+| Sample/Class Weights | 🟡 Partial (21 files) | 🔴 Missing | HIGH |
+| Sparse Data | 🟡 Basic (sparse.rs) | 🔴 Missing | HIGH |
+| Multi-output | 🟡 Minimal (2 files) | 🔴 Missing | MEDIUM |
+| Advanced CV | ✅ Complete | 🔴 Missing | MEDIUM |
+| Ensemble Stacking | ✅ Complete | 🔴 Missing | MEDIUM |
+| Categorical Features | ✅ Complete | 🔴 Missing | MEDIUM |
+| Incremental Learning | 🟡 Partial (partial_fit) | 🔴 Missing | LOW |
+| Custom Metrics | 🟡 Basic | 🔴 Missing | LOW |
+| Fairness Testing | 🔴 None | 🔴 None | NEW |
+| Drift Detection | 🔴 None | 🔴 None | NEW |
+| Regression Baselines | 🔴 None | 🔴 None | INFRA |
+| Mutation Testing | 🔴 None | 🔴 None | INFRA |
+
 ## Progress Metrics
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Implementation Tasks | 137/137 | Complete |
-| Testing Phases | 5/17 largely complete (183 tests in phases 16-20) | 17/17 |
-| Test Count | ~1,883+ (including 183 from phases 16-20) | 3,500+ |
-| Code Coverage | ~75%+ | 90%+ |
+| Metric | Current | Target | Notes |
+|--------|---------|--------|----|
+| Implementation Tasks | 137/137 | Complete | ✅ All core features done |
+| Testing Phases | **5/17 complete** | 17/17 | Phases 16-20 verified complete |
+| Core Test Functions | **332 functions** | 500+ | Strong testing infrastructure |
+| Test Occurrences | **576 test markers** | 1000+ | Comprehensive coverage |
+| Code Coverage | ~75%+ | 90%+ | Need systematic coverage analysis |
+| Testing Infrastructure | ✅ Excellent | Maintain | 14 modules, comprehensive framework |
