@@ -1015,12 +1015,714 @@ fn rand_value() -> f64 {
 }
 
 // ============================================================================
+// Search Space Constraint Validation Tests (TASK-T17-007)
+// ============================================================================
+
+/// Test empty search space behavior
+#[cfg(test)]
+pub fn test_empty_search_space() {
+    let space = SearchSpace::new();
+
+    assert_eq!(space.n_dims(), 0);
+    assert!(space.parameters.is_empty());
+}
+
+/// Test single parameter search space
+#[cfg(test)]
+pub fn test_single_parameter_space() {
+    // Single int parameter
+    let int_space = SearchSpace::new().int("n", 1, 10);
+    assert_eq!(int_space.n_dims(), 1);
+    assert!(int_space.parameters.contains_key("n"));
+
+    // Single float parameter
+    let float_space = SearchSpace::new().float("x", 0.0, 1.0);
+    assert_eq!(float_space.n_dims(), 1);
+
+    // Single categorical parameter
+    let cat_space = SearchSpace::new().categorical("opt", vec!["a".into(), "b".into()]);
+    assert_eq!(cat_space.n_dims(), 1);
+
+    // Single bool parameter
+    let bool_space = SearchSpace::new().bool("flag");
+    assert_eq!(bool_space.n_dims(), 1);
+}
+
+/// Test parameter overwriting behavior (same name used twice)
+#[cfg(test)]
+pub fn test_parameter_overwriting() {
+    let space = SearchSpace::new()
+        .int("param", 1, 10)
+        .float("param", 0.0, 1.0); // Overwrite with different type
+
+    // Should only have one parameter with the later definition
+    assert_eq!(space.n_dims(), 1);
+
+    let param = &space.parameters["param"];
+    match &param.param_type {
+        ParameterType::Float { low, high } => {
+            assert!((low - 0.0).abs() < 1e-10);
+            assert!((high - 1.0).abs() < 1e-10);
+        }
+        _ => panic!("Expected Float type after overwriting"),
+    }
+}
+
+/// Test single-value range (low == high)
+#[cfg(test)]
+pub fn test_single_value_range() {
+    // Int with low == high
+    let space = SearchSpace::new()
+        .int("fixed_int", 5, 5)
+        .float("fixed_float", 3.14, 3.14);
+
+    let int_param = &space.parameters["fixed_int"];
+    match &int_param.param_type {
+        ParameterType::Int { low, high } => {
+            assert_eq!(*low, 5);
+            assert_eq!(*high, 5);
+        }
+        _ => panic!("Expected Int type"),
+    }
+
+    let float_param = &space.parameters["fixed_float"];
+    match &float_param.param_type {
+        ParameterType::Float { low, high } => {
+            assert!((low - 3.14).abs() < 1e-10);
+            assert!((high - 3.14).abs() < 1e-10);
+        }
+        _ => panic!("Expected Float type"),
+    }
+}
+
+/// Test wide range parameters
+#[cfg(test)]
+pub fn test_wide_range_parameters() {
+    let space = SearchSpace::new()
+        .int("big_int", i64::MIN / 2, i64::MAX / 2)
+        .float("big_float", -1e308, 1e308);
+
+    let int_param = &space.parameters["big_int"];
+    match &int_param.param_type {
+        ParameterType::Int { low, high } => {
+            assert!(*low < 0);
+            assert!(*high > 0);
+        }
+        _ => panic!("Expected Int type"),
+    }
+
+    let float_param = &space.parameters["big_float"];
+    match &float_param.param_type {
+        ParameterType::Float { low, high } => {
+            assert!(*low < -1e300);
+            assert!(*high > 1e300);
+        }
+        _ => panic!("Expected Float type"),
+    }
+}
+
+/// Test log-scale parameter constraints
+#[cfg(test)]
+pub fn test_log_scale_parameters() {
+    let space = SearchSpace::new()
+        .float_log("lr", 1e-6, 1.0)
+        .int_log("n_estimators", 10, 1000);
+
+    let lr_param = &space.parameters["lr"];
+    assert!(lr_param.log_scale, "Log-scale float should have log_scale=true");
+    match &lr_param.param_type {
+        ParameterType::Float { low, high } => {
+            assert!(*low > 0.0, "Log-scale parameters should have positive bounds");
+            assert!(*high > *low);
+        }
+        _ => panic!("Expected Float type for lr"),
+    }
+
+    let n_param = &space.parameters["n_estimators"];
+    assert!(
+        n_param.log_scale,
+        "Log-scale int should have log_scale=true"
+    );
+    match &n_param.param_type {
+        ParameterType::Int { low, high } => {
+            assert!(*low > 0, "Log-scale int should have positive bounds");
+            assert!(*high > *low);
+        }
+        _ => panic!("Expected Int type for n_estimators"),
+    }
+}
+
+/// Test non-log-scale parameters don't have log_scale flag
+#[cfg(test)]
+pub fn test_non_log_scale_parameters() {
+    let space = SearchSpace::new()
+        .float("x", -1.0, 1.0)
+        .int("n", -100, 100);
+
+    let x_param = &space.parameters["x"];
+    assert!(
+        !x_param.log_scale,
+        "Non-log float should have log_scale=false"
+    );
+
+    let n_param = &space.parameters["n"];
+    assert!(!n_param.log_scale, "Non-log int should have log_scale=false");
+}
+
+/// Test large categorical choices
+#[cfg(test)]
+pub fn test_large_categorical() {
+    let choices: Vec<String> = (0..100).map(|i| format!("choice_{}", i)).collect();
+    let space = SearchSpace::new().categorical("many_choices", choices.clone());
+
+    let param = &space.parameters["many_choices"];
+    match &param.param_type {
+        ParameterType::Categorical { choices: c } => {
+            assert_eq!(c.len(), 100);
+            assert!(c.contains(&"choice_0".to_string()));
+            assert!(c.contains(&"choice_99".to_string()));
+        }
+        _ => panic!("Expected Categorical type"),
+    }
+}
+
+/// Test single-choice categorical (edge case)
+#[cfg(test)]
+pub fn test_single_choice_categorical() {
+    let space = SearchSpace::new().categorical("single", vec!["only_option".into()]);
+
+    let param = &space.parameters["single"];
+    match &param.param_type {
+        ParameterType::Categorical { choices } => {
+            assert_eq!(choices.len(), 1);
+            assert_eq!(choices[0], "only_option");
+        }
+        _ => panic!("Expected Categorical type"),
+    }
+}
+
+/// Test ParameterValue type conversions
+#[cfg(test)]
+pub fn test_parameter_value_conversions() {
+    // Int value conversions
+    let int_val = ParameterValue::Int(42);
+    assert_eq!(int_val.as_i64(), Some(42));
+    assert_eq!(int_val.as_f64(), Some(42.0));
+    assert_eq!(int_val.as_str(), None);
+    assert_eq!(int_val.as_bool(), None);
+
+    // Float value conversions
+    let float_val = ParameterValue::Float(3.14);
+    assert_eq!(float_val.as_i64(), Some(3)); // Truncates
+    assert!((float_val.as_f64().unwrap() - 3.14).abs() < 1e-10);
+    assert_eq!(float_val.as_str(), None);
+    assert_eq!(float_val.as_bool(), None);
+
+    // Categorical value conversions
+    let cat_val = ParameterValue::Categorical("option".to_string());
+    assert_eq!(cat_val.as_i64(), None);
+    assert_eq!(cat_val.as_f64(), None);
+    assert_eq!(cat_val.as_str(), Some("option"));
+    assert_eq!(cat_val.as_bool(), None);
+
+    // Bool value conversions
+    let bool_val = ParameterValue::Bool(true);
+    assert_eq!(bool_val.as_i64(), None);
+    assert_eq!(bool_val.as_f64(), None);
+    assert_eq!(bool_val.as_str(), None);
+    assert_eq!(bool_val.as_bool(), Some(true));
+}
+
+/// Test bounds checking function with edge cases
+#[cfg(test)]
+pub fn test_bounds_checking_edge_cases() {
+    let space = SearchSpace::new()
+        .int("n", 0, 100)
+        .float("x", 0.0, 1.0)
+        .categorical("opt", vec!["a".into(), "b".into()])
+        .bool("flag");
+
+    // Valid at boundaries
+    let mut params_at_bounds = HashMap::new();
+    params_at_bounds.insert("n".to_string(), ParameterValue::Int(0));
+    params_at_bounds.insert("x".to_string(), ParameterValue::Float(0.0));
+    params_at_bounds.insert("opt".to_string(), ParameterValue::Categorical("a".into()));
+    params_at_bounds.insert("flag".to_string(), ParameterValue::Bool(false));
+    assert!(check_sampled_values_in_bounds(&params_at_bounds, &space).is_ok());
+
+    // Valid at upper boundaries
+    let mut params_at_upper = HashMap::new();
+    params_at_upper.insert("n".to_string(), ParameterValue::Int(100));
+    params_at_upper.insert("x".to_string(), ParameterValue::Float(1.0));
+    params_at_upper.insert("opt".to_string(), ParameterValue::Categorical("b".into()));
+    params_at_upper.insert("flag".to_string(), ParameterValue::Bool(true));
+    assert!(check_sampled_values_in_bounds(&params_at_upper, &space).is_ok());
+
+    // Int out of lower bound
+    let mut params_low_int = HashMap::new();
+    params_low_int.insert("n".to_string(), ParameterValue::Int(-1));
+    params_low_int.insert("x".to_string(), ParameterValue::Float(0.5));
+    params_low_int.insert("opt".to_string(), ParameterValue::Categorical("a".into()));
+    params_low_int.insert("flag".to_string(), ParameterValue::Bool(true));
+    assert!(check_sampled_values_in_bounds(&params_low_int, &space).is_err());
+
+    // Int out of upper bound
+    let mut params_high_int = HashMap::new();
+    params_high_int.insert("n".to_string(), ParameterValue::Int(101));
+    params_high_int.insert("x".to_string(), ParameterValue::Float(0.5));
+    params_high_int.insert("opt".to_string(), ParameterValue::Categorical("a".into()));
+    params_high_int.insert("flag".to_string(), ParameterValue::Bool(true));
+    assert!(check_sampled_values_in_bounds(&params_high_int, &space).is_err());
+
+    // Float out of bounds
+    let mut params_bad_float = HashMap::new();
+    params_bad_float.insert("n".to_string(), ParameterValue::Int(50));
+    params_bad_float.insert("x".to_string(), ParameterValue::Float(1.1));
+    params_bad_float.insert("opt".to_string(), ParameterValue::Categorical("a".into()));
+    params_bad_float.insert("flag".to_string(), ParameterValue::Bool(true));
+    assert!(check_sampled_values_in_bounds(&params_bad_float, &space).is_err());
+
+    // Invalid categorical choice
+    let mut params_bad_cat = HashMap::new();
+    params_bad_cat.insert("n".to_string(), ParameterValue::Int(50));
+    params_bad_cat.insert("x".to_string(), ParameterValue::Float(0.5));
+    params_bad_cat.insert(
+        "opt".to_string(),
+        ParameterValue::Categorical("invalid".into()),
+    );
+    params_bad_cat.insert("flag".to_string(), ParameterValue::Bool(true));
+    assert!(check_sampled_values_in_bounds(&params_bad_cat, &space).is_err());
+
+    // Unknown parameter
+    let mut params_unknown = HashMap::new();
+    params_unknown.insert("unknown".to_string(), ParameterValue::Int(42));
+    assert!(check_sampled_values_in_bounds(&params_unknown, &space).is_err());
+
+    // Type mismatch (int value for float parameter)
+    let mut params_type_mismatch = HashMap::new();
+    params_type_mismatch.insert("x".to_string(), ParameterValue::Int(1)); // Should be Float
+    params_type_mismatch.insert("n".to_string(), ParameterValue::Int(50));
+    params_type_mismatch.insert("opt".to_string(), ParameterValue::Categorical("a".into()));
+    params_type_mismatch.insert("flag".to_string(), ParameterValue::Bool(true));
+    assert!(check_sampled_values_in_bounds(&params_type_mismatch, &space).is_err());
+}
+
+/// Test preset search spaces have valid configurations
+#[cfg(test)]
+pub fn test_preset_random_forest_valid() {
+    use crate::hpo::search_space::presets;
+
+    let space = presets::random_forest();
+
+    // Should have expected parameters
+    assert!(space.parameters.contains_key("n_estimators"));
+    assert!(space.parameters.contains_key("max_depth"));
+    assert!(space.parameters.contains_key("min_samples_split"));
+    assert!(space.parameters.contains_key("min_samples_leaf"));
+    assert!(space.parameters.contains_key("max_features"));
+    assert!(space.parameters.contains_key("bootstrap"));
+
+    // Verify bounds are reasonable
+    let n_est = &space.parameters["n_estimators"];
+    match &n_est.param_type {
+        ParameterType::Int { low, high } => {
+            assert!(*low >= 1, "n_estimators lower bound should be >= 1");
+            assert!(*high >= *low, "n_estimators bounds should be valid");
+        }
+        _ => panic!("n_estimators should be Int type"),
+    }
+}
+
+/// Test preset gradient boosting has valid configurations
+#[cfg(test)]
+pub fn test_preset_gradient_boosting_valid() {
+    use crate::hpo::search_space::presets;
+
+    let space = presets::gradient_boosting();
+
+    // Check log-scale parameters are positive
+    let lr = &space.parameters["learning_rate"];
+    assert!(lr.log_scale, "learning_rate should be log-scale");
+    match &lr.param_type {
+        ParameterType::Float { low, high } => {
+            assert!(*low > 0.0, "Log-scale learning_rate should have positive lower bound");
+            assert!(*high > *low);
+        }
+        _ => panic!("learning_rate should be Float type"),
+    }
+
+    // Check regularization parameters
+    let reg_alpha = &space.parameters["reg_alpha"];
+    assert!(reg_alpha.log_scale, "reg_alpha should be log-scale");
+    match &reg_alpha.param_type {
+        ParameterType::Float { low, high } => {
+            assert!(*low > 0.0, "Log-scale reg_alpha should have positive lower bound");
+            assert!(*high > *low);
+        }
+        _ => panic!("reg_alpha should be Float type"),
+    }
+}
+
+/// Test preset logistic regression has valid configurations
+#[cfg(test)]
+pub fn test_preset_logistic_regression_valid() {
+    use crate::hpo::search_space::presets;
+
+    let space = presets::logistic_regression();
+
+    // Check categorical has valid choices
+    let penalty = &space.parameters["penalty"];
+    match &penalty.param_type {
+        ParameterType::Categorical { choices } => {
+            assert!(!choices.is_empty(), "penalty should have choices");
+            assert!(choices.contains(&"l1".to_string()));
+            assert!(choices.contains(&"l2".to_string()));
+        }
+        _ => panic!("penalty should be Categorical type"),
+    }
+
+    // l1_ratio should be bounded [0, 1]
+    let l1_ratio = &space.parameters["l1_ratio"];
+    match &l1_ratio.param_type {
+        ParameterType::Float { low, high } => {
+            assert!(*low >= 0.0, "l1_ratio should be >= 0");
+            assert!(*high <= 1.0, "l1_ratio should be <= 1");
+        }
+        _ => panic!("l1_ratio should be Float type"),
+    }
+}
+
+/// Test preset SVM has valid configurations
+#[cfg(test)]
+pub fn test_preset_svm_valid() {
+    use crate::hpo::search_space::presets;
+
+    let space = presets::svm();
+
+    // Check kernel choices
+    let kernel = &space.parameters["kernel"];
+    match &kernel.param_type {
+        ParameterType::Categorical { choices } => {
+            assert!(choices.len() >= 3, "SVM should have multiple kernel options");
+            assert!(choices.contains(&"rbf".to_string()));
+            assert!(choices.contains(&"linear".to_string()));
+        }
+        _ => panic!("kernel should be Categorical type"),
+    }
+
+    // degree should be reasonable for polynomial kernel
+    let degree = &space.parameters["degree"];
+    match &degree.param_type {
+        ParameterType::Int { low, high } => {
+            assert!(*low >= 1, "degree should be >= 1");
+            assert!(*high <= 10, "degree should not be too large");
+        }
+        _ => panic!("degree should be Int type"),
+    }
+}
+
+/// Test preset neural network has valid configurations
+#[cfg(test)]
+pub fn test_preset_neural_network_valid() {
+    use crate::hpo::search_space::presets;
+
+    let space = presets::neural_network();
+
+    // Check layer counts are reasonable
+    let n_layers = &space.parameters["n_layers"];
+    match &n_layers.param_type {
+        ParameterType::Int { low, high } => {
+            assert!(*low >= 1, "n_layers should be >= 1");
+            assert!(*high >= *low);
+        }
+        _ => panic!("n_layers should be Int type"),
+    }
+
+    // Check dropout is bounded [0, 1)
+    let dropout = &space.parameters["dropout"];
+    match &dropout.param_type {
+        ParameterType::Float { low, high } => {
+            assert!(*low >= 0.0, "dropout should be >= 0");
+            assert!(*high < 1.0, "dropout should be < 1");
+        }
+        _ => panic!("dropout should be Float type"),
+    }
+
+    // Check activation choices
+    let activation = &space.parameters["activation"];
+    match &activation.param_type {
+        ParameterType::Categorical { choices } => {
+            assert!(!choices.is_empty(), "activation should have choices");
+        }
+        _ => panic!("activation should be Categorical type"),
+    }
+}
+
+/// Test sampling from search space respects all constraints
+#[cfg(test)]
+pub fn test_sampler_respects_all_constraints() {
+    let space = SearchSpace::new()
+        .int("n", 10, 20)
+        .int_log("log_n", 1, 1000)
+        .float("x", -1.0, 1.0)
+        .float_log("lr", 1e-6, 1e-1)
+        .categorical("opt", vec!["adam".into(), "sgd".into(), "rmsprop".into()])
+        .bool("use_batch_norm");
+
+    let sampler = RandomSampler::with_seed(42);
+
+    // Sample many times and verify all constraints
+    for _ in 0..100 {
+        let params = sampler.sample(&space, &[]).expect("Sample should succeed");
+
+        // Check all parameters are present
+        assert_eq!(
+            params.len(),
+            space.n_dims(),
+            "Should have all parameters"
+        );
+
+        // Verify bounds
+        assert!(check_sampled_values_in_bounds(&params, &space).is_ok());
+
+        // Check specific constraints
+        if let ParameterValue::Int(n) = params["n"] {
+            assert!(n >= 10 && n <= 20, "n should be in [10, 20], got {}", n);
+        }
+
+        if let ParameterValue::Int(log_n) = params["log_n"] {
+            assert!(
+                log_n >= 1 && log_n <= 1000,
+                "log_n should be in [1, 1000], got {}",
+                log_n
+            );
+        }
+
+        if let ParameterValue::Float(x) = params["x"] {
+            assert!(
+                x >= -1.0 && x <= 1.0,
+                "x should be in [-1, 1], got {}",
+                x
+            );
+        }
+
+        if let ParameterValue::Float(lr) = params["lr"] {
+            assert!(
+                lr >= 1e-6 && lr <= 1e-1,
+                "lr should be in [1e-6, 1e-1], got {}",
+                lr
+            );
+        }
+
+        if let ParameterValue::Categorical(ref opt) = params["opt"] {
+            assert!(
+                ["adam", "sgd", "rmsprop"].contains(&opt.as_str()),
+                "opt should be valid choice, got {}",
+                opt
+            );
+        }
+    }
+}
+
+/// Test negative range int parameter
+#[cfg(test)]
+pub fn test_negative_range_parameters() {
+    let space = SearchSpace::new()
+        .int("neg_to_neg", -100, -10)
+        .int("neg_to_pos", -50, 50)
+        .float("neg_float", -1.0, -0.1);
+
+    // Verify the ranges are stored correctly
+    let neg_to_neg = &space.parameters["neg_to_neg"];
+    match &neg_to_neg.param_type {
+        ParameterType::Int { low, high } => {
+            assert_eq!(*low, -100);
+            assert_eq!(*high, -10);
+        }
+        _ => panic!("Expected Int type"),
+    }
+
+    let neg_float = &space.parameters["neg_float"];
+    match &neg_float.param_type {
+        ParameterType::Float { low, high } => {
+            assert!((low - (-1.0)).abs() < 1e-10);
+            assert!((high - (-0.1)).abs() < 1e-10);
+        }
+        _ => panic!("Expected Float type"),
+    }
+}
+
+/// Test search space can be cloned and modified independently
+#[cfg(test)]
+pub fn test_search_space_cloning() {
+    let original = SearchSpace::new()
+        .int("n", 1, 10)
+        .float("x", 0.0, 1.0);
+
+    let mut cloned = original.clone();
+
+    // Modify the clone
+    cloned = cloned.bool("extra");
+
+    // Original should be unchanged
+    assert_eq!(original.n_dims(), 2);
+    assert!(!original.parameters.contains_key("extra"));
+
+    // Clone should have the new parameter
+    assert_eq!(cloned.n_dims(), 3);
+    assert!(cloned.parameters.contains_key("extra"));
+}
+
+/// Test default values can be set on parameters
+#[cfg(test)]
+pub fn test_parameter_defaults() {
+    use crate::hpo::search_space::{Parameter, ParameterDefault};
+
+    let param_with_default = Parameter::int(1, 100)
+        .with_default(ParameterDefault::Int(50));
+
+    assert!(param_with_default.default.is_some());
+    match param_with_default.default {
+        Some(ParameterDefault::Int(v)) => assert_eq!(v, 50),
+        _ => panic!("Expected Int default"),
+    }
+
+    // Float default
+    let float_param = Parameter::float(0.0, 1.0)
+        .with_default(ParameterDefault::Float(0.5));
+
+    match float_param.default {
+        Some(ParameterDefault::Float(v)) => assert!((v - 0.5).abs() < 1e-10),
+        _ => panic!("Expected Float default"),
+    }
+
+    // Categorical default
+    let cat_param = Parameter::categorical(vec!["a".into(), "b".into(), "c".into()])
+        .with_default(ParameterDefault::Categorical("b".to_string()));
+
+    match cat_param.default {
+        Some(ParameterDefault::Categorical(ref v)) => assert_eq!(v, "b"),
+        _ => panic!("Expected Categorical default"),
+    }
+
+    // Bool default
+    let bool_param = Parameter::bool()
+        .with_default(ParameterDefault::Bool(true));
+
+    match bool_param.default {
+        Some(ParameterDefault::Bool(v)) => assert!(v),
+        _ => panic!("Expected Bool default"),
+    }
+}
+
+// ============================================================================
 // Test Module
 // ============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Search space constraint validation tests (TASK-T17-007)
+    #[test]
+    fn test_empty_space() {
+        test_empty_search_space();
+    }
+
+    #[test]
+    fn test_single_param_space() {
+        test_single_parameter_space();
+    }
+
+    #[test]
+    fn test_param_overwriting() {
+        test_parameter_overwriting();
+    }
+
+    #[test]
+    fn test_single_value() {
+        test_single_value_range();
+    }
+
+    #[test]
+    fn test_wide_range() {
+        test_wide_range_parameters();
+    }
+
+    #[test]
+    fn test_log_scale() {
+        test_log_scale_parameters();
+    }
+
+    #[test]
+    fn test_non_log_scale() {
+        test_non_log_scale_parameters();
+    }
+
+    #[test]
+    fn test_large_cat() {
+        test_large_categorical();
+    }
+
+    #[test]
+    fn test_single_choice_cat() {
+        test_single_choice_categorical();
+    }
+
+    #[test]
+    fn test_value_conversions() {
+        test_parameter_value_conversions();
+    }
+
+    #[test]
+    fn test_bounds_edge_cases() {
+        test_bounds_checking_edge_cases();
+    }
+
+    #[test]
+    fn test_preset_rf() {
+        test_preset_random_forest_valid();
+    }
+
+    #[test]
+    fn test_preset_gb() {
+        test_preset_gradient_boosting_valid();
+    }
+
+    #[test]
+    fn test_preset_lr() {
+        test_preset_logistic_regression_valid();
+    }
+
+    #[test]
+    fn test_preset_svm() {
+        test_preset_svm_valid();
+    }
+
+    #[test]
+    fn test_preset_nn() {
+        test_preset_neural_network_valid();
+    }
+
+    #[test]
+    fn test_sampler_constraints() {
+        test_sampler_respects_all_constraints();
+    }
+
+    #[test]
+    fn test_negative_range() {
+        test_negative_range_parameters();
+    }
+
+    #[test]
+    fn test_space_cloning() {
+        test_search_space_cloning();
+    }
+
+    #[test]
+    fn test_defaults() {
+        test_parameter_defaults();
+    }
 
     // Search space tests
     #[test]

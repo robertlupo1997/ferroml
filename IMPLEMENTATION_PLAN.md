@@ -980,15 +980,15 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 - [x] TASK-T16-007: Verify all tests pass consistently (**51 tests passing**)
 - [x] TASK-T16-008: Add edge case tests for zero budget (**12 tests added**)
 
-### Phase 17: HPO Correctness Tests 🟢 LARGELY COMPLETE
+### Phase 17: HPO Correctness Tests 🟢 COMPLETE
 - [x] TASK-T17-001: Create `ferroml-core/src/testing/hpo.rs` (1153 lines)
 - [x] TASK-T17-002: Register module in `mod.rs`
 - [x] TASK-T17-003: TPE sampler correctness tests
 - [x] TASK-T17-004: Grid/Random sampler tests
 - [x] TASK-T17-005: Pruner tests (MedianPruner, Hyperband, ASHA)
 - [x] TASK-T17-006: Acquisition function tests (EI, UCB, PI)
-- [ ] TASK-T17-007: Search space constraint validation tests
-- [x] TASK-T17-008: Verify all HPO tests pass consistently (**24 tests passing**)
+- [x] TASK-T17-007: Search space constraint validation tests (**20 tests added**)
+- [x] TASK-T17-008: Verify all HPO tests pass consistently (**44 tests passing**)
 
 ### Phase 18: Early Stopping & Callbacks Tests 🟢 LARGELY COMPLETE
 - [x] TASK-T18-001: Create `ferroml-core/src/testing/callbacks.rs` (1670 lines)
