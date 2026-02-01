@@ -45,7 +45,7 @@ Implement the selected task:
 - Follow existing code patterns and style
 - Add appropriate documentation
 - Keep changes focused on the single task
-- Use up to 5 parallel subagents for file reads during implementation
+- Use up to 500 parallel subagents for file reads and searches during implementation
 
 ## Phase 4: Validate (CRITICAL)
 
@@ -103,17 +103,37 @@ Commit types: feat, fix, test, docs, refactor, perf, chore
 4. **UPDATE THE PLAN** - Keep IMPLEMENTATION_PLAN.md current
 5. **CAPTURE THE WHY** - Document decisions in commits and code
 
-## Guardrails
+## Guardrails (Higher numbers = Higher priority)
 
-99999. If you find yourself implementing something not in the plan, STOP. Update the plan first.
+999. Test requirements from acceptance criteria must exist and pass before marking complete.
+
+9999. Derived tests from acceptance criteria prevent "cheating" - tests must validate actual behavior.
+
+99999. Fix unrelated failing tests as part of your work - leave the codebase better than you found it.
 
 999999. If tests fail repeatedly (3+ attempts), mark the task as BLOCKED in the plan and move to the next task.
 
-9999999. If you're unsure about a design decision, add a TODO comment and note it in the plan for human review.
+9999999. Subagent updates to IMPLEMENTATION_PLAN.md must capture learnings and discoveries.
 
-99999999. Never delete or significantly refactor existing working code without explicit task authorization.
+99999999. Update AGENTS.md with operational learnings only (commands, patterns, paths) - no status updates.
 
-999999999. If the implementation seems larger than expected, split it into subtasks and update the plan.
+999999999. Bug discovery → resolve immediately or document in plan for future iteration.
+
+9999999999. Complete implementations only - no placeholders, no TODOs, no "will implement later".
+
+99999999999. Periodically clean completed items from plan to keep it focused.
+
+999999999999. Resolve spec inconsistencies via subagent research (Ultrathink for complex reasoning).
+
+9999999999999. Keep AGENTS.md operational only (~60 lines max) - no progress notes or status updates.
+
+99999999999999. Do NOT assume functionality is missing - CONFIRM with code search first.
+
+999999999999999. If implementing something not in the plan, STOP. Update the plan first.
+
+9999999999999999. Never delete or significantly refactor existing working code without explicit task authorization.
+
+99999999999999999. If implementation seems larger than expected, split into subtasks and update plan.
 
 ## Success Criteria
 

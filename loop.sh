@@ -57,15 +57,31 @@ while :; do
     echo "=============================================="
     echo ""
 
+    # Heartbeat logging
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting iteration $ITERATION" >> ralph-heartbeat.log
+
     # Run Claude with the prompt (using recommended Ralph Wiggum settings)
-    # Note: stream-json removed for Docker compatibility (stdout buffering issues)
-    cat "$PROMPT_FILE" | $CLAUDE_CMD -p \
+    # - timeout 600s (10 min) prevents infinite hangs
+    # - stream-json enables real-time monitoring
+    # - verbose provides additional debugging info
+    timeout 600 bash -c "cat '$PROMPT_FILE' | $CLAUDE_CMD -p \
         --dangerously-skip-permissions \
-        --model opus
+        --model opus \
+        --output-format stream-json \
+        --verbose"
 
     EXIT_CODE=$?
 
-    if [[ $EXIT_CODE -ne 0 ]]; then
+    # Log completion
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Iteration $ITERATION finished with exit code $EXIT_CODE" >> ralph-heartbeat.log
+
+    if [[ $EXIT_CODE -eq 124 ]]; then
+        echo ""
+        echo "⚠️  Iteration $ITERATION TIMED OUT after 600 seconds"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] TIMEOUT: Iteration $ITERATION exceeded 600s limit" >> ralph-heartbeat.log
+        echo "Waiting 30 seconds before next iteration..."
+        sleep 30
+    elif [[ $EXIT_CODE -ne 0 ]]; then
         echo ""
         echo "Claude exited with code $EXIT_CODE"
         echo "Waiting 30 seconds before retry..."
