@@ -1,30 +1,38 @@
 #!/bin/bash
 # FerroML Ralph Wiggum Loop
-# Usage:
-#   ./loop.sh           - Build mode, unlimited iterations
-#   ./loop.sh plan      - Plan mode, unlimited iterations
-#   ./loop.sh 20        - Build mode, max 20 iterations
-#   ./loop.sh plan 5    - Plan mode, max 5 iterations
-
-# Note: Do NOT use 'set -e' here - we handle errors manually
-# and want the loop to continue even if individual iterations fail
-
-MODE="build"
-MAX_ITERATIONS=0
-ITERATION=0
+# Usage: ./loop.sh [plan] [max_iterations]
+# Examples:
+#   ./loop.sh              # Build mode, unlimited iterations
+#   ./loop.sh 20           # Build mode, max 20 iterations
+#   ./loop.sh plan         # Plan mode, unlimited iterations
+#   ./loop.sh plan 5       # Plan mode, max 5 iterations
 
 # Parse arguments
-for arg in "$@"; do
-    if [[ "$arg" == "plan" ]]; then
-        MODE="plan"
-    elif [[ "$arg" =~ ^[0-9]+$ ]]; then
-        MAX_ITERATIONS=$arg
-    fi
-done
+if [ "$1" = "plan" ]; then
+    MODE="plan"
+    PROMPT_FILE="PROMPT_plan.md"
+    MAX_ITERATIONS=${2:-0}
+elif [[ "$1" =~ ^[0-9]+$ ]]; then
+    MODE="build"
+    PROMPT_FILE="PROMPT_build.md"
+    MAX_ITERATIONS=$1
+else
+    MODE="build"
+    PROMPT_FILE="PROMPT_build.md"
+    MAX_ITERATIONS=0
+fi
 
-PROMPT_FILE="PROMPT_${MODE}.md"
+ITERATION=0
+CURRENT_BRANCH=$(git branch --show-current)
 
-# Find Claude CLI (works in both WSL and Docker)
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Mode:   $MODE"
+echo "Prompt: $PROMPT_FILE"
+echo "Branch: $CURRENT_BRANCH"
+[ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Find Claude CLI
 if [[ -x "$HOME/.local/bin/claude" ]]; then
     CLAUDE_CMD="$HOME/.local/bin/claude"
 elif command -v claude &> /dev/null; then
@@ -36,73 +44,40 @@ else
     exit 1
 fi
 
-if [[ ! -f "$PROMPT_FILE" ]]; then
+# Verify prompt file exists
+if [ ! -f "$PROMPT_FILE" ]; then
     echo "Error: $PROMPT_FILE not found"
     exit 1
 fi
 
-echo "=============================================="
-echo "FerroML Ralph Loop"
-echo "Mode: $MODE"
-echo "Max iterations: $([ $MAX_ITERATIONS -eq 0 ] && echo 'unlimited' || echo $MAX_ITERATIONS)"
-echo "Prompt file: $PROMPT_FILE"
-echo "=============================================="
-echo ""
-
-while :; do
-    ITERATION=$((ITERATION + 1))
-
-    echo ""
-    echo "=============================================="
-    echo "ITERATION $ITERATION - $(date)"
-    echo "=============================================="
-    echo ""
-
-    # Heartbeat logging
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting iteration $ITERATION" >> ralph-heartbeat.log
-
-    # Run Claude with the prompt (using recommended Ralph Wiggum settings)
-    # - timeout 1800s (30 min) for Opus which is slower
-    # - stream-json enables real-time monitoring
-    # - verbose provides additional debugging info
-    timeout 1800 bash -c "cat '$PROMPT_FILE' | $CLAUDE_CMD -p \
-        --dangerously-skip-permissions \
-        --model opus \
-        --output-format stream-json \
-        --verbose"
-
-    EXIT_CODE=$?
-
-    # Log completion
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Iteration $ITERATION finished with exit code $EXIT_CODE" >> ralph-heartbeat.log
-
-    if [[ $EXIT_CODE -eq 124 ]]; then
-        echo ""
-        echo "⚠️  Iteration $ITERATION TIMED OUT after 1800 seconds"
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] TIMEOUT: Iteration $ITERATION exceeded 1800s limit" >> ralph-heartbeat.log
-        echo "Waiting 30 seconds before next iteration..."
-        sleep 30
-    elif [[ $EXIT_CODE -ne 0 ]]; then
-        echo ""
-        echo "Claude exited with code $EXIT_CODE"
-        echo "Waiting 30 seconds before retry..."
-        sleep 30
-    fi
-
-    # Check iteration limit
-    if [[ $MAX_ITERATIONS -gt 0 && $ITERATION -ge $MAX_ITERATIONS ]]; then
-        echo ""
-        echo "=============================================="
-        echo "Reached max iterations ($MAX_ITERATIONS)"
-        echo "=============================================="
+while true; do
+    if [ $MAX_ITERATIONS -gt 0 ] && [ $ITERATION -ge $MAX_ITERATIONS ]; then
+        echo "Reached max iterations: $MAX_ITERATIONS"
         break
     fi
 
-    # Brief pause between iterations
-    echo ""
-    echo "Iteration $ITERATION complete. Starting next iteration in 5 seconds..."
-    sleep 5
+    ITERATION=$((ITERATION + 1))
+    echo -e "\n\n======================== ITERATION $ITERATION ========================\n"
+
+    # Run Ralph iteration with selected prompt
+    # -p: Headless mode (non-interactive, reads from stdin)
+    # --dangerously-skip-permissions: Auto-approve all tool calls
+    # --output-format=stream-json: Structured output for monitoring
+    # --model opus: Uses Opus for complex reasoning
+    # --verbose: Detailed execution logging
+    cat "$PROMPT_FILE" | $CLAUDE_CMD -p \
+        --dangerously-skip-permissions \
+        --output-format=stream-json \
+        --model opus \
+        --verbose
+
+    # Push changes after each iteration
+    git push origin "$CURRENT_BRANCH" || {
+        echo "Failed to push. Creating remote branch..."
+        git push -u origin "$CURRENT_BRANCH"
+    }
+
+    echo -e "\n======================== END ITERATION $ITERATION ========================\n"
 done
 
-echo ""
 echo "Ralph loop finished after $ITERATION iterations"

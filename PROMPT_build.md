@@ -1,145 +1,22 @@
 # FerroML Build Mode
 
-You are an autonomous AI agent working on the FerroML project - the greatest ML library for Rust.
+0a. Study `thoughts/shared/plans/2026-01-22_comprehensive-testing.md` with up to 500 parallel Sonnet subagents to learn the testing specifications.
+0b. Study @IMPLEMENTATION_PLAN.md.
+0c. For reference, the application source code is in `ferroml-core/src/*`.
 
-## Your Mission
+1. Your task is to implement functionality per the specifications using parallel subagents. Follow @IMPLEMENTATION_PLAN.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using Sonnet subagents. You may use up to 500 parallel Sonnet subagents for searches/reads and only 1 Sonnet subagent for build/tests. Use Opus subagents when complex reasoning is needed (debugging, architectural decisions).
+2. After implementing functionality or resolving problems, run the tests for that unit of code that was improved. If functionality is missing then it's your job to add it as per the application specifications. Ultrathink. Use commands from @AGENTS.md.
+3. When you discover issues, immediately update @IMPLEMENTATION_PLAN.md with your findings using a subagent. When resolved, update and remove the item.
+4. When the tests pass, update @IMPLEMENTATION_PLAN.md, then `git add -A` then `git commit --no-verify` with a message describing the changes (use --no-verify to skip pre-commit hooks that may fail in WSL). After the commit, do NOT push (loop.sh handles push).
 
-Implement the most important incomplete task from the implementation plan, test it, and commit.
-
-## Phase 0: Orient (Use Parallel Subagents)
-
-0a. Study `IMPLEMENTATION_PLAN.md` to find the highest priority incomplete task
-0b. Study `AGENTS.md` for project-specific commands and patterns
-0c. Study `thoughts/shared/plans/2026-01-22_comprehensive-testing.md` for testing phase details
-0d. Study relevant source files in `ferroml-core/src/` for the task you'll implement
-
-Use up to 500 parallel subagents for reading. Identify ONE task to implement this iteration.
-
-## Phase 1: Select Task
-
-Choose the **most important incomplete task** from `IMPLEMENTATION_PLAN.md`:
-- Prioritize tasks that unblock other work
-- Prioritize critical functionality over nice-to-haves
-- If testing phases 16-20 have incomplete items, prioritize those first
-- Select exactly ONE task for this iteration
-
-Announce your selection:
-```
-SELECTED TASK: [task ID and description]
-REASON: [why this is the most important]
-```
-
-## Phase 2: Investigate
-
-Before implementing, SEARCH the codebase to understand:
-- Does this already exist? (don't duplicate work)
-- What patterns does existing code follow?
-- What dependencies does this task have?
-- What tests already exist for similar functionality?
-
-Use grep, glob, and read tools. Don't assume - CONFIRM.
-
-## Phase 3: Implement
-
-Implement the selected task:
-- Follow existing code patterns and style
-- Add appropriate documentation
-- Keep changes focused on the single task
-- Use up to 500 parallel subagents for file reads and searches during implementation
-
-## Phase 4: Validate (CRITICAL)
-
-Run tests to validate your implementation. Use ONLY ONE subagent for this:
-
-```bash
-# Quick validation
-cargo check -p ferroml-core
-
-# Run tests related to your changes
-cargo test -p ferroml-core [relevant_test_pattern]
-
-# Full test suite if changes are significant
-cargo test -p ferroml-core --lib
-```
-
-**BACKPRESSURE RULE**: If tests fail, you MUST fix them before proceeding. Do not commit broken code.
-
-## Phase 5: Update Plan
-
-Update `IMPLEMENTATION_PLAN.md`:
-- Mark completed task with [x]
-- Add any new tasks discovered during implementation
-- Note any learnings or blockers
-
-Update `AGENTS.md` if you discovered:
-- New project patterns
-- Useful commands
-- Important file locations
-
-## Phase 6: Commit and Push
-
-If and only if tests pass:
-
-```bash
-git add -A
-git status  # Review what will be committed
-
-git commit -m "<type>(<scope>): <description>
-
-<optional body explaining what and why>
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-
-git push
-```
-
-Commit types: feat, fix, test, docs, refactor, perf, chore
-
-## Rules
-
-1. **ONE TASK PER ITERATION** - Focus on a single task, do it well
-2. **SEARCH BEFORE IMPLEMENTING** - Don't duplicate existing code
-3. **TESTS MUST PASS** - Never commit broken code
-4. **UPDATE THE PLAN** - Keep IMPLEMENTATION_PLAN.md current
-5. **CAPTURE THE WHY** - Document decisions in commits and code
-
-## Guardrails (Higher numbers = Higher priority)
-
-999. Test requirements from acceptance criteria must exist and pass before marking complete.
-
-9999. Derived tests from acceptance criteria prevent "cheating" - tests must validate actual behavior.
-
-99999. Fix unrelated failing tests as part of your work - leave the codebase better than you found it.
-
-999999. If tests fail repeatedly (3+ attempts), mark the task as BLOCKED in the plan and move to the next task.
-
-9999999. Subagent updates to IMPLEMENTATION_PLAN.md must capture learnings and discoveries.
-
-99999999. Update AGENTS.md with operational learnings only (commands, patterns, paths) - no status updates.
-
-999999999. Bug discovery → resolve immediately or document in plan for future iteration.
-
-9999999999. Complete implementations only - no placeholders, no TODOs, no "will implement later".
-
-99999999999. Periodically clean completed items from plan to keep it focused.
-
-999999999999. Resolve spec inconsistencies via subagent research (Ultrathink for complex reasoning).
-
-9999999999999. Keep AGENTS.md operational only (~60 lines max) - no progress notes or status updates.
-
-99999999999999. Do NOT assume functionality is missing - CONFIRM with code search first.
-
-999999999999999. If implementing something not in the plan, STOP. Update the plan first.
-
-9999999999999999. Never delete or significantly refactor existing working code without explicit task authorization.
-
-99999999999999999. If implementation seems larger than expected, split into subtasks and update plan.
-
-## Success Criteria
-
-This iteration is successful when:
-- [ ] One task is fully implemented
-- [ ] All tests pass
-- [ ] IMPLEMENTATION_PLAN.md is updated
-- [ ] Changes are committed and pushed
-- [ ] No regressions introduced
+99999. Important: When authoring documentation, capture the why — tests and implementation importance.
+999999. Important: Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
+9999999. As soon as there are no build or test errors create a git tag. If there are no git tags start at 0.0.0 and increment patch by 1 for example 0.0.1 if 0.0.0 does not exist.
+99999999. You may add extra logging if required to debug issues.
+999999999. Keep @IMPLEMENTATION_PLAN.md current with learnings using a subagent — future work depends on this to avoid duplicating efforts. Update especially after finishing your turn.
+9999999999. When you learn something new about how to run the application, update @AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
+99999999999. For any bugs you notice, resolve them or document them in @IMPLEMENTATION_PLAN.md using a subagent even if it is unrelated to the current piece of work.
+999999999999. Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
+9999999999999. When @IMPLEMENTATION_PLAN.md becomes large periodically clean out the items that are completed from the file using a subagent.
+99999999999999. If you find inconsistencies in the specs then use an Opus subagent with 'ultrathink' requested to resolve them.
+999999999999999. IMPORTANT: Keep @AGENTS.md operational only — status updates and progress notes belong in @IMPLEMENTATION_PLAN.md. A bloated AGENTS.md pollutes every future loop's context.
