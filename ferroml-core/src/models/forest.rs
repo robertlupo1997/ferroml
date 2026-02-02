@@ -349,18 +349,28 @@ impl RandomForestClassifier {
         let n_classes = classes.len();
         let n_samples = x.nrows();
 
-        // Collect predictions from all trees (parallel when enabled)
-        #[cfg(feature = "parallel")]
-        let tree_probas: Vec<Array2<f64>> = estimators
-            .par_iter()
-            .map(|tree| tree.predict_proba(x).unwrap())
-            .collect();
-
-        #[cfg(not(feature = "parallel"))]
-        let tree_probas: Vec<Array2<f64>> = estimators
-            .iter()
-            .map(|tree| tree.predict_proba(x).unwrap())
-            .collect();
+        // Collect predictions from all trees (sequential when n_jobs=1 for reproducibility)
+        let tree_probas: Vec<Array2<f64>> = if self.n_jobs == Some(1) {
+            estimators
+                .iter()
+                .map(|tree| tree.predict_proba(x).unwrap())
+                .collect()
+        } else {
+            #[cfg(feature = "parallel")]
+            {
+                estimators
+                    .par_iter()
+                    .map(|tree| tree.predict_proba(x).unwrap())
+                    .collect()
+            }
+            #[cfg(not(feature = "parallel"))]
+            {
+                estimators
+                    .iter()
+                    .map(|tree| tree.predict_proba(x).unwrap())
+                    .collect()
+            }
+        };
 
         // Sum all tree predictions
         let mut probas = Array2::zeros((n_samples, n_classes));
@@ -581,7 +591,7 @@ impl Model for RandomForestClassifier {
                 )
             };
 
-        // Build trees in parallel
+        // Build trees (parallel or sequential based on n_jobs)
         let criterion = self.criterion;
         let max_depth = self.max_depth;
         let min_samples_split = self.min_samples_split;
@@ -589,36 +599,48 @@ impl Model for RandomForestClassifier {
         let min_impurity_decrease = self.min_impurity_decrease;
         let class_weight = self.class_weight.clone();
 
-        let estimators: Vec<DecisionTreeClassifier> = bootstrap_indices
-            .par_iter()
-            .zip(tree_seeds.par_iter())
-            .map(|(indices, &seed): (&Vec<usize>, &u64)| {
-                // Create bootstrap sample
-                let n_bootstrap = indices.len();
-                let mut x_bootstrap = Array2::zeros((n_bootstrap, n_features));
-                let mut y_bootstrap = Array1::zeros(n_bootstrap);
+        // Helper closure to build a single tree
+        let build_tree = |(indices, &seed): (&Vec<usize>, &u64)| {
+            // Create bootstrap sample
+            let n_bootstrap = indices.len();
+            let mut x_bootstrap = Array2::zeros((n_bootstrap, n_features));
+            let mut y_bootstrap = Array1::zeros(n_bootstrap);
 
-                for (i, &idx) in indices.iter().enumerate() {
-                    x_bootstrap.row_mut(i).assign(&x.row(idx));
-                    y_bootstrap[i] = y[idx];
-                }
+            for (i, &idx) in indices.iter().enumerate() {
+                x_bootstrap.row_mut(i).assign(&x.row(idx));
+                y_bootstrap[i] = y[idx];
+            }
 
-                // Create and fit tree
-                let mut tree = DecisionTreeClassifier::new()
-                    .with_criterion(criterion)
-                    .with_max_depth(max_depth)
-                    .with_min_samples_split(min_samples_split)
-                    .with_min_samples_leaf(min_samples_leaf)
-                    .with_max_features(Some(max_features))
-                    .with_min_impurity_decrease(min_impurity_decrease)
-                    .with_class_weight(class_weight.clone())
-                    .with_random_state(seed);
+            // Create and fit tree
+            let mut tree = DecisionTreeClassifier::new()
+                .with_criterion(criterion)
+                .with_max_depth(max_depth)
+                .with_min_samples_split(min_samples_split)
+                .with_min_samples_leaf(min_samples_leaf)
+                .with_max_features(Some(max_features))
+                .with_min_impurity_decrease(min_impurity_decrease)
+                .with_class_weight(class_weight.clone())
+                .with_random_state(seed);
 
-                tree.fit(&x_bootstrap, &y_bootstrap)
-                    .expect("Failed to fit tree");
-                tree
-            })
-            .collect();
+            tree.fit(&x_bootstrap, &y_bootstrap)
+                .expect("Failed to fit tree");
+            tree
+        };
+
+        // Use sequential iteration when n_jobs == 1 for reproducibility
+        let estimators: Vec<DecisionTreeClassifier> = if self.n_jobs == Some(1) {
+            bootstrap_indices
+                .iter()
+                .zip(tree_seeds.iter())
+                .map(build_tree)
+                .collect()
+        } else {
+            bootstrap_indices
+                .par_iter()
+                .zip(tree_seeds.par_iter())
+                .map(build_tree)
+                .collect()
+        };
 
         self.estimators = Some(estimators);
 
@@ -1072,42 +1094,54 @@ impl Model for RandomForestRegressor {
                 )
             };
 
-        // Build trees in parallel
+        // Build trees (parallel or sequential based on n_jobs)
         let criterion = self.criterion;
         let max_depth = self.max_depth;
         let min_samples_split = self.min_samples_split;
         let min_samples_leaf = self.min_samples_leaf;
         let min_impurity_decrease = self.min_impurity_decrease;
 
-        let estimators: Vec<DecisionTreeRegressor> = bootstrap_indices
-            .par_iter()
-            .zip(tree_seeds.par_iter())
-            .map(|(indices, &seed): (&Vec<usize>, &u64)| {
-                // Create bootstrap sample
-                let n_bootstrap = indices.len();
-                let mut x_bootstrap = Array2::zeros((n_bootstrap, n_features));
-                let mut y_bootstrap = Array1::zeros(n_bootstrap);
+        // Helper closure to build a single tree
+        let build_tree = |(indices, &seed): (&Vec<usize>, &u64)| {
+            // Create bootstrap sample
+            let n_bootstrap = indices.len();
+            let mut x_bootstrap = Array2::zeros((n_bootstrap, n_features));
+            let mut y_bootstrap = Array1::zeros(n_bootstrap);
 
-                for (i, &idx) in indices.iter().enumerate() {
-                    x_bootstrap.row_mut(i).assign(&x.row(idx));
-                    y_bootstrap[i] = y[idx];
-                }
+            for (i, &idx) in indices.iter().enumerate() {
+                x_bootstrap.row_mut(i).assign(&x.row(idx));
+                y_bootstrap[i] = y[idx];
+            }
 
-                // Create and fit tree
-                let mut tree = DecisionTreeRegressor::new()
-                    .with_criterion(criterion)
-                    .with_max_depth(max_depth)
-                    .with_min_samples_split(min_samples_split)
-                    .with_min_samples_leaf(min_samples_leaf)
-                    .with_max_features(Some(max_features))
-                    .with_min_impurity_decrease(min_impurity_decrease)
-                    .with_random_state(seed);
+            // Create and fit tree
+            let mut tree = DecisionTreeRegressor::new()
+                .with_criterion(criterion)
+                .with_max_depth(max_depth)
+                .with_min_samples_split(min_samples_split)
+                .with_min_samples_leaf(min_samples_leaf)
+                .with_max_features(Some(max_features))
+                .with_min_impurity_decrease(min_impurity_decrease)
+                .with_random_state(seed);
 
-                tree.fit(&x_bootstrap, &y_bootstrap)
-                    .expect("Failed to fit tree");
-                tree
-            })
-            .collect();
+            tree.fit(&x_bootstrap, &y_bootstrap)
+                .expect("Failed to fit tree");
+            tree
+        };
+
+        // Use sequential iteration when n_jobs == 1 for reproducibility
+        let estimators: Vec<DecisionTreeRegressor> = if self.n_jobs == Some(1) {
+            bootstrap_indices
+                .iter()
+                .zip(tree_seeds.iter())
+                .map(build_tree)
+                .collect()
+        } else {
+            bootstrap_indices
+                .par_iter()
+                .zip(tree_seeds.par_iter())
+                .map(build_tree)
+                .collect()
+        };
 
         self.estimators = Some(estimators);
 

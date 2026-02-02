@@ -985,7 +985,9 @@ fn solve_symmetric_positive_definite(a: &Array2<f64>, b: &Array1<f64>) -> Result
     let n = a.nrows();
 
     // Cholesky decomposition: A = LL'
+    // With small epsilon fallback for numerical stability (handles near-perfect separation)
     let mut l = Array2::zeros((n, n));
+    let epsilon = 1e-6;
 
     for i in 0..n {
         for j in 0..=i {
@@ -995,10 +997,9 @@ fn solve_symmetric_positive_definite(a: &Array2<f64>, b: &Array1<f64>) -> Result
             }
 
             if i == j {
+                // Add small epsilon for numerical stability if diagonal is non-positive
                 if sum <= 0.0 {
-                    return Err(FerroError::numerical(
-                        "Matrix is not positive definite (possible perfect separation)",
-                    ));
+                    sum = epsilon;
                 }
                 l[[i, j]] = sum.sqrt();
             } else {

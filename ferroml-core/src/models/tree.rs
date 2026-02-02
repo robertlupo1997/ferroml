@@ -803,7 +803,10 @@ impl DecisionTreeClassifier {
                 let idx = (rng as usize) % n_features;
                 selected.insert(idx);
             }
-            selected.into_iter().collect()
+            // Sort for deterministic order (HashSet iteration is non-deterministic)
+            let mut features: Vec<usize> = selected.into_iter().collect();
+            features.sort();
+            features
         } else {
             (0..n_features).collect()
         };
@@ -915,7 +918,10 @@ impl DecisionTreeClassifier {
                 let idx = (rng as usize) % n_features;
                 selected.insert(idx);
             }
-            selected.into_iter().collect()
+            // Sort for deterministic order (HashSet iteration is non-deterministic)
+            let mut features: Vec<usize> = selected.into_iter().collect();
+            features.sort();
+            features
         } else {
             (0..n_features).collect()
         };
@@ -1496,7 +1502,10 @@ impl DecisionTreeRegressor {
                 let idx = (rng as usize) % n_features;
                 selected.insert(idx);
             }
-            selected.into_iter().collect()
+            // Sort for deterministic order (HashSet iteration is non-deterministic)
+            let mut features: Vec<usize> = selected.into_iter().collect();
+            features.sort();
+            features
         } else {
             (0..n_features).collect()
         };
