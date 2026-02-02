@@ -11,6 +11,11 @@ use ndarray::{Array1, Array2};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+use crate::models::{
+    ClassWeight, DecisionTreeClassifier, GradientBoostingClassifier, LogisticRegression, Model,
+    ProbabilisticModel, RandomForestClassifier, SVC,
+};
+
 // =============================================================================
 // Test Utilities
 // =============================================================================
@@ -836,7 +841,7 @@ mod edge_case_tests {
             );
 
             // Verify they sum to 1.0
-            let sum = p_class_0 + p_class_1;
+            let sum: f64 = p_class_0 + p_class_1;
             assert!(
                 (sum - 1.0).abs() < 1e-10,
                 "Probabilities should sum to 1.0, got {}",
