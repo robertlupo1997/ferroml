@@ -48,6 +48,8 @@ pub mod assertions;
 pub mod automl;
 pub mod callbacks;
 pub mod checks;
+pub mod cv_advanced;
+pub mod ensemble_advanced;
 pub mod explainability;
 pub mod hpo;
 pub mod nan_inf_validation;
