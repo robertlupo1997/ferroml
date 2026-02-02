@@ -7,6 +7,9 @@
 //! - Resource allocation across trials
 //! - AutoML classifier and regressor budget compliance
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 use crate::automl::{
     AlgorithmArm, AlgorithmConfig, AlgorithmPortfolio, AlgorithmType, BanditStrategy,
     EnsembleBuilder, EnsembleConfig, PortfolioPreset, TimeBudgetAllocator, TimeBudgetConfig,

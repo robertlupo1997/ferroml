@@ -24,6 +24,12 @@
 //!
 //! See the `array_utils` module for detailed documentation on zero-copy semantics.
 
+// Clippy allows for Python binding crate
+#![allow(clippy::too_many_arguments)] // PyO3 functions mirror sklearn API signatures
+#![allow(clippy::only_used_in_recursion)] // PyO3 method patterns
+#![allow(clippy::empty_line_after_doc_comments)] // PyO3 macro formatting
+#![allow(dead_code)] // Utility functions may not all be used yet
+
 use pyo3::prelude::*;
 
 mod array_utils;

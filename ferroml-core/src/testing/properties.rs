@@ -462,6 +462,7 @@ mod proptest_tests {
     }
 
     /// Strategy for edge-case matrices.
+    #[allow(dead_code)]
     pub fn edge_case_matrix_strategy(
         n_samples: usize,
         n_features: usize,

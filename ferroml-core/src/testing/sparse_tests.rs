@@ -9,6 +9,10 @@
 //!
 //! Enable sparse functionality with the `sparse` feature flag.
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unused_parens)]
+
 use ndarray::{Array1, Array2};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};

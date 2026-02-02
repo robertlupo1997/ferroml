@@ -7,6 +7,9 @@
 //! - Weighted metrics validation tests
 //! - Edge case tests (zero/negative weights)
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 use ndarray::{Array1, Array2};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};

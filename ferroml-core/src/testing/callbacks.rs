@@ -20,6 +20,9 @@
 //! }
 //! ```
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 use crate::models::boosting::{
     EarlyStopping, GradientBoostingClassifier, GradientBoostingRegressor, LearningRateSchedule,
     TrainingHistory,
@@ -1352,7 +1355,7 @@ mod tests {
     #[test]
     fn test_composed_callback_all_events() {
         let mut composed = ComposedCallback::new();
-        let counter = Arc::new(CounterCallback::new());
+        let _counter = Arc::new(CounterCallback::new());
 
         // We can't easily add Arc<CounterCallback> due to trait bounds,
         // so we'll use a simpler approach

@@ -30,14 +30,12 @@
 //! - Large dataset handling
 
 use ferroml_core::datasets::{make_classification, make_regression};
-use ferroml_core::models::boosting::{GradientBoostingClassifier, GradientBoostingRegressor};
-use ferroml_core::models::forest::{RandomForestClassifier, RandomForestRegressor};
-use ferroml_core::models::hist_boosting::{
-    HistGradientBoostingClassifier, HistGradientBoostingRegressor,
-};
+use ferroml_core::models::boosting::GradientBoostingClassifier;
+use ferroml_core::models::forest::RandomForestClassifier;
+use ferroml_core::models::hist_boosting::HistGradientBoostingClassifier;
 use ferroml_core::models::linear::LinearRegression;
 use ferroml_core::models::regularized::{LassoRegression, RidgeRegression};
-use ferroml_core::models::tree::{DecisionTreeClassifier, DecisionTreeRegressor};
+use ferroml_core::models::tree::DecisionTreeClassifier;
 use ferroml_core::models::Model;
 use ferroml_core::preprocessing::scalers::StandardScaler;
 use ferroml_core::preprocessing::Transformer;
@@ -52,6 +50,7 @@ use std::time::Instant;
 
 /// Memory snapshot for tracking usage
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct MemorySnapshot {
     physical_bytes: usize,
     virtual_bytes: usize,

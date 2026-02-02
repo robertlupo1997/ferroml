@@ -295,7 +295,7 @@ fn test_covertype_random_forest_multiclass() {
     );
 
     for &pred in predictions.iter() {
-        assert!(pred >= 0.0 && pred <= 6.0 && (pred - pred.round()).abs() < 0.01);
+        assert!((0.0..=6.0).contains(&pred) && (pred - pred.round()).abs() < 0.01);
     }
 }
 

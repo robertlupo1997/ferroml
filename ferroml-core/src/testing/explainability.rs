@@ -37,7 +37,7 @@ mod tests {
         seed: u64,
     ) -> (Array2<f64>, Array1<f64>) {
         let mut state = seed;
-        let next_rand = || {
+        let _next_rand = || {
             state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
             ((state >> 33) as f64) / (u32::MAX as f64) * 2.0 - 1.0
         };
@@ -995,11 +995,11 @@ mod tests {
         let pdp_ranges: Vec<f64> = pdp_results.iter().map(|r| r.effect_range()).collect();
 
         // Permutation importance
-        let perm_result = permutation_importance(&model, &x, &y, r2_scorer, 5, Some(42)).unwrap();
+        let _perm_result = permutation_importance(&model, &x, &y, r2_scorer, 5, Some(42)).unwrap();
 
         // For linear model, larger PDP effect range should correlate with higher permutation importance
         // Feature with coefficient 3 (index 1) should have larger effect than coefficient 2 (index 0)
-        let pdp_ratio = pdp_ranges[1] / pdp_ranges[0].max(1e-10);
+        let _pdp_ratio = pdp_ranges[1] / pdp_ranges[0].max(1e-10);
 
         // Both methods should agree that features 0 and 1 are more important than 2
         assert!(

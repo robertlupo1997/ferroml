@@ -6,6 +6,9 @@
 //! - TimeSeriesSplit temporal ordering
 //! - Integration with actual ML models
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 use ndarray::Array1;
 use std::collections::HashSet;
 

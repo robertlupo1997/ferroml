@@ -6,6 +6,9 @@
 //! - Meta-learner correctness
 //! - Passthrough option validation
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 use crate::ensemble::stacking::{StackMethod, StackingClassifier, StackingRegressor};
 use crate::ensemble::voting::{
     VotingClassifierEstimator, VotingRegressor, VotingRegressorEstimator,
@@ -105,7 +108,7 @@ fn create_multiclass_data(
 
     // Fill remaining samples with last class if n_samples not divisible by n_classes
     let remaining = n_samples - (per_class * n_classes);
-    for i in 0..remaining {
+    for _ in 0..remaining {
         for j in 0..n_features {
             let val = ((n_classes - 1) as f64) * 5.0 + (j as f64) * 0.3;
             x_data.push(val);
