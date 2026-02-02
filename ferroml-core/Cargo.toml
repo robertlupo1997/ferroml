@@ -85,6 +85,10 @@ harness = false
 name = "memory_benchmarks"
 harness = false
 
+[[bench]]
+name = "performance_optimizations"
+harness = false
+
 [[example]]
 name = "linear_regression"
 path = "examples/linear_regression.rs"

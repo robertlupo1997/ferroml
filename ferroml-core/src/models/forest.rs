@@ -349,11 +349,22 @@ impl RandomForestClassifier {
         let n_classes = classes.len();
         let n_samples = x.nrows();
 
-        // Aggregate probabilities from all trees
-        let mut probas = Array2::zeros((n_samples, n_classes));
+        // Collect predictions from all trees (parallel when enabled)
+        #[cfg(feature = "parallel")]
+        let tree_probas: Vec<Array2<f64>> = estimators
+            .par_iter()
+            .map(|tree| tree.predict_proba(x).unwrap())
+            .collect();
 
-        for tree in estimators {
-            let tree_proba = tree.predict_proba(x)?;
+        #[cfg(not(feature = "parallel"))]
+        let tree_probas: Vec<Array2<f64>> = estimators
+            .iter()
+            .map(|tree| tree.predict_proba(x).unwrap())
+            .collect();
+
+        // Sum all tree predictions
+        let mut probas = Array2::zeros((n_samples, n_classes));
+        for tree_proba in tree_probas {
             probas = probas + tree_proba;
         }
 
@@ -1119,11 +1130,22 @@ impl Model for RandomForestRegressor {
         let estimators = self.estimators.as_ref().unwrap();
         let n_samples = x.nrows();
 
-        // Average predictions from all trees
-        let mut predictions = Array1::zeros(n_samples);
+        // Collect predictions from all trees (parallel when enabled)
+        #[cfg(feature = "parallel")]
+        let tree_preds: Vec<Array1<f64>> = estimators
+            .par_iter()
+            .map(|tree| tree.predict(x).unwrap())
+            .collect();
 
-        for tree in estimators {
-            let tree_pred = tree.predict(x)?;
+        #[cfg(not(feature = "parallel"))]
+        let tree_preds: Vec<Array1<f64>> = estimators
+            .iter()
+            .map(|tree| tree.predict(x).unwrap())
+            .collect();
+
+        // Sum all tree predictions
+        let mut predictions = Array1::zeros(n_samples);
+        for tree_pred in tree_preds {
             predictions = predictions + tree_pred;
         }
 

@@ -38,6 +38,8 @@ use crate::models::{check_is_fitted, validate_fit_input, validate_predict_input,
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
 use rand::prelude::*;
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashSet};
 
@@ -369,9 +371,28 @@ impl Histogram {
 
     /// Compute histogram by subtraction (parent - sibling = self)
     fn compute_by_subtraction(&mut self, parent: &Histogram, sibling: &Histogram) {
-        for i in 0..self.sum_gradients.len() {
-            self.sum_gradients[i] = parent.sum_gradients[i] - sibling.sum_gradients[i];
-            self.sum_hessians[i] = parent.sum_hessians[i] - sibling.sum_hessians[i];
+        #[cfg(feature = "simd")]
+        {
+            crate::simd::vector_sub_into(
+                &parent.sum_gradients,
+                &sibling.sum_gradients,
+                &mut self.sum_gradients,
+            );
+            crate::simd::vector_sub_into(
+                &parent.sum_hessians,
+                &sibling.sum_hessians,
+                &mut self.sum_hessians,
+            );
+        }
+        #[cfg(not(feature = "simd"))]
+        {
+            for i in 0..self.sum_gradients.len() {
+                self.sum_gradients[i] = parent.sum_gradients[i] - sibling.sum_gradients[i];
+                self.sum_hessians[i] = parent.sum_hessians[i] - sibling.sum_hessians[i];
+            }
+        }
+        // Counts are usize, not f64 - always use scalar loop
+        for i in 0..self.counts.len() {
             self.counts[i] = parent.counts[i].saturating_sub(sibling.counts[i]);
         }
     }
@@ -980,26 +1001,57 @@ impl HistTreeBuilder {
         bin_mapper: &dyn BinMapperInfo,
     ) -> Vec<Histogram> {
         let n_features = x_binned.ncols();
-        let mut histograms = Vec::with_capacity(n_features);
 
-        for f in 0..n_features {
-            let n_bins = bin_mapper.n_bins(f);
-            let mut histogram = Histogram::new(n_bins);
+        // Pre-compute n_bins for each feature (required for parallel iteration)
+        let n_bins_per_feature: Vec<usize> = (0..n_features).map(|f| bin_mapper.n_bins(f)).collect();
 
-            // Build histogram
-            for &idx in indices {
-                let bin = x_binned[[idx, f]] as usize;
-                if bin < n_bins {
-                    histogram.sum_gradients[bin] += gradients[idx];
-                    histogram.sum_hessians[bin] += hessians[idx];
-                    histogram.counts[bin] += 1;
-                }
-            }
+        #[cfg(feature = "parallel")]
+        {
+            // Parallel over features - each feature gets its own histogram
+            (0..n_features)
+                .into_par_iter()
+                .map(|f| {
+                    let n_bins = n_bins_per_feature[f];
+                    let mut histogram = Histogram::new(n_bins);
 
-            histograms.push(histogram);
+                    // Build histogram (sequential within each feature)
+                    for &idx in indices {
+                        let bin = x_binned[[idx, f]] as usize;
+                        if bin < n_bins {
+                            histogram.sum_gradients[bin] += gradients[idx];
+                            histogram.sum_hessians[bin] += hessians[idx];
+                            histogram.counts[bin] += 1;
+                        }
+                    }
+
+                    histogram
+                })
+                .collect()
         }
 
-        histograms
+        #[cfg(not(feature = "parallel"))]
+        {
+            let mut histograms = Vec::with_capacity(n_features);
+
+            for f in 0..n_features {
+                let n_bins = n_bins_per_feature[f];
+                let mut histogram = Histogram::new(n_bins);
+
+                // Build histogram
+                for &idx in indices {
+                    let bin = x_binned[[idx, f]] as usize;
+                    if bin < n_bins {
+                        histogram.sum_gradients[bin] += gradients[idx];
+                        histogram.sum_hessians[bin] += hessians[idx];
+                        histogram.counts[bin] += 1;
+                    }
+                }
+
+                histograms.push(histogram);
+            }
+
+            histograms
+        }
     }
 
     /// Get monotonic constraint bounds for child nodes

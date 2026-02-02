@@ -788,6 +788,46 @@ pub fn vector_sub(a: &[f64], b: &[f64]) -> Vec<f64> {
     result
 }
 
+/// Element-wise subtraction with destination using SIMD.
+///
+/// Computes `dst[i] = a[i] - b[i]` in-place, avoiding allocation.
+///
+/// # Arguments
+///
+/// * `a` - First vector (minuend)
+/// * `b` - Second vector (subtrahend, must have same length as `a`)
+/// * `dst` - Destination slice (must have same length as `a`)
+///
+/// # Panics
+///
+/// Debug panics if vectors have different lengths.
+#[inline]
+pub fn vector_sub_into(a: &[f64], b: &[f64], dst: &mut [f64]) {
+    debug_assert_eq!(a.len(), b.len(), "Vectors must have the same length");
+    debug_assert_eq!(a.len(), dst.len(), "Destination must have same length");
+
+    let n = a.len();
+    let chunks = n / 4;
+    let remainder = n % 4;
+
+    for i in 0..chunks {
+        let offset = i * 4;
+        let a_vec = f64x4::new([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]);
+        let b_vec = f64x4::new([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        let diff_vec = a_vec - b_vec;
+        let diff_array: [f64; 4] = diff_vec.into();
+        dst[offset] = diff_array[0];
+        dst[offset + 1] = diff_array[1];
+        dst[offset + 2] = diff_array[2];
+        dst[offset + 3] = diff_array[3];
+    }
+
+    let remainder_start = chunks * 4;
+    for i in 0..remainder {
+        dst[remainder_start + i] = a[remainder_start + i] - b[remainder_start + i];
+    }
+}
+
 /// Element-wise multiplication (Hadamard product) of two vectors using SIMD.
 ///
 /// # Arguments
@@ -2026,6 +2066,13 @@ mod tests {
         let sub_result = vector_sub(&b, &a);
         for i in 0..100 {
             assert!((sub_result[i] - (b[i] - a[i])).abs() < EPSILON);
+        }
+
+        // Test vector_sub_into
+        let mut dst = vec![0.0; 100];
+        vector_sub_into(&b, &a, &mut dst);
+        for i in 0..100 {
+            assert!((dst[i] - (b[i] - a[i])).abs() < EPSILON);
         }
 
         // Test vector_mul
