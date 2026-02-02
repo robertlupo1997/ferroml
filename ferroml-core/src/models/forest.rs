@@ -377,37 +377,63 @@ impl RandomForestClassifier {
         validate_predict_input(x, n_features)?;
 
         let estimators = self.estimators.as_ref().unwrap();
-        let classes = self.classes.as_ref().unwrap();
-        let n_classes = classes.len();
+        let forest_classes = self.classes.as_ref().unwrap();
+        let n_classes = forest_classes.len();
         let n_samples = x.nrows();
 
-        // Collect predictions from all trees (sequential when n_jobs=1 for reproducibility)
-        let tree_probas: Vec<Array2<f64>> = if self.n_jobs == Some(1) {
-            estimators
-                .iter()
-                .map(|tree| tree.predict_proba(x).unwrap())
-                .collect()
+        // Sum all tree predictions, aligning each tree's classes to the forest's classes
+        let mut probas = Array2::zeros((n_samples, n_classes));
+
+        // Helper to align tree probabilities to forest class ordering
+        let align_tree_probas = |tree: &DecisionTreeClassifier| -> Array2<f64> {
+            let tree_proba = tree.predict_proba(x).unwrap();
+            let tree_classes = tree.classes().unwrap();
+
+            // If tree has same classes as forest, return directly
+            if tree_classes.len() == n_classes {
+                return tree_proba;
+            }
+
+            // Otherwise, map tree's class indices to forest's class indices
+            let mut aligned = Array2::zeros((n_samples, n_classes));
+            for (tree_idx, &tree_class) in tree_classes.iter().enumerate() {
+                // Find this class in the forest's class list
+                if let Some(forest_idx) = forest_classes
+                    .iter()
+                    .position(|&c| (c - tree_class).abs() < 1e-10)
+                {
+                    for i in 0..n_samples {
+                        aligned[[i, forest_idx]] = tree_proba[[i, tree_idx]];
+                    }
+                }
+            }
+            aligned
+        };
+
+        // Collect and sum predictions (sequential when n_jobs=1 for reproducibility)
+        if self.n_jobs == Some(1) {
+            for tree in estimators.iter() {
+                let tree_proba = align_tree_probas(tree);
+                probas = probas + tree_proba;
+            }
         } else {
             #[cfg(feature = "parallel")]
             {
-                estimators
+                let tree_probas: Vec<Array2<f64>> = estimators
                     .par_iter()
-                    .map(|tree| tree.predict_proba(x).unwrap())
-                    .collect()
+                    .map(align_tree_probas)
+                    .collect();
+                for tree_proba in tree_probas {
+                    probas = probas + tree_proba;
+                }
             }
             #[cfg(not(feature = "parallel"))]
             {
-                estimators
-                    .iter()
-                    .map(|tree| tree.predict_proba(x).unwrap())
-                    .collect()
+                for tree in estimators.iter() {
+                    let tree_proba = align_tree_probas(tree);
+                    probas = probas + tree_proba;
+                }
             }
-        };
-
-        // Sum all tree predictions
-        let mut probas = Array2::zeros((n_samples, n_classes));
-        for tree_proba in tree_probas {
-            probas = probas + tree_proba;
         }
 
         // Average over trees

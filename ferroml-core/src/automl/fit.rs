@@ -864,7 +864,17 @@ impl AutoML {
                 .with_selection_iterations(50);
 
             let mut builder = EnsembleBuilder::new(ensemble_config);
-            builder.build_from_trials(&trials, y).ok()
+            match builder.build_from_trials(&trials, y) {
+                Ok(ens) => Some(ens),
+                Err(e) => {
+                    // Log warning but allow graceful degradation to best single model
+                    eprintln!(
+                        "Warning: Ensemble building failed, using best single model: {}",
+                        e
+                    );
+                    None
+                }
+            }
         } else {
             None
         };

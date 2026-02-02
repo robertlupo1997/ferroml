@@ -429,8 +429,9 @@ impl IsotonicCalibrator {
 
     /// Linear interpolation
     fn interpolate(x_query: f64, x_data: &[f64], y_data: &[f64]) -> f64 {
-        if x_data.is_empty() {
-            return 0.5; // Default
+        // Validate inputs: arrays must be non-empty and have matching lengths
+        if x_data.is_empty() || y_data.is_empty() || x_data.len() != y_data.len() {
+            return 0.5; // Default for invalid input
         }
         if x_data.len() == 1 {
             return y_data[0];
