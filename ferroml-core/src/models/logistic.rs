@@ -62,6 +62,15 @@ use serde::{Deserialize, Serialize};
 /// 3. **No multicollinearity**: Features are not highly correlated
 /// 4. **Linearity in log-odds**: log(p/(1-p)) is linear in X
 /// 5. **Large sample size**: For valid inference (asymptotic normality)
+///
+/// ## Numerical Stability
+///
+/// The implementation includes an epsilon fallback in Cholesky decomposition to handle
+/// near-singular Hessians that can occur with **perfect separation** or **quasi-complete
+/// separation** (when a linear combination of features perfectly predicts the outcome).
+///
+/// For datasets prone to separation issues, consider using `with_l2_penalty()` to add
+/// regularization, which stabilizes coefficient estimates.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogisticRegression {
     /// Whether to include an intercept term
@@ -183,7 +192,31 @@ impl LogisticRegression {
         self
     }
 
-    /// Set L2 regularization strength
+    /// Set L2 regularization strength.
+    ///
+    /// # Arguments
+    /// * `penalty` - L2 regularization strength (default: 0.0):
+    ///   - `0.0` - No regularization (standard MLE)
+    ///   - `> 0` - Ridge regularization, shrinks coefficients toward zero
+    ///
+    /// # Numerical Stability
+    /// Use a small positive value (e.g., 0.01-1.0) to prevent numerical issues
+    /// with **near-perfect separation** or **quasi-complete separation**, which
+    /// can cause coefficient estimates to diverge during IRLS optimization.
+    ///
+    /// Signs of separation issues:
+    /// - Very large coefficient magnitudes (|β| > 10)
+    /// - Model fails to converge
+    /// - Standard errors are extremely large
+    ///
+    /// # Example
+    /// ```
+    /// use ferroml_core::models::LogisticRegression;
+    ///
+    /// // For datasets with potential separation issues
+    /// let model = LogisticRegression::new()
+    ///     .with_l2_penalty(1.0);
+    /// ```
     #[must_use]
     pub fn with_l2_penalty(mut self, penalty: f64) -> Self {
         self.l2_penalty = penalty;

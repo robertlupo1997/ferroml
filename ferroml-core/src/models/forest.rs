@@ -120,7 +120,11 @@ pub struct RandomForestClassifier {
     pub bootstrap: bool,
     /// Whether to compute OOB score during fitting
     pub oob_score_enabled: bool,
-    /// Number of parallel jobs (None for all available cores)
+    /// Number of parallel jobs (None for all available cores).
+    ///
+    /// **Reproducibility Note:** Set to `Some(1)` for fully deterministic results
+    /// when combined with `random_state`. Parallel execution introduces non-determinism
+    /// due to thread scheduling, even with a fixed random seed.
     pub n_jobs: Option<usize>,
     /// Random seed for reproducibility
     pub random_state: Option<u64>,
@@ -270,14 +274,42 @@ impl RandomForestClassifier {
         self
     }
 
-    /// Set number of parallel jobs
+    /// Set number of parallel jobs.
+    ///
+    /// # Arguments
+    /// * `n_jobs` - Number of parallel workers:
+    ///   - `None` - Use all available CPU cores (default, fastest)
+    ///   - `Some(1)` - Sequential execution (required for reproducibility)
+    ///   - `Some(n)` - Use n parallel workers
+    ///
+    /// # Reproducibility
+    /// For fully deterministic results, use `with_n_jobs(Some(1))` together with
+    /// `with_random_state(seed)`. Parallel execution introduces non-determinism
+    /// due to thread scheduling and floating-point aggregation order.
+    ///
+    /// # Example
+    /// ```
+    /// use ferroml_core::models::RandomForestClassifier;
+    ///
+    /// // Fast parallel training (non-deterministic)
+    /// let fast_model = RandomForestClassifier::new()
+    ///     .with_random_state(42);
+    ///
+    /// // Reproducible sequential training
+    /// let reproducible_model = RandomForestClassifier::new()
+    ///     .with_random_state(42)
+    ///     .with_n_jobs(Some(1));
+    /// ```
     #[must_use]
     pub fn with_n_jobs(mut self, n_jobs: Option<usize>) -> Self {
         self.n_jobs = n_jobs;
         self
     }
 
-    /// Set random state for reproducibility
+    /// Set random state for reproducibility.
+    ///
+    /// Note: For fully deterministic results, also set `with_n_jobs(Some(1))`.
+    /// Parallel execution can introduce non-determinism even with a fixed seed.
     #[must_use]
     pub fn with_random_state(mut self, random_state: u64) -> Self {
         self.random_state = Some(random_state);
@@ -741,7 +773,11 @@ pub struct RandomForestRegressor {
     pub bootstrap: bool,
     /// Whether to compute OOB score during fitting
     pub oob_score_enabled: bool,
-    /// Number of parallel jobs
+    /// Number of parallel jobs (None for all available cores).
+    ///
+    /// **Reproducibility Note:** Set to `Some(1)` for fully deterministic results
+    /// when combined with `random_state`. Parallel execution introduces non-determinism
+    /// due to thread scheduling, even with a fixed random seed.
     pub n_jobs: Option<usize>,
     /// Random seed for reproducibility
     pub random_state: Option<u64>,
@@ -851,14 +887,42 @@ impl RandomForestRegressor {
         self
     }
 
-    /// Set number of parallel jobs
+    /// Set number of parallel jobs.
+    ///
+    /// # Arguments
+    /// * `n_jobs` - Number of parallel workers:
+    ///   - `None` - Use all available CPU cores (default, fastest)
+    ///   - `Some(1)` - Sequential execution (required for reproducibility)
+    ///   - `Some(n)` - Use n parallel workers
+    ///
+    /// # Reproducibility
+    /// For fully deterministic results, use `with_n_jobs(Some(1))` together with
+    /// `with_random_state(seed)`. Parallel execution introduces non-determinism
+    /// due to thread scheduling and floating-point aggregation order.
+    ///
+    /// # Example
+    /// ```
+    /// use ferroml_core::models::RandomForestRegressor;
+    ///
+    /// // Fast parallel training (non-deterministic)
+    /// let fast_model = RandomForestRegressor::new()
+    ///     .with_random_state(42);
+    ///
+    /// // Reproducible sequential training
+    /// let reproducible_model = RandomForestRegressor::new()
+    ///     .with_random_state(42)
+    ///     .with_n_jobs(Some(1));
+    /// ```
     #[must_use]
     pub fn with_n_jobs(mut self, n_jobs: Option<usize>) -> Self {
         self.n_jobs = n_jobs;
         self
     }
 
-    /// Set random state for reproducibility
+    /// Set random state for reproducibility.
+    ///
+    /// Note: For fully deterministic results, also set `with_n_jobs(Some(1))`.
+    /// Parallel execution can introduce non-determinism even with a fixed seed.
     #[must_use]
     pub fn with_random_state(mut self, random_state: u64) -> Self {
         self.random_state = Some(random_state);
