@@ -611,8 +611,8 @@ impl LogisticRegression {
             null_log_likelihood,
             deviance,
             null_deviance,
-            df_residuals: n - p,
-            df_null: n - 1,
+            df_residuals: n.saturating_sub(p),
+            df_null: n.saturating_sub(1),
         });
 
         Ok(())
