@@ -90,7 +90,7 @@ pub struct CheckResult {
 
 impl CheckResult {
     /// Create a passing check result
-    #[must_use] 
+    #[must_use]
     pub fn pass(name: &'static str, category: CheckCategory) -> Self {
         Self {
             name,
@@ -375,7 +375,7 @@ pub fn assert_estimator_valid<M: Model + Clone + Send + Sync + 'static>(model: M
 }
 
 /// Summary statistics for check results
-#[must_use] 
+#[must_use]
 pub fn summarize_results(results: &[CheckResult]) -> CheckSummary {
     let total = results.len();
     let passed = results.iter().filter(|r| r.passed).count();
