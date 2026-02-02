@@ -824,7 +824,7 @@ mod sparse_matrix_operations_tests {
 #[cfg(test)]
 mod memory_efficiency_tests {
     use super::*;
-    use crate::sparse::{CsrMatrix, SparseMatrixInfo};
+    use crate::sparse::{sparse_eye, CsrMatrix, SparseMatrixInfo};
 
     /// Test that highly sparse data uses less memory in sparse format
     #[test]

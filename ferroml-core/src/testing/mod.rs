@@ -55,6 +55,8 @@ pub mod onnx;
 pub mod probabilistic;
 pub mod properties;
 pub mod serialization;
+#[cfg(feature = "sparse")]
+pub mod sparse_tests;
 pub mod transformer;
 pub mod utils;
 pub mod weights;
