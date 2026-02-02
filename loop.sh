@@ -6,7 +6,8 @@
 #   ./loop.sh 20        - Build mode, max 20 iterations
 #   ./loop.sh plan 5    - Plan mode, max 5 iterations
 
-set -e
+# Note: Do NOT use 'set -e' here - we handle errors manually
+# and want the loop to continue even if individual iterations fail
 
 MODE="build"
 MAX_ITERATIONS=0
