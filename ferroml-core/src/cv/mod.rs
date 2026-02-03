@@ -689,7 +689,8 @@ pub(crate) fn select_rows(array: &Array2<f64>, indices: &[usize]) -> Array2<f64>
         }
     }
 
-    Array2::from_shape_vec((n_rows, n_cols), data).expect("Shape mismatch in select_rows")
+    Array2::from_shape_vec((n_rows, n_cols), data)
+        .expect("select_rows: shape mismatch - data length does not match n_rows * n_cols")
 }
 
 /// Select elements from a 1D array by indices

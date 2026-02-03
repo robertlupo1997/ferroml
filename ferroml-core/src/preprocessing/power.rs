@@ -218,14 +218,14 @@ impl PowerTransformer {
     fn yeo_johnson_transform(x: f64, lambda: f64) -> f64 {
         if x >= 0.0 {
             if lambda.abs() < 1e-10 {
-                (x + 1.0).ln()
+                x.ln_1p() // More precise than (x + 1.0).ln() for small x
             } else {
                 ((x + 1.0).powf(lambda) - 1.0) / lambda
             }
         } else {
             // x < 0
             if (lambda - 2.0).abs() < 1e-10 {
-                -((-x + 1.0).ln())
+                -(-x).ln_1p() // More precise than -((-x + 1.0).ln()) for small |x|
             } else {
                 -((-x + 1.0).powf(2.0 - lambda) - 1.0) / (2.0 - lambda)
             }
@@ -338,9 +338,9 @@ impl PowerTransformer {
             .iter()
             .map(|&xi| {
                 if xi >= 0.0 {
-                    (lambda - 1.0) * (xi + 1.0).ln()
+                    (lambda - 1.0) * xi.ln_1p() // More precise than (xi + 1.0).ln()
                 } else {
-                    (1.0 - lambda) * (-xi + 1.0).ln()
+                    (1.0 - lambda) * (-xi).ln_1p() // More precise than (-xi + 1.0).ln()
                 }
             })
             .sum();

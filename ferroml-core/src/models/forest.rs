@@ -681,7 +681,7 @@ impl Model for RandomForestClassifier {
                 .with_random_state(seed);
 
             tree.fit(&x_bootstrap, &y_bootstrap)
-                .expect("Failed to fit tree");
+                .expect("RandomForestClassifier: failed to fit decision tree on bootstrap sample");
             tree
         };
 
@@ -1214,7 +1214,7 @@ impl Model for RandomForestRegressor {
                 .with_random_state(seed);
 
             tree.fit(&x_bootstrap, &y_bootstrap)
-                .expect("Failed to fit tree");
+                .expect("RandomForestRegressor: failed to fit decision tree on bootstrap sample");
             tree
         };
 

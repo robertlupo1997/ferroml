@@ -620,7 +620,7 @@ impl DecisionTreeClassifier {
         let impurity = match self.criterion {
             SplitCriterion::Gini => gini_impurity(&class_counts, n_samples),
             SplitCriterion::Entropy => entropy(&class_counts, n_samples),
-            _ => unreachable!(),
+            _ => panic!("Invalid criterion {:?} for classification tree; use Gini or Entropy", self.criterion),
         };
 
         // Node value (class counts as floats)
@@ -974,12 +974,12 @@ impl DecisionTreeClassifier {
                 let left_impurity = match self.criterion {
                     SplitCriterion::Gini => gini_impurity(&left_counts, left_indices.len()),
                     SplitCriterion::Entropy => entropy(&left_counts, left_indices.len()),
-                    _ => unreachable!(),
+                    _ => panic!("Invalid criterion {:?} for classification tree; use Gini or Entropy", self.criterion),
                 };
                 let right_impurity = match self.criterion {
                     SplitCriterion::Gini => gini_impurity(&right_counts, right_indices.len()),
                     SplitCriterion::Entropy => entropy(&right_counts, right_indices.len()),
-                    _ => unreachable!(),
+                    _ => panic!("Invalid criterion {:?} for classification tree; use Gini or Entropy", self.criterion),
                 };
 
                 // Weighted impurity decrease
@@ -1423,7 +1423,7 @@ impl DecisionTreeRegressor {
         let impurity = match self.criterion {
             SplitCriterion::Mse => mse(&values),
             SplitCriterion::Mae => mae(&values),
-            _ => unreachable!(),
+            _ => panic!("Invalid criterion {:?} for regression tree; use Mse or Mae", self.criterion),
         };
 
         // Node value (mean prediction)
@@ -1546,12 +1546,12 @@ impl DecisionTreeRegressor {
                 let left_impurity = match self.criterion {
                     SplitCriterion::Mse => mse(&left_values),
                     SplitCriterion::Mae => mae(&left_values),
-                    _ => unreachable!(),
+                    _ => panic!("Invalid criterion {:?} for regression tree; use Mse or Mae", self.criterion),
                 };
                 let right_impurity = match self.criterion {
                     SplitCriterion::Mse => mse(&right_values),
                     SplitCriterion::Mae => mae(&right_values),
-                    _ => unreachable!(),
+                    _ => panic!("Invalid criterion {:?} for regression tree; use Mse or Mae", self.criterion),
                 };
 
                 // Weighted impurity decrease

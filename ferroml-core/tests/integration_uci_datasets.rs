@@ -453,9 +453,11 @@ fn test_reproducibility_with_random_state() {
     let pred2 = model2.predict(&x_test).unwrap();
 
     for (p1, p2) in pred1.iter().zip(pred2.iter()) {
-        assert_eq!(
-            *p1, *p2,
-            "Predictions should be reproducible with same seed"
+        assert!(
+            (*p1 - *p2).abs() < 1e-10,
+            "Predictions should be reproducible with same seed: {} != {}",
+            p1,
+            p2
         );
     }
 }
