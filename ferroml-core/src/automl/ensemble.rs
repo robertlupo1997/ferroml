@@ -297,7 +297,11 @@ impl EnsembleResult {
     /// Get models sorted by weight (descending)
     pub fn members_by_weight(&self) -> Vec<&EnsembleMember> {
         let mut sorted: Vec<_> = self.members.iter().collect();
-        sorted.sort_by(|a, b| b.weight.partial_cmp(&a.weight).unwrap());
+        sorted.sort_by(|a, b| {
+            b.weight
+                .partial_cmp(&a.weight)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         sorted
     }
 
@@ -363,7 +367,10 @@ impl EnsembleBuilder {
         let best_single = valid_trials
             .iter()
             .max_by(|a, b| {
-                let cmp = a.cv_score.partial_cmp(&b.cv_score).unwrap();
+                let cmp = a
+                    .cv_score
+                    .partial_cmp(&b.cv_score)
+                    .unwrap_or(std::cmp::Ordering::Equal);
                 if self.config.maximize {
                     cmp
                 } else {

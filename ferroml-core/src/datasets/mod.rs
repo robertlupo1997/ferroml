@@ -418,7 +418,9 @@ impl Dataset {
 
             let min = sorted.first().copied().unwrap_or(f64::NAN);
             let max = sorted.last().copied().unwrap_or(f64::NAN);
-            let median = if sorted.len() % 2 == 0 {
+            let median = if sorted.is_empty() {
+                f64::NAN
+            } else if sorted.len() % 2 == 0 {
                 (sorted[sorted.len() / 2 - 1] + sorted[sorted.len() / 2]) / 2.0
             } else {
                 sorted[sorted.len() / 2]

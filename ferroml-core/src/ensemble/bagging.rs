@@ -361,7 +361,7 @@ impl BaggingClassifier {
     /// Extract unique classes from target array
     fn extract_classes(y: &Array1<f64>) -> Array1<f64> {
         let mut classes: Vec<f64> = y.iter().copied().collect();
-        classes.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         classes.dedup();
         Array1::from_vec(classes)
     }
@@ -478,7 +478,7 @@ impl BaggingClassifier {
                     .iter()
                     .enumerate()
                     .max_by(|(_, a): &(usize, &f64), (_, b): &(usize, &f64)| {
-                        a.partial_cmp(b).unwrap()
+                        a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
                     })
                     .map(|(idx, _)| idx)
                     .unwrap_or(0);
@@ -630,7 +630,7 @@ impl Model for BaggingClassifier {
                 let max_idx = row
                     .iter()
                     .enumerate()
-                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                     .map(|(idx, _)| idx)
                     .unwrap_or(0);
                 classes[max_idx]

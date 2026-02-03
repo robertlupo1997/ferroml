@@ -250,14 +250,18 @@ impl AutoMLResult {
                 "┌─ Ensemble ───────────────────────────────────────────────────┐".to_string(),
             );
             lines.push(format!("│  Score: {:.4}", ensemble.ensemble_score));
-            lines.push(format!(
-                "│  Improvement over best: {:.4} ({:.2}%)",
-                ensemble.improvement,
-                if self.best_model().map_or(0.0, |b| b.cv_score) != 0.0 {
-                    (ensemble.improvement / self.best_model().unwrap().cv_score.abs()) * 100.0
+            let improvement_pct = if let Some(best) = self.best_model() {
+                if best.cv_score != 0.0 {
+                    (ensemble.improvement / best.cv_score.abs()) * 100.0
                 } else {
                     0.0
                 }
+            } else {
+                0.0
+            };
+            lines.push(format!(
+                "│  Improvement over best: {:.4} ({:.2}%)",
+                ensemble.improvement, improvement_pct
             ));
             lines.push(format!("│  Models in ensemble: {}", ensemble.members.len()));
             lines.push(
@@ -822,7 +826,10 @@ impl AutoML {
         // Step 6: Build leaderboard
         let mut successful_trials: Vec<_> = trials.iter().filter(|t| t.success).collect();
         successful_trials.sort_by(|a, b| {
-            let cmp = a.cv_score.partial_cmp(&b.cv_score).unwrap();
+            let cmp = a
+                .cv_score
+                .partial_cmp(&b.cv_score)
+                .unwrap_or(std::cmp::Ordering::Equal);
             if maximize {
                 cmp.reverse()
             } else {

@@ -199,10 +199,13 @@ fn main() -> ferroml_core::Result<()> {
     if let Some(importance) = model.feature_importance() {
         let feature_names = ["education_years", "experience_years"];
         let mut pairs: Vec<_> = feature_names.iter().zip(importance.iter()).collect();
-        pairs.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+        pairs.sort_by(|a, b| {
+            b.1.partial_cmp(a.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         for (name, &imp) in pairs {
-            let bar_len = (imp * 2.0).min(40.0) as usize;
+            let bar_len = (imp * 2.0).clamp(0.0, 40.0) as usize;
             let bar = "█".repeat(bar_len);
             println!("{:<20} {:>8.4} {}", name, imp, bar);
         }

@@ -686,7 +686,9 @@ impl RobustRegression {
         // Robust objective function value for null model (just mean/median)
         let mut sorted_y: Vec<f64> = y.iter().copied().collect();
         sorted_y.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        let median_y = if sorted_y.len() % 2 == 0 {
+        let median_y = if sorted_y.is_empty() {
+            f64::NAN
+        } else if sorted_y.len() % 2 == 0 {
             (sorted_y[sorted_y.len() / 2 - 1] + sorted_y[sorted_y.len() / 2]) / 2.0
         } else {
             sorted_y[sorted_y.len() / 2]
