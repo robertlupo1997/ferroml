@@ -404,7 +404,7 @@ pub fn check_probabilistic_model<M: ProbabilisticModel + Clone>(
     results.push(check_prediction_interval_bounds(model.clone(), x, y));
     results.push(check_prediction_interval_confidence(model.clone(), x, y));
     results.push(check_proba_not_degenerate(model.clone(), x, y));
-    results.push(check_predict_proba_consistent(model.clone(), x, y));
+    results.push(check_predict_proba_consistent(model, x, y));
 
     results
 }

@@ -354,7 +354,7 @@ impl MetaLearningStore {
         maximize: bool,
     ) {
         let name = name.into();
-        let mut record = DatasetRecord::new(name.clone(), metafeatures, task);
+        let mut record = DatasetRecord::new(name, metafeatures, task);
         record.add_configurations(trials, maximize);
         self.add_record(record);
     }

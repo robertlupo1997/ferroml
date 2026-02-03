@@ -198,7 +198,7 @@ impl Model for RidgeRegression {
         let xty = x_centered.t().dot(&y_centered);
 
         // Add regularization: X'X + αI
-        let mut xtx_reg = xtx.clone();
+        let mut xtx_reg = xtx;
         for i in 0..p {
             xtx_reg[[i, i]] += self.alpha;
         }

@@ -694,7 +694,7 @@ pub fn validate_nan_inf_handling<M: Model + Clone>(model: M) -> Vec<CheckResult>
         check_all_nan_targets(model.clone()),
         // Predict with NaN/Inf
         check_predict_with_nan(model.clone()),
-        check_predict_with_inf(model.clone()),
+        check_predict_with_inf(model),
     ]
 }
 
@@ -706,7 +706,7 @@ pub fn validate_transformer_nan_inf_handling<T: Transformer + Clone>(
         check_transformer_nan_fit(transformer.clone()),
         check_transformer_inf_fit(transformer.clone()),
         check_transformer_nan_transform(transformer.clone()),
-        check_transformer_inf_transform(transformer.clone()),
+        check_transformer_inf_transform(transformer),
     ]
 }
 

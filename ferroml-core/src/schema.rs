@@ -264,7 +264,7 @@ impl FeatureSpec {
         if value.is_nan() || value.is_infinite() {
             if !self.allow_missing {
                 issues.push(ValidationIssue::MissingValue {
-                    feature: feature_name.clone(),
+                    feature: feature_name,
                     feature_idx,
                 });
             }

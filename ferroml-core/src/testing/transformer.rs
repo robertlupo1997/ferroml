@@ -470,7 +470,7 @@ pub fn check_transformer<T: Transformer + Clone>(transformer: T) -> Vec<CheckRes
     results.push(check_transformer_n_features_in(transformer.clone()));
     results.push(check_transformer_fit_no_modify(transformer.clone()));
     results.push(check_transformer_transform_no_modify(transformer.clone()));
-    results.push(check_transformer_constant_feature(transformer.clone()));
+    results.push(check_transformer_constant_feature(transformer));
 
     results
 }

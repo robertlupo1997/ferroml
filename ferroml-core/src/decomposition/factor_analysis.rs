@@ -684,7 +684,7 @@ impl FactorAnalysis {
 
         // E[F F^T|X] = β + E[F|X] E[F|X]^T (averaged)
         // We compute the average over samples: 1/n Σ E[F F^T|X_i]
-        let mut exp_fft = beta.clone();
+        let mut exp_fft = beta;
         let eft_outer = exp_f.t().dot(&exp_f) / n_samples as f64;
         for i in 0..n_factors {
             for j in 0..n_factors {
@@ -1110,7 +1110,7 @@ fn promax_rotation(
     let ltl = varimax_loadings.t().dot(varimax_loadings);
 
     // Add small regularization for numerical stability
-    let mut ltl_reg = ltl.clone();
+    let mut ltl_reg = ltl;
     for i in 0..n_factors {
         ltl_reg[[i, i]] += 1e-8;
     }

@@ -527,7 +527,7 @@ impl BallTree {
         let split_dim = Self::find_split_dimension(data, &indices, n_dims);
 
         // Split by median along this dimension
-        let mut sorted_indices = indices.clone();
+        let mut sorted_indices = indices;
         sorted_indices.sort_by(|&a, &b| {
             data[[a, split_dim]]
                 .partial_cmp(&data[[b, split_dim]])

@@ -547,7 +547,7 @@ impl Model for LinearRegression {
         self.fitted_data = Some(FittedData {
             n_samples: n,
             n_features: p_orig,
-            residuals: residuals.clone(),
+            residuals,
             fitted_values,
             y: y.clone(),
             leverage,

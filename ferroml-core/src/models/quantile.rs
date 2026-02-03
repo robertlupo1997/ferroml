@@ -583,7 +583,7 @@ impl Model for QuantileRegression {
         self.fitted_data = Some(FittedQuantileData {
             n_samples: n,
             n_features: p_orig,
-            residuals: residuals.clone(),
+            residuals,
             fitted_values,
             y: y.clone(),
             quantile_loss,

@@ -820,7 +820,7 @@ impl Scheduler for HyperbandScheduler {
         }
 
         // Sort by value (ascending for minimization)
-        let mut sorted = trials_at_rung.clone();
+        let mut sorted = trials_at_rung;
         sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
         // Keep top 1/eta configs
@@ -887,7 +887,7 @@ impl Scheduler for ASHAScheduler {
                 }
 
                 // Prune if not in top 1/reduction_factor
-                let mut sorted = trials_at_rung.clone();
+                let mut sorted = trials_at_rung;
                 sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
                 let n_keep = (sorted.len() as f64 / self.reduction_factor).ceil() as usize;

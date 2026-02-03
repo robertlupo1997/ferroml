@@ -1223,7 +1223,7 @@ where
     let x = Array2::from_shape_fn((30, 5), |(i, j)| ((i * 3 + j) as f64) + 1.0);
 
     // Use fit_transform
-    let mut t1 = transformer.clone();
+    let mut t1 = transformer;
     let fit_transformed = match t1.fit_transform(&x) {
         Ok(t) => t,
         Err(e) => {

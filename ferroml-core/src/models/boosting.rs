@@ -139,7 +139,7 @@ impl RegressionLoss {
                 let abs_residuals: Vec<f64> = residuals.iter().map(|&r| r.abs()).collect();
 
                 // Compute delta as the alpha-quantile of absolute residuals
-                let mut sorted_abs = abs_residuals.clone();
+                let mut sorted_abs = abs_residuals;
                 sorted_abs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 let delta_idx =
                     ((alpha * sorted_abs.len() as f64) as usize).min(sorted_abs.len() - 1);
@@ -185,7 +185,7 @@ impl RegressionLoss {
                     .collect();
                 let abs_residuals: Vec<f64> = residuals.iter().map(|&r| r.abs()).collect();
 
-                let mut sorted_abs = abs_residuals.clone();
+                let mut sorted_abs = abs_residuals;
                 sorted_abs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 let delta_idx =
                     ((alpha * sorted_abs.len() as f64) as usize).min(sorted_abs.len() - 1);

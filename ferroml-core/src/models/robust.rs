@@ -820,7 +820,7 @@ impl Model for RobustRegression {
         self.fitted_data = Some(FittedRobustData {
             n_samples: n,
             n_features: p_orig,
-            residuals: residuals.clone(),
+            residuals,
             fitted_values,
             y: y.clone(),
             scale,

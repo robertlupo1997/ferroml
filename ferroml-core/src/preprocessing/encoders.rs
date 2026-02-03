@@ -444,8 +444,8 @@ impl Transformer for OrdinalEncoder {
             // Preserve order of first appearance
             for val in x.column(j) {
                 let key = OrderedF64(*val);
-                if !seen.contains(&key) {
-                    seen.insert(key);
+                if seen.insert(key) {
+                    // insert() returns true if value was newly inserted
                     category_to_code.insert((j, key), cats.len());
                     cats.push(*val);
                 }
@@ -619,8 +619,8 @@ impl LabelEncoder {
 
         for &val in y.iter() {
             let key = OrderedF64(val);
-            if !seen.contains(&key) {
-                seen.insert(key);
+            if seen.insert(key) {
+                // insert() returns true if value was newly inserted
                 class_to_code.insert(key, classes.len());
                 classes.push(val);
             }
