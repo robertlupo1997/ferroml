@@ -54,6 +54,7 @@ pub mod ensemble_advanced;
 pub mod explainability;
 pub mod hpo;
 pub mod incremental;
+pub mod metrics;
 pub mod nan_inf_validation;
 pub mod onnx;
 pub mod probabilistic;
