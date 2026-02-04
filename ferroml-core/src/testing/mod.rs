@@ -47,6 +47,7 @@
 pub mod assertions;
 pub mod automl;
 pub mod callbacks;
+pub mod categorical;
 pub mod checks;
 pub mod cv_advanced;
 pub mod ensemble_advanced;
