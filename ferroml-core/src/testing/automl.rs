@@ -1411,10 +1411,9 @@ mod zero_budget_edge_case_tests {
         let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
 
         // Test UCB1 strategy
-        let config_ucb = TimeBudgetConfig::new(0)
-            .with_strategy(BanditStrategy::UCB1 {
-                exploration_constant: 2.0,
-            });
+        let config_ucb = TimeBudgetConfig::new(0).with_strategy(BanditStrategy::UCB1 {
+            exploration_constant: 2.0,
+        });
         let mut allocator_ucb = TimeBudgetAllocator::new(config_ucb, &portfolio);
         allocator_ucb.start();
         assert!(
@@ -1423,11 +1422,10 @@ mod zero_budget_edge_case_tests {
         );
 
         // Test Thompson Sampling strategy
-        let config_ts = TimeBudgetConfig::new(0)
-            .with_strategy(BanditStrategy::ThompsonSampling {
-                prior_alpha: 1.0,
-                prior_beta: 1.0,
-            });
+        let config_ts = TimeBudgetConfig::new(0).with_strategy(BanditStrategy::ThompsonSampling {
+            prior_alpha: 1.0,
+            prior_beta: 1.0,
+        });
         let mut allocator_ts = TimeBudgetAllocator::new(config_ts, &portfolio);
         allocator_ts.start();
         assert!(
@@ -1436,11 +1434,10 @@ mod zero_budget_edge_case_tests {
         );
 
         // Test Epsilon-Greedy strategy
-        let config_eg = TimeBudgetConfig::new(0)
-            .with_strategy(BanditStrategy::EpsilonGreedy {
-                epsilon: 0.5,
-                decay: 0.9,
-            });
+        let config_eg = TimeBudgetConfig::new(0).with_strategy(BanditStrategy::EpsilonGreedy {
+            epsilon: 0.5,
+            decay: 0.9,
+        });
         let mut allocator_eg = TimeBudgetAllocator::new(config_eg, &portfolio);
         allocator_eg.start();
         assert!(
@@ -1449,12 +1446,11 @@ mod zero_budget_edge_case_tests {
         );
 
         // Test Successive Halving strategy
-        let config_sh = TimeBudgetConfig::new(0)
-            .with_strategy(BanditStrategy::SuccessiveHalving {
-                min_resource: 1.0,
-                max_resource: 100.0,
-                eta: 3.0,
-            });
+        let config_sh = TimeBudgetConfig::new(0).with_strategy(BanditStrategy::SuccessiveHalving {
+            min_resource: 1.0,
+            max_resource: 100.0,
+            eta: 3.0,
+        });
         let mut allocator_sh = TimeBudgetAllocator::new(config_sh, &portfolio);
         allocator_sh.start();
         assert!(
@@ -1481,8 +1477,14 @@ mod zero_budget_edge_case_tests {
             }
         }
 
-        assert_eq!(iterations, 0, "No iterations should be possible with zero budget");
-        assert_eq!(allocator.total_trials, 0, "No trials should have been executed");
+        assert_eq!(
+            iterations, 0,
+            "No iterations should be possible with zero budget"
+        );
+        assert_eq!(
+            allocator.total_trials, 0,
+            "No trials should have been executed"
+        );
     }
 
     /// Test zero budget summary is valid
@@ -1500,16 +1502,18 @@ mod zero_budget_edge_case_tests {
         assert_eq!(summary.total_trials, 0);
         assert!(summary.global_best_score.is_infinite() && summary.global_best_score < 0.0);
         assert!(summary.best_algorithm.is_none());
-        assert!((summary.budget_used_percent() - 0.0).abs() < 1e-10 || summary.budget_used_percent().is_nan(),
-            "Budget used should be 0% or NaN for zero budget");
+        assert!(
+            (summary.budget_used_percent() - 0.0).abs() < 1e-10
+                || summary.budget_used_percent().is_nan(),
+            "Budget used should be 0% or NaN for zero budget"
+        );
     }
 
     /// Test zero initial trial budget edge case
     #[test]
     fn test_zero_initial_trial_budget() {
         let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
-        let config = TimeBudgetConfig::new(3600)
-            .with_initial_trial_budget(0.0);
+        let config = TimeBudgetConfig::new(3600).with_initial_trial_budget(0.0);
 
         let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
         allocator.start();
@@ -1535,8 +1539,7 @@ mod zero_budget_edge_case_tests {
     #[test]
     fn test_zero_max_trial_time() {
         let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Quick);
-        let config = TimeBudgetConfig::new(3600)
-            .with_max_trial_time(0.0);
+        let config = TimeBudgetConfig::new(3600).with_max_trial_time(0.0);
 
         let mut allocator = TimeBudgetAllocator::new(config, &portfolio);
         allocator.start();
@@ -1622,10 +1625,7 @@ mod zero_budget_edge_case_tests {
 
         // Elapsed time tracking should work
         let elapsed = allocator.elapsed();
-        assert!(
-            elapsed >= Duration::ZERO,
-            "Elapsed time should be valid"
-        );
+        assert!(elapsed >= Duration::ZERO, "Elapsed time should be valid");
     }
 
     /// Test reset behavior with zero budget
@@ -1645,7 +1645,10 @@ mod zero_budget_edge_case_tests {
 
         // After reset, still exhausted (budget is still 0)
         allocator.start();
-        assert!(allocator.is_budget_exhausted(), "Should still be exhausted after reset");
+        assert!(
+            allocator.is_budget_exhausted(),
+            "Should still be exhausted after reset"
+        );
     }
 
     /// Test concurrent zero budget edge cases
@@ -1682,7 +1685,11 @@ mod zero_budget_edge_case_tests {
 
         // Elapsed before start should be zero
         let elapsed_before = allocator.elapsed();
-        assert_eq!(elapsed_before, Duration::ZERO, "Elapsed before start should be zero");
+        assert_eq!(
+            elapsed_before,
+            Duration::ZERO,
+            "Elapsed before start should be zero"
+        );
 
         allocator.start();
 

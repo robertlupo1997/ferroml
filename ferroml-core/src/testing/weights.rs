@@ -141,7 +141,8 @@ fn compute_recall_per_class(
     y_true: &Array1<f64>,
     y_pred: &Array1<f64>,
 ) -> std::collections::HashMap<i64, f64> {
-    let mut true_positives: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();
+    let mut true_positives: std::collections::HashMap<i64, usize> =
+        std::collections::HashMap::new();
     let mut actual_positives: std::collections::HashMap<i64, usize> =
         std::collections::HashMap::new();
 
@@ -185,14 +186,18 @@ mod class_weight_balanced_tests {
         let mut model_unweighted = LogisticRegression::new()
             .with_max_iter(200)
             .with_class_weight(ClassWeight::Uniform);
-        model_unweighted.fit(&x, &y).expect("Failed to fit unweighted model");
+        model_unweighted
+            .fit(&x, &y)
+            .expect("Failed to fit unweighted model");
         let pred_unweighted = model_unweighted.predict(&x).expect("Failed to predict");
 
         // Train with balanced class weights
         let mut model_balanced = LogisticRegression::new()
             .with_max_iter(200)
             .with_class_weight(ClassWeight::Balanced);
-        model_balanced.fit(&x, &y).expect("Failed to fit balanced model");
+        model_balanced
+            .fit(&x, &y)
+            .expect("Failed to fit balanced model");
         let pred_balanced = model_balanced.predict(&x).expect("Failed to predict");
 
         // Compute per-class recall
@@ -222,14 +227,18 @@ mod class_weight_balanced_tests {
         let mut model_unweighted = DecisionTreeClassifier::new()
             .with_max_depth(Some(5))
             .with_class_weight(ClassWeight::Uniform);
-        model_unweighted.fit(&x, &y).expect("Failed to fit unweighted model");
+        model_unweighted
+            .fit(&x, &y)
+            .expect("Failed to fit unweighted model");
         let pred_unweighted = model_unweighted.predict(&x).expect("Failed to predict");
 
         // Train with balanced class weights
         let mut model_balanced = DecisionTreeClassifier::new()
             .with_max_depth(Some(5))
             .with_class_weight(ClassWeight::Balanced);
-        model_balanced.fit(&x, &y).expect("Failed to fit balanced model");
+        model_balanced
+            .fit(&x, &y)
+            .expect("Failed to fit balanced model");
         let pred_balanced = model_balanced.predict(&x).expect("Failed to predict");
 
         // Verify both models produce valid predictions
@@ -241,7 +250,10 @@ mod class_weight_balanced_tests {
         let recall_balanced = compute_recall_per_class(&y, &pred_balanced);
 
         // Both models should have valid recalls
-        assert!(recall_unweighted.contains_key(&1), "Unweighted model should predict minority class");
+        assert!(
+            recall_unweighted.contains_key(&1),
+            "Unweighted model should predict minority class"
+        );
         assert!(recall_balanced.contains_key(&0) || recall_balanced.contains_key(&1));
     }
 
@@ -254,14 +266,18 @@ mod class_weight_balanced_tests {
         let mut model_unweighted = SVC::new()
             .with_c(1.0)
             .with_class_weight(ClassWeight::Uniform);
-        model_unweighted.fit(&x, &y).expect("Failed to fit unweighted model");
+        model_unweighted
+            .fit(&x, &y)
+            .expect("Failed to fit unweighted model");
         let pred_unweighted = model_unweighted.predict(&x).expect("Failed to predict");
 
         // Train with balanced class weights
         let mut model_balanced = SVC::new()
             .with_c(1.0)
             .with_class_weight(ClassWeight::Balanced);
-        model_balanced.fit(&x, &y).expect("Failed to fit balanced model");
+        model_balanced
+            .fit(&x, &y)
+            .expect("Failed to fit balanced model");
         let pred_balanced = model_balanced.predict(&x).expect("Failed to predict");
 
         // Verify both models produce valid predictions
@@ -280,14 +296,8 @@ mod class_weight_balanced_tests {
         );
 
         // Log for debugging
-        println!(
-            "SVC Unweighted recalls: {:?}",
-            recall_unweighted
-        );
-        println!(
-            "SVC Balanced recalls: {:?}",
-            recall_balanced
-        );
+        println!("SVC Unweighted recalls: {:?}", recall_unweighted);
+        println!("SVC Balanced recalls: {:?}", recall_balanced);
     }
 
     /// Test that GradientBoostingClassifier with balanced weights works
@@ -425,9 +435,7 @@ mod custom_class_weights_tests {
         // Custom weights
         let custom_weights = ClassWeight::Custom(vec![(0.0, 2.0), (1.0, 1.0)]);
 
-        let mut model = SVC::new()
-            .with_c(1.0)
-            .with_class_weight(custom_weights);
+        let mut model = SVC::new().with_c(1.0).with_class_weight(custom_weights);
 
         model.fit(&x, &y).expect("Failed to fit model");
         let predictions = model.predict(&x).expect("Failed to predict");
@@ -448,13 +456,18 @@ mod custom_class_weights_tests {
             .with_class_weight(custom_weights);
 
         // Should still fit without error
-        model.fit(&x, &y).expect("Failed to fit model with near-zero weight");
+        model
+            .fit(&x, &y)
+            .expect("Failed to fit model with near-zero weight");
         let predictions = model.predict(&x).expect("Failed to predict");
 
         assert_eq!(predictions.len(), y.len());
 
         // Model should strongly favor class 1
-        let class_1_predictions = predictions.iter().filter(|&&p| (p - 1.0).abs() < 1e-10).count();
+        let class_1_predictions = predictions
+            .iter()
+            .filter(|&&p| (p - 1.0).abs() < 1e-10)
+            .count();
         println!(
             "With near-zero weight on class 0, class 1 predictions: {}/{}",
             class_1_predictions,
@@ -503,7 +516,11 @@ mod sample_weight_tests {
         // All weights should be 1.0 for uniform
         assert_eq!(weights.len(), y.len());
         for w in weights.iter() {
-            assert!((w - 1.0).abs() < 1e-10, "Uniform weight should be 1.0, got {}", w);
+            assert!(
+                (w - 1.0).abs() < 1e-10,
+                "Uniform weight should be 1.0, got {}",
+                w
+            );
         }
     }
 
@@ -543,10 +560,22 @@ mod sample_weight_tests {
         let weights = compute_sample_weights(&y, &classes, &custom);
 
         assert_eq!(weights.len(), y.len());
-        assert!((weights[0] - 2.0).abs() < 1e-10, "Class 0 weight should be 2.0");
-        assert!((weights[1] - 2.0).abs() < 1e-10, "Class 0 weight should be 2.0");
-        assert!((weights[2] - 5.0).abs() < 1e-10, "Class 1 weight should be 5.0");
-        assert!((weights[3] - 5.0).abs() < 1e-10, "Class 1 weight should be 5.0");
+        assert!(
+            (weights[0] - 2.0).abs() < 1e-10,
+            "Class 0 weight should be 2.0"
+        );
+        assert!(
+            (weights[1] - 2.0).abs() < 1e-10,
+            "Class 0 weight should be 2.0"
+        );
+        assert!(
+            (weights[2] - 5.0).abs() < 1e-10,
+            "Class 1 weight should be 5.0"
+        );
+        assert!(
+            (weights[3] - 5.0).abs() < 1e-10,
+            "Class 1 weight should be 5.0"
+        );
     }
 
     /// Test that sample weights affect model training
@@ -737,13 +766,18 @@ mod edge_case_tests {
             .with_max_depth(Some(5))
             .with_class_weight(extreme_weights);
 
-        model.fit(&x, &y).expect("Failed to fit with extreme weights");
+        model
+            .fit(&x, &y)
+            .expect("Failed to fit with extreme weights");
         let predictions = model.predict(&x).expect("Failed to predict");
 
         assert_eq!(predictions.len(), y.len());
 
         // With extreme weight on class 1, most predictions should be class 1
-        let class_1_count = predictions.iter().filter(|&&p| (p - 1.0).abs() < 1e-10).count();
+        let class_1_count = predictions
+            .iter()
+            .filter(|&&p| (p - 1.0).abs() < 1e-10)
+            .count();
         println!(
             "With extreme weight (1:1000), class 1 predictions: {}/{}",
             class_1_count,
@@ -764,7 +798,9 @@ mod edge_case_tests {
             .with_max_depth(Some(2))
             .with_class_weight(ClassWeight::Balanced);
 
-        model.fit(&x, &y).expect("Failed to fit with single samples");
+        model
+            .fit(&x, &y)
+            .expect("Failed to fit with single samples");
         let predictions = model.predict(&x).expect("Failed to predict");
 
         assert_eq!(predictions.len(), 2);
@@ -805,7 +841,11 @@ mod edge_case_tests {
         let predictions = model.predict(&x).expect("Failed to predict");
 
         for pred in predictions.iter() {
-            assert!(pred.is_finite(), "Prediction should be finite, got {}", pred);
+            assert!(
+                pred.is_finite(),
+                "Prediction should be finite, got {}",
+                pred
+            );
             assert!(!pred.is_nan(), "Prediction should not be NaN");
         }
     }
@@ -820,10 +860,16 @@ mod edge_case_tests {
             .with_class_weight(ClassWeight::Balanced);
 
         model.fit(&x, &y).expect("Failed to fit");
-        let probas = model.predict_proba(&x).expect("Failed to predict probabilities");
+        let probas = model
+            .predict_proba(&x)
+            .expect("Failed to predict probabilities");
 
         // LogisticRegression.predict_proba returns [P(class=0), P(class=1)] for each sample
-        assert_eq!(probas.ncols(), 2, "Binary LogisticRegression returns two columns [P(class=0), P(class=1)]");
+        assert_eq!(
+            probas.ncols(),
+            2,
+            "Binary LogisticRegression returns two columns [P(class=0), P(class=1)]"
+        );
 
         // Check probability constraints - each value should be valid probability
         for row in probas.rows() {
@@ -878,7 +924,11 @@ mod model_specific_tests {
 
         // Verify coefficients are accessible
         let coefficients = model.coefficients().expect("Should have coefficients");
-        assert_eq!(coefficients.len(), 3, "Should have 3 coefficients for 3 features");
+        assert_eq!(
+            coefficients.len(),
+            3,
+            "Should have 3 coefficients for 3 features"
+        );
 
         // Coefficients should be finite
         for coef in coefficients.iter() {
@@ -902,7 +952,9 @@ mod model_specific_tests {
         model.fit(&x, &y).expect("Failed to fit");
 
         // Feature importance should be available (use Model trait's feature_importance method)
-        let importance = model.feature_importance().expect("Should have feature importances");
+        let importance = model
+            .feature_importance()
+            .expect("Should have feature importances");
         assert_eq!(importance.len(), 5, "Should have importance for 5 features");
 
         // Importances should sum to approximately 1.0
@@ -927,7 +979,9 @@ mod model_specific_tests {
 
         model.fit(&x, &y).expect("Failed to fit");
 
-        let importance = model.feature_importance().expect("Should have feature importances");
+        let importance = model
+            .feature_importance()
+            .expect("Should have feature importances");
         assert_eq!(importance.len(), 5);
 
         // Importances should be non-negative
@@ -952,8 +1006,14 @@ mod model_specific_tests {
 
         // OOB score should be available
         if let Some(oob_score) = model.oob_score() {
-            assert!(oob_score >= 0.0 && oob_score <= 1.0, "OOB score should be in [0,1]");
-            println!("RandomForest OOB score with balanced weights: {:.3}", oob_score);
+            assert!(
+                oob_score >= 0.0 && oob_score <= 1.0,
+                "OOB score should be in [0,1]"
+            );
+            println!(
+                "RandomForest OOB score with balanced weights: {:.3}",
+                oob_score
+            );
         }
     }
 
@@ -1027,7 +1087,10 @@ mod weight_consistency_tests {
             .with_class_weight(ClassWeight::Uniform);
 
         model.fit(&x, &y).expect("Failed to fit");
-        let coef1 = model.coefficients().expect("Failed to get coefficients").to_vec();
+        let coef1 = model
+            .coefficients()
+            .expect("Failed to get coefficients")
+            .to_vec();
 
         // Refit with different class weight by creating a new model
         // (LogisticRegression doesn't support changing class_weight after construction)
@@ -1036,10 +1099,20 @@ mod weight_consistency_tests {
             .with_class_weight(ClassWeight::Custom(vec![(0.0, 1.0), (1.0, 10.0)]));
 
         model2.fit(&x, &y).expect("Failed to fit");
-        let coef2 = model2.coefficients().expect("Failed to get coefficients").to_vec();
+        let coef2 = model2
+            .coefficients()
+            .expect("Failed to get coefficients")
+            .to_vec();
 
         // Coefficients should differ
-        let diff: f64 = coef1.iter().zip(coef2.iter()).map(|(a, b)| (a - b).abs()).sum();
-        assert!(diff > 1e-6, "Coefficients should differ with different weights");
+        let diff: f64 = coef1
+            .iter()
+            .zip(coef2.iter())
+            .map(|(a, b)| (a - b).abs())
+            .sum();
+        assert!(
+            diff > 1e-6,
+            "Coefficients should differ with different weights"
+        );
     }
 }

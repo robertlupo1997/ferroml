@@ -219,9 +219,13 @@ fn bench_simd_vector_operations(c: &mut Criterion) {
         let a: Vec<f64> = (0..size).map(|i| i as f64).collect();
         let b: Vec<f64> = (0..size).map(|i| (size - i) as f64).collect();
 
-        group.bench_with_input(BenchmarkId::new("vector_sub", size), &(&a, &b), |bench, (a, b)| {
-            bench.iter(|| vector_sub(black_box(a), black_box(b)));
-        });
+        group.bench_with_input(
+            BenchmarkId::new("vector_sub", size),
+            &(&a, &b),
+            |bench, (a, b)| {
+                bench.iter(|| vector_sub(black_box(a), black_box(b)));
+            },
+        );
 
         group.bench_with_input(
             BenchmarkId::new("vector_sub_into", size),
@@ -229,7 +233,9 @@ fn bench_simd_vector_operations(c: &mut Criterion) {
             |bench, (a, b)| {
                 // Create a mutable destination for each iteration
                 let mut local_dst = vec![0.0; a.len()];
-                bench.iter(|| vector_sub_into(black_box(a), black_box(b), black_box(&mut local_dst)));
+                bench.iter(|| {
+                    vector_sub_into(black_box(a), black_box(b), black_box(&mut local_dst))
+                });
             },
         );
     }

@@ -1003,7 +1003,8 @@ impl HistTreeBuilder {
         let n_features = x_binned.ncols();
 
         // Pre-compute n_bins for each feature (required for parallel iteration)
-        let n_bins_per_feature: Vec<usize> = (0..n_features).map(|f| bin_mapper.n_bins(f)).collect();
+        let n_bins_per_feature: Vec<usize> =
+            (0..n_features).map(|f| bin_mapper.n_bins(f)).collect();
 
         #[cfg(feature = "parallel")]
         {

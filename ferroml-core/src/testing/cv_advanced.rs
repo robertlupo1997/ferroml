@@ -103,7 +103,12 @@ fn test_nested_cv_fold_counts() {
     let inner_cv = KFold::new(n_inner);
 
     let outer_folds = outer_cv.split(n_samples, None, None).unwrap();
-    assert_eq!(outer_folds.len(), n_outer, "Should have {} outer folds", n_outer);
+    assert_eq!(
+        outer_folds.len(),
+        n_outer,
+        "Should have {} outer folds",
+        n_outer
+    );
 
     for outer_fold in outer_folds {
         let inner_folds = inner_cv
@@ -491,15 +496,9 @@ fn test_reproducibility_with_seed() {
     let n_samples = 50;
     let y = Array1::from_shape_fn(n_samples, |i| (i % 2) as f64);
 
-    let cv1 = StratifiedKFold::new(5)
-        .with_shuffle(true)
-        .with_seed(42);
-    let cv2 = StratifiedKFold::new(5)
-        .with_shuffle(true)
-        .with_seed(42);
-    let cv3 = StratifiedKFold::new(5)
-        .with_shuffle(true)
-        .with_seed(99);
+    let cv1 = StratifiedKFold::new(5).with_shuffle(true).with_seed(42);
+    let cv2 = StratifiedKFold::new(5).with_shuffle(true).with_seed(42);
+    let cv3 = StratifiedKFold::new(5).with_shuffle(true).with_seed(99);
 
     let folds1 = cv1.split(n_samples, Some(&y), None).unwrap();
     let folds2 = cv2.split(n_samples, Some(&y), None).unwrap();
@@ -598,7 +597,7 @@ fn test_kfold_without_shuffle_is_deterministic() {
 use crate::cv::{cross_val_score, CVConfig};
 use crate::hpo::SearchSpace;
 use crate::metrics::{Direction, MetricValue};
-use crate::traits::{Estimator, Predictor, PredictionWithUncertainty};
+use crate::traits::{Estimator, PredictionWithUncertainty, Predictor};
 use ndarray::Array2;
 
 /// Mock estimator that predicts the mean of training y values
@@ -690,7 +689,10 @@ fn test_group_kfold_with_cross_val_score() {
 
     assert_eq!(cv_result.n_folds, 3);
     assert!(cv_result.mean_test_score.is_finite());
-    assert!(cv_result.mean_test_score >= 0.0, "MSE should be non-negative");
+    assert!(
+        cv_result.mean_test_score >= 0.0,
+        "MSE should be non-negative"
+    );
 }
 
 #[test]
@@ -787,7 +789,9 @@ fn test_timeseries_with_gap_and_test_size() {
     let gap = 2;
     let test_size = 8;
 
-    let cv = TimeSeriesSplit::new(3).with_gap(gap).with_test_size(test_size);
+    let cv = TimeSeriesSplit::new(3)
+        .with_gap(gap)
+        .with_test_size(test_size);
     let folds = cv.split(n_samples, None, None).unwrap();
 
     for fold in &folds {
@@ -856,7 +860,11 @@ fn test_kfold_all_samples_tested_once() {
     }
 
     for (idx, &count) in test_count.iter().enumerate() {
-        assert_eq!(count, 1, "Sample {} tested {} times, expected 1", idx, count);
+        assert_eq!(
+            count, 1,
+            "Sample {} tested {} times, expected 1",
+            idx, count
+        );
     }
 }
 

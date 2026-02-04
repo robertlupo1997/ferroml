@@ -42,9 +42,7 @@ fn create_regression_data(n_samples: usize, n_features: usize) -> (Array2<f64>, 
         }
 
         // y = linear combination + noise
-        let y = 2.0 * (i as f64 / 10.0)
-            + 0.5 * ((i as f64) * 0.7).sin()
-            + 0.1 * (i % 5) as f64;
+        let y = 2.0 * (i as f64 / 10.0) + 0.5 * ((i as f64) * 0.7).sin() + 0.1 * (i % 5) as f64;
         y_data.push(y);
     }
 
@@ -189,8 +187,7 @@ fn test_stacking_cv_prevents_train_test_contamination() {
 
     // Should have some variance (not all same prediction)
     let mean_pred = preds.mean().unwrap();
-    let var: f64 =
-        preds.iter().map(|&p| (p - mean_pred).powi(2)).sum::<f64>() / preds.len() as f64;
+    let var: f64 = preds.iter().map(|&p| (p - mean_pred).powi(2)).sum::<f64>() / preds.len() as f64;
     assert!(var > 0.01, "Predictions have no variance");
 }
 
@@ -534,7 +531,10 @@ fn test_passthrough_can_improve_performance() {
     let r2_pass = r2_score(&y, &preds_pass).unwrap();
 
     // Both R² values should be finite
-    assert!(r2_no_pass.is_finite(), "R² without passthrough should be finite");
+    assert!(
+        r2_no_pass.is_finite(),
+        "R² without passthrough should be finite"
+    );
     assert!(r2_pass.is_finite(), "R² with passthrough should be finite");
 }
 
@@ -848,4 +848,293 @@ fn test_stacking_passthrough_flag() {
 
     let stacking_true = StackingRegressor::new(estimators2).with_passthrough(true);
     assert!(stacking_true.passthrough());
+}
+
+// ============================================================================
+// ADDITIONAL DATA LEAKAGE PREVENTION TESTS
+// ============================================================================
+
+#[test]
+fn test_stacking_cv_fold_isolation() {
+    // Verify that with more folds, each sample is tested by models
+    // that never saw it during training (stricter OOF verification)
+
+    let (x, y) = create_regression_data(50, 2);
+
+    // With 10 folds, each sample is in exactly one test fold
+    let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> =
+        vec![("ridge".to_string(), Box::new(RidgeRegression::new(0.1)))];
+
+    let mut stacking = StackingRegressor::new(estimators).with_n_folds(10);
+
+    stacking.fit(&x, &y).unwrap();
+    let preds = stacking.predict(&x).unwrap();
+
+    // All predictions should be finite
+    assert!(preds.iter().all(|&p| p.is_finite()));
+
+    // R² should be reasonable but not suspiciously perfect
+    let r2 = r2_score(&y, &preds).unwrap();
+    assert!(
+        r2 < 0.9999,
+        "R² {} suspiciously perfect - possible leakage",
+        r2
+    );
+}
+
+#[test]
+fn test_stacking_loocv_like_extreme() {
+    // Test with very high fold count (approaching LOOCV)
+    let (x, y) = create_classification_data(20, 3);
+
+    let estimators: Vec<(String, Box<dyn VotingClassifierEstimator>)> =
+        vec![("nb".to_string(), Box::new(GaussianNB::new()))];
+
+    // 10 folds on 20 samples = 2 samples per fold
+    let mut stacking = StackingClassifier::new(estimators).with_n_folds(10);
+
+    let result = stacking.fit(&x, &y);
+    assert!(result.is_ok(), "High fold count should still work");
+
+    let preds = stacking.predict(&x).unwrap();
+    assert!(preds.iter().all(|&p| p.is_finite()));
+}
+
+#[test]
+fn test_stacking_meta_features_not_from_same_model() {
+    // With different regularization, models should produce different predictions
+    // If leakage occurred, we'd see identical outputs
+
+    let (x, y) = create_regression_data(60, 2);
+
+    let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
+        (
+            "ridge_weak".to_string(),
+            Box::new(RidgeRegression::new(0.001)),
+        ),
+        (
+            "ridge_strong".to_string(),
+            Box::new(RidgeRegression::new(100.0)),
+        ),
+    ];
+
+    let mut stacking = StackingRegressor::new(estimators).with_n_folds(5);
+    stacking.fit(&x, &y).unwrap();
+
+    // Get individual predictions - they should differ
+    let individual = stacking.individual_predictions(&x).unwrap();
+
+    // Calculate correlation between the two sets of predictions
+    let preds1 = &individual[0];
+    let preds2 = &individual[1];
+
+    let mean1 = preds1.mean().unwrap();
+    let mean2 = preds2.mean().unwrap();
+
+    let var1: f64 = preds1.iter().map(|&p| (p - mean1).powi(2)).sum();
+    let var2: f64 = preds2.iter().map(|&p| (p - mean2).powi(2)).sum();
+
+    // Predictions should have variance (not identical)
+    assert!(var1 > 0.01, "Weak ridge predictions should have variance");
+    assert!(var2 > 0.01, "Strong ridge predictions should have variance");
+}
+
+// ============================================================================
+// EDGE CASE AND ERROR HANDLING TESTS
+// ============================================================================
+
+#[test]
+#[should_panic(expected = "At least one estimator is required")]
+fn test_stacking_empty_estimators_panics() {
+    let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![];
+    let _stacking = StackingRegressor::new(estimators);
+}
+
+#[test]
+fn test_stacking_with_constant_target() {
+    // Edge case: all y values are the same
+    let x = Array2::from_shape_fn((30, 2), |(i, j)| (i * j + 1) as f64 * 0.1);
+    let y = Array1::from_elem(30, 5.0); // Constant target
+
+    let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> =
+        vec![("ridge".to_string(), Box::new(RidgeRegression::new(1.0)))];
+
+    let mut stacking = StackingRegressor::new(estimators).with_n_folds(3);
+
+    // Should still fit without error
+    let result = stacking.fit(&x, &y);
+    assert!(result.is_ok(), "Should handle constant target");
+
+    let preds = stacking.predict(&x).unwrap();
+    // All predictions should be close to the constant value
+    assert!(preds.iter().all(|&p| (p - 5.0).abs() < 1.0));
+}
+
+#[test]
+fn test_stacking_classifier_single_class_per_fold_edge() {
+    // Create data where classes are well-separated but might cause
+    // issues with stratification in extreme cases
+    let mut x_data = Vec::new();
+    let mut y_data = Vec::new();
+
+    // 40 samples of class 0
+    for i in 0..40 {
+        x_data.push(1.0 + (i as f64) * 0.1);
+        x_data.push(1.0 + (i as f64) * 0.05);
+        y_data.push(0.0);
+    }
+    // 40 samples of class 1
+    for i in 0..40 {
+        x_data.push(5.0 + (i as f64) * 0.1);
+        x_data.push(5.0 + (i as f64) * 0.05);
+        y_data.push(1.0);
+    }
+
+    let x = Array2::from_shape_vec((80, 2), x_data).unwrap();
+    let y = Array1::from_vec(y_data);
+
+    let estimators: Vec<(String, Box<dyn VotingClassifierEstimator>)> = vec![
+        ("nb".to_string(), Box::new(GaussianNB::new())),
+        (
+            "tree".to_string(),
+            Box::new(DecisionTreeClassifier::new().with_max_depth(Some(3))),
+        ),
+    ];
+
+    let mut stacking = StackingClassifier::new(estimators).with_n_folds(4);
+    stacking.fit(&x, &y).unwrap();
+
+    let preds = stacking.predict(&x).unwrap();
+
+    // Predictions should be finite (meta-learner may not output exact class labels)
+    assert!(preds.iter().all(|&p| p.is_finite()));
+
+    // On well-separated data, most predictions should be close to 0 or 1
+    let near_class_count = preds.iter().filter(|&&p| p < 0.3 || p > 0.7).count();
+    assert!(
+        near_class_count > 60,
+        "Most predictions should be near class boundaries on separable data"
+    );
+}
+
+#[test]
+fn test_stacking_fitted_estimator_access() {
+    let (x, y) = create_regression_data(40, 2);
+
+    let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
+        ("model_a".to_string(), Box::new(RidgeRegression::new(0.1))),
+        ("model_b".to_string(), Box::new(RidgeRegression::new(1.0))),
+    ];
+
+    let mut stacking = StackingRegressor::new(estimators);
+
+    // Before fitting, get_fitted_estimator should return None
+    assert!(stacking.get_fitted_estimator("model_a").is_none());
+
+    stacking.fit(&x, &y).unwrap();
+
+    // After fitting, should be able to access fitted estimators
+    assert!(stacking.get_fitted_estimator("model_a").is_some());
+    assert!(stacking.get_fitted_estimator("model_b").is_some());
+    assert!(stacking.get_fitted_estimator("nonexistent").is_none());
+}
+
+#[test]
+fn test_stacking_classifier_fitted_estimator_access() {
+    let (x, y) = create_classification_data(60, 4);
+
+    let estimators: Vec<(String, Box<dyn VotingClassifierEstimator>)> = vec![
+        ("nb".to_string(), Box::new(GaussianNB::new())),
+        (
+            "tree".to_string(),
+            Box::new(DecisionTreeClassifier::new().with_max_depth(Some(3))),
+        ),
+    ];
+
+    let mut stacking = StackingClassifier::new(estimators);
+
+    // Before fitting
+    assert!(stacking.get_fitted_estimator("nb").is_none());
+
+    stacking.fit(&x, &y).unwrap();
+
+    // After fitting
+    assert!(stacking.get_fitted_estimator("nb").is_some());
+    assert!(stacking.get_fitted_estimator("tree").is_some());
+}
+
+#[test]
+fn test_stacking_regressor_reproducibility() {
+    // Same configuration should produce consistent results
+    let (x, y) = create_regression_data(50, 2);
+
+    let create_stacking = || {
+        let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> =
+            vec![("ridge".to_string(), Box::new(RidgeRegression::new(1.0)))];
+        StackingRegressor::new(estimators).with_n_folds(5)
+    };
+
+    let mut stacking1 = create_stacking();
+    let mut stacking2 = create_stacking();
+
+    stacking1.fit(&x, &y).unwrap();
+    stacking2.fit(&x, &y).unwrap();
+
+    let preds1 = stacking1.predict(&x).unwrap();
+    let preds2 = stacking2.predict(&x).unwrap();
+
+    // Predictions should be very close (deterministic behavior)
+    let max_diff: f64 = preds1
+        .iter()
+        .zip(preds2.iter())
+        .map(|(a, b)| (a - b).abs())
+        .fold(0.0, f64::max);
+
+    assert!(
+        max_diff < 1e-10,
+        "Same configuration should produce identical results, diff: {}",
+        max_diff
+    );
+}
+
+#[test]
+fn test_stacking_with_high_dimensional_features() {
+    // Test with more features than typical
+    let (x, y) = create_regression_data(60, 10);
+
+    let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> = vec![
+        ("ridge".to_string(), Box::new(RidgeRegression::new(1.0))),
+        (
+            "tree".to_string(),
+            Box::new(DecisionTreeRegressor::new().with_max_depth(Some(4))),
+        ),
+    ];
+
+    let mut stacking = StackingRegressor::new(estimators)
+        .with_passthrough(true)
+        .with_n_folds(5);
+
+    stacking.fit(&x, &y).unwrap();
+    let preds = stacking.predict(&x).unwrap();
+
+    assert_eq!(preds.len(), 60);
+    assert!(preds.iter().all(|&p| p.is_finite()));
+}
+
+#[test]
+fn test_stacking_n_features_attribute() {
+    let (x, y) = create_regression_data(40, 5);
+
+    let estimators: Vec<(String, Box<dyn VotingRegressorEstimator>)> =
+        vec![("ridge".to_string(), Box::new(RidgeRegression::new(1.0)))];
+
+    let mut stacking = StackingRegressor::new(estimators);
+
+    // Before fitting
+    assert!(stacking.n_features().is_none());
+
+    stacking.fit(&x, &y).unwrap();
+
+    // After fitting
+    assert_eq!(stacking.n_features(), Some(5));
 }

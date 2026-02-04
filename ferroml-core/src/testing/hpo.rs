@@ -1129,10 +1129,16 @@ pub fn test_log_scale_parameters() {
         .int_log("n_estimators", 10, 1000);
 
     let lr_param = &space.parameters["lr"];
-    assert!(lr_param.log_scale, "Log-scale float should have log_scale=true");
+    assert!(
+        lr_param.log_scale,
+        "Log-scale float should have log_scale=true"
+    );
     match &lr_param.param_type {
         ParameterType::Float { low, high } => {
-            assert!(*low > 0.0, "Log-scale parameters should have positive bounds");
+            assert!(
+                *low > 0.0,
+                "Log-scale parameters should have positive bounds"
+            );
             assert!(*high > *low);
         }
         _ => panic!("Expected Float type for lr"),
@@ -1155,9 +1161,7 @@ pub fn test_log_scale_parameters() {
 /// Test non-log-scale parameters don't have log_scale flag
 #[cfg(test)]
 pub fn test_non_log_scale_parameters() {
-    let space = SearchSpace::new()
-        .float("x", -1.0, 1.0)
-        .int("n", -100, 100);
+    let space = SearchSpace::new().float("x", -1.0, 1.0).int("n", -100, 100);
 
     let x_param = &space.parameters["x"];
     assert!(
@@ -1166,7 +1170,10 @@ pub fn test_non_log_scale_parameters() {
     );
 
     let n_param = &space.parameters["n"];
-    assert!(!n_param.log_scale, "Non-log int should have log_scale=false");
+    assert!(
+        !n_param.log_scale,
+        "Non-log int should have log_scale=false"
+    );
 }
 
 /// Test large categorical choices
@@ -1345,7 +1352,10 @@ pub fn test_preset_gradient_boosting_valid() {
     assert!(lr.log_scale, "learning_rate should be log-scale");
     match &lr.param_type {
         ParameterType::Float { low, high } => {
-            assert!(*low > 0.0, "Log-scale learning_rate should have positive lower bound");
+            assert!(
+                *low > 0.0,
+                "Log-scale learning_rate should have positive lower bound"
+            );
             assert!(*high > *low);
         }
         _ => panic!("learning_rate should be Float type"),
@@ -1356,7 +1366,10 @@ pub fn test_preset_gradient_boosting_valid() {
     assert!(reg_alpha.log_scale, "reg_alpha should be log-scale");
     match &reg_alpha.param_type {
         ParameterType::Float { low, high } => {
-            assert!(*low > 0.0, "Log-scale reg_alpha should have positive lower bound");
+            assert!(
+                *low > 0.0,
+                "Log-scale reg_alpha should have positive lower bound"
+            );
             assert!(*high > *low);
         }
         _ => panic!("reg_alpha should be Float type"),
@@ -1403,7 +1416,10 @@ pub fn test_preset_svm_valid() {
     let kernel = &space.parameters["kernel"];
     match &kernel.param_type {
         ParameterType::Categorical { choices } => {
-            assert!(choices.len() >= 3, "SVM should have multiple kernel options");
+            assert!(
+                choices.len() >= 3,
+                "SVM should have multiple kernel options"
+            );
             assert!(choices.contains(&"rbf".to_string()));
             assert!(choices.contains(&"linear".to_string()));
         }
@@ -1476,11 +1492,7 @@ pub fn test_sampler_respects_all_constraints() {
         let params = sampler.sample(&space, &[]).expect("Sample should succeed");
 
         // Check all parameters are present
-        assert_eq!(
-            params.len(),
-            space.n_dims(),
-            "Should have all parameters"
-        );
+        assert_eq!(params.len(), space.n_dims(), "Should have all parameters");
 
         // Verify bounds
         assert!(check_sampled_values_in_bounds(&params, &space).is_ok());
@@ -1499,11 +1511,7 @@ pub fn test_sampler_respects_all_constraints() {
         }
 
         if let ParameterValue::Float(x) = params["x"] {
-            assert!(
-                x >= -1.0 && x <= 1.0,
-                "x should be in [-1, 1], got {}",
-                x
-            );
+            assert!(x >= -1.0 && x <= 1.0, "x should be in [-1, 1], got {}", x);
         }
 
         if let ParameterValue::Float(lr) = params["lr"] {
@@ -1555,9 +1563,7 @@ pub fn test_negative_range_parameters() {
 /// Test search space can be cloned and modified independently
 #[cfg(test)]
 pub fn test_search_space_cloning() {
-    let original = SearchSpace::new()
-        .int("n", 1, 10)
-        .float("x", 0.0, 1.0);
+    let original = SearchSpace::new().int("n", 1, 10).float("x", 0.0, 1.0);
 
     let mut cloned = original.clone();
 
@@ -1578,8 +1584,7 @@ pub fn test_search_space_cloning() {
 pub fn test_parameter_defaults() {
     use crate::hpo::search_space::{Parameter, ParameterDefault};
 
-    let param_with_default = Parameter::int(1, 100)
-        .with_default(ParameterDefault::Int(50));
+    let param_with_default = Parameter::int(1, 100).with_default(ParameterDefault::Int(50));
 
     assert!(param_with_default.default.is_some());
     match param_with_default.default {
@@ -1588,8 +1593,7 @@ pub fn test_parameter_defaults() {
     }
 
     // Float default
-    let float_param = Parameter::float(0.0, 1.0)
-        .with_default(ParameterDefault::Float(0.5));
+    let float_param = Parameter::float(0.0, 1.0).with_default(ParameterDefault::Float(0.5));
 
     match float_param.default {
         Some(ParameterDefault::Float(v)) => assert!((v - 0.5).abs() < 1e-10),
@@ -1606,8 +1610,7 @@ pub fn test_parameter_defaults() {
     }
 
     // Bool default
-    let bool_param = Parameter::bool()
-        .with_default(ParameterDefault::Bool(true));
+    let bool_param = Parameter::bool().with_default(ParameterDefault::Bool(true));
 
     match bool_param.default {
         Some(ParameterDefault::Bool(v)) => assert!(v),

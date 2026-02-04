@@ -333,10 +333,7 @@ fn main() -> ferroml_core::Result<()> {
         ];
 
         let mut pairs: Vec<_> = feature_names.iter().zip(importance.iter()).collect();
-        pairs.sort_by(|a, b| {
-            b.1.partial_cmp(a.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        pairs.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         println!("{:<20} {:>12}", "Feature", "Importance");
         println!("{}", "-".repeat(34));

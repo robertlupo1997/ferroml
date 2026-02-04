@@ -419,10 +419,8 @@ impl RandomForestClassifier {
         } else {
             #[cfg(feature = "parallel")]
             {
-                let tree_probas: Vec<Array2<f64>> = estimators
-                    .par_iter()
-                    .map(align_tree_probas)
-                    .collect();
+                let tree_probas: Vec<Array2<f64>> =
+                    estimators.par_iter().map(align_tree_probas).collect();
                 for tree_proba in tree_probas {
                     probas = probas + tree_proba;
                 }
