@@ -480,7 +480,10 @@ impl RandomForestClassifier {
             for &sample_idx in oob_indices {
                 let sample = x.row(sample_idx).to_owned().insert_axis(Axis(0));
                 if let Ok(proba) = tree.predict_proba(&sample) {
-                    for j in 0..n_classes {
+                    // Use min of forest n_classes and tree output columns
+                    // Tree might have fewer columns if bootstrap sample was missing some classes
+                    let tree_n_classes = proba.ncols().min(n_classes);
+                    for j in 0..tree_n_classes {
                         oob_proba[[sample_idx, j]] += proba[[0, j]];
                     }
                     oob_counts[sample_idx] += 1;

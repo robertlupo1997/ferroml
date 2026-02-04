@@ -575,16 +575,16 @@ impl GaussianProcessRegressor {
 #[allow(clippy::many_single_char_names)]
 fn cholesky_decomposition(a: &[Vec<f64>]) -> Result<Vec<Vec<f64>>> {
     let n = a.len();
-    let mut l = vec![vec![0.0; n]; n];
+    let mut l: Vec<Vec<f64>> = vec![vec![0.0; n]; n];
 
     for i in 0..n {
         for j in 0..=i {
-            let mut sum = 0.0;
+            let mut sum: f64 = 0.0;
 
             if j == i {
-                // Diagonal elements
+                // Diagonal elements - use mul_add for better precision
                 for k in 0..j {
-                    sum += l[j][k] * l[j][k];
+                    sum = l[j][k].mul_add(l[j][k], sum);
                 }
                 let val = a[i][i] - sum;
                 if val <= 0.0 {
@@ -595,9 +595,9 @@ fn cholesky_decomposition(a: &[Vec<f64>]) -> Result<Vec<Vec<f64>>> {
                 }
                 l[i][j] = val.sqrt();
             } else {
-                // Off-diagonal elements
+                // Off-diagonal elements - use mul_add for better precision
                 for k in 0..j {
-                    sum += l[i][k] * l[j][k];
+                    sum = l[i][k].mul_add(l[j][k], sum);
                 }
                 if l[j][j].abs() < 1e-15 {
                     return Err(crate::FerroError::numerical(

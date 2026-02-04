@@ -663,9 +663,10 @@ impl Model for LogisticRegression {
     }
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
-        // Predict class labels (0 or 1)
+        // Predict class labels (0 or 1) based on P(class=1)
         let probas = self.predict_proba(x)?;
-        Ok(probas.column(0).mapv(|p| if p >= 0.5 { 1.0 } else { 0.0 }))
+        // Column 1 contains P(class=1)
+        Ok(probas.column(1).mapv(|p| if p >= 0.5 { 1.0 } else { 0.0 }))
     }
 
     fn is_fitted(&self) -> bool {
@@ -856,12 +857,17 @@ impl ProbabilisticModel for LogisticRegression {
         let intercept = self.intercept.unwrap_or(0.0);
 
         let linear_pred = x.dot(coef) + intercept;
-        let probas = linear_pred.mapv(sigmoid);
+        let probas_class1 = linear_pred.mapv(sigmoid);
 
-        // Return as (n_samples, 1) matrix
-        let n = probas.len();
-        let mut result = Array2::zeros((n, 1));
-        result.column_mut(0).assign(&probas);
+        // Return as (n_samples, 2) matrix with [P(class=0), P(class=1)]
+        // This ensures probabilities sum to 1 for each sample
+        let n = probas_class1.len();
+        let mut result = Array2::zeros((n, 2));
+        for i in 0..n {
+            let p1 = probas_class1[i];
+            result[[i, 0]] = 1.0 - p1; // P(class=0)
+            result[[i, 1]] = p1; // P(class=1)
+        }
         Ok(result)
     }
 
@@ -1252,13 +1258,20 @@ mod tests {
 
         let probas = model.predict_proba(&x).unwrap();
 
-        // Probabilities should be low for class 0, high for class 1
-        assert!(probas[[0, 0]] < 0.5);
-        assert!(probas[[5, 0]] > 0.5);
+        // Output has 2 columns: [P(class=0), P(class=1)]
+        assert_eq!(probas.ncols(), 2);
 
-        // All probabilities in [0, 1]
+        // For sample 0 (class 0): P(class=1) should be low
+        assert!(probas[[0, 1]] < 0.5, "Sample 0 should have low P(class=1)");
+        // For sample 5 (class 1): P(class=1) should be high
+        assert!(probas[[5, 1]] > 0.5, "Sample 5 should have high P(class=1)");
+
+        // All probabilities in [0, 1] and rows sum to 1
         for i in 0..6 {
             assert!(probas[[i, 0]] >= 0.0 && probas[[i, 0]] <= 1.0);
+            assert!(probas[[i, 1]] >= 0.0 && probas[[i, 1]] <= 1.0);
+            let sum = probas[[i, 0]] + probas[[i, 1]];
+            assert!((sum - 1.0).abs() < 1e-10, "Row {} should sum to 1.0", i);
         }
     }
 

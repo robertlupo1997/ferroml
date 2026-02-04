@@ -5,7 +5,7 @@
 //! ## Available Imputers
 //!
 //! - [`SimpleImputer`] - Impute using simple strategies (mean, median, mode, constant)
-//! - [`KNNImputer`] - Impute using k-nearest neighbors (TODO)
+//! - [`KNNImputer`] - Impute using k-nearest neighbors
 //!
 //! ## Imputation Strategies
 //!

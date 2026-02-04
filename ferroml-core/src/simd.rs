@@ -79,11 +79,11 @@ pub fn squared_euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
     let sum_array: [f64; 4] = sum_vec.into();
     let mut sum = sum_array[0] + sum_array[1] + sum_array[2] + sum_array[3];
 
-    // Handle remainder elements
+    // Handle remainder elements with mul_add for better precision
     let remainder_start = chunks * 4;
     for i in 0..remainder {
         let diff = a[remainder_start + i] - b[remainder_start + i];
-        sum += diff * diff;
+        sum = diff.mul_add(diff, sum);
     }
 
     sum
@@ -245,10 +245,10 @@ pub fn dot_product(a: &[f64], b: &[f64]) -> f64 {
     let sum_array: [f64; 4] = sum_vec.into();
     let mut sum = sum_array[0] + sum_array[1] + sum_array[2] + sum_array[3];
 
-    // Handle remainder elements
+    // Handle remainder elements with mul_add for better precision
     let remainder_start = chunks * 4;
     for i in 0..remainder {
-        sum += a[remainder_start + i] * b[remainder_start + i];
+        sum = a[remainder_start + i].mul_add(b[remainder_start + i], sum);
     }
 
     sum

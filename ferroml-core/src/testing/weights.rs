@@ -822,25 +822,24 @@ mod edge_case_tests {
         model.fit(&x, &y).expect("Failed to fit");
         let probas = model.predict_proba(&x).expect("Failed to predict probabilities");
 
-        // LogisticRegression.predict_proba returns P(class=1) as a single column
-        // For binary classification: P(class=0) = 1 - P(class=1)
-        assert_eq!(probas.ncols(), 1, "Binary LogisticRegression returns single column of P(class=1)");
+        // LogisticRegression.predict_proba returns [P(class=0), P(class=1)] for each sample
+        assert_eq!(probas.ncols(), 2, "Binary LogisticRegression returns two columns [P(class=0), P(class=1)]");
 
         // Check probability constraints - each value should be valid probability
         for row in probas.rows() {
-            let p_class_1 = row[0];
-            let p_class_0 = 1.0 - p_class_1;
+            let p_class_0 = row[0];
+            let p_class_1 = row[1];
 
             // Both probabilities should be in [0, 1]
-            assert!(
-                p_class_1 >= 0.0 && p_class_1 <= 1.0,
-                "P(class=1) should be in [0,1], got {}",
-                p_class_1
-            );
             assert!(
                 p_class_0 >= 0.0 && p_class_0 <= 1.0,
                 "P(class=0) should be in [0,1], got {}",
                 p_class_0
+            );
+            assert!(
+                p_class_1 >= 0.0 && p_class_1 <= 1.0,
+                "P(class=1) should be in [0,1], got {}",
+                p_class_1
             );
 
             // Verify they sum to 1.0
@@ -851,8 +850,9 @@ mod edge_case_tests {
                 sum
             );
 
-            // Verify probability is finite
-            assert!(p_class_1.is_finite(), "Probability should be finite");
+            // Verify probabilities are finite
+            assert!(p_class_0.is_finite(), "P(class=0) should be finite");
+            assert!(p_class_1.is_finite(), "P(class=1) should be finite");
         }
     }
 }

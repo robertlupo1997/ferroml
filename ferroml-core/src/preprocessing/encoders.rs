@@ -7,7 +7,7 @@
 //! - [`OneHotEncoder`] - Encode categorical features as one-hot vectors
 //! - [`OrdinalEncoder`] - Encode categorical features as integers
 //! - [`LabelEncoder`] - Encode target labels as integers
-//! - [`TargetEncoder`] - Encode categories using target statistics (TODO: TASK-021)
+//! - [`TargetEncoder`] - Encode categories using target statistics
 //!
 //! ## When to Use Which Encoder
 //!

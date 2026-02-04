@@ -953,57 +953,52 @@ mod proptest_tests {
 
     // Test tree-specific properties
     #[test]
-    #[ignore] // Long running
     fn test_tree_predictions_bounded() {
         assert!(tree_model_properties::prop_predictions_bounded(
             DecisionTreeRegressor::new,
-            100,
+            50,
             5
         ));
     }
 
     #[test]
-    #[ignore] // Long running
     fn test_forest_predictions_bounded() {
         assert!(tree_model_properties::prop_predictions_bounded(
             || {
                 let mut rf = RandomForestRegressor::new();
-                rf.n_estimators = 5;
+                rf.n_estimators = 3; // Reduced for faster tests
                 rf
             },
-            100,
+            50,
             5
         ));
     }
 
     // Test probabilistic model properties
     #[test]
-    #[ignore] // Long running
     fn test_logistic_regression_probabilities_sum_to_one() {
         assert!(
             probabilistic_model_properties::prop_probabilities_sum_to_one(
                 LogisticRegression::new,
-                100,
+                50,
                 5
             )
         );
     }
 
     #[test]
-    #[ignore] // Long running
     fn test_logistic_regression_probabilities_in_range() {
         assert!(probabilistic_model_properties::prop_probabilities_in_range(
             LogisticRegression::new,
-            100,
+            50,
             5
         ));
     }
 
     #[test]
-    #[ignore] // Long running
     fn test_gaussian_nb_probabilities_sum_to_one() {
         assert!(
-            probabilistic_model_properties::prop_probabilities_sum_to_one(GaussianNB::new, 100, 5)
+            probabilistic_model_properties::prop_probabilities_sum_to_one(GaussianNB::new, 50, 5)
         );
     }
 }
