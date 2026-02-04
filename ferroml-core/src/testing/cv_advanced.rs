@@ -590,3 +590,337 @@ fn test_kfold_without_shuffle_is_deterministic() {
         assert_eq!(folds1[i].test_indices, folds2[i].test_indices);
     }
 }
+
+// ============================================================================
+// MODEL INTEGRATION TESTS (using mock estimator)
+// ============================================================================
+
+use crate::cv::{cross_val_score, CVConfig};
+use crate::hpo::SearchSpace;
+use crate::metrics::{Direction, MetricValue};
+use crate::traits::{Estimator, Predictor, PredictionWithUncertainty};
+use ndarray::Array2;
+
+/// Mock estimator that predicts the mean of training y values
+#[derive(Clone)]
+struct MockMeanEstimator;
+
+struct MockMeanPredictor {
+    mean: f64,
+}
+
+impl Predictor for MockMeanPredictor {
+    fn predict(&self, x: &Array2<f64>) -> crate::Result<Array1<f64>> {
+        Ok(Array1::from_elem(x.nrows(), self.mean))
+    }
+
+    fn predict_with_uncertainty(
+        &self,
+        x: &Array2<f64>,
+        confidence: f64,
+    ) -> crate::Result<PredictionWithUncertainty> {
+        let n = x.nrows();
+        Ok(PredictionWithUncertainty {
+            predictions: Array1::from_elem(n, self.mean),
+            lower: Array1::from_elem(n, self.mean - 0.1),
+            upper: Array1::from_elem(n, self.mean + 0.1),
+            confidence_level: confidence,
+            std_errors: None,
+        })
+    }
+}
+
+impl Estimator for MockMeanEstimator {
+    type Fitted = MockMeanPredictor;
+
+    fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> crate::Result<Self::Fitted> {
+        let mean = y.iter().sum::<f64>() / y.len() as f64;
+        Ok(MockMeanPredictor { mean })
+    }
+
+    fn search_space(&self) -> SearchSpace {
+        SearchSpace::new()
+    }
+}
+
+/// Mock MSE metric for testing
+struct MockMseMetric;
+
+impl crate::metrics::Metric for MockMseMetric {
+    fn name(&self) -> &str {
+        "mse"
+    }
+
+    fn direction(&self) -> Direction {
+        Direction::Minimize
+    }
+
+    fn compute(&self, y_true: &Array1<f64>, y_pred: &Array1<f64>) -> crate::Result<MetricValue> {
+        let mse = y_true
+            .iter()
+            .zip(y_pred.iter())
+            .map(|(t, p)| (t - p).powi(2))
+            .sum::<f64>()
+            / y_true.len() as f64;
+        Ok(MetricValue::new(self.name(), mse, self.direction()))
+    }
+}
+
+#[test]
+fn test_group_kfold_with_cross_val_score() {
+    // Integration test: GroupKFold with cross_val_score
+    let n_samples = 60;
+    let n_features = 3;
+    let groups = Array1::from_shape_fn(n_samples, |i| (i / 10) as i64); // 6 groups
+
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| {
+        (i as f64 * 0.1) + (j as f64 * 0.05)
+    });
+    let y = Array1::from_shape_fn(n_samples, |i| i as f64 + 0.5);
+
+    let cv = GroupKFold::new(3);
+    let model = MockMeanEstimator;
+    let metric = MockMseMetric;
+    let config = CVConfig::default();
+
+    let result = cross_val_score(&model, &x, &y, &cv, &metric, &config, Some(&groups));
+
+    assert!(result.is_ok(), "cross_val_score should succeed");
+    let cv_result = result.unwrap();
+
+    assert_eq!(cv_result.n_folds, 3);
+    assert!(cv_result.mean_test_score.is_finite());
+    assert!(cv_result.mean_test_score >= 0.0, "MSE should be non-negative");
+}
+
+#[test]
+fn test_timeseries_with_cross_val_score() {
+    // Time series forecasting scenario with cross_val_score
+    let n_samples = 80;
+    let n_features = 2;
+
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| {
+        if j == 0 {
+            i as f64
+        } else {
+            (i as f64 * 0.1).sin()
+        }
+    });
+    let y = Array1::from_shape_fn(n_samples, |i| i as f64 * 0.5 + 1.0);
+
+    let cv = TimeSeriesSplit::new(4);
+    let model = MockMeanEstimator;
+    let metric = MockMseMetric;
+    let config = CVConfig::default();
+
+    let result = cross_val_score(&model, &x, &y, &cv, &metric, &config, None);
+
+    assert!(result.is_ok(), "cross_val_score should succeed");
+    let cv_result = result.unwrap();
+
+    assert_eq!(cv_result.n_folds, 4);
+    for fold_result in &cv_result.fold_results {
+        assert!(fold_result.test_score.is_finite());
+        assert!(fold_result.test_score >= 0.0);
+    }
+}
+
+#[test]
+fn test_stratified_kfold_with_cross_val_score() {
+    // Test StratifiedKFold with cross_val_score
+    let n_samples = 50;
+    let n_features = 3;
+
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| (i + j) as f64);
+    let y = Array1::from_shape_fn(n_samples, |i| if i % 2 == 0 { 1.0 } else { 0.0 });
+
+    let cv = StratifiedKFold::new(5);
+    let model = MockMeanEstimator;
+    let metric = MockMseMetric;
+    let config = CVConfig::default().with_train_score();
+
+    let result = cross_val_score(&model, &x, &y, &cv, &metric, &config, None);
+
+    assert!(result.is_ok());
+    let cv_result = result.unwrap();
+
+    assert!(cv_result.mean_train_score.is_some());
+    for fold_result in &cv_result.fold_results {
+        assert!(fold_result.train_score.is_some());
+    }
+}
+
+#[test]
+fn test_cross_val_score_confidence_intervals() {
+    // Verify CI calculation is reasonable
+    let n_samples = 60;
+    let n_features = 2;
+
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| (i * j) as f64 / 10.0);
+    let y = Array1::from_shape_fn(n_samples, |i| i as f64 + 0.5);
+
+    let cv = KFold::new(5);
+    let model = MockMeanEstimator;
+    let metric = MockMseMetric;
+    let config = CVConfig::default();
+
+    let result = cross_val_score(&model, &x, &y, &cv, &metric, &config, None).unwrap();
+
+    // CI should bracket the mean
+    assert!(result.ci_lower <= result.mean_test_score);
+    assert!(result.ci_upper >= result.mean_test_score);
+
+    // CI should be reasonable width (not infinite)
+    let ci_width = result.ci_upper - result.ci_lower;
+    assert!(ci_width.is_finite());
+    assert!(ci_width >= 0.0);
+}
+
+// ============================================================================
+// EDGE CASE AND ERROR HANDLING TESTS
+// ============================================================================
+
+#[test]
+fn test_timeseries_with_gap_and_test_size() {
+    // Test combined gap and test_size configuration
+    let n_samples = 60;
+    let gap = 2;
+    let test_size = 8;
+
+    let cv = TimeSeriesSplit::new(3).with_gap(gap).with_test_size(test_size);
+    let folds = cv.split(n_samples, None, None).unwrap();
+
+    for fold in &folds {
+        // Test size should be exact
+        assert_eq!(fold.test_indices.len(), test_size);
+
+        // Gap should be respected
+        let max_train = *fold.train_indices.iter().max().unwrap();
+        let min_test = *fold.test_indices.iter().min().unwrap();
+        assert!(min_test > max_train + gap);
+    }
+}
+
+#[test]
+fn test_group_kfold_with_many_small_groups() {
+    // Edge case: many groups with 1-2 samples each
+    let n_samples = 50;
+    let _n_groups = 25; // 25 groups, ~2 samples each
+    let groups = Array1::from_shape_fn(n_samples, |i| (i / 2) as i64);
+
+    let cv = GroupKFold::new(5);
+    let folds = cv.split(n_samples, None, Some(&groups)).unwrap();
+
+    assert_eq!(folds.len(), 5);
+
+    // Each fold should have groups from the test set that don't appear in train
+    for fold in &folds {
+        let train_groups: HashSet<i64> = fold.train_indices.iter().map(|&i| groups[i]).collect();
+        let test_groups: HashSet<i64> = fold.test_indices.iter().map(|&i| groups[i]).collect();
+        assert!(train_groups.is_disjoint(&test_groups));
+    }
+}
+
+#[test]
+fn test_stratified_with_rare_class() {
+    // Edge case: highly imbalanced classes
+    let n_samples = 50;
+    // 45 samples of class 0, 5 samples of class 1
+    let y = Array1::from_shape_fn(n_samples, |i| if i >= 45 { 1.0 } else { 0.0 });
+
+    let cv = StratifiedKFold::new(5);
+    let folds = cv.split(n_samples, Some(&y), None).unwrap();
+
+    // Each fold should have at least 1 sample of the rare class
+    for fold in &folds {
+        let test_rare_count = fold.test_indices.iter().filter(|&&i| y[i] == 1.0).count();
+        assert!(
+            test_rare_count >= 1,
+            "Rare class should appear in test fold"
+        );
+    }
+}
+
+#[test]
+fn test_kfold_all_samples_tested_once() {
+    // Property: across all folds, each sample appears in test exactly once
+    let n_samples = 47; // Non-divisible by k to test remainder handling
+    let cv = KFold::new(7);
+    let folds = cv.split(n_samples, None, None).unwrap();
+
+    let mut test_count = vec![0usize; n_samples];
+    for fold in &folds {
+        for &idx in &fold.test_indices {
+            test_count[idx] += 1;
+        }
+    }
+
+    for (idx, &count) in test_count.iter().enumerate() {
+        assert_eq!(count, 1, "Sample {} tested {} times, expected 1", idx, count);
+    }
+}
+
+#[test]
+fn test_nested_cv_different_k_values() {
+    // Test with different inner/outer k values
+    let n_samples = 100;
+
+    for outer_k in [3, 5, 10] {
+        for inner_k in [2, 3, 5] {
+            let outer_cv = KFold::new(outer_k);
+            let inner_cv = KFold::new(inner_k);
+
+            let outer_folds = outer_cv.split(n_samples, None, None).unwrap();
+            assert_eq!(outer_folds.len(), outer_k);
+
+            for outer_fold in &outer_folds {
+                let inner_folds = inner_cv
+                    .split(outer_fold.train_indices.len(), None, None)
+                    .unwrap();
+                assert_eq!(
+                    inner_folds.len(),
+                    inner_k,
+                    "Inner folds should match inner_k"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_timeseries_consecutive_indices() {
+    // TimeSeriesSplit should produce consecutive index ranges
+    let n_samples = 50;
+    let cv = TimeSeriesSplit::new(5);
+    let folds = cv.split(n_samples, None, None).unwrap();
+
+    for fold in &folds {
+        // Check train indices are consecutive
+        let train_sorted = {
+            let mut v = fold.train_indices.clone();
+            v.sort();
+            v
+        };
+        for i in 1..train_sorted.len() {
+            assert_eq!(
+                train_sorted[i],
+                train_sorted[i - 1] + 1,
+                "Train indices should be consecutive"
+            );
+        }
+
+        // Check test indices are consecutive
+        let test_sorted = {
+            let mut v = fold.test_indices.clone();
+            v.sort();
+            v
+        };
+        for i in 1..test_sorted.len() {
+            assert_eq!(
+                test_sorted[i],
+                test_sorted[i - 1] + 1,
+                "Test indices should be consecutive"
+            );
+        }
+    }
+}
