@@ -59,6 +59,7 @@ pub mod nan_inf_validation;
 pub mod onnx;
 pub mod probabilistic;
 pub mod properties;
+pub mod regression;
 pub mod serialization;
 #[cfg(feature = "sparse")]
 pub mod sparse_tests;
