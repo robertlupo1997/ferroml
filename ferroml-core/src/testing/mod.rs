@@ -43,6 +43,20 @@
 //!     assert!(result.passed, "{}: {}", result.name, result.message.as_deref().unwrap_or(""));
 //! }
 //! ```
+//!
+//! # Mutation Testing (Phase 32)
+//!
+//! For validating test quality using mutation testing:
+//!
+//! ```bash
+//! # Install cargo-mutants
+//! cargo install cargo-mutants
+//!
+//! # Run mutation testing
+//! cargo mutants -p ferroml-core --timeout 300 -- --lib
+//! ```
+//!
+//! See [`mutation`] module for detailed documentation on writing mutation-resistant tests.
 
 pub mod assertions;
 pub mod automl;
@@ -57,6 +71,7 @@ pub mod fairness;
 pub mod hpo;
 pub mod incremental;
 pub mod metrics;
+pub mod mutation;
 pub mod nan_inf_validation;
 pub mod onnx;
 pub mod probabilistic;

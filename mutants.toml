@@ -1,0 +1,57 @@
+# Cargo-mutants configuration for FerroML
+# https://mutants.rs/configuration.html
+
+# Timeout per mutant (seconds)
+timeout = 300
+
+# Number of parallel jobs
+jobs = 4
+
+# Exclude test files and generated code from mutation
+exclude_globs = [
+    "**/tests/**",
+    "**/test_*.rs",
+    "**/*_test.rs",
+    "**/benches/**",
+    "**/examples/**",
+    # Generated or third-party code
+    "**/build.rs",
+    # Python bindings (tested separately)
+    "ferroml-python/**",
+]
+
+# Exclude specific functions from mutation
+# These are either trivial, tested implicitly, or have known issues
+exclude_re = [
+    # Display/Debug implementations
+    "impl.*fmt::Display",
+    "impl.*fmt::Debug",
+    # Default implementations that just return constants
+    "fn default\\(\\)",
+    # Error handling boilerplate
+    "impl.*std::error::Error",
+    "impl.*From<.*Error>",
+    # Serialization boilerplate
+    "impl.*Serialize",
+    "impl.*Deserialize",
+    # Clone implementations
+    "impl Clone for",
+    # Builder pattern setters (trivial)
+    "fn with_.*\\(mut self",
+    "fn set_.*\\(&mut self",
+    # Logging and tracing
+    "log::",
+    "tracing::",
+    "println!",
+    "eprintln!",
+    "dbg!",
+]
+
+# Prioritize mutation testing for these critical modules
+# (Use --file flag to test specific modules)
+# Critical modules for mutation testing:
+# - src/metrics/*.rs - Accuracy calculations
+# - src/models/linear.rs - Linear regression
+# - src/models/tree.rs - Decision trees
+# - src/preprocessing/*.rs - Data transformations
+# - src/cross_validation/*.rs - CV logic

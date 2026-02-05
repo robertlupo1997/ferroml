@@ -1,0 +1,206 @@
+name: Mutation Testing
+
+on:
+  schedule:
+    # Run weekly on Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    inputs:
+      timeout:
+        description: 'Timeout per mutant in seconds'
+        required: false
+        default: '300'
+      package:
+        description: 'Package to test (ferroml-core or all)'
+        required: false
+        default: 'ferroml-core'
+      module:
+        description: 'Specific module to test (e.g., models::linear, or empty for all)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  mutation-test:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours max for full mutation run
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-mutants-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-mutants-
+
+      - name: Install cargo-mutants
+        run: |
+          if ! command -v cargo-mutants &> /dev/null; then
+            cargo install cargo-mutants --locked
+          fi
+
+      - name: Run mutation testing
+        id: mutants
+        run: |
+          TIMEOUT="${{ github.event.inputs.timeout || '300' }}"
+          PACKAGE="${{ github.event.inputs.package || 'ferroml-core' }}"
+          MODULE="${{ github.event.inputs.module || '' }}"
+
+          echo "Running mutation testing with:"
+          echo "  Timeout: ${TIMEOUT}s"
+          echo "  Package: ${PACKAGE}"
+          echo "  Module: ${MODULE}"
+
+          # Build base command
+          CMD="cargo mutants -p ${PACKAGE} --timeout ${TIMEOUT} --jobs 2"
+
+          # Add module filter if specified
+          if [ -n "${MODULE}" ]; then
+            CMD="${CMD} --file 'src/${MODULE//::/\/}*.rs'"
+          fi
+
+          # Run mutation testing and capture output
+          ${CMD} -- --lib 2>&1 | tee mutants-output.txt
+
+          # Extract summary statistics
+          if grep -q "mutants tested" mutants-output.txt; then
+            TOTAL=$(grep "mutants tested" mutants-output.txt | grep -oP '\d+(?= mutants)')
+            CAUGHT=$(grep -oP '\d+(?= caught)' mutants-output.txt || echo "0")
+            MISSED=$(grep -oP '\d+(?= missed)' mutants-output.txt || echo "0")
+            TIMEOUT_COUNT=$(grep -oP '\d+(?= timeout)' mutants-output.txt || echo "0")
+
+            if [ -n "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
+              SCORE=$(echo "scale=2; ($CAUGHT / $TOTAL) * 100" | bc)
+              echo "mutation_score=${SCORE}" >> $GITHUB_OUTPUT
+              echo "total_mutants=${TOTAL}" >> $GITHUB_OUTPUT
+              echo "caught=${CAUGHT}" >> $GITHUB_OUTPUT
+              echo "missed=${MISSED}" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Generate mutation report
+        if: always()
+        run: |
+          echo "# Mutation Testing Report" > mutation-report.md
+          echo "" >> mutation-report.md
+          echo "**Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> mutation-report.md
+          echo "**Package:** ${{ github.event.inputs.package || 'ferroml-core' }}" >> mutation-report.md
+          echo "" >> mutation-report.md
+
+          if [ -f mutants-output.txt ]; then
+            echo "## Summary" >> mutation-report.md
+            echo '```' >> mutation-report.md
+            tail -20 mutants-output.txt >> mutation-report.md
+            echo '```' >> mutation-report.md
+          fi
+
+          # List missed mutants if any
+          if [ -d mutants.out ]; then
+            echo "" >> mutation-report.md
+            echo "## Missed Mutants (Tests to Improve)" >> mutation-report.md
+            if [ -f mutants.out/missed.txt ]; then
+              echo '```' >> mutation-report.md
+              head -50 mutants.out/missed.txt >> mutation-report.md
+              echo '```' >> mutation-report.md
+            else
+              echo "No missed mutants found - excellent test coverage!" >> mutation-report.md
+            fi
+          fi
+
+          cat mutation-report.md
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: |
+            mutation-report.md
+            mutants-output.txt
+            mutants.out/
+          retention-days: 30
+
+      - name: Check mutation score threshold
+        if: github.event_name == 'schedule'
+        run: |
+          SCORE="${{ steps.mutants.outputs.mutation_score }}"
+          THRESHOLD=70  # Start with 70%, increase to 80% as tests improve
+
+          if [ -n "$SCORE" ]; then
+            echo "Mutation Score: ${SCORE}%"
+            echo "Threshold: ${THRESHOLD}%"
+
+            if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
+              echo "::warning::Mutation score ${SCORE}% is below ${THRESHOLD}% threshold"
+              # Don't fail for now - just warn
+              # exit 1
+            else
+              echo "::notice::Mutation score ${SCORE}% meets ${THRESHOLD}% threshold"
+            fi
+          else
+            echo "::warning::Could not determine mutation score"
+          fi
+
+  # Quick mutation test for critical modules only (can run more frequently)
+  mutation-quick:
+    name: Quick Mutation Test (Critical Modules)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.module == ''
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-mutants-quick-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked || true
+
+      - name: Quick mutation test - Core metrics
+        run: |
+          cargo mutants -p ferroml-core \
+            --timeout 120 \
+            --jobs 2 \
+            --file 'src/metrics/*.rs' \
+            -- --lib || true
+          echo "Metrics module mutation testing complete"
+
+      - name: Quick mutation test - Model traits
+        run: |
+          cargo mutants -p ferroml-core \
+            --timeout 120 \
+            --jobs 2 \
+            --file 'src/models/traits.rs' \
+            -- --lib || true
+          echo "Traits module mutation testing complete"
