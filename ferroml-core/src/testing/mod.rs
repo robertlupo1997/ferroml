@@ -50,6 +50,7 @@ pub mod callbacks;
 pub mod categorical;
 pub mod checks;
 pub mod cv_advanced;
+pub mod drift;
 pub mod ensemble_advanced;
 pub mod explainability;
 pub mod fairness;
