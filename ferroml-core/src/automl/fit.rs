@@ -1242,13 +1242,13 @@ fn compute_aggregated_feature_importance(
     let ci_lower: Vec<f64> = importance_mean
         .iter()
         .zip(std_error.iter())
-        .map(|(&m, &se)| m - t_value * se)
+        .map(|(&m, &se)| t_value.mul_add(-se, m))
         .collect();
 
     let ci_upper: Vec<f64> = importance_mean
         .iter()
         .zip(std_error.iter())
-        .map(|(&m, &se)| m + t_value * se)
+        .map(|(&m, &se)| t_value.mul_add(se, m))
         .collect();
 
     // Generate feature names

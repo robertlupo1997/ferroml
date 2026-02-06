@@ -353,7 +353,7 @@ impl LogisticRegression {
     pub fn aic(&self) -> Option<f64> {
         let data = self.fitted_data.as_ref()?;
         let k = (data.n_features + usize::from(self.fit_intercept)) as f64;
-        Some(2.0 * k - 2.0 * data.log_likelihood)
+        Some(2.0f64.mul_add(k, -(2.0 * data.log_likelihood)))
     }
 
     /// Get BIC (Bayesian Information Criterion)
@@ -362,7 +362,7 @@ impl LogisticRegression {
         let data = self.fitted_data.as_ref()?;
         let n = data.n_samples as f64;
         let k = (data.n_features + usize::from(self.fit_intercept)) as f64;
-        Some(k * n.ln() - 2.0 * data.log_likelihood)
+        Some(k.mul_add(n.ln(), -(2.0 * data.log_likelihood)))
     }
 
     /// Get deviance (= -2 * log_likelihood)
@@ -1088,7 +1088,7 @@ fn invert_symmetric_matrix(a: &Array2<f64>) -> Result<Array2<f64>> {
 
 /// Standard normal CDF approximation
 fn normal_cdf(x: f64) -> f64 {
-    let t = 1.0 / (1.0 + 0.231_641_9 * x.abs());
+    let t = 1.0 / 0.231_641_9f64.mul_add(x.abs(), 1.0);
     let d = 0.398_942_280_401_432_7 * (-x * x / 2.0).exp();
     let p = d
         * t
@@ -1123,7 +1123,9 @@ fn z_critical(p: f64) -> f64 {
     let d2 = 0.189_269;
     let d3 = 0.001_308;
 
-    let z = t - (c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t);
+    let z = t
+        - (c2 * t).mul_add(t, c0 + c1 * t)
+            / (d3 * t * t).mul_add(t, (d2 * t).mul_add(t, 1.0 + d1 * t));
 
     if p > 0.5 {
         z

@@ -1747,7 +1747,7 @@ impl Resampler for RandomOverSampler {
                         // Add Gaussian noise based on shrinkage factor
                         // The noise is scaled by the feature's standard deviation
                         for val in sample.iter_mut() {
-                            let noise: f64 = rng.random::<f64>() * 2.0 - 1.0;
+                            let noise: f64 = rng.random::<f64>().mul_add(2.0, -1.0);
                             *val += noise * shrinkage * val.abs().max(1.0);
                         }
                     }

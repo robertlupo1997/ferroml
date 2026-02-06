@@ -133,7 +133,7 @@ fn run_t_test(x: &Array1<f64>, y: &Array1<f64>, equal_var: bool) -> Result<Stati
 
     let (t, df) = if equal_var {
         // Pooled variance
-        let sp2 = ((n1 - 1) as f64 * var1 + (n2 - 1) as f64 * var2) / (n1 + n2 - 2) as f64;
+        let sp2 = ((n1 - 1) as f64).mul_add(var1, (n2 - 1) as f64 * var2) / (n1 + n2 - 2) as f64;
         let se = (sp2 * (1.0 / n1 as f64 + 1.0 / n2 as f64)).sqrt();
         let t = (mean1 - mean2) / se;
         let df = (n1 + n2 - 2) as f64;
@@ -154,7 +154,7 @@ fn run_t_test(x: &Array1<f64>, y: &Array1<f64>, equal_var: bool) -> Result<Stati
 
     // Cohen's d effect size
     let pooled_std =
-        (((n1 - 1) as f64 * var1 + (n2 - 1) as f64 * var2) / (n1 + n2 - 2) as f64).sqrt();
+        (((n1 - 1) as f64).mul_add(var1, (n2 - 1) as f64 * var2) / (n1 + n2 - 2) as f64).sqrt();
     let cohens_d = (mean1 - mean2) / pooled_std;
 
     let effect_interpretation = if cohens_d.abs() < 0.2 {
@@ -191,7 +191,7 @@ fn run_t_test(x: &Array1<f64>, y: &Array1<f64>, equal_var: bool) -> Result<Stati
         confidence_level: 0.95,
         df: Some(df),
         n: n1 + n2,
-        power: None, // TODO: implement power calculation
+        power: Some(compute_two_sample_power(cohens_d, n1, n2)),
         assumptions_checked: false,
         assumption_results: vec![],
         test_name: if equal_var {
@@ -201,6 +201,18 @@ fn run_t_test(x: &Array1<f64>, y: &Array1<f64>, equal_var: bool) -> Result<Stati
         },
         alternative: "two-sided".to_string(),
     })
+}
+
+/// Compute statistical power for a two-sample t-test using normal approximation.
+/// Power = P(reject H0 | H1 is true) for a two-sided test at alpha = 0.05.
+fn compute_two_sample_power(cohens_d: f64, n1: usize, n2: usize) -> f64 {
+    let z_alpha_2 = 1.96; // two-sided alpha = 0.05
+                          // Non-centrality parameter: delta = |d| * sqrt(n1*n2/(n1+n2))
+    let n_harmonic = (n1 as f64 * n2 as f64) / (n1 + n2) as f64;
+    let delta = cohens_d.abs() * n_harmonic.sqrt();
+    // Power via normal approximation to non-central t
+    let power = normal_cdf(delta - z_alpha_2) + normal_cdf(-delta - z_alpha_2);
+    power.clamp(0.05, 1.0)
 }
 
 /// Run Mann-Whitney U test (non-parametric)
@@ -306,7 +318,7 @@ fn check_normality(data: &Array1<f64>, group_name: &str) -> AssumptionTest {
     // D'Agostino-Pearson omnibus test approximation
     let z_skew = skewness * ((n * (n - 1)) as f64).sqrt() / (6.0 * (n - 2) as f64);
     let z_kurt = kurtosis / (24.0 / n as f64).sqrt();
-    let k2 = z_skew.powi(2) + z_kurt.powi(2);
+    let k2 = z_kurt.mul_add(z_kurt, z_skew.powi(2));
 
     // Chi-squared with 2 df
     let p_value = (-k2 / 2.0).exp(); // Simplified
@@ -337,14 +349,15 @@ fn erf(x: f64) -> f64 {
     let sign = if x < 0.0 { -1.0 } else { 1.0 };
     let x = x.abs();
     let t = 1.0 / (1.0 + p * x);
-    let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * (-x * x).exp();
+    let y = ((a5 * t + a4).mul_add(t, a3).mul_add(t, a2).mul_add(t, a1) * t)
+        .mul_add(-(-x * x).exp(), 1.0);
     sign * y
 }
 
 /// Student's t CDF
 fn t_cdf(t: f64, df: f64) -> f64 {
-    let x = df / (df + t * t);
-    0.5 + 0.5 * (1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t)
+    let x = df / t.mul_add(t, df);
+    0.5f64.mul_add((1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t), 0.5)
 }
 
 /// Incomplete beta function
@@ -361,7 +374,8 @@ fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
 
     for n in 1..100 {
         let n = n as f64;
-        let d = (a + n - 1.0) * (a + b + n - 1.0) * x / ((a + 2.0 * n - 1.0) * (a + 2.0 * n));
+        let d = (a + n - 1.0) * (a + b + n - 1.0) * x
+            / ((2.0f64.mul_add(n, a) - 1.0) * 2.0f64.mul_add(n, a));
         term *= d;
         result += term;
         if term.abs() < 1e-10 {
@@ -388,7 +402,7 @@ fn gamma_ln(x: f64) -> f64 {
         0.1208650973866179e-2,
         -0.5395239384953e-5,
     ];
-    let tmp = x + 5.5 - (x + 0.5) * (x + 5.5).ln();
+    let tmp = (x + 0.5).mul_add(-(x + 5.5).ln(), x + 5.5);
     let mut ser = 1.000000000190015;
     for (i, &c) in coeffs.iter().enumerate() {
         ser += c / (x + i as f64 + 1.0);

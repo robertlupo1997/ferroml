@@ -204,7 +204,7 @@ impl PowerTransformer {
         if lambda.abs() < 1e-10 {
             y.exp()
         } else {
-            (y * lambda + 1.0).powf(1.0 / lambda)
+            y.mul_add(lambda, 1.0).powf(1.0 / lambda)
         }
     }
 
@@ -251,7 +251,7 @@ impl PowerTransformer {
                 return x;
             }
         } else {
-            let arg = y * lambda + 1.0;
+            let arg = y.mul_add(lambda, 1.0);
             if arg > 0.0 {
                 let x = arg.powf(1.0 / lambda) - 1.0;
                 if x >= 0.0 {
@@ -267,7 +267,7 @@ impl PowerTransformer {
             1.0 - (-y).exp()
         } else {
             let two_minus_lambda = 2.0 - lambda;
-            let arg = -y * two_minus_lambda + 1.0;
+            let arg = (-y).mul_add(two_minus_lambda, 1.0);
             if arg > 0.0 {
                 1.0 - arg.powf(1.0 / two_minus_lambda)
             } else {
@@ -305,7 +305,7 @@ impl PowerTransformer {
 
         // Log-likelihood (ignoring constant terms)
         let log_jacobian: f64 = x.iter().map(|&xi| xi.ln()).sum();
-        -n / 2.0 * var.ln() + (lambda - 1.0) * log_jacobian
+        (-n / 2.0).mul_add(var.ln(), (lambda - 1.0) * log_jacobian)
     }
 
     /// Compute the log-likelihood for Yeo-Johnson transformation.
@@ -345,7 +345,7 @@ impl PowerTransformer {
             })
             .sum();
 
-        -n / 2.0 * var.ln() + log_jacobian
+        (-n / 2.0).mul_add(var.ln(), log_jacobian)
     }
 
     /// Find optimal lambda using golden section search.
@@ -550,7 +550,7 @@ impl Transformer for PowerTransformer {
                 let s = std[j];
                 if s.abs() > 1e-10 {
                     for i in 0..n_samples {
-                        result[[i, j]] = result[[i, j]] * s + m;
+                        result[[i, j]] = result[[i, j]].mul_add(s, m);
                     }
                 } else {
                     for i in 0..n_samples {

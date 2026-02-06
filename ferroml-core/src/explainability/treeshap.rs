@@ -762,7 +762,7 @@ impl TreeExplainer {
 
         // Expected value without knowing this feature (weighted by coverage)
         let expected_without_feature = if total_cover > 0.0 {
-            (left_cover * left_value + right_cover * right_value) / total_cover
+            left_cover.mul_add(left_value, right_cover * right_value) / total_cover
         } else {
             node.value
         };
@@ -804,7 +804,7 @@ impl TreeExplainer {
         let left_value = self.compute_expected_value(tree, left_idx);
         let right_value = self.compute_expected_value(tree, right_idx);
 
-        (left_cover * left_value + right_cover * right_value) / total_cover
+        left_cover.mul_add(left_value, right_cover * right_value) / total_cover
     }
 }
 

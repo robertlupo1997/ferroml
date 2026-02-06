@@ -459,7 +459,7 @@ impl GaussianProcessRegressor {
 
         // Marginal log-likelihood:
         // log p(y|X) = -0.5 * (y^T K^(-1) y + log|K| + n*log(2π))
-        let mll = -0.5 * (y_k_inv_y + log_det + n as f64 * (2.0 * std::f64::consts::PI).ln());
+        let mll = -0.5 * (n as f64).mul_add((2.0 * std::f64::consts::PI).ln(), y_k_inv_y + log_det);
 
         Ok(mll)
     }
@@ -536,7 +536,7 @@ impl GaussianProcessRegressor {
             let var_star = (k_star_star - v_squared).max(1e-10);
 
             // De-standardize
-            let mean = mu_star * self.y_std + self.y_mean;
+            let mean = mu_star.mul_add(self.y_std, self.y_mean);
             let variance = var_star * self.y_std * self.y_std;
 
             results.push((mean, variance));
@@ -988,7 +988,9 @@ impl BayesianOptimizer {
                             if log_scale {
                                 let log_low = low.ln();
                                 let log_high = high.ln();
-                                (rng.random::<f64>() * (log_high - log_low) + log_low).exp()
+                                rng.random::<f64>()
+                                    .mul_add(log_high - log_low, log_low)
+                                    .exp()
                             } else {
                                 rng.random::<f64>() * (high - low) + low
                             }
@@ -997,9 +999,12 @@ impl BayesianOptimizer {
                             if log_scale {
                                 let log_low = (*low as f64).ln();
                                 let log_high = (*high as f64).ln();
-                                (rng.random::<f64>() * (log_high - log_low) + log_low).exp()
+                                rng.random::<f64>()
+                                    .mul_add(log_high - log_low, log_low)
+                                    .exp()
                             } else {
-                                rng.random::<f64>() * (*high - *low) as f64 + *low as f64
+                                rng.random::<f64>()
+                                    .mul_add((*high - *low) as f64, *low as f64)
                             }
                         }
                         crate::hpo::search_space::ParameterType::Categorical { choices } => {
@@ -1073,7 +1078,7 @@ pub fn expected_improvement(mu: f64, sigma: f64, best_y: f64, minimize: bool) ->
 
     let improvement = if minimize { best_y - mu } else { mu - best_y };
     let z = improvement / sigma;
-    let ei = improvement * normal_cdf(z) + sigma * normal_pdf(z);
+    let ei = improvement.mul_add(normal_cdf(z), sigma * normal_pdf(z));
 
     ei.max(0.0)
 }
@@ -1103,14 +1108,14 @@ pub fn probability_of_improvement(mu: f64, sigma: f64, best_y: f64, minimize: bo
 ///
 /// UCB(x) = μ(x) + κ * σ(x)
 pub fn upper_confidence_bound(mu: f64, sigma: f64, kappa: f64) -> f64 {
-    mu + kappa * sigma
+    kappa.mul_add(sigma, mu)
 }
 
 /// Lower Confidence Bound acquisition function (for minimization)
 ///
 /// LCB(x) = μ(x) - κ * σ(x)
 pub fn lower_confidence_bound(mu: f64, sigma: f64, kappa: f64) -> f64 {
-    mu - kappa * sigma
+    kappa.mul_add(-sigma, mu)
 }
 
 /// Standard normal CDF using error function
@@ -1136,7 +1141,8 @@ fn erf(x: f64) -> f64 {
     let sign = if x < 0.0 { -1.0 } else { 1.0 };
     let x = x.abs();
     let t = 1.0 / (1.0 + p * x);
-    let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * (-x * x).exp();
+    let y = ((a5 * t + a4).mul_add(t, a3).mul_add(t, a2).mul_add(t, a1) * t)
+        .mul_add(-(-x * x).exp(), 1.0);
     sign * y
 }
 
@@ -1418,7 +1424,7 @@ impl LBFGSB {
             let (fx_new, gx_new) = f(&x_new);
 
             // Armijo condition
-            if fx_new <= fx + self.config.c1 * alpha * slope {
+            if fx_new <= (self.config.c1 * alpha).mul_add(slope, fx) {
                 return (alpha, x_new, fx_new, gx_new);
             }
 
@@ -1468,7 +1474,7 @@ impl LBFGSB {
             // Generate random starting point
             let x0: Vec<f64> = bounds
                 .iter()
-                .map(|&(lo, hi)| rng.random::<f64>() * (hi - lo) + lo)
+                .map(|&(lo, hi)| rng.random::<f64>().mul_add(hi - lo, lo))
                 .collect();
 
             let (x_opt, fx_opt) = self.minimize(f, &x0, bounds);
@@ -1527,7 +1533,7 @@ pub fn expected_improvement_gradient(
     dmu_dx
         .iter()
         .zip(dsigma_dx.iter())
-        .map(|(&dmu, &dsigma)| dei_dmu * dmu + dei_dsigma * dsigma)
+        .map(|(&dmu, &dsigma)| dei_dmu.mul_add(dmu, dei_dsigma * dsigma))
         .collect()
 }
 
@@ -1571,7 +1577,7 @@ pub fn ucb_gradient(dmu_dx: &[f64], dsigma_dx: &[f64], kappa: f64) -> Vec<f64> {
     dmu_dx
         .iter()
         .zip(dsigma_dx.iter())
-        .map(|(&dmu, &dsigma)| dmu + kappa * dsigma)
+        .map(|(&dmu, &dsigma)| kappa.mul_add(dsigma, dmu))
         .collect()
 }
 
@@ -1581,7 +1587,7 @@ pub fn lcb_gradient(dmu_dx: &[f64], dsigma_dx: &[f64], kappa: f64) -> Vec<f64> {
     dmu_dx
         .iter()
         .zip(dsigma_dx.iter())
-        .map(|(&dmu, &dsigma)| dmu - kappa * dsigma)
+        .map(|(&dmu, &dsigma)| kappa.mul_add(-dsigma, dmu))
         .collect()
 }
 
@@ -1660,7 +1666,7 @@ impl GaussianProcessRegressor {
         let dsigma_dx: Vec<f64> = dvar_dx.iter().map(|dv| dv / (2.0 * sigma_star)).collect();
 
         // De-standardize
-        let mean = mu_star * self.y_std + self.y_mean;
+        let mean = mu_star.mul_add(self.y_std, self.y_mean);
         let variance = var_star * self.y_std * self.y_std;
         let sigma = variance.sqrt();
 
@@ -1917,7 +1923,7 @@ impl AcquisitionOptimizer {
         for _ in 0..self.n_candidates {
             let x: Vec<f64> = bounds
                 .iter()
-                .map(|&(lo, hi)| rng.random::<f64>() * (hi - lo) + lo)
+                .map(|&(lo, hi)| rng.random::<f64>().mul_add(hi - lo, lo))
                 .collect();
 
             if let Ok(preds) = gp.predict(&[x.clone()]) {

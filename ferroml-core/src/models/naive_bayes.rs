@@ -290,14 +290,20 @@ impl GaussianNB {
         }
 
         // Validate feature count matches
-        if self.n_features.unwrap() != n_features {
+        let expected_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
+        if expected_features != n_features {
             return Err(FerroError::shape_mismatch(
-                format!("{} features", self.n_features.unwrap()),
+                format!("{} features", expected_features),
                 format!("{} features", n_features),
             ));
         }
 
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
 
         // Update statistics for each class using Welford's algorithm
         for (class_idx, &class_label) in classes.iter().enumerate() {
@@ -314,7 +320,10 @@ impl GaussianNB {
             }
 
             let n_new = class_mask.len() as f64;
-            let n_old = self.class_count.as_ref().unwrap()[class_idx];
+            let n_old = self
+                .class_count
+                .as_ref()
+                .ok_or_else(|| FerroError::not_fitted("partial_fit"))?[class_idx];
             let n_total = n_old + n_new;
 
             // Extract samples for this class
@@ -324,7 +333,9 @@ impl GaussianNB {
                 });
 
             // Compute new sample statistics
-            let new_mean = x_class.mean_axis(Axis(0)).unwrap();
+            let new_mean = x_class
+                .mean_axis(Axis(0))
+                .expect("class has at least one sample");
             let new_var = if class_mask.len() > 1 {
                 compute_variance(&x_class, &new_mean)
             } else {
@@ -332,9 +343,18 @@ impl GaussianNB {
             };
 
             // Get current statistics
-            let theta = self.theta.as_mut().unwrap();
-            let var = self.var.as_mut().unwrap();
-            let class_count = self.class_count.as_mut().unwrap();
+            let theta = self
+                .theta
+                .as_mut()
+                .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
+            let var = self
+                .var
+                .as_mut()
+                .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
+            let class_count = self
+                .class_count
+                .as_mut()
+                .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
 
             let old_mean = theta.row(class_idx).to_owned();
             let old_var = var.row(class_idx).to_owned();
@@ -376,8 +396,11 @@ impl GaussianNB {
 
     /// Update class priors and apply variance smoothing
     fn update_priors_and_variance(&mut self) {
-        let class_count = self.class_count.as_ref().unwrap();
-        let var = self.var.as_ref().unwrap();
+        let class_count = self
+            .class_count
+            .as_ref()
+            .expect("class_count set during fit");
+        let var = self.var.as_ref().expect("var set during fit");
 
         // Compute class priors
         let total_samples: f64 = class_count.sum();
@@ -396,7 +419,7 @@ impl GaussianNB {
         self.epsilon = Some(self.var_smoothing * max_var);
 
         // Apply variance smoothing
-        let epsilon = self.epsilon.unwrap();
+        let epsilon = self.epsilon.expect("epsilon was just computed");
         self.var_smoothed = Some(var.mapv(|v| v + epsilon));
     }
 
@@ -406,12 +429,23 @@ impl GaussianNB {
     fn joint_log_likelihood(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.theta, "joint_log_likelihood")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
         validate_predict_input(x, n_features)?;
 
-        let theta = self.theta.as_ref().unwrap();
-        let var_smoothed = self.var_smoothed.as_ref().unwrap();
-        let class_prior = self.class_prior.as_ref().unwrap();
+        let theta = self
+            .theta
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
+        let var_smoothed = self
+            .var_smoothed
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
+        let class_prior = self
+            .class_prior
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
 
         let n_samples = x.nrows();
         let n_classes = theta.nrows();
@@ -429,7 +463,7 @@ impl GaussianNB {
             let log_prior = class_prior[class_idx].ln();
             let log_det = var.mapv(|v| v.ln()).sum(); // sum of log variances
             let const_term =
-                -0.5 * (n_features as f64 * (2.0 * std::f64::consts::PI).ln() + log_det);
+                -0.5 * (n_features as f64).mul_add((2.0 * std::f64::consts::PI).ln(), log_det);
 
             for sample_idx in 0..n_samples {
                 let xi = x.row(sample_idx);
@@ -438,7 +472,7 @@ impl GaussianNB {
                 let diff = &xi - &mean;
                 let mahal: f64 = diff.iter().zip(var.iter()).map(|(&d, &v)| d * d / v).sum();
 
-                jll[[sample_idx, class_idx]] = log_prior + const_term - 0.5 * mahal;
+                jll[[sample_idx, class_idx]] = 0.5f64.mul_add(-mahal, log_prior + const_term);
             }
         }
 
@@ -477,7 +511,10 @@ impl Model for GaussianNB {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let jll = self.joint_log_likelihood(x)?;
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
 
         // Find class with maximum log-likelihood for each sample
         let predictions: Array1<f64> = jll
@@ -595,7 +632,10 @@ impl ProbabilisticModel for GaussianNB {
         let z = z_critical(1.0 - (1.0 - level) / 2.0);
 
         // Get the probability of predicted class for each sample
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_interval"))?;
         let mut pred_probas = Array1::zeros(n_samples);
         let mut lower = Array1::zeros(n_samples);
         let mut upper = Array1::zeros(n_samples);
@@ -821,14 +861,20 @@ impl MultinomialNB {
         }
 
         // Validate feature count matches
-        if self.n_features.unwrap() != n_features {
+        let expected_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
+        if expected_features != n_features {
             return Err(FerroError::shape_mismatch(
-                format!("{} features", self.n_features.unwrap()),
+                format!("{} features", expected_features),
                 format!("{} features", n_features),
             ));
         }
 
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
 
         // Update counts for each class
         for (class_idx, &class_label) in classes.iter().enumerate() {
@@ -847,8 +893,14 @@ impl MultinomialNB {
             let n_class_samples = class_mask.len();
 
             // Sum feature counts for this class
-            let feature_count = self.feature_count.as_mut().unwrap();
-            let class_count = self.class_count.as_mut().unwrap();
+            let feature_count = self
+                .feature_count
+                .as_mut()
+                .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
+            let class_count = self
+                .class_count
+                .as_mut()
+                .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
 
             for &idx in &class_mask {
                 for j in 0..n_features {
@@ -867,10 +919,16 @@ impl MultinomialNB {
 
     /// Update log probabilities after fitting/partial fitting
     fn update_log_probabilities(&mut self) {
-        let feature_count = self.feature_count.as_ref().unwrap();
-        let class_count = self.class_count.as_ref().unwrap();
+        let feature_count = self
+            .feature_count
+            .as_ref()
+            .expect("feature_count set during fit");
+        let class_count = self
+            .class_count
+            .as_ref()
+            .expect("class_count set during fit");
         let n_classes = class_count.len();
-        let n_features = self.n_features.unwrap();
+        let n_features = self.n_features.expect("n_features set during fit");
 
         // Compute class log priors
         let total_samples: f64 = class_count.sum();
@@ -895,7 +953,7 @@ impl MultinomialNB {
         for class_idx in 0..n_classes {
             // Total count for this class
             let total_count: f64 = feature_count.row(class_idx).sum();
-            let denominator = total_count + self.alpha * n_features as f64;
+            let denominator = self.alpha.mul_add(n_features as f64, total_count);
 
             for j in 0..n_features {
                 let count = feature_count[[class_idx, j]];
@@ -913,11 +971,19 @@ impl MultinomialNB {
     fn joint_log_likelihood(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.feature_log_prob, "joint_log_likelihood")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
         validate_predict_input(x, n_features)?;
 
-        let feature_log_prob = self.feature_log_prob.as_ref().unwrap();
-        let class_log_prior = self.class_log_prior.as_ref().unwrap();
+        let feature_log_prob = self
+            .feature_log_prob
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
+        let class_log_prior = self
+            .class_log_prior
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
 
         let n_samples = x.nrows();
         let n_classes = feature_log_prob.nrows();
@@ -981,7 +1047,10 @@ impl Model for MultinomialNB {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let jll = self.joint_log_likelihood(x)?;
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
 
         // Find class with maximum log-likelihood for each sample
         let predictions: Array1<f64> = jll
@@ -1068,7 +1137,10 @@ impl ProbabilisticModel for MultinomialNB {
         let n_samples = x.nrows();
         let z = z_critical(1.0 - (1.0 - level) / 2.0);
 
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_interval"))?;
         let mut pred_probas = Array1::zeros(n_samples);
         let mut lower = Array1::zeros(n_samples);
         let mut upper = Array1::zeros(n_samples);
@@ -1295,14 +1367,20 @@ impl BernoulliNB {
         }
 
         // Validate feature count matches
-        if self.n_features.unwrap() != n_features {
+        let expected_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
+        if expected_features != n_features {
             return Err(FerroError::shape_mismatch(
-                format!("{} features", self.n_features.unwrap()),
+                format!("{} features", expected_features),
                 format!("{} features", n_features),
             ));
         }
 
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
 
         // Update counts for each class
         for (class_idx, &class_label) in classes.iter().enumerate() {
@@ -1321,8 +1399,14 @@ impl BernoulliNB {
             let n_class_samples = class_mask.len();
 
             // Sum feature occurrences for this class
-            let feature_count = self.feature_count.as_mut().unwrap();
-            let class_count = self.class_count.as_mut().unwrap();
+            let feature_count = self
+                .feature_count
+                .as_mut()
+                .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
+            let class_count = self
+                .class_count
+                .as_mut()
+                .ok_or_else(|| FerroError::not_fitted("partial_fit"))?;
 
             for &idx in &class_mask {
                 for j in 0..n_features {
@@ -1341,10 +1425,16 @@ impl BernoulliNB {
 
     /// Update log probabilities after fitting/partial fitting
     fn update_log_probabilities(&mut self) {
-        let feature_count = self.feature_count.as_ref().unwrap();
-        let class_count = self.class_count.as_ref().unwrap();
+        let feature_count = self
+            .feature_count
+            .as_ref()
+            .expect("feature_count set during fit");
+        let class_count = self
+            .class_count
+            .as_ref()
+            .expect("class_count set during fit");
         let n_classes = class_count.len();
-        let n_features = self.n_features.unwrap();
+        let n_features = self.n_features.expect("n_features set during fit");
 
         // Compute class log priors
         let total_samples: f64 = class_count.sum();
@@ -1366,7 +1456,7 @@ impl BernoulliNB {
 
         for class_idx in 0..n_classes {
             let n_class = class_count[class_idx];
-            let denominator = n_class + 2.0 * self.alpha;
+            let denominator = 2.0f64.mul_add(self.alpha, n_class);
 
             for j in 0..n_features {
                 let count = feature_count[[class_idx, j]];
@@ -1386,14 +1476,25 @@ impl BernoulliNB {
     fn joint_log_likelihood(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.feature_log_prob, "joint_log_likelihood")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
         validate_predict_input(x, n_features)?;
 
         let x_bin = self.binarize_input(x);
 
-        let feature_log_prob = self.feature_log_prob.as_ref().unwrap();
-        let feature_log_prob_neg = self.feature_log_prob_neg.as_ref().unwrap();
-        let class_log_prior = self.class_log_prior.as_ref().unwrap();
+        let feature_log_prob = self
+            .feature_log_prob
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
+        let feature_log_prob_neg = self
+            .feature_log_prob_neg
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
+        let class_log_prior = self
+            .class_log_prior
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("joint_log_likelihood"))?;
 
         let n_samples = x_bin.nrows();
         let n_classes = feature_log_prob.nrows();
@@ -1411,7 +1512,7 @@ impl BernoulliNB {
                 let log_likelihood: f64 = xi
                     .iter()
                     .zip(log_prob.iter().zip(log_prob_neg.iter()))
-                    .map(|(&x_val, (&lp, &lp_neg))| x_val * lp + (1.0 - x_val) * lp_neg)
+                    .map(|(&x_val, (&lp, &lp_neg))| x_val.mul_add(lp, (1.0 - x_val) * lp_neg))
                     .sum();
 
                 jll[[sample_idx, class_idx]] = log_prior + log_likelihood;
@@ -1452,7 +1553,10 @@ impl Model for BernoulliNB {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let jll = self.joint_log_likelihood(x)?;
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
 
         let predictions: Array1<f64> = jll
             .rows()
@@ -1535,7 +1639,10 @@ impl ProbabilisticModel for BernoulliNB {
         let n_samples = x.nrows();
         let z = z_critical(1.0 - (1.0 - level) / 2.0);
 
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_interval"))?;
         let mut pred_probas = Array1::zeros(n_samples);
         let mut lower = Array1::zeros(n_samples);
         let mut upper = Array1::zeros(n_samples);
@@ -1598,7 +1705,9 @@ fn z_critical(p: f64) -> f64 {
     let d2 = 0.189_269;
     let d3 = 0.001_308;
 
-    let z = t - (c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t);
+    let z = t
+        - (c2 * t).mul_add(t, c0 + c1 * t)
+            / (d3 * t * t).mul_add(t, (d2 * t).mul_add(t, 1.0 + d1 * t));
 
     if p > 0.5 {
         z

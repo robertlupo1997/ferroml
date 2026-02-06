@@ -228,7 +228,10 @@ impl Transformer for OneHotEncoder {
         let mut feature_names: Vec<String> = Vec::new();
         let mut col_idx = 0;
 
-        let categories = self.categories.as_ref().unwrap();
+        let categories = self
+            .categories
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         for (j, cats) in categories.iter().enumerate() {
             for (cat_idx, &cat_val) in cats.iter().enumerate() {
                 if !self.should_drop(j, cat_idx) {
@@ -249,12 +252,24 @@ impl Transformer for OneHotEncoder {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
         let n_samples = x.nrows();
-        let n_features_out = self.n_features_out.unwrap();
-        let category_to_column = self.category_to_column.as_ref().unwrap();
-        let categories = self.categories.as_ref().unwrap();
+        let n_features_out = self
+            .n_features_out
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let category_to_column = self
+            .category_to_column
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let categories = self
+            .categories
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         let mut result = Array2::zeros((n_samples, n_features_out));
 
@@ -299,9 +314,17 @@ impl Transformer for OneHotEncoder {
         check_is_fitted(self.is_fitted(), "inverse_transform")?;
 
         let n_samples = x.nrows();
-        let n_features_in = self.n_features_in.unwrap();
-        let categories = self.categories.as_ref().unwrap();
-        let category_to_column = self.category_to_column.as_ref().unwrap();
+        let n_features_in = self
+            .n_features_in
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
+        let categories = self
+            .categories
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let category_to_column = self
+            .category_to_column
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         let mut result = Array2::zeros((n_samples, n_features_in));
 
@@ -463,9 +486,16 @@ impl Transformer for OrdinalEncoder {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let category_to_code = self.category_to_code.as_ref().unwrap();
+        let category_to_code = self
+            .category_to_code
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         let mut result = Array2::zeros(x.raw_dim());
 
         for i in 0..x.nrows() {
@@ -498,9 +528,16 @@ impl Transformer for OrdinalEncoder {
 
     fn inverse_transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "inverse_transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let categories = self.categories.as_ref().unwrap();
+        let categories = self
+            .categories
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         let mut result = Array2::zeros(x.raw_dim());
 
         for i in 0..x.nrows() {
@@ -636,7 +673,10 @@ impl LabelEncoder {
     pub fn transform_1d(&self, y: &Array1<f64>) -> Result<Array1<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
 
-        let class_to_code = self.class_to_code.as_ref().unwrap();
+        let class_to_code = self
+            .class_to_code
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform_1d"))?;
         let mut result = Array1::zeros(y.len());
 
         for (i, &val) in y.iter().enumerate() {
@@ -661,7 +701,10 @@ impl LabelEncoder {
     pub fn inverse_transform_1d(&self, y: &Array1<f64>) -> Result<Array1<f64>> {
         check_is_fitted(self.is_fitted(), "inverse_transform")?;
 
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform_1d"))?;
         let mut result = Array1::zeros(y.len());
 
         for (i, &code) in y.iter().enumerate() {
@@ -924,7 +967,7 @@ impl TargetEncoder {
         for (&key, &(sum, count)) in &category_stats {
             let category_mean = sum / count as f64;
             // Smoothed encoding: (count * category_mean + smooth * global_mean) / (count + smooth)
-            let encoded = (count as f64 * category_mean + self.smooth * global_mean)
+            let encoded = (count as f64).mul_add(category_mean, self.smooth * global_mean)
                 / (count as f64 + self.smooth);
             encoding_map.insert(key, encoded);
         }
@@ -974,7 +1017,9 @@ impl TargetEncoder {
         self.fit_with_target(x, y)?;
 
         // Global mean for fallback
-        let global_mean = self.global_mean.unwrap();
+        let global_mean = self
+            .global_mean
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         // Create result array
         let mut result = Array2::zeros((n_samples, n_features));
@@ -1042,8 +1087,8 @@ impl TargetEncoder {
                         let key = (j, OrderedF64(x[[i, j]]));
                         if let Some(&(sum, count)) = oof_category_stats.get(&key) {
                             let category_mean = sum / count as f64;
-                            let encoded = (count as f64 * category_mean
-                                + self.smooth * oof_global_mean)
+                            let encoded = (count as f64)
+                                .mul_add(category_mean, self.smooth * oof_global_mean)
                                 / (count as f64 + self.smooth);
                             result[[i, j]] = encoded;
                         } else {
@@ -1060,8 +1105,13 @@ impl TargetEncoder {
 
     /// Encode a single value using the smoothing formula.
     fn encode_value(&self, feature_idx: usize, value: f64) -> Result<f64> {
-        let global_mean = self.global_mean.unwrap();
-        let encoding_map = self.encoding_map.as_ref().unwrap();
+        let global_mean = self
+            .global_mean
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let encoding_map = self
+            .encoding_map
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         let key = (feature_idx, OrderedF64(value));
 
@@ -1101,7 +1151,11 @@ impl Transformer for TargetEncoder {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
         let n_samples = x.nrows();
         let n_features = x.ncols();

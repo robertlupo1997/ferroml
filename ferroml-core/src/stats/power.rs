@@ -29,7 +29,7 @@ pub fn sample_size_for_power(effect_size: f64, alpha: f64, power: f64, _test_typ
 /// Calculate power for given sample size
 pub fn power_for_sample_size(n: usize, effect_size: f64, alpha: f64) -> f64 {
     let z_alpha = z_critical(1.0 - alpha / 2.0);
-    let z = effect_size * (n as f64 / 2.0).sqrt() - z_alpha;
+    let z = effect_size.mul_add((n as f64 / 2.0).sqrt(), -z_alpha);
     normal_cdf(z)
 }
 
@@ -45,7 +45,9 @@ fn z_critical(p: f64) -> f64 {
     let d1 = 1.432788;
     let d2 = 0.189269;
     let d3 = 0.001308;
-    let z = t - (c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t);
+    let z = t
+        - (c2 * t).mul_add(t, c0 + c1 * t)
+            / (d3 * t * t).mul_add(t, (d2 * t).mul_add(t, 1.0 + d1 * t));
     if p > 0.5 {
         -z
     } else {
@@ -67,6 +69,7 @@ fn erf(x: f64) -> f64 {
     let sign = if x < 0.0 { -1.0 } else { 1.0 };
     let x = x.abs();
     let t = 1.0 / (1.0 + p * x);
-    let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * (-x * x).exp();
+    let y = ((a5 * t + a4).mul_add(t, a3).mul_add(t, a2).mul_add(t, a1) * t)
+        .mul_add(-(-x * x).exp(), 1.0);
     sign * y
 }

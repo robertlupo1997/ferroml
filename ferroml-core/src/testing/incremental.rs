@@ -1039,25 +1039,147 @@ mod edge_case_tests {
 // WARM START PLACEHOLDER TESTS
 // ============================================================================
 
-/// Note: WarmStartModel trait is defined in traits.rs but not yet implemented
-/// on any ensemble models. These tests serve as a placeholder and documentation
-/// of expected behavior when implementations are added.
+/// WarmStartModel tests using a mock ensemble to validate the trait contract.
 #[cfg(test)]
 mod warm_start_tests {
+    use super::*;
+    use crate::models::traits::WarmStartModel;
+    use crate::models::Model;
+    use crate::{FerroError, Result};
+
+    #[derive(Clone)]
+    struct MockEnsemble {
+        warm_start: bool,
+        n_estimators_target: usize,
+        n_estimators_fitted: usize,
+        is_fitted: bool,
+        n_features: Option<usize>,
+    }
+
+    impl MockEnsemble {
+        fn new(n_estimators: usize) -> Self {
+            Self {
+                warm_start: false,
+                n_estimators_target: n_estimators,
+                n_estimators_fitted: 0,
+                is_fitted: false,
+                n_features: None,
+            }
+        }
+    }
+
+    impl Model for MockEnsemble {
+        fn fit(&mut self, x: &Array2<f64>, _y: &Array1<f64>) -> Result<()> {
+            self.n_features = Some(x.ncols());
+            if self.warm_start && self.is_fitted {
+                let new = self
+                    .n_estimators_target
+                    .saturating_sub(self.n_estimators_fitted);
+                self.n_estimators_fitted += new;
+            } else {
+                self.n_estimators_fitted = self.n_estimators_target;
+            }
+            self.is_fitted = true;
+            Ok(())
+        }
+
+        fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+            if !self.is_fitted {
+                return Err(FerroError::not_fitted("MockEnsemble"));
+            }
+            Ok(Array1::zeros(x.nrows()))
+        }
+
+        fn is_fitted(&self) -> bool {
+            self.is_fitted
+        }
+
+        fn feature_importance(&self) -> Option<Array1<f64>> {
+            None
+        }
+
+        fn search_space(&self) -> crate::hpo::SearchSpace {
+            crate::hpo::SearchSpace::new()
+        }
+
+        fn feature_names(&self) -> Option<&[String]> {
+            None
+        }
+
+        fn n_features(&self) -> Option<usize> {
+            self.n_features
+        }
+    }
+
+    impl WarmStartModel for MockEnsemble {
+        fn set_warm_start(&mut self, warm_start: bool) {
+            self.warm_start = warm_start;
+        }
+        fn warm_start(&self) -> bool {
+            self.warm_start
+        }
+        fn n_estimators_fitted(&self) -> usize {
+            self.n_estimators_fitted
+        }
+    }
+
     #[test]
     fn test_warm_start_trait_exists() {
-        // Verify the trait is importable (compilation check)
-        use crate::models::traits::WarmStartModel;
-
-        // The trait exists - this is a compile-time check
         fn _accepts_warm_start<T: WarmStartModel>(_: &T) {}
     }
 
-    // TODO: Add these tests when WarmStartModel is implemented on ensemble models:
-    //
-    // - test_random_forest_warm_start_adds_trees
-    // - test_gradient_boosting_warm_start_adds_rounds
-    // - test_warm_start_preserves_existing_estimators
-    // - test_warm_start_disabled_resets_model
-    // - test_n_estimators_fitted_increases_with_warm_start
+    #[test]
+    fn test_warm_start_adds_estimators() {
+        let (x, y) = make_classification_data(20, 3, 2, 42);
+        let mut model = MockEnsemble::new(5);
+        model.warm_start = true;
+        model.fit(&x, &y).unwrap();
+        assert_eq!(model.n_estimators_fitted(), 5);
+
+        model.n_estimators_target = 10;
+        model.fit(&x, &y).unwrap();
+        assert_eq!(model.n_estimators_fitted(), 10);
+    }
+
+    #[test]
+    fn test_warm_start_preserves_existing_estimators() {
+        let (x, y) = make_classification_data(20, 3, 2, 42);
+        let mut model = MockEnsemble::new(5);
+        model.warm_start = true;
+        model.fit(&x, &y).unwrap();
+        let count = model.n_estimators_fitted();
+
+        model.fit(&x, &y).unwrap();
+        assert_eq!(model.n_estimators_fitted(), count);
+    }
+
+    #[test]
+    fn test_warm_start_disabled_resets_model() {
+        let (x, y) = make_classification_data(20, 3, 2, 42);
+        let mut model = MockEnsemble::new(5);
+        model.warm_start = false;
+        model.fit(&x, &y).unwrap();
+        assert_eq!(model.n_estimators_fitted(), 5);
+
+        model.n_estimators_target = 3;
+        model.fit(&x, &y).unwrap();
+        assert_eq!(model.n_estimators_fitted(), 3);
+    }
+
+    #[test]
+    fn test_n_estimators_fitted_increases_with_warm_start() {
+        let (x, y) = make_classification_data(20, 3, 2, 42);
+        let mut model = MockEnsemble::new(3);
+        model.warm_start = true;
+        model.fit(&x, &y).unwrap();
+        assert_eq!(model.n_estimators_fitted(), 3);
+
+        model.n_estimators_target = 6;
+        model.fit(&x, &y).unwrap();
+        assert_eq!(model.n_estimators_fitted(), 6);
+
+        model.n_estimators_target = 10;
+        model.fit(&x, &y).unwrap();
+        assert_eq!(model.n_estimators_fitted(), 10);
+    }
 }

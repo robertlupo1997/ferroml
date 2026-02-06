@@ -276,7 +276,7 @@ impl KBinsDiscretizer {
             let edge = if lower == upper || upper >= n {
                 sorted[lower.min(n - 1)]
             } else {
-                sorted[lower] * (1.0 - frac) + sorted[upper] * frac
+                sorted[lower].mul_add(1.0 - frac, sorted[upper] * frac)
             };
             edges.push(edge);
         }

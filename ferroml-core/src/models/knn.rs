@@ -862,18 +862,28 @@ impl KNeighborsClassifier {
 
     /// Find k nearest neighbors for a query point.
     fn find_neighbors(&self, query: &[f64]) -> Vec<(usize, f64)> {
-        let k = self.n_neighbors.min(self.x_train.as_ref().unwrap().nrows());
+        let k = self
+            .n_neighbors
+            .min(self.x_train.as_ref().expect("model must be fitted").nrows());
 
-        match self.effective_algorithm.unwrap() {
-            KNNAlgorithm::KDTree => self.kdtree.as_ref().unwrap().query(query, k, &self.metric),
+        match self.effective_algorithm.expect("model must be fitted") {
+            KNNAlgorithm::KDTree => {
+                self.kdtree
+                    .as_ref()
+                    .expect("kdtree must be built")
+                    .query(query, k, &self.metric)
+            }
             KNNAlgorithm::BallTree => self
                 .balltree
                 .as_ref()
-                .unwrap()
+                .expect("balltree must be built")
                 .query(query, k, &self.metric),
-            KNNAlgorithm::BruteForce | KNNAlgorithm::Auto => {
-                brute_force_search(self.x_train.as_ref().unwrap(), query, k, &self.metric)
-            }
+            KNNAlgorithm::BruteForce | KNNAlgorithm::Auto => brute_force_search(
+                self.x_train.as_ref().expect("model must be fitted"),
+                query,
+                k,
+                &self.metric,
+            ),
         }
     }
 
@@ -959,10 +969,20 @@ impl Model for KNeighborsClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.x_train, "predict")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("predict"))?,
+        )?;
 
-        let y_train = self.y_train.as_ref().unwrap();
-        let classes = self.classes.as_ref().unwrap();
+        let y_train = self
+            .y_train
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         let mut predictions = Array1::zeros(n_samples);
@@ -1024,10 +1044,20 @@ impl Model for KNeighborsClassifier {
 impl ProbabilisticModel for KNeighborsClassifier {
     fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.x_train, "predict_proba")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("predict"))?,
+        )?;
 
-        let y_train = self.y_train.as_ref().unwrap();
-        let classes = self.classes.as_ref().unwrap();
+        let y_train = self
+            .y_train
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
         let n_classes = classes.len();
 
@@ -1215,18 +1245,28 @@ impl KNeighborsRegressor {
 
     /// Find k nearest neighbors for a query point.
     fn find_neighbors(&self, query: &[f64]) -> Vec<(usize, f64)> {
-        let k = self.n_neighbors.min(self.x_train.as_ref().unwrap().nrows());
+        let k = self
+            .n_neighbors
+            .min(self.x_train.as_ref().expect("model must be fitted").nrows());
 
-        match self.effective_algorithm.unwrap() {
-            KNNAlgorithm::KDTree => self.kdtree.as_ref().unwrap().query(query, k, &self.metric),
+        match self.effective_algorithm.expect("model must be fitted") {
+            KNNAlgorithm::KDTree => {
+                self.kdtree
+                    .as_ref()
+                    .expect("kdtree must be built")
+                    .query(query, k, &self.metric)
+            }
             KNNAlgorithm::BallTree => self
                 .balltree
                 .as_ref()
-                .unwrap()
+                .expect("balltree must be built")
                 .query(query, k, &self.metric),
-            KNNAlgorithm::BruteForce | KNNAlgorithm::Auto => {
-                brute_force_search(self.x_train.as_ref().unwrap(), query, k, &self.metric)
-            }
+            KNNAlgorithm::BruteForce | KNNAlgorithm::Auto => brute_force_search(
+                self.x_train.as_ref().expect("model must be fitted"),
+                query,
+                k,
+                &self.metric,
+            ),
         }
     }
 
@@ -1302,9 +1342,16 @@ impl Model for KNeighborsRegressor {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.x_train, "predict")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("predict"))?,
+        )?;
 
-        let y_train = self.y_train.as_ref().unwrap();
+        let y_train = self
+            .y_train
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         let mut predictions = Array1::zeros(n_samples);

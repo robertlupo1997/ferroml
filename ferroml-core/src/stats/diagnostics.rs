@@ -97,7 +97,7 @@ impl NormalityTest for ShapiroWilkTest {
         // Simplified test statistic based on skewness/kurtosis
         let z_s = skewness.abs() / (6.0 / n as f64).sqrt();
         let z_k = kurtosis.abs() / (24.0 / n as f64).sqrt();
-        let w = 1.0 / (1.0 + z_s.powi(2) + z_k.powi(2));
+        let w = 1.0 / z_k.mul_add(z_k, z_s.mul_add(z_s, 1.0));
 
         // Approximate p-value
         let p_value = (-5.0 * (1.0 - w)).exp().min(1.0);
@@ -147,8 +147,8 @@ pub fn detect_outliers_iqr(data: &Array1<f64>, k: f64) -> OutlierResult {
     let q3 = sorted[3 * n / 4];
     let iqr = q3 - q1;
 
-    let lower_bound = q1 - k * iqr;
-    let upper_bound = q3 + k * iqr;
+    let lower_bound = k.mul_add(-iqr, q1);
+    let upper_bound = k.mul_add(iqr, q3);
 
     let outlier_indices: Vec<usize> = data
         .iter()

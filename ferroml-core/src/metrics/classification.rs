@@ -606,14 +606,14 @@ pub fn matthews_corrcoef(y_true: &Array1<f64>, y_pred: &Array1<f64>) -> Result<f
 
     // Numerator: c*s - sum(p_k * t_k)
     let pk_tk_sum: f64 = (0..n_classes).map(|k| p[k] * t[k]).sum();
-    let numerator = c * s - pk_tk_sum;
+    let numerator = c.mul_add(s, -pk_tk_sum);
 
     // Denominator components
     let pk_sq_sum: f64 = p.iter().map(|&x| x * x).sum();
     let tk_sq_sum: f64 = t.iter().map(|&x| x * x).sum();
 
-    let denom_left = s * s - pk_sq_sum;
-    let denom_right = s * s - tk_sq_sum;
+    let denom_left = s.mul_add(s, -pk_sq_sum);
+    let denom_right = s.mul_add(s, -tk_sq_sum);
 
     // Handle edge cases where denominator would be zero
     if denom_left <= 0.0 || denom_right <= 0.0 {

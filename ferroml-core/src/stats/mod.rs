@@ -208,7 +208,7 @@ impl DescriptiveStats {
             let g2 = if m2 > 0.0 { m4 / m2.powi(2) - 3.0 } else { 0.0 };
             let adjusted_kurtosis = if n > 3 {
                 let n_f = n as f64;
-                ((n_f - 1.0) / ((n_f - 2.0) * (n_f - 3.0))) * ((n_f + 1.0) * g2 + 6.0)
+                ((n_f - 1.0) / ((n_f - 2.0) * (n_f - 3.0))) * (n_f + 1.0).mul_add(g2, 6.0)
             } else {
                 g2
             };
@@ -248,7 +248,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     let upper = index.ceil() as usize;
     let weight = index - lower as f64;
 
-    sorted[lower] * (1.0 - weight) + sorted[upper] * weight
+    sorted[lower].mul_add(1.0 - weight, sorted[upper] * weight)
 }
 
 /// Correlation coefficient with confidence interval and significance test
@@ -348,7 +348,9 @@ fn z_critical(p: f64) -> f64 {
     let d2 = 0.189269;
     let d3 = 0.001308;
 
-    let z = t - (c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t);
+    let z = t
+        - (c2 * t).mul_add(t, c0 + c1 * t)
+            / (d3 * t * t).mul_add(t, (d2 * t).mul_add(t, 1.0 + d1 * t));
 
     if p > 0.5 {
         -z
@@ -360,8 +362,8 @@ fn z_critical(p: f64) -> f64 {
 /// Student's t CDF approximation
 fn t_cdf(t: f64, df: f64) -> f64 {
     // Use regularized incomplete beta function
-    let x = df / (df + t * t);
-    0.5 + 0.5 * (1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t)
+    let x = df / t.mul_add(t, df);
+    0.5f64.mul_add((1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t), 0.5)
 }
 
 /// Incomplete beta function approximation
@@ -379,7 +381,8 @@ fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
 
     for n in 1..100 {
         let n = n as f64;
-        let d = (a + n - 1.0) * (a + b + n - 1.0) * x / ((a + 2.0 * n - 1.0) * (a + 2.0 * n));
+        let d = (a + n - 1.0) * (a + b + n - 1.0) * x
+            / ((2.0f64.mul_add(n, a) - 1.0) * 2.0f64.mul_add(n, a));
         term *= d;
         result += term;
 
@@ -409,7 +412,7 @@ fn gamma_ln(x: f64) -> f64 {
     ];
 
     let tmp = x + 5.5;
-    let tmp = tmp - (x + 0.5) * tmp.ln();
+    let tmp = (x + 0.5).mul_add(-tmp.ln(), tmp);
 
     let mut ser = 1.000000000190015;
     for (i, &c) in coeffs.iter().enumerate() {

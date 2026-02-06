@@ -573,7 +573,7 @@ impl Transformer for SelectFromModel {
             ImportanceThreshold::MeanPlusStd(factor) => {
                 let mean = self.importances.mean().unwrap_or(0.0);
                 let std = self.importances.std(1.0);
-                mean + factor * std
+                factor.mul_add(std, mean)
             }
         };
 
@@ -888,7 +888,7 @@ fn f_cdf(f: f64, df1: f64, df2: f64) -> f64 {
     if f <= 0.0 {
         return 0.0;
     }
-    let x = df1 * f / (df1 * f + df2);
+    let x = df1 * f / df1.mul_add(f, df2);
     incomplete_beta(df1 / 2.0, df2 / 2.0, x)
 }
 
@@ -934,7 +934,7 @@ fn upper_incomplete_gamma(a: f64, x: f64) -> f64 {
     for n in 1..100 {
         let an = n as f64 * (a - n as f64);
         let bn = x + (2 * n + 1) as f64 - a;
-        d = bn + an * d;
+        d = an.mul_add(d, bn);
         if d.abs() < 1e-30 {
             d = 1e-30;
         }
@@ -969,7 +969,7 @@ fn gamma_ln(x: f64) -> f64 {
         -0.5395239384953e-5,
     ];
 
-    let tmp = x + 5.5 - (x + 0.5) * (x + 5.5).ln();
+    let tmp = (x + 0.5).mul_add(-(x + 5.5).ln(), x + 5.5);
     let mut ser = 1.000000000190015;
     for (i, &c) in coeffs.iter().enumerate() {
         ser += c / (x + i as f64 + 1.0);
@@ -1006,7 +1006,7 @@ fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
         let m = m as f64;
 
         // Even step
-        let num = m * (b - m) * x / ((a + 2.0 * m - 1.0) * (a + 2.0 * m));
+        let num = m * (b - m) * x / ((2.0f64.mul_add(m, a) - 1.0) * 2.0f64.mul_add(m, a));
         d = 1.0 + num * d;
         if d.abs() < 1e-30 {
             d = 1e-30;
@@ -1019,7 +1019,8 @@ fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
         h *= d * c;
 
         // Odd step
-        let num = -(a + m) * (a + b + m) * x / ((a + 2.0 * m) * (a + 2.0 * m + 1.0));
+        let num =
+            -(a + m) * (a + b + m) * x / (2.0f64.mul_add(m, a) * (2.0f64.mul_add(m, a) + 1.0));
         d = 1.0 + num * d;
         if d.abs() < 1e-30 {
             d = 1e-30;

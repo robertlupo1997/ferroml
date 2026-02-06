@@ -463,8 +463,8 @@ impl SHAPSummary {
 
                 // 95% CI using t-distribution approximation (z=1.96 for large samples)
                 let se = std / (self.n_samples as f64).sqrt();
-                let ci_lower = importance - 1.96 * se;
-                let ci_upper = importance + 1.96 * se;
+                let ci_lower = 1.96f64.mul_add(-se, importance);
+                let ci_upper = 1.96f64.mul_add(se, importance);
 
                 BarPlotEntry {
                     feature_idx: idx,
@@ -833,7 +833,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     if lower == upper || upper >= sorted.len() {
         sorted[lower.min(sorted.len() - 1)]
     } else {
-        sorted[lower] * (1.0 - frac) + sorted[upper] * frac
+        sorted[lower].mul_add(1.0 - frac, sorted[upper] * frac)
     }
 }
 

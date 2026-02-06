@@ -370,7 +370,10 @@ fn dataframe_to_dataset<P: AsRef<Path>>(
         tc.to_string()
     } else {
         // Use last numeric column as target
-        numeric_cols.last().unwrap().clone()
+        numeric_cols
+            .last()
+            .ok_or_else(|| FerroError::invalid_input("No numeric columns available for target"))?
+            .clone()
     };
 
     // Get feature columns (all numeric except target)

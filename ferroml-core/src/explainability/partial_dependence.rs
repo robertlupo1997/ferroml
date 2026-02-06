@@ -858,7 +858,9 @@ pub(super) fn generate_grid(
             let max = sorted.last().copied().unwrap_or(1.0);
             let step = (max - min) / (n_points - 1) as f64;
 
-            (0..n_points).map(|i| min + i as f64 * step).collect()
+            (0..n_points)
+                .map(|i| (i as f64).mul_add(step, min))
+                .collect()
         }
     }
 }
@@ -880,7 +882,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     if lower == upper {
         sorted[lower]
     } else {
-        sorted[lower] * (1.0 - frac) + sorted[upper] * frac
+        sorted[lower].mul_add(1.0 - frac, sorted[upper] * frac)
     }
 }
 

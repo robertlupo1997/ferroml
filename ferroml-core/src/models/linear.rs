@@ -119,6 +119,8 @@ struct FittedData {
     df_residuals: usize,
     /// Degrees of freedom for model
     df_model: usize,
+    /// Condition number of the design matrix (from R diagonal of QR)
+    condition_number: Option<f64>,
 }
 
 impl Default for LinearRegression {
@@ -384,7 +386,7 @@ impl LinearRegression {
         let ll = self.log_likelihood()?;
         let data = self.fitted_data.as_ref()?;
         let k = (data.df_model + 1) as f64; // +1 for variance parameter
-        Some(2.0 * k - 2.0 * ll)
+        Some(2.0f64.mul_add(k, -(2.0 * ll)))
     }
 
     /// Get BIC (Bayesian Information Criterion)
@@ -396,12 +398,11 @@ impl LinearRegression {
         Some(k * n.ln() - 2.0 * ll)
     }
 
-    /// Get condition number of X'X (indicates multicollinearity)
+    /// Get condition number of the design matrix (indicates multicollinearity).
+    /// Computed during fit from the R diagonal of QR decomposition.
+    /// High values (> 30) suggest multicollinearity issues.
     pub fn condition_number(&self) -> Option<f64> {
-        // This is stored during fitting if computed
-        // For now, return None as full SVD is expensive
-        // TODO: Add condition number computation during fit
-        None
+        self.fitted_data.as_ref()?.condition_number
     }
 
     /// Perform Breusch-Pagan test for heteroscedasticity
@@ -500,6 +501,18 @@ impl Model for LinearRegression {
         // Using Gram-Schmidt orthogonalization
         let (q, r) = qr_decomposition(&x_design)?;
 
+        // Condition number from R diagonal: cond(X) ≈ max|R_ii| / min|R_ii|
+        let condition_number = {
+            let diag: Vec<f64> = (0..r.ncols()).map(|i| r[[i, i]].abs()).collect();
+            let max_diag = diag.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let min_diag = diag.iter().cloned().fold(f64::INFINITY, f64::min);
+            if min_diag > 1e-14 {
+                Some(max_diag / min_diag)
+            } else {
+                None
+            }
+        };
+
         // Solve R * beta = Q' * y
         let qty = q.t().dot(y);
         let coefficients = solve_upper_triangular(&r, &qty)?;
@@ -560,6 +573,7 @@ impl Model for LinearRegression {
             x_means,
             df_residuals,
             df_model,
+            condition_number,
         });
 
         // Store coefficients
@@ -939,7 +953,7 @@ fn t_critical(p: f64, df: f64) -> f64 {
 
     let a = 1.0 / (df - 0.5);
     let b = 48.0 / (a * a);
-    let c = ((20700.0 * a / b - 98.0) * a - 16.0) * a + 96.36;
+    let c = (20700.0 * a / b - 98.0).mul_add(a, -16.0).mul_add(a, 96.36);
     let d = ((94.5 / (b + c) - 3.0) / b + 1.0) * (a * std::f64::consts::PI * 0.5).sqrt() * df;
 
     let x = d * p;
@@ -951,17 +965,22 @@ fn t_critical(p: f64, df: f64) -> f64 {
         y = x_norm * x_norm;
 
         if df < 5.0 {
-            let _c = c + 0.3 * (df - 4.5) * (x_norm + 0.6);
+            let _c = (0.3 * (df - 4.5)).mul_add(x_norm + 0.6, c);
         }
 
-        let c = (((0.05 * d * x_norm - 5.0) * x_norm - 7.0) * x_norm - 2.0) * x_norm + b + c;
-        y = (((((0.4 * y + 6.3) * y + 36.0) * y + 94.5) / c - y - 3.0) / b + 1.0) * x_norm;
+        let c = (0.05 * d)
+            .mul_add(x_norm, -5.0)
+            .mul_add(x_norm, -7.0)
+            .mul_add(x_norm, -2.0)
+            .mul_add(x_norm, b)
+            + c;
+        y = ((0.4f64.mul_add(y, 6.3).mul_add(y, 36.0).mul_add(y, 94.5) / c - y - 3.0) / b + 1.0)
+            * x_norm;
         y = (a * y * y).exp_m1();
     } else {
-        y = ((1.0 / (((df + 6.0) / (df * y) - 0.089 * d - 0.822) * (df + 2.0) * 3.0)
+        y = (1.0 / ((0.089f64.mul_add(-d, (df + 6.0) / (df * y)) - 0.822) * (df + 2.0) * 3.0)
             + 0.5 / (df + 4.0))
-            * y
-            - 1.0)
+            .mul_add(y, -1.0)
             * (df + 1.0)
             / (df + 2.0)
             + 1.0 / y;
@@ -990,7 +1009,9 @@ fn z_inv_normal(p: f64) -> f64 {
     let d2 = 0.189269;
     let d3 = 0.001308;
 
-    let z = t - (c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t);
+    let z = t
+        - (c2 * t).mul_add(t, c0 + c1 * t)
+            / (d3 * t * t).mul_add(t, (d2 * t).mul_add(t, 1.0 + d1 * t));
 
     if p > 0.5 {
         -z
@@ -1002,8 +1023,11 @@ fn z_inv_normal(p: f64) -> f64 {
 /// Student's t CDF approximation
 fn t_cdf_approx(t: f64, df: f64) -> f64 {
     // Use regularized incomplete beta function
-    let x = df / (df + t * t);
-    0.5 + 0.5 * (1.0 - incomplete_beta_regularized(df / 2.0, 0.5, x)).copysign(t)
+    let x = df / t.mul_add(t, df);
+    0.5f64.mul_add(
+        (1.0 - incomplete_beta_regularized(df / 2.0, 0.5, x)).copysign(t),
+        0.5,
+    )
 }
 
 /// F distribution CDF approximation
@@ -1011,7 +1035,7 @@ fn f_cdf(f: f64, df1: f64, df2: f64) -> f64 {
     if f <= 0.0 {
         return 0.0;
     }
-    let x = df1 * f / (df1 * f + df2);
+    let x = df1 * f / df1.mul_add(f, df2);
     incomplete_beta_regularized(df1 / 2.0, df2 / 2.0, x)
 }
 
@@ -1038,7 +1062,11 @@ fn incomplete_beta_regularized(a: f64, b: f64, x: f64) -> f64 {
     let bt = if x == 0.0 || x == 1.0 {
         0.0
     } else {
-        (ln_gamma(a + b) - ln_gamma(a) - ln_gamma(b) + a * x.ln() + b * (1.0 - x).ln()).exp()
+        b.mul_add(
+            (1.0 - x).ln(),
+            a.mul_add(x.ln(), ln_gamma(a + b) - ln_gamma(a) - ln_gamma(b)),
+        )
+        .exp()
     };
 
     // Use symmetry for numerical stability
@@ -1118,7 +1146,7 @@ fn ln_gamma(x: f64) -> f64 {
     ];
 
     let tmp = x + 5.5;
-    let tmp = tmp - (x + 0.5) * tmp.ln();
+    let tmp = (x + 0.5).mul_add(-tmp.ln(), tmp);
 
     let mut ser = 1.000_000_000_190_015;
     for (i, &c) in coeffs.iter().enumerate() {
@@ -1179,7 +1207,7 @@ fn upper_incomplete_gamma_cf(a: f64, x: f64) -> f64 {
     for i in 1..=max_iter {
         let an = -(i as f64) * (i as f64 - a);
         b += 2.0;
-        d = an * d + b;
+        d = an.mul_add(d, b);
         if d.abs() < fpmin {
             d = fpmin;
         }

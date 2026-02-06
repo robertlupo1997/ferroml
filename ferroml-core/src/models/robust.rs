@@ -134,7 +134,7 @@ impl MEstimator {
                 if u.abs() <= k {
                     0.5 * u * u
                 } else {
-                    k * u.abs() - 0.5 * k * k
+                    k.mul_add(u.abs(), -(0.5 * k * k))
                 }
             }
             MEstimator::Bisquare => {
@@ -156,11 +156,14 @@ impl MEstimator {
                 if abs_u <= a {
                     0.5 * u * u
                 } else if abs_u <= b {
-                    a * abs_u - 0.5 * a * a
+                    a.mul_add(abs_u, -(0.5 * a * a))
                 } else if abs_u <= c {
-                    a * (c - abs_u) / (c - b) * 0.5 * (b - a + c - abs_u) + a * b - 0.5 * a * a
+                    (0.5 * a).mul_add(
+                        -a,
+                        (a * (c - abs_u) / (c - b) * 0.5).mul_add(b - a + c - abs_u, a * b),
+                    )
                 } else {
-                    a * (b - a + c - b) / 2.0 + a * b - 0.5 * a * a
+                    (0.5 * a).mul_add(-a, a.mul_add(b, a * (b - a + c - b) / 2.0))
                 }
             }
             MEstimator::AndrewsWave => {
@@ -189,7 +192,7 @@ impl MEstimator {
             MEstimator::Bisquare => {
                 if u.abs() <= k {
                     let t = u / k;
-                    u * (1.0 - t * t).powi(2)
+                    u * t.mul_add(-t, 1.0).powi(2)
                 } else {
                     0.0
                 }
@@ -247,7 +250,7 @@ impl MEstimator {
                 if u.abs() <= k {
                     let t = u / k;
                     let t2 = t * t;
-                    (1.0 - t2).powi(2) - 4.0 * t2 * (1.0 - t2)
+                    (1.0 - t2).mul_add(1.0 - t2, -(4.0 * t2 * (1.0 - t2)))
                 } else {
                     0.0
                 }
@@ -1058,7 +1061,7 @@ impl ProbabilisticModel for RobustRegression {
 
 /// Standard normal CDF approximation
 fn standard_normal_cdf(x: f64) -> f64 {
-    let t = 1.0 / (1.0 + 0.2316419 * x.abs());
+    let t = 1.0 / 0.2316419f64.mul_add(x.abs(), 1.0);
     let d = 0.3989422804014327; // 1/sqrt(2*pi)
     let p = d * (-x * x / 2.0).exp();
     let c = t
@@ -1091,7 +1094,9 @@ fn z_critical(p: f64) -> f64 {
     let d2 = 0.189269;
     let d3 = 0.001308;
 
-    let z = t - (c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t);
+    let z = t
+        - (c2 * t).mul_add(t, c0 + c1 * t)
+            / (d3 * t * t).mul_add(t, (d2 * t).mul_add(t, 1.0 + d1 * t));
 
     if p > 0.5 {
         z

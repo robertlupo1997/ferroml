@@ -1052,7 +1052,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     if lower == upper {
         sorted[lower]
     } else {
-        sorted[lower] * (1.0 - frac) + sorted[upper] * frac
+        sorted[lower].mul_add(1.0 - frac, sorted[upper] * frac)
     }
 }
 

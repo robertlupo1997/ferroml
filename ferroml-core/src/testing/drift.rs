@@ -223,7 +223,8 @@ pub fn make_concept_drift(
         } else {
             (row[0], 0.0)
         };
-        let rotated_sum = x0 * cos_theta - x1 * sin_theta + row.iter().skip(2).sum::<f64>();
+        let rotated_sum =
+            x0.mul_add(cos_theta, -(x1 * sin_theta)) + row.iter().skip(2).sum::<f64>();
         let y = if rotated_sum > 0.0 { 1.0 } else { 0.0 };
 
         cur_x_data.extend(row);
@@ -416,7 +417,7 @@ pub fn js_divergence(reference: &Array1<f64>, current: &Array1<f64>, n_bins: usi
         let q = (*cc as f64 / n_cur).max(eps);
         let m = (p + q) / 2.0;
 
-        js += 0.5 * p * (p / m).ln() + 0.5 * q * (q / m).ln();
+        js += (0.5 * p).mul_add((p / m).ln(), 0.5 * q * (q / m).ln());
     }
 
     js.max(0.0)
@@ -494,7 +495,7 @@ fn sample_normal(rng: &mut ChaCha8Rng, mean: f64, std: f64) -> f64 {
     let u1: f64 = rng.random();
     let u2: f64 = rng.random();
     let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-    mean + std * z
+    std.mul_add(z, mean)
 }
 
 /// Count samples in each bin

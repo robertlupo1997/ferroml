@@ -299,7 +299,9 @@ impl TreeStructure {
                     node.n_samples, node.value, node.impurity
                 )
             } else {
-                let feature_idx = node.feature_index.unwrap();
+                let feature_idx = node
+                    .feature_index
+                    .expect("internal node must have feature_index");
                 let feature_name = self
                     .feature_names
                     .as_ref()
@@ -309,7 +311,7 @@ impl TreeStructure {
                 format!(
                     "{} <= {:.4}\\nsamples = {}\\nimpurity = {:.4}",
                     feature_name,
-                    node.threshold.unwrap(),
+                    node.threshold.expect("internal node must have threshold"),
                     node.n_samples,
                     node.impurity
                 )
@@ -357,12 +359,15 @@ impl TreeStructure {
             if node.is_leaf {
                 break;
             }
-            let feature_idx = node.feature_index.unwrap();
-            let threshold = node.threshold.unwrap();
+            let feature_idx = node
+                .feature_index
+                .expect("internal node must have feature_index");
+            let threshold = node.threshold.expect("internal node must have threshold");
             node_id = if x[feature_idx] <= threshold {
-                node.left_child.unwrap()
+                node.left_child.expect("internal node must have left_child")
             } else {
-                node.right_child.unwrap()
+                node.right_child
+                    .expect("internal node must have right_child")
             };
         }
 
@@ -545,10 +550,15 @@ impl DecisionTreeClassifier {
     /// Predict class probabilities
     pub fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.tree, "predict_proba")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         validate_predict_input(x, n_features)?;
 
-        let tree = self.tree.as_ref().unwrap();
+        let tree = self
+            .tree
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         let n_classes = tree.n_classes;
         let n_samples = x.nrows();
 
@@ -557,7 +567,7 @@ impl DecisionTreeClassifier {
         for i in 0..n_samples {
             let sample: Vec<f64> = x.row(i).to_vec();
             let leaf_id = self.find_leaf(&sample);
-            let leaf = tree.get_node(leaf_id).unwrap();
+            let leaf = tree.get_node(leaf_id).expect("leaf_id must be valid");
 
             // Normalize value to probabilities
             let total: f64 = leaf.value.iter().sum();
@@ -573,19 +583,22 @@ impl DecisionTreeClassifier {
 
     /// Find the leaf node for a sample
     fn find_leaf(&self, x: &[f64]) -> usize {
-        let tree = self.tree.as_ref().unwrap();
+        let tree = self.tree.as_ref().expect("model must be fitted");
         let mut node_id = 0;
 
         while let Some(node) = tree.get_node(node_id) {
             if node.is_leaf {
                 return node_id;
             }
-            let feature_idx = node.feature_index.unwrap();
-            let threshold = node.threshold.unwrap();
+            let feature_idx = node
+                .feature_index
+                .expect("internal node must have feature_index");
+            let threshold = node.threshold.expect("internal node must have threshold");
             node_id = if x[feature_idx] <= threshold {
-                node.left_child.unwrap()
+                node.left_child.expect("internal node must have left_child")
             } else {
-                node.right_child.unwrap()
+                node.right_child
+                    .expect("internal node must have right_child")
             };
         }
 
@@ -635,7 +648,7 @@ impl DecisionTreeClassifier {
 
         // Check stopping conditions
         let should_stop = n_samples < self.min_samples_split
-            || (self.max_depth.is_some() && depth >= self.max_depth.unwrap())
+            || self.max_depth.is_some_and(|d| depth >= d)
             || impurity < 1e-10
             || class_counts.iter().filter(|&&c| c > 0).count() <= 1;
 
@@ -717,7 +730,7 @@ impl DecisionTreeClassifier {
 
         // Check stopping conditions
         let should_stop = n_samples < self.min_samples_split
-            || (self.max_depth.is_some() && depth >= self.max_depth.unwrap())
+            || self.max_depth.is_some_and(|d| depth >= d)
             || impurity < 1e-10
             || class_weights_sum.iter().filter(|&&w| w > 0.0).count() <= 1;
 
@@ -873,7 +886,7 @@ impl DecisionTreeClassifier {
                 let left_prop = left_total / total_weight;
                 let right_prop = right_total / total_weight;
                 let weighted_child_impurity =
-                    left_prop * left_impurity + right_prop * right_impurity;
+                    left_prop.mul_add(left_impurity, right_prop * right_impurity);
                 let gain = parent_impurity - weighted_child_impurity;
 
                 if gain > best_gain {
@@ -995,7 +1008,7 @@ impl DecisionTreeClassifier {
                 let left_weight = left_indices.len() as f64 / n_samples as f64;
                 let right_weight = right_indices.len() as f64 / n_samples as f64;
                 let weighted_child_impurity =
-                    left_weight * left_impurity + right_weight * right_impurity;
+                    left_weight.mul_add(left_impurity, right_weight * right_impurity);
                 let gain = parent_impurity - weighted_child_impurity;
 
                 if gain > best_gain {
@@ -1021,7 +1034,9 @@ impl DecisionTreeClassifier {
 
             for node in &tree.nodes {
                 if !node.is_leaf {
-                    let feature_idx = node.feature_index.unwrap();
+                    let feature_idx = node
+                        .feature_index
+                        .expect("internal node must have feature_index");
                     // Weighted impurity decrease
                     importances[feature_idx] +=
                         node.impurity_decrease * (node.weighted_n_samples / total_samples);
@@ -1050,7 +1065,10 @@ impl DecisionTreeClassifier {
         // R_alpha(T) = R(T) + alpha * |T| where |T| is number of leaves
         // We iteratively collapse internal nodes where the cost-complexity gain is minimal
 
-        let tree = self.tree.as_mut().unwrap();
+        let tree = self
+            .tree
+            .as_mut()
+            .expect("model must be fitted for pruning");
         let alpha = self.ccp_alpha;
 
         // Keep pruning while beneficial
@@ -1198,17 +1216,27 @@ impl Model for DecisionTreeClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.tree, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         let n_samples = x.nrows();
         let mut predictions = Array1::zeros(n_samples);
 
         for i in 0..n_samples {
             let sample: Vec<f64> = x.row(i).to_vec();
             let leaf_id = self.find_leaf(&sample);
-            let leaf = self.tree.as_ref().unwrap().get_node(leaf_id).unwrap();
+            let leaf = self
+                .tree
+                .as_ref()
+                .expect("model must be fitted")
+                .get_node(leaf_id)
+                .expect("leaf_id must be valid");
 
             // Find class with maximum count
             let max_idx = leaf
@@ -1393,19 +1421,22 @@ impl DecisionTreeRegressor {
 
     /// Find the leaf node for a sample
     fn find_leaf(&self, x: &[f64]) -> usize {
-        let tree = self.tree.as_ref().unwrap();
+        let tree = self.tree.as_ref().expect("model must be fitted");
         let mut node_id = 0;
 
         while let Some(node) = tree.get_node(node_id) {
             if node.is_leaf {
                 return node_id;
             }
-            let feature_idx = node.feature_index.unwrap();
-            let threshold = node.threshold.unwrap();
+            let feature_idx = node
+                .feature_index
+                .expect("internal node must have feature_index");
+            let threshold = node.threshold.expect("internal node must have threshold");
             node_id = if x[feature_idx] <= threshold {
-                node.left_child.unwrap()
+                node.left_child.expect("internal node must have left_child")
             } else {
-                node.right_child.unwrap()
+                node.right_child
+                    .expect("internal node must have right_child")
             };
         }
 
@@ -1447,7 +1478,7 @@ impl DecisionTreeRegressor {
 
         // Check stopping conditions
         let should_stop = n_samples < self.min_samples_split
-            || (self.max_depth.is_some() && depth >= self.max_depth.unwrap())
+            || self.max_depth.is_some_and(|d| depth >= d)
             || impurity < 1e-10;
 
         if should_stop {
@@ -1576,7 +1607,7 @@ impl DecisionTreeRegressor {
                 let left_weight = left_indices.len() as f64 / n_samples as f64;
                 let right_weight = right_indices.len() as f64 / n_samples as f64;
                 let weighted_child_impurity =
-                    left_weight * left_impurity + right_weight * right_impurity;
+                    left_weight.mul_add(left_impurity, right_weight * right_impurity);
                 let gain = parent_impurity - weighted_child_impurity;
 
                 if gain > best_gain {
@@ -1602,7 +1633,9 @@ impl DecisionTreeRegressor {
 
             for node in &tree.nodes {
                 if !node.is_leaf {
-                    let feature_idx = node.feature_index.unwrap();
+                    let feature_idx = node
+                        .feature_index
+                        .expect("internal node must have feature_index");
                     importances[feature_idx] +=
                         node.impurity_decrease * (node.weighted_n_samples / total_samples);
                 }
@@ -1626,7 +1659,10 @@ impl DecisionTreeRegressor {
             return;
         }
 
-        let tree = self.tree.as_mut().unwrap();
+        let tree = self
+            .tree
+            .as_mut()
+            .expect("model must be fitted for pruning");
         let alpha = self.ccp_alpha;
 
         loop {
@@ -1713,7 +1749,9 @@ impl Model for DecisionTreeRegressor {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.tree, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
         let n_samples = x.nrows();
@@ -1722,7 +1760,12 @@ impl Model for DecisionTreeRegressor {
         for i in 0..n_samples {
             let sample: Vec<f64> = x.row(i).to_vec();
             let leaf_id = self.find_leaf(&sample);
-            let leaf = self.tree.as_ref().unwrap().get_node(leaf_id).unwrap();
+            let leaf = self
+                .tree
+                .as_ref()
+                .expect("model must be fitted")
+                .get_node(leaf_id)
+                .expect("leaf_id must be valid");
             predictions[i] = leaf.value[0]; // Mean value at leaf
         }
 

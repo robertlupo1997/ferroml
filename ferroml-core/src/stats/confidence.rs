@@ -164,7 +164,9 @@ fn z_critical(p: f64) -> f64 {
     let d2 = 0.189269;
     let d3 = 0.001308;
 
-    let z = t - (c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t);
+    let z = t
+        - (c2 * t).mul_add(t, c0 + c1 * t)
+            / (d3 * t * t).mul_add(t, (d2 * t).mul_add(t, 1.0 + d1 * t));
 
     if p > 0.5 {
         -z
@@ -197,15 +199,19 @@ fn t_critical(p: f64, df: f64) -> f64 {
 
 /// Student's t PDF
 fn t_pdf(t: f64, df: f64) -> f64 {
-    let coef =
-        gamma_ln((df + 1.0) / 2.0) - gamma_ln(df / 2.0) - 0.5 * (df * std::f64::consts::PI).ln();
-    (coef - ((df + 1.0) / 2.0) * (1.0 + t * t / df).ln()).exp()
+    let coef = 0.5f64.mul_add(
+        -(df * std::f64::consts::PI).ln(),
+        gamma_ln((df + 1.0) / 2.0) - gamma_ln(df / 2.0),
+    );
+    ((df + 1.0) / 2.0)
+        .mul_add(-(1.0 + t * t / df).ln(), coef)
+        .exp()
 }
 
 /// Student's t CDF
 fn t_cdf(t: f64, df: f64) -> f64 {
-    let x = df / (df + t * t);
-    0.5 + 0.5 * (1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t)
+    let x = df / t.mul_add(t, df);
+    0.5f64.mul_add((1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t), 0.5)
 }
 
 /// Incomplete beta function
@@ -222,7 +228,8 @@ fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
 
     for n in 1..100 {
         let n = n as f64;
-        let d = (a + n - 1.0) * (a + b + n - 1.0) * x / ((a + 2.0 * n - 1.0) * (a + 2.0 * n));
+        let d = (a + n - 1.0) * (a + b + n - 1.0) * x
+            / ((2.0f64.mul_add(n, a) - 1.0) * 2.0f64.mul_add(n, a));
         term *= d;
         result += term;
         if term.abs() < 1e-10 {
@@ -247,7 +254,7 @@ fn gamma_ln(x: f64) -> f64 {
         0.1208650973866179e-2,
         -0.5395239384953e-5,
     ];
-    let tmp = x + 5.5 - (x + 0.5) * (x + 5.5).ln();
+    let tmp = (x + 0.5).mul_add(-(x + 5.5).ln(), x + 5.5);
     let mut ser = 1.000000000190015;
     for (i, &c) in coeffs.iter().enumerate() {
         ser += c / (x + i as f64 + 1.0);

@@ -145,8 +145,8 @@ pub fn make_biased_classification(
     match bias_type {
         BiasType::Label => {
             // Different base rates for each group
-            let rate_a = base_rate + bias_level * 0.3; // Higher rate for group A
-            let rate_b = base_rate - bias_level * 0.3; // Lower rate for group B
+            let rate_a = bias_level.mul_add(0.3, base_rate); // Higher rate for group A
+            let rate_b = bias_level.mul_add(-0.3, base_rate); // Lower rate for group B
 
             // Generate group A
             for _ in 0..n_a {
@@ -212,9 +212,9 @@ pub fn make_biased_classification(
                 groups.push(group);
 
                 let is_positive = if group == 0 {
-                    rng.random::<f64>() < (base_rate + bias_level * 0.4)
+                    rng.random::<f64>() < bias_level.mul_add(0.4, base_rate)
                 } else {
-                    rng.random::<f64>() < (base_rate - bias_level * 0.4)
+                    rng.random::<f64>() < bias_level.mul_add(-0.4, base_rate)
                 };
 
                 // Features slightly clustered by class

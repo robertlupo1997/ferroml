@@ -173,7 +173,7 @@ impl HistRegressionLoss {
                 if residual.abs() <= delta {
                     0.5 * residual * residual
                 } else {
-                    delta * (residual.abs() - 0.5 * delta)
+                    delta * 0.5f64.mul_add(-delta, residual.abs())
                 }
             }
         }
@@ -482,9 +482,13 @@ impl HistTree {
                 return node.value;
             }
 
-            let feature_idx = node.feature_idx.unwrap();
+            let feature_idx = node
+                .feature_idx
+                .expect("internal node must have feature_idx");
             let bin = binned_features[feature_idx];
-            let threshold = node.bin_threshold.unwrap();
+            let threshold = node
+                .bin_threshold
+                .expect("internal node must have bin_threshold");
 
             // Handle missing values
             let go_left = if bin as usize >= 255 {
@@ -495,9 +499,10 @@ impl HistTree {
             };
 
             node_idx = if go_left {
-                node.left_child.unwrap()
+                node.left_child.expect("internal node must have left_child")
             } else {
-                node.right_child.unwrap()
+                node.right_child
+                    .expect("internal node must have right_child")
             };
         }
     }
@@ -1357,14 +1362,27 @@ impl HistGradientBoostingClassifier {
     /// Predict class probabilities
     pub fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.trees, "predict_proba")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
         let n_samples = x.nrows();
-        let n_classes = self.n_classes.unwrap();
-        let bin_mapper = self.categorical_bin_mapper.as_ref().unwrap();
-        let trees = self.trees.as_ref().unwrap();
-        let init = self.init_predictions.as_ref().unwrap();
+        let n_classes = self
+            .n_classes
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let bin_mapper = self
+            .categorical_bin_mapper
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let trees = self
+            .trees
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let init = self
+            .init_predictions
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
 
         // Bin the input
         let x_binned = bin_mapper.transform(x);
@@ -1416,7 +1434,7 @@ impl HistGradientBoostingClassifier {
     /// Compute log loss for validation
     fn compute_log_loss(&self, y: &Array1<f64>, probas: &Array2<f64>) -> f64 {
         let n = y.len() as f64;
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self.classes.as_ref().expect("classes set during fit");
 
         let mut loss = 0.0;
         for (i, &yi) in y.iter().enumerate() {
@@ -1431,7 +1449,7 @@ impl HistGradientBoostingClassifier {
     /// Compute feature importances from all trees
     fn compute_feature_importances(&mut self) {
         if let Some(ref trees) = self.trees {
-            let n_features = self.n_features.unwrap();
+            let n_features = self.n_features.expect("model must be fitted");
             let mut importances = Array1::zeros(n_features);
 
             for iteration_trees in trees {
@@ -1702,7 +1720,10 @@ impl Model for HistGradientBoostingClassifier {
                 let val_loss = self.compute_log_loss(yv, &val_probas);
                 val_loss_history.push(val_loss);
 
-                let early_stopping = self.early_stopping.as_ref().unwrap();
+                let early_stopping = self
+                    .early_stopping
+                    .as_ref()
+                    .expect("early_stopping config set when enabled");
                 if val_loss < best_val_loss - early_stopping.tol {
                     best_val_loss = val_loss;
                     no_improvement_count = 0;
@@ -1728,7 +1749,7 @@ impl Model for HistGradientBoostingClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let probas = self.predict_proba(x)?;
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self.classes.as_ref().expect("classes set during fit");
         let n_samples = x.nrows();
 
         let mut predictions = Array1::zeros(n_samples);
@@ -1775,7 +1796,7 @@ impl HistGradientBoostingClassifier {
     /// Convert raw predictions to probabilities
     fn raw_to_proba(&self, raw: &Array2<f64>) -> Array2<f64> {
         let n_samples = raw.nrows();
-        let n_classes = self.n_classes.unwrap();
+        let n_classes = self.n_classes.expect("model must be fitted");
         let mut probas = Array2::zeros((n_samples, n_classes));
 
         if n_classes == 2 {
@@ -2103,13 +2124,23 @@ impl HistGradientBoostingRegressor {
         x: &'a Array2<f64>,
     ) -> Result<impl Iterator<Item = Array1<f64>> + 'a> {
         check_is_fitted(&self.trees, "staged_predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
         let n_samples = x.nrows();
-        let bin_mapper = self.categorical_bin_mapper.as_ref().unwrap();
-        let trees = self.trees.as_ref().unwrap();
-        let init = self.init_prediction.unwrap();
+        let bin_mapper = self
+            .categorical_bin_mapper
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let trees = self
+            .trees
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let init = self
+            .init_prediction
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
 
         // Bin the input
         let x_binned = bin_mapper.transform(x);
@@ -2129,7 +2160,7 @@ impl HistGradientBoostingRegressor {
     /// Compute feature importances from all trees
     fn compute_feature_importances(&mut self) {
         if let Some(ref trees) = self.trees {
-            let n_features = self.n_features.unwrap();
+            let n_features = self.n_features.expect("model must be fitted");
             let mut importances = Array1::zeros(n_features);
 
             for tree in trees {
@@ -2305,7 +2336,10 @@ impl Model for HistGradientBoostingRegressor {
                 let val_loss = self.compute_loss(yv, vp);
                 val_loss_history.push(val_loss);
 
-                let early_stopping = self.early_stopping.as_ref().unwrap();
+                let early_stopping = self
+                    .early_stopping
+                    .as_ref()
+                    .expect("early_stopping config set when enabled");
                 if val_loss < best_val_loss - early_stopping.tol {
                     best_val_loss = val_loss;
                     no_improvement_count = 0;
@@ -2331,13 +2365,23 @@ impl Model for HistGradientBoostingRegressor {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.trees, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
         let n_samples = x.nrows();
-        let bin_mapper = self.categorical_bin_mapper.as_ref().unwrap();
-        let trees = self.trees.as_ref().unwrap();
-        let init = self.init_prediction.unwrap();
+        let bin_mapper = self
+            .categorical_bin_mapper
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let trees = self
+            .trees
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let init = self
+            .init_prediction
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
 
         // Bin the input
         let x_binned = bin_mapper.transform(x);
@@ -2585,7 +2629,7 @@ impl CategoricalFeatureHandler {
         count_prior: usize,
     ) -> f64 {
         // Ordered target encoding with smoothing
-        (sum_prior + self.smoothing * self.global_mean) / (count_prior as f64 + self.smoothing)
+        self.smoothing.mul_add(self.global_mean, sum_prior) / (count_prior as f64 + self.smoothing)
     }
 
     /// Compute standard target encoding for a single value
@@ -2600,7 +2644,7 @@ impl CategoricalFeatureHandler {
             .get(feature_idx)
             .and_then(|m| m.get(&key))
         {
-            (stats.sum_target + self.smoothing * self.global_mean)
+            self.smoothing.mul_add(self.global_mean, stats.sum_target)
                 / (stats.count as f64 + self.smoothing)
         } else {
             // Unknown category - use global mean

@@ -761,7 +761,7 @@ impl FactorAnalysis {
 
         let log_2pi = (2.0 * std::f64::consts::PI).ln();
         let log_likelihood =
-            -0.5 * n_samples as f64 * (n_features as f64 * log_2pi + log_det + trace);
+            -0.5 * n_samples as f64 * ((n_features as f64).mul_add(log_2pi, log_det) + trace);
 
         Ok(log_likelihood)
     }
@@ -1030,16 +1030,16 @@ fn orthomax_rotation(loadings: &Array2<f64>, gamma: f64) -> Result<(Array2<f64>,
                     for k in 0..n_features {
                         let xi = rotated[[k, i]];
                         let xj = rotated[[k, j]];
-                        rotated[[k, i]] = cos_a * xi + sin_a * xj;
-                        rotated[[k, j]] = -sin_a * xi + cos_a * xj;
+                        rotated[[k, i]] = cos_a.mul_add(xi, sin_a * xj);
+                        rotated[[k, j]] = (-sin_a).mul_add(xi, cos_a * xj);
                     }
 
                     // Update rotation matrix
                     for k in 0..n_factors {
                         let ri = rotation[[k, i]];
                         let rj = rotation[[k, j]];
-                        rotation[[k, i]] = cos_a * ri + sin_a * rj;
-                        rotation[[k, j]] = -sin_a * ri + cos_a * rj;
+                        rotation[[k, i]] = cos_a.mul_add(ri, sin_a * rj);
+                        rotation[[k, j]] = (-sin_a).mul_add(ri, cos_a * rj);
                     }
                 }
             }
@@ -1070,12 +1070,12 @@ fn compute_rotation_angle(
         let li = loadings[[k, i]];
         let lj = loadings[[k, j]];
 
-        let u = li * li - lj * lj;
+        let u = li.mul_add(li, -(lj * lj));
         let v = 2.0 * li * lj;
 
         a += u;
         b += v;
-        c += u * u - v * v;
+        c += u.mul_add(u, -(v * v));
         d += 2.0 * u * v;
     }
 

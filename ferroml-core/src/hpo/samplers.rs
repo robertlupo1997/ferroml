@@ -333,5 +333,5 @@ fn normal_sample(rng: &mut StdRng, mean: f64, std: f64) -> f64 {
     let u1: f64 = rng.random();
     let u2: f64 = rng.random();
     let z = (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).cos();
-    mean + std * z
+    std.mul_add(z, mean)
 }

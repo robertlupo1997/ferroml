@@ -414,7 +414,7 @@ impl Transformer for MinMaxScaler {
                 result.column_mut(j).fill(target_min);
             } else {
                 for (i, &val) in x.column(j).iter().enumerate() {
-                    result[[i, j]] = (val - min_val) / range * target_range + target_min;
+                    result[[i, j]] = ((val - min_val) / range).mul_add(target_range, target_min);
                 }
             }
         }
@@ -442,7 +442,7 @@ impl Transformer for MinMaxScaler {
                 result.column_mut(j).fill(min_val);
             } else {
                 for (i, &val) in x.column(j).iter().enumerate() {
-                    result[[i, j]] = (val - target_min) / target_range * range + min_val;
+                    result[[i, j]] = ((val - target_min) / target_range).mul_add(range, min_val);
                 }
             }
         }

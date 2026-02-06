@@ -245,7 +245,7 @@ impl Calibrator for SigmoidCalibrator {
         // Newton-Raphson optimization
         for _ in 0..self.max_iter {
             // Compute probabilities: p = sigmoid(a * f + b)
-            let z: Array1<f64> = y_prob.mapv(|f| a * f + b);
+            let z: Array1<f64> = y_prob.mapv(|f| a.mul_add(f, b));
             let p: Array1<f64> = z.mapv(Self::sigmoid);
 
             // Compute gradient
@@ -260,9 +260,9 @@ impl Calibrator for SigmoidCalibrator {
             let hess_bb: f64 = pq.sum();
 
             // Solve 2x2 system using Cramer's rule with regularization
-            let det = hess_aa * hess_bb - hess_ab * hess_ab + 1e-10;
-            let delta_a = -(hess_bb * grad_a - hess_ab * grad_b) / det;
-            let delta_b = -(-hess_ab * grad_a + hess_aa * grad_b) / det;
+            let det = hess_aa.mul_add(hess_bb, -(hess_ab * hess_ab)) + 1e-10;
+            let delta_a = -hess_bb.mul_add(grad_a, -(hess_ab * grad_b)) / det;
+            let delta_b = -(-hess_ab).mul_add(grad_a, hess_aa * grad_b) / det;
 
             // Update with step size limiting
             let step_size = 1.0_f64.min(1.0 / (delta_a.abs() + delta_b.abs() + 1e-10));
@@ -286,7 +286,7 @@ impl Calibrator for SigmoidCalibrator {
             .ok_or_else(|| FerroError::not_fitted("SigmoidCalibrator.transform"))?;
 
         // Apply calibration: P_calibrated = sigmoid(a * f + b)
-        let calibrated = y_prob.mapv(|f| Self::sigmoid(a * f + b));
+        let calibrated = y_prob.mapv(|f| Self::sigmoid(a.mul_add(f, b)));
         Ok(calibrated)
     }
 
@@ -401,7 +401,7 @@ impl IsotonicCalibrator {
                     // Merge blocks: weighted average
                     let w_i = block_weights[i];
                     let w_next = block_weights[next];
-                    let new_value = (result[i] * w_i + result[next] * w_next) / (w_i + w_next);
+                    let new_value = result[i].mul_add(w_i, result[next] * w_next) / (w_i + w_next);
 
                     // Update values for merged block
                     result[i] = new_value;
@@ -524,7 +524,8 @@ impl Calibrator for IsotonicCalibrator {
             if (x_sorted[i] - x_unique.last().unwrap()).abs() < 1e-10 {
                 // Same x value: accumulate for average
                 let last_idx = y_unique.len() - 1;
-                y_unique[last_idx] = (y_unique[last_idx] * count + y_isotonic[i]) / (count + 1.0);
+                y_unique[last_idx] =
+                    y_unique[last_idx].mul_add(count, y_isotonic[i]) / (count + 1.0);
                 count += 1.0;
             } else {
                 x_unique.push(x_sorted[i]);
@@ -837,7 +838,7 @@ impl MulticlassCalibrator for TemperatureScalingCalibrator {
             let grad = self.nll_gradient(y_prob, y_true, t);
 
             // Update with gradient descent (ensure T > 0)
-            let new_t = (t - self.learning_rate * grad).max(0.01);
+            let new_t = self.learning_rate.mul_add(-grad, t).max(0.01);
             t = new_t;
         }
 

@@ -258,7 +258,7 @@ impl AlgorithmArm {
         } else {
             let n = self.n_trials as f64;
             let mean = self.mean_score();
-            (self.score_sum_sq / n - mean * mean).max(0.0)
+            mean.mul_add(-mean, self.score_sum_sq / n).max(0.0)
         }
     }
 
@@ -608,7 +608,7 @@ impl TimeBudgetAllocator {
         };
 
         // Calculate number of rungs: s_max = floor(log_eta(max_r / min_r))
-        let n_rungs = ((max_resource / min_resource).ln() / eta.ln()).floor() as usize + 1;
+        let n_rungs = (max_resource / min_resource).log(eta).floor() as usize + 1;
 
         // Calculate resource for current rung: r_i = min_r * eta^i
         let current_resource = min_resource * eta.powi(self.sh_rung as i32);
@@ -681,7 +681,7 @@ impl TimeBudgetAllocator {
         if arm.n_trials > 0 {
             let avg_time = arm.avg_trial_time();
             // Use exponential moving average
-            budget = budget * 0.3 + avg_time * 1.5 * 0.7;
+            budget = budget.mul_add(0.3, avg_time * 1.5 * 0.7);
         }
 
         // Adjust for complexity
@@ -742,7 +742,7 @@ impl TimeBudgetAllocator {
             }
 
             // Calculate upper bound of performance (mean + 2*std)
-            let upper_bound = arm.mean_score() + 2.0 * arm.std_dev();
+            let upper_bound = 2.0f64.mul_add(arm.std_dev(), arm.mean_score());
 
             // If even optimistic estimate is worse than threshold, eliminate
             if upper_bound < self.global_best_score * (1.0 - threshold) {

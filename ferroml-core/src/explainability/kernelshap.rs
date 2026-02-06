@@ -762,7 +762,10 @@ fn log_factorial(n: usize) -> f64 {
 
     // Stirling's approximation for large n
     let n_f = n as f64;
-    n_f * n_f.ln() - n_f + 0.5 * (2.0 * std::f64::consts::PI * n_f).ln()
+    0.5f64.mul_add(
+        (2.0 * std::f64::consts::PI * n_f).ln(),
+        n_f.mul_add(n_f.ln(), -n_f),
+    )
 }
 
 // =============================================================================

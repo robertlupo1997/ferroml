@@ -290,7 +290,7 @@ pub fn log_loss(y_true: &Array1<f64>, y_pred: &Array1<f64>, eps: Option<f64>) ->
             // Clip probabilities
             let p = p.clamp(eps, 1.0 - eps);
             // Binary cross-entropy
-            -(y * p.ln() + (1.0 - y) * (1.0 - p).ln())
+            -y.mul_add(p.ln(), (1.0 - y) * (1.0 - p).ln())
         })
         .sum();
 

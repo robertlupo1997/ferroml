@@ -467,7 +467,7 @@ pub fn column_quantile(x: &Array2<f64>, q: f64) -> Array1<f64> {
             quantiles[j] = if lower == upper {
                 col[lower]
             } else {
-                col[lower] * (1.0 - frac) + col[upper] * frac
+                col[lower].mul_add(1.0 - frac, col[upper] * frac)
             };
         }
     }

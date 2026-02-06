@@ -44,7 +44,7 @@ fn generate_classification_data(
             let mut hasher = DefaultHasher::new();
             (seed, i, j).hash(&mut hasher);
             let h = hasher.finish();
-            let val = (h as f64 / u64::MAX as f64) * 2.0 - 1.0;
+            let val = (h as f64 / u64::MAX as f64).mul_add(2.0, -1.0);
 
             // Add class-dependent signal to first feature
             let signal = if j == 0 { class * 2.0 - 1.0 } else { 0.0 };
@@ -78,7 +78,7 @@ fn generate_regression_data(
             let mut hasher = DefaultHasher::new();
             (seed, i, j).hash(&mut hasher);
             let h = hasher.finish();
-            let val = (h as f64 / u64::MAX as f64) * 2.0 - 1.0;
+            let val = (h as f64 / u64::MAX as f64).mul_add(2.0, -1.0);
             data.push(val);
 
             // Linear relationship with first few features

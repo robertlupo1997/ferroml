@@ -34,15 +34,18 @@ fn create_regression_data(n_samples: usize, n_features: usize) -> (Array2<f64>, 
         for j in 0..n_features {
             let val = match j % 4 {
                 0 => (i as f64) / 10.0 + ((j + 1) as f64).sin(),
-                1 => ((i as f64) * 0.7).sin() + (j as f64) * 0.1,
-                2 => (i as f64 / (n_samples as f64)) * 10.0 + (j as f64),
-                _ => ((i * j + 1) as f64).sqrt() + 0.1 * (i % 5) as f64,
+                1 => (j as f64).mul_add(0.1, ((i as f64) * 0.7).sin()),
+                2 => (i as f64 / (n_samples as f64)).mul_add(10.0, j as f64),
+                _ => 0.1f64.mul_add((i % 5) as f64, ((i * j + 1) as f64).sqrt()),
             };
             x_data.push(val);
         }
 
         // y = linear combination + noise
-        let y = 2.0 * (i as f64 / 10.0) + 0.5 * ((i as f64) * 0.7).sin() + 0.1 * (i % 5) as f64;
+        let y = 0.1f64.mul_add(
+            (i % 5) as f64,
+            2.0f64.mul_add(i as f64 / 10.0, 0.5 * ((i as f64) * 0.7).sin()),
+        );
         y_data.push(y);
     }
 
@@ -61,7 +64,7 @@ fn create_classification_data(n_samples: usize, n_features: usize) -> (Array2<f6
     for i in 0..half {
         for j in 0..n_features {
             let noise = ((i * (j + 1)) as f64 * 0.7).sin() * 0.5;
-            let val = 1.0 + (j as f64) * 0.5 + (i as f64) * 0.02 + noise;
+            let val = (i as f64).mul_add(0.02, (j as f64).mul_add(0.5, 1.0)) + noise;
             x_data.push(val);
         }
         y_data.push(0.0);
@@ -71,7 +74,7 @@ fn create_classification_data(n_samples: usize, n_features: usize) -> (Array2<f6
     for i in 0..(n_samples - half) {
         for j in 0..n_features {
             let noise = ((i * (j + 1)) as f64 * 0.7).cos() * 0.5;
-            let val = 5.0 + (j as f64) * 0.5 + (i as f64) * 0.02 + noise;
+            let val = (i as f64).mul_add(0.02, (j as f64).mul_add(0.5, 5.0)) + noise;
             x_data.push(val);
         }
         y_data.push(1.0);
@@ -97,7 +100,7 @@ fn create_multiclass_data(
         for i in 0..per_class {
             for j in 0..n_features {
                 let noise = ((i * (j + 1) + class_idx) as f64 * 0.7).sin() * 0.3;
-                let val = base + (j as f64) * 0.3 + (i as f64) * 0.01 + noise;
+                let val = (i as f64).mul_add(0.01, (j as f64).mul_add(0.3, base)) + noise;
                 x_data.push(val);
             }
             y_data.push(class_idx as f64);
@@ -108,7 +111,7 @@ fn create_multiclass_data(
     let remaining = n_samples - (per_class * n_classes);
     for _ in 0..remaining {
         for j in 0..n_features {
-            let val = ((n_classes - 1) as f64) * 5.0 + (j as f64) * 0.3;
+            let val = ((n_classes - 1) as f64).mul_add(5.0, (j as f64) * 0.3);
             x_data.push(val);
         }
         y_data.push((n_classes - 1) as f64);

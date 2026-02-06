@@ -54,7 +54,8 @@ impl EffectSize for CohensD {
         let var2 = self.group2.var(1.0);
 
         // Pooled standard deviation
-        let pooled_var = ((n1 - 1) as f64 * var1 + (n2 - 1) as f64 * var2) / (n1 + n2 - 2) as f64;
+        let pooled_var =
+            ((n1 - 1) as f64).mul_add(var1, (n2 - 1) as f64 * var2) / (n1 + n2 - 2) as f64;
         let pooled_std = pooled_var.sqrt();
 
         let d = (mean1 - mean2) / pooled_std;
@@ -64,7 +65,7 @@ impl EffectSize for CohensD {
 
         // 95% CI
         let se = var_d.sqrt();
-        let ci = (d - 1.96 * se, d + 1.96 * se);
+        let ci = (1.96f64.mul_add(-se, d), 1.96f64.mul_add(se, d));
 
         Ok(EffectSizeValue {
             value: d,
@@ -119,13 +120,13 @@ impl EffectSize for HedgesG {
         let df = (n1 + n2 - 2) as f64;
 
         // Correction factor (approximation)
-        let j = 1.0 - 3.0 / (4.0 * df - 1.0);
+        let j = 1.0 - 3.0 / 4.0f64.mul_add(df, -1.0);
         let g = d * j;
 
         // Variance of g
         let var_g = j.powi(2) * d_result.variance.unwrap_or(0.0);
         let se = var_g.sqrt();
-        let ci = (g - 1.96 * se, g + 1.96 * se);
+        let ci = (1.96f64.mul_add(-se, g), 1.96f64.mul_add(se, g));
 
         Ok(EffectSizeValue {
             value: g,
@@ -173,7 +174,7 @@ impl EffectSize for GlasssDelta {
         let var_delta =
             (n1 + n2) as f64 / (n1 * n2) as f64 + delta.powi(2) / (2.0 * (n2 - 1) as f64);
         let se = var_delta.sqrt();
-        let ci = (delta - 1.96 * se, delta + 1.96 * se);
+        let ci = (1.96f64.mul_add(-se, delta), 1.96f64.mul_add(se, delta));
 
         Ok(EffectSizeValue {
             value: delta,
@@ -231,7 +232,7 @@ pub fn partial_eta_squared(ss_effect: f64, ss_error: f64) -> f64 {
 /// Compute omega-squared (less biased than eta-squared)
 pub fn omega_squared(ss_between: f64, ss_total: f64, ms_within: f64, k: usize) -> f64 {
     let k = k as f64;
-    (ss_between - (k - 1.0) * ms_within) / (ss_total + ms_within)
+    (k - 1.0).mul_add(-ms_within, ss_between) / (ss_total + ms_within)
 }
 
 #[cfg(test)]

@@ -658,7 +658,7 @@ pub fn make_boosting_regression_data(
     let y = Array1::from_shape_fn(n_samples, |i| {
         let x1: f64 = x[[i, 0]];
         let x2: f64 = if n_features > 1 { x[[i, 1]] } else { 0.0 };
-        x1.powi(2) + 0.5 * x2 + rng.random_range(-0.5..0.5)
+        x1.mul_add(x1, 0.5 * x2) + rng.random_range(-0.5..0.5)
     });
 
     (x, y)

@@ -699,13 +699,13 @@ pub fn make_classification(
         // Informative features: class-dependent + noise
         for j in 0..n_informative {
             #[allow(clippy::cast_precision_loss)]
-            let class_mean = (class + 1.0) * 2.0 * ((j % 2) as f64 * 2.0 - 1.0);
-            x[[i, j]] = class_mean + rng.random::<f64>() * 2.0 - 1.0;
+            let class_mean = (class + 1.0) * 2.0 * ((j % 2) as f64).mul_add(2.0, -1.0);
+            x[[i, j]] = rng.random::<f64>().mul_add(2.0, class_mean) - 1.0;
         }
 
         // Noise features: pure random
         for j in n_informative..n_features {
-            x[[i, j]] = rng.random::<f64>() * 2.0 - 1.0;
+            x[[i, j]] = rng.random::<f64>().mul_add(2.0, -1.0);
         }
     }
 
@@ -1061,8 +1061,8 @@ pub fn make_circles(
         let idx = n_per_circle + i;
         #[allow(clippy::cast_precision_loss)]
         let angle = 2.0 * PI * i as f64 / (n_samples - n_per_circle) as f64;
-        x[[idx, 0]] = factor * angle.cos() + normal.sample(&mut rng);
-        x[[idx, 1]] = factor * angle.sin() + normal.sample(&mut rng);
+        x[[idx, 0]] = factor.mul_add(angle.cos(), normal.sample(&mut rng));
+        x[[idx, 1]] = factor.mul_add(angle.sin(), normal.sample(&mut rng));
         y[idx] = 1.0;
     }
 

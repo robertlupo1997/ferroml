@@ -321,8 +321,8 @@ pub fn mcnemar_test(
 
 /// Student's t CDF approximation
 fn t_cdf(t: f64, df: f64) -> f64 {
-    let x = df / (df + t * t);
-    0.5 + 0.5 * (1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t)
+    let x = df / t.mul_add(t, df);
+    0.5f64.mul_add((1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t), 0.5)
 }
 
 /// Critical value from Student's t distribution
@@ -378,7 +378,7 @@ fn incomplete_gamma(a: f64, x: f64) -> f64 {
             }
         }
 
-        sum * (-x + a * x.ln() - gamma_ln(a)).exp()
+        sum * (a.mul_add(x.ln(), -x) - gamma_ln(a)).exp()
     } else {
         // Use continued fraction for large x
         1.0 - incomplete_gamma_cf(a, x)
@@ -395,7 +395,7 @@ fn incomplete_gamma_cf(a: f64, x: f64) -> f64 {
     for i in 1..100 {
         let an = -(i as f64) * (i as f64 - a);
         b += 2.0;
-        d = an * d + b;
+        d = an.mul_add(d, b);
         if d.abs() < 1e-30 {
             d = 1e-30;
         }
@@ -411,7 +411,7 @@ fn incomplete_gamma_cf(a: f64, x: f64) -> f64 {
         }
     }
 
-    h * (-x + a * x.ln() - gamma_ln(a)).exp()
+    h * (a.mul_add(x.ln(), -x) - gamma_ln(a)).exp()
 }
 
 /// Incomplete beta function approximation
@@ -428,7 +428,8 @@ fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
 
     for n in 1..100 {
         let n = n as f64;
-        let d = (a + n - 1.0) * (a + b + n - 1.0) * x / ((a + 2.0 * n - 1.0) * (a + 2.0 * n));
+        let d = (a + n - 1.0) * (a + b + n - 1.0) * x
+            / ((2.0f64.mul_add(n, a) - 1.0) * 2.0f64.mul_add(n, a));
         term *= d;
         result += term;
 
@@ -458,7 +459,7 @@ fn gamma_ln(x: f64) -> f64 {
     ];
 
     let tmp = x + 5.5;
-    let tmp = tmp - (x + 0.5) * tmp.ln();
+    let tmp = (x + 0.5).mul_add(-tmp.ln(), tmp);
 
     let mut ser = 1.000000000190015;
     for (i, &c) in coeffs.iter().enumerate() {
@@ -485,7 +486,8 @@ fn erf(x: f64) -> f64 {
     let sign = if x < 0.0 { -1.0 } else { 1.0 };
     let x = x.abs();
     let t = 1.0 / (1.0 + p * x);
-    let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * (-x * x).exp();
+    let y = ((a5 * t + a4).mul_add(t, a3).mul_add(t, a2).mul_add(t, a1) * t)
+        .mul_add(-(-x * x).exp(), 1.0);
     sign * y
 }
 
@@ -631,13 +633,13 @@ pub fn wilcoxon_signed_rank_test(
             }
             let t = (j - i + 1) as f64;
             if t > 1.0 {
-                tie_correction += (t * t * t - t) / 48.0;
+                tie_correction += (t * t).mul_add(t, -t) / 48.0;
             }
             i = j + 1;
         }
-        n_f * (n_f + 1.0) * (2.0 * n_f + 1.0) / 24.0 - tie_correction
+        n_f * (n_f + 1.0) * 2.0f64.mul_add(n_f, 1.0) / 24.0 - tie_correction
     } else {
-        n_f * (n_f + 1.0) * (2.0 * n_f + 1.0) / 24.0
+        n_f * (n_f + 1.0) * 2.0f64.mul_add(n_f, 1.0) / 24.0
     };
 
     let std_w = variance_w.sqrt();
@@ -726,7 +728,7 @@ pub fn five_by_two_cv_paired_ttest(differences: &[[f64; 2]; 5]) -> Result<ModelC
         let d1 = differences[i][0];
         let d2 = differences[i][1];
         means[i] = (d1 + d2) / 2.0;
-        variances[i] = (d1 - means[i]).powi(2) + (d2 - means[i]).powi(2);
+        variances[i] = (d2 - means[i]).mul_add(d2 - means[i], (d1 - means[i]).powi(2));
     }
 
     let sum_variance: f64 = variances.iter().sum();

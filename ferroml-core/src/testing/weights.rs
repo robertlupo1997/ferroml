@@ -41,7 +41,7 @@ fn generate_imbalanced_data(
             let mut hasher = DefaultHasher::new();
             (seed, i, j, "minority").hash(&mut hasher);
             let h = hasher.finish();
-            let val = (h as f64 / u64::MAX as f64) * 2.0 - 1.0;
+            let val = (h as f64 / u64::MAX as f64).mul_add(2.0, -1.0);
             // Add class-dependent signal to first feature
             let signal = if j == 0 { 1.0 } else { 0.0 };
             data.push(val + signal);
@@ -55,7 +55,7 @@ fn generate_imbalanced_data(
             let mut hasher = DefaultHasher::new();
             (seed, i, j, "majority").hash(&mut hasher);
             let h = hasher.finish();
-            let val = (h as f64 / u64::MAX as f64) * 2.0 - 1.0;
+            let val = (h as f64 / u64::MAX as f64).mul_add(2.0, -1.0);
             // Add class-dependent signal to first feature
             let signal = if j == 0 { -1.0 } else { 0.0 };
             data.push(val + signal);
@@ -97,7 +97,7 @@ fn generate_multiclass_imbalanced_data(
                 let mut hasher = DefaultHasher::new();
                 (seed, sample_idx, i, j, class_idx).hash(&mut hasher);
                 let h = hasher.finish();
-                let val = (h as f64 / u64::MAX as f64) * 2.0 - 1.0;
+                let val = (h as f64 / u64::MAX as f64).mul_add(2.0, -1.0);
                 // Add class-dependent signal
                 let signal = if j == 0 {
                     (class_idx as f64 - 1.0) * 2.0

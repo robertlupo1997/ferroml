@@ -197,7 +197,7 @@ impl RegressionLoss {
                         if r.abs() <= delta {
                             0.5 * r.powi(2)
                         } else {
-                            delta * (r.abs() - 0.5 * delta)
+                            delta * 0.5f64.mul_add(-delta, r.abs())
                         }
                     })
                     .sum::<f64>()

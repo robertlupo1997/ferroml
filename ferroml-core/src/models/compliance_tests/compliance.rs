@@ -163,10 +163,168 @@ test_model_compliance!(
 // Classification Models
 // =============================================================================
 
-// Note: Classification models require classification data (binary/multiclass labels).
-// The check_estimator framework generates regression data by default.
-// These tests skip checks that fail due to data type mismatch.
-// TODO: Add check_classifier function that generates classification data.
+/// Check a classifier using binary classification data.
+/// Tests: fit, predict shape, predict_proba shape, proba sums to ~1.0, proba in [0,1].
+fn check_classifier<M: crate::models::Model + crate::models::ProbabilisticModel + Clone>(
+    mut model: M,
+) -> Vec<crate::testing::CheckResult> {
+    use crate::testing::CheckResult;
+    use std::time::Instant;
+
+    let mut results = Vec::new();
+    let (x, y) = crate::testing::utils::make_binary_classification(50, 5, 42);
+
+    // Check fit
+    let start = Instant::now();
+    let fit_ok = model.fit(&x, &y).is_ok();
+    results.push(CheckResult {
+        name: "check_classifier_fit",
+        passed: fit_ok,
+        message: if fit_ok {
+            None
+        } else {
+            Some("fit failed on classification data".into())
+        },
+        duration: start.elapsed(),
+        category: crate::testing::CheckCategory::Api,
+    });
+    if !fit_ok {
+        return results;
+    }
+
+    // Check predict shape
+    let start = Instant::now();
+    match model.predict(&x) {
+        Ok(preds) => {
+            let ok = preds.len() == x.nrows();
+            results.push(CheckResult {
+                name: "check_classifier_predict_shape",
+                passed: ok,
+                message: if ok {
+                    None
+                } else {
+                    Some(format!(
+                        "expected {} predictions, got {}",
+                        x.nrows(),
+                        preds.len()
+                    ))
+                },
+                duration: start.elapsed(),
+                category: crate::testing::CheckCategory::Api,
+            });
+        }
+        Err(e) => results.push(CheckResult {
+            name: "check_classifier_predict_shape",
+            passed: false,
+            message: Some(format!("predict failed: {e}")),
+            duration: start.elapsed(),
+            category: crate::testing::CheckCategory::Api,
+        }),
+    }
+
+    // Check predict_proba
+    let start = Instant::now();
+    match model.predict_proba(&x) {
+        Ok(probas) => {
+            let shape_ok = probas.nrows() == x.nrows() && probas.ncols() >= 2;
+            results.push(CheckResult {
+                name: "check_classifier_proba_shape",
+                passed: shape_ok,
+                message: if shape_ok {
+                    None
+                } else {
+                    Some(format!(
+                        "proba shape ({},{})",
+                        probas.nrows(),
+                        probas.ncols()
+                    ))
+                },
+                duration: start.elapsed(),
+                category: crate::testing::CheckCategory::Api,
+            });
+
+            let start = Instant::now();
+            let mut sum_ok = true;
+            for i in 0..probas.nrows() {
+                let row_sum: f64 = probas.row(i).sum();
+                if (row_sum - 1.0).abs() > 1e-6 {
+                    sum_ok = false;
+                    break;
+                }
+            }
+            results.push(CheckResult {
+                name: "check_classifier_proba_sum",
+                passed: sum_ok,
+                message: if sum_ok {
+                    None
+                } else {
+                    Some("proba rows don't sum to 1.0".into())
+                },
+                duration: start.elapsed(),
+                category: crate::testing::CheckCategory::Numerical,
+            });
+
+            let start = Instant::now();
+            let range_ok = probas.iter().all(|&p| p >= -1e-10 && p <= 1.0 + 1e-10);
+            results.push(CheckResult {
+                name: "check_classifier_proba_range",
+                passed: range_ok,
+                message: if range_ok {
+                    None
+                } else {
+                    Some("proba values outside [0,1]".into())
+                },
+                duration: start.elapsed(),
+                category: crate::testing::CheckCategory::Numerical,
+            });
+        }
+        Err(e) => results.push(CheckResult {
+            name: "check_classifier_proba",
+            passed: false,
+            message: Some(format!("predict_proba failed: {e}")),
+            duration: start.elapsed(),
+            category: crate::testing::CheckCategory::Api,
+        }),
+    }
+
+    results
+}
+
+/// Macro for classifier compliance tests
+macro_rules! test_classifier_compliance {
+    ($name:ident, $model:expr) => {
+        #[test]
+        fn $name() {
+            let model = $model;
+            let results = check_classifier(model);
+            let failures: Vec<_> = results.iter().filter(|r| !r.passed).collect();
+            if !failures.is_empty() {
+                let msg = failures
+                    .iter()
+                    .map(|r| {
+                        format!(
+                            "  - {}: {}",
+                            r.name,
+                            r.message.as_deref().unwrap_or("failed")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                panic!("Classifier failed {} checks:\n{}", failures.len(), msg);
+            }
+        }
+    };
+}
+
+test_classifier_compliance!(
+    test_logistic_regression_classifier,
+    LogisticRegression::new()
+);
+test_classifier_compliance!(test_gaussian_nb_classifier, GaussianNB::new());
+test_classifier_compliance!(
+    test_kneighbors_classifier_compliance_clf,
+    KNeighborsClassifier::new(5)
+);
 
 // LogisticRegression requires binary labels (0/1), skip regression-data checks
 test_model_compliance!(

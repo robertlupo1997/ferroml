@@ -924,7 +924,7 @@ fn bootstrap_percentile_ci(samples: &Array1<f64>, alpha: f64) -> (f64, f64) {
 /// Standard normal CDF approximation
 fn standard_normal_cdf(x: f64) -> f64 {
     // Abramowitz and Stegun approximation
-    let t = 1.0 / (1.0 + 0.2316419 * x.abs());
+    let t = 1.0 / 0.2316419f64.mul_add(x.abs(), 1.0);
     let d = 0.3989422804014327; // 1/sqrt(2*pi)
     let p = d * (-x * x / 2.0).exp();
     let c = t

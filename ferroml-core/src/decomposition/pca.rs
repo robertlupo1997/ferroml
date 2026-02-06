@@ -608,10 +608,20 @@ impl Transformer for PCA {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let mean = self.mean.as_ref().unwrap();
-        let components = self.components.as_ref().unwrap();
+        let mean = self
+            .mean
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let components = self
+            .components
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         // Center the data
         let x_centered = x - mean;
@@ -621,8 +631,13 @@ impl Transformer for PCA {
 
         // Whiten if requested
         if self.whiten {
-            let singular_values = self.singular_values.as_ref().unwrap();
-            let n_samples = self.n_samples.unwrap() as f64;
+            let singular_values = self
+                .singular_values
+                .as_ref()
+                .ok_or_else(|| FerroError::not_fitted("transform"))?;
+            let n_samples =
+                self.n_samples
+                    .ok_or_else(|| FerroError::not_fitted("transform"))? as f64;
             // Guard against division by near-zero singular values
             let eps = 1e-10;
             let scale = singular_values.mapv(|s| (n_samples - 1.0).sqrt() / s.max(eps));
@@ -638,7 +653,9 @@ impl Transformer for PCA {
     fn inverse_transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "inverse_transform")?;
 
-        let n_components = self.n_components_fitted.unwrap();
+        let n_components = self
+            .n_components_fitted
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
         if x.ncols() != n_components {
             return Err(FerroError::shape_mismatch(
                 format!("({}, {})", x.nrows(), n_components),
@@ -646,13 +663,24 @@ impl Transformer for PCA {
             ));
         }
 
-        let mean = self.mean.as_ref().unwrap();
-        let components = self.components.as_ref().unwrap();
+        let mean = self
+            .mean
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let components = self
+            .components
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         // Reverse whitening if applied
         let x_unwhitened = if self.whiten {
-            let singular_values = self.singular_values.as_ref().unwrap();
-            let n_samples = self.n_samples.unwrap() as f64;
+            let singular_values = self
+                .singular_values
+                .as_ref()
+                .ok_or_else(|| FerroError::not_fitted("transform"))?;
+            let n_samples =
+                self.n_samples
+                    .ok_or_else(|| FerroError::not_fitted("transform"))? as f64;
             let scale = singular_values.mapv(|s| s / (n_samples - 1.0).sqrt());
 
             let mut x_scaled = x.clone();
@@ -813,11 +841,19 @@ impl IncrementalPCA {
             self.mean = Some(Array1::zeros(n_features));
             self.var = Some(Array1::zeros(n_features));
         } else {
-            check_shape(x, self.n_features_in.unwrap())?;
+            check_shape(
+                x,
+                self.n_features_in
+                    .ok_or_else(|| FerroError::not_fitted("transform"))?,
+            )?;
         }
 
         // Update running mean and variance using Welford's algorithm
-        let old_mean = self.mean.as_ref().unwrap().clone();
+        let old_mean = self
+            .mean
+            .as_ref()
+            .ok_or_else(|| FerroError::numerical("missing mean state during partial_fit"))?
+            .clone();
         let old_n = self.n_samples_seen as f64;
         let new_n = (self.n_samples_seen + n_samples) as f64;
 
@@ -835,7 +871,9 @@ impl IncrementalPCA {
 
         // Combine old and new variance (approximation)
         let new_var = if old_n > 0.0 {
-            let old_var = self.var.as_ref().unwrap();
+            let old_var = self.var.as_ref().ok_or_else(|| {
+                FerroError::numerical("missing variance state during partial_fit")
+            })?;
             // Weighted combination with correction for mean shift
             let mean_diff = &batch_mean - &old_mean;
             old_var * (old_n / new_n)
@@ -863,7 +901,9 @@ impl IncrementalPCA {
         // Otherwise, compute from scratch
         if let Some(ref old_components) = self.components.clone() {
             // Incremental update using SVD of augmented matrix
-            let old_singular = self.singular_values.as_ref().unwrap();
+            let old_singular = self.singular_values.as_ref().ok_or_else(|| {
+                FerroError::numerical("missing singular values during incremental update")
+            })?;
 
             // Build augmented matrix [old_singular * old_components; x_centered]
             let k = old_components.nrows();
@@ -1049,16 +1089,29 @@ impl Transformer for IncrementalPCA {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let mean = self.mean.as_ref().unwrap();
-        let components = self.components.as_ref().unwrap();
+        let mean = self
+            .mean
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let components = self
+            .components
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         let x_centered = x - mean;
         let mut x_transformed = x_centered.dot(&components.t());
 
         if self.whiten {
-            let singular_values = self.singular_values.as_ref().unwrap();
+            let singular_values = self
+                .singular_values
+                .as_ref()
+                .ok_or_else(|| FerroError::not_fitted("transform"))?;
             let n_samples = self.n_samples_seen as f64;
             // Guard against division by near-zero singular values
             let eps = 1e-10;
@@ -1075,7 +1128,9 @@ impl Transformer for IncrementalPCA {
     fn inverse_transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "inverse_transform")?;
 
-        let n_components = self.n_components_fitted.unwrap();
+        let n_components = self
+            .n_components_fitted
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
         if x.ncols() != n_components {
             return Err(FerroError::shape_mismatch(
                 format!("({}, {})", x.nrows(), n_components),
@@ -1083,11 +1138,20 @@ impl Transformer for IncrementalPCA {
             ));
         }
 
-        let mean = self.mean.as_ref().unwrap();
-        let components = self.components.as_ref().unwrap();
+        let mean = self
+            .mean
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let components = self
+            .components
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         let x_unwhitened = if self.whiten {
-            let singular_values = self.singular_values.as_ref().unwrap();
+            let singular_values = self
+                .singular_values
+                .as_ref()
+                .ok_or_else(|| FerroError::not_fitted("transform"))?;
             let n_samples = self.n_samples_seen as f64;
             let scale = singular_values.mapv(|s| s / (n_samples - 1.0).sqrt());
 

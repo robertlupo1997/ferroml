@@ -149,7 +149,7 @@ impl RungMetrics {
             let old_mean = self.mean_value.unwrap();
             let new_mean = old_mean + (value - old_mean) / self.n_trials as f64;
             let old_m2 = self.std_value.unwrap().powi(2) * (self.n_trials - 1) as f64;
-            let new_m2 = old_m2 + (value - old_mean) * (value - new_mean);
+            let new_m2 = (value - old_mean).mul_add(value - new_mean, old_m2);
             self.mean_value = Some(new_mean);
             self.std_value = Some((new_m2 / self.n_trials as f64).sqrt());
         }
@@ -1043,8 +1043,10 @@ impl KernelDensityEstimator {
                     .unwrap_or(self.min_bandwidth);
                 let diff = (x[dim] - data_point[dim]) / bw;
                 // log of Gaussian kernel: -0.5 * diff^2 - log(bw) - 0.5*log(2*pi)
-                log_kernel +=
-                    -0.5 * diff * diff - bw.ln() - 0.5 * (2.0 * std::f64::consts::PI).ln();
+                log_kernel += 0.5f64.mul_add(
+                    -(2.0 * std::f64::consts::PI).ln(),
+                    (-0.5 * diff).mul_add(diff, -bw.ln()),
+                );
             }
             log_sum = log_add_exp(log_sum, log_kernel);
         }
@@ -1073,7 +1075,7 @@ impl KernelDensityEstimator {
                     .get(dim)
                     .copied()
                     .unwrap_or(self.min_bandwidth);
-                val + bw * sample_standard_normal(rng)
+                bw.mul_add(sample_standard_normal(rng), val)
             })
             .collect()
     }
@@ -1282,7 +1284,9 @@ impl BOHBSampler {
             super::ParameterValue::Float(value)
         } else {
             // Denormalize
-            let v = info.low + value.clamp(0.0, 1.0) * (info.high - info.low);
+            let v = value
+                .clamp(0.0, 1.0)
+                .mul_add(info.high - info.low, info.low);
 
             if info.is_int {
                 let int_val = if info.log_scale {
@@ -1468,7 +1472,9 @@ impl BOHBSampler {
                     let v = if param.log_scale {
                         let log_low = low.ln();
                         let log_high = high.ln();
-                        (rng.random::<f64>() * (log_high - log_low) + log_low).exp()
+                        rng.random::<f64>()
+                            .mul_add(log_high - log_low, log_low)
+                            .exp()
                     } else {
                         rng.random::<f64>() * (high - low) + low
                     };
@@ -1478,7 +1484,8 @@ impl BOHBSampler {
                     let v = if param.log_scale {
                         let log_low = (*low as f64).ln();
                         let log_high = (*high as f64).ln();
-                        (rng.random::<f64>() * (log_high - log_low) + log_low)
+                        rng.random::<f64>()
+                            .mul_add(log_high - log_low, log_low)
                             .exp()
                             .round() as i64
                     } else {

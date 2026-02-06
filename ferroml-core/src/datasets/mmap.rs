@@ -429,8 +429,16 @@ impl MemmappedDataset {
         }
 
         // Parse dimensions
-        let n_samples = u64::from_le_bytes(header[5..13].try_into().unwrap()) as usize;
-        let n_features = u64::from_le_bytes(header[13..21].try_into().unwrap()) as usize;
+        let n_samples = u64::from_le_bytes(
+            header[5..13]
+                .try_into()
+                .expect("header slice is exactly 8 bytes"),
+        ) as usize;
+        let n_features = u64::from_le_bytes(
+            header[13..21]
+                .try_into()
+                .expect("header slice is exactly 8 bytes"),
+        ) as usize;
         let has_targets = header[21] != 0;
 
         // Memory map the entire file
@@ -674,7 +682,9 @@ impl MemmappedDataset {
                 start, end, self.n_samples
             )));
         }
-        let view = self.y_view().unwrap();
+        let view = self
+            .y_view()
+            .ok_or_else(|| FerroError::invalid_input("Dataset has no target data"))?;
         let slice = view.slice(ndarray::s![start..end]);
         Ok(slice.to_owned())
     }
@@ -869,8 +879,16 @@ pub fn peek_mmap_info<P: AsRef<Path>>(path: P) -> Result<(usize, usize, bool)> {
         ));
     }
 
-    let n_samples = u64::from_le_bytes(header[5..13].try_into().unwrap()) as usize;
-    let n_features = u64::from_le_bytes(header[13..21].try_into().unwrap()) as usize;
+    let n_samples = u64::from_le_bytes(
+        header[5..13]
+            .try_into()
+            .expect("header slice is exactly 8 bytes"),
+    ) as usize;
+    let n_features = u64::from_le_bytes(
+        header[13..21]
+            .try_into()
+            .expect("header slice is exactly 8 bytes"),
+    ) as usize;
     let has_targets = header[21] != 0;
 
     Ok((n_samples, n_features, has_targets))

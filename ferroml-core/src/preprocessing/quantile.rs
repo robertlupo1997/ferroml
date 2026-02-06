@@ -250,7 +250,7 @@ impl QuantileTransformer {
         if lower == upper || upper >= n {
             sorted[lower.min(n - 1)]
         } else {
-            sorted[lower] * (1.0 - frac) + sorted[upper] * frac
+            sorted[lower].mul_add(1.0 - frac, sorted[upper] * frac)
         }
     }
 
@@ -302,7 +302,7 @@ impl QuantileTransformer {
             } else {
                 // Linear interpolation
                 let frac = (value - q_low) / (q_high - q_low);
-                r_low + frac * (r_high - r_low)
+                frac.mul_add(r_high - r_low, r_low)
             }
         }
     }

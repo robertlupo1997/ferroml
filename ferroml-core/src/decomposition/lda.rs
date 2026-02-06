@@ -516,8 +516,8 @@ impl LDA {
 
             for (i, s_inv_i) in s_inv.iter_mut().enumerate().take(rank) {
                 if s_sw[i] > self.tol {
-                    let reg_s = (s_sw[i] * shrink_factor * s_sw[i] * shrink_factor
-                        + regularizer * regularizer)
+                    let reg_s = (s_sw[i] * shrink_factor * s_sw[i])
+                        .mul_add(shrink_factor, regularizer * regularizer)
                         .sqrt();
                     *s_inv_i = 1.0 / reg_s;
                 }
@@ -645,7 +645,7 @@ impl LDA {
             for i in 0..n_features {
                 for j in 0..n_features {
                     if i == j {
-                        sw[[i, j]] = (1.0 - shrink) * sw[[i, j]] + shrink * mu;
+                        sw[[i, j]] = (1.0 - shrink).mul_add(sw[[i, j]], shrink * mu);
                     } else {
                         sw[[i, j]] = (1.0 - shrink) * sw[[i, j]];
                     }
@@ -795,7 +795,7 @@ impl LDA {
 
             // Intercept includes prior probability
             let mean_proj_sq: f64 = class_mean_proj.iter().map(|v| v * v).sum();
-            intercept[c] = priors[c].ln() - 0.5 * mean_proj_sq;
+            intercept[c] = 0.5f64.mul_add(-mean_proj_sq, priors[c].ln());
         }
 
         self.coef = Some(coef);
@@ -918,7 +918,7 @@ impl LDA {
                     let diff = x_proj[[i, d]] - means_proj[[c, d]];
                     dist_sq += diff * diff;
                 }
-                scores[[i, c]] = priors[c].ln() - 0.5 * dist_sq;
+                scores[[i, c]] = 0.5f64.mul_add(-dist_sq, priors[c].ln());
             }
         }
 

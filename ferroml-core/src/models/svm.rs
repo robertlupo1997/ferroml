@@ -412,8 +412,7 @@ impl BinarySVC {
                         }
 
                         // Compute eta
-                        let eta = 2.0 * kernel_matrix[[i, j]]
-                            - kernel_matrix[[i, i]]
+                        let eta = 2.0f64.mul_add(kernel_matrix[[i, j]], -kernel_matrix[[i, i]])
                             - kernel_matrix[[j, j]];
 
                         if eta >= 0.0 {
@@ -429,18 +428,20 @@ impl BinarySVC {
                         }
 
                         // Update alpha_i
-                        alpha[i] = alpha_i_old + y[i] * y[j] * (alpha_j_old - alpha[j]);
+                        alpha[i] = (y[i] * y[j]).mul_add(alpha_j_old - alpha[j], alpha_i_old);
 
                         // Update threshold
-                        let b1 = b
-                            - ei
-                            - y[i] * (alpha[i] - alpha_i_old) * kernel_matrix[[i, i]]
-                            - y[j] * (alpha[j] - alpha_j_old) * kernel_matrix[[i, j]];
+                        let b1 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
+                            -kernel_matrix[[i, j]],
+                            (y[i] * (alpha[i] - alpha_i_old))
+                                .mul_add(-kernel_matrix[[i, i]], b - ei),
+                        );
 
-                        let b2 = b
-                            - ej
-                            - y[i] * (alpha[i] - alpha_i_old) * kernel_matrix[[i, j]]
-                            - y[j] * (alpha[j] - alpha_j_old) * kernel_matrix[[j, j]];
+                        let b2 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
+                            -kernel_matrix[[j, j]],
+                            (y[i] * (alpha[i] - alpha_i_old))
+                                .mul_add(-kernel_matrix[[i, j]], b - ej),
+                        );
 
                         b = if alpha[i] > 0.0 && alpha[i] < c[i] {
                             b1
@@ -673,7 +674,7 @@ impl BinarySVC {
         }
 
         let decisions = self.decision_function(x)?;
-        Ok(decisions.mapv(|f| 1.0 / (1.0 + (self.platt_a * f + self.platt_b).exp())))
+        Ok(decisions.mapv(|f| 1.0 / (1.0 + self.platt_a.mul_add(f, self.platt_b).exp())))
     }
 }
 
@@ -1439,7 +1440,7 @@ impl SVR {
             max_delta = 0.0;
 
             for i in 0..n {
-                let old_coef = coef[i];
+                let old_coef: f64 = coef[i];
                 let k_ii = kernel_matrix[[i, i]];
 
                 // Skip if diagonal is zero (shouldn't happen with valid kernels)
@@ -1454,7 +1455,7 @@ impl SVR {
                 // Taking derivative and setting to zero (with clipping for epsilon-insensitive loss)
 
                 // Current prediction without contribution from i
-                let f_without_i = f[i] - old_coef * k_ii;
+                let f_without_i = old_coef.mul_add(-k_ii, f[i]);
 
                 // The optimal coef[i] minimizes the loss
                 // For epsilon-insensitive loss:
@@ -1922,10 +1923,10 @@ impl LinearSVC {
                         // Squared hinge loss: gradient is smooth
                         if margin < 1.0 {
                             let scale = 2.0 * c[i] * y_binary[i] * (1.0 - margin);
-                            let denom = 1.0
-                                + 2.0
-                                    * c[i]
-                                    * (x_norm_sq[i] + if self.fit_intercept { 1.0 } else { 0.0 });
+                            let denom = (2.0 * c[i]).mul_add(
+                                x_norm_sq[i] + if self.fit_intercept { 1.0 } else { 0.0 },
+                                1.0,
+                            );
                             (
                                 scale / denom,
                                 if self.fit_intercept {
@@ -2356,10 +2357,10 @@ impl Model for LinearSVR {
                         if residual.abs() > self.epsilon {
                             let sign = if residual > 0.0 { 1.0 } else { -1.0 };
                             let loss_grad = 2.0 * sign * (residual.abs() - self.epsilon);
-                            let denom = 1.0
-                                + 2.0
-                                    * self.c
-                                    * (x_norm_sq[i] + if self.fit_intercept { 1.0 } else { 0.0 });
+                            let denom = (2.0 * self.c).mul_add(
+                                x_norm_sq[i] + if self.fit_intercept { 1.0 } else { 0.0 },
+                                1.0,
+                            );
                             let step = (self.c * loss_grad) / denom;
                             (step, true)
                         } else {

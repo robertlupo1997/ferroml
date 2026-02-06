@@ -534,7 +534,7 @@ impl EnsembleBuilder {
                 let new_ensemble: Array1<f64> = ensemble_preds
                     .iter()
                     .zip(model_preds.iter())
-                    .map(|(&e, &m)| (e * total_weight + m) / new_weight)
+                    .map(|(&e, &m)| f64::mul_add(e, total_weight, m) / new_weight)
                     .collect();
 
                 let mut score = self.compute_score(&new_ensemble, y_true);
@@ -572,7 +572,7 @@ impl EnsembleBuilder {
                 ensemble_preds = ensemble_preds
                     .iter()
                     .zip(model_preds.iter())
-                    .map(|(&e, &m)| (e * (total_weight - 1.0) + m) / total_weight)
+                    .map(|(&e, &m)| f64::mul_add(e, total_weight - 1.0, m) / total_weight)
                     .collect();
 
                 // Record actual score (without diversity)
