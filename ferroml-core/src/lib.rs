@@ -370,6 +370,12 @@ pub struct AutoMLConfig {
     pub seed: Option<u64>,
     /// Number of parallel jobs
     pub n_jobs: usize,
+    /// Algorithm selection strategy
+    pub algorithm_selection: AlgorithmSelection,
+    /// Maximum number of models in ensemble
+    pub ensemble_size: usize,
+    /// Portfolio preset for algorithm selection
+    pub preset: automl::PortfolioPreset,
 }
 
 impl Default for AutoMLConfig {
@@ -384,6 +390,9 @@ impl Default for AutoMLConfig {
             multiple_testing_correction: MultipleTesting::BenjaminiHochberg,
             seed: None,
             n_jobs: num_cpus::get(),
+            algorithm_selection: AlgorithmSelection::default(),
+            ensemble_size: 10,
+            preset: automl::PortfolioPreset::Balanced,
         }
     }
 }
@@ -450,15 +459,37 @@ pub enum MultipleTesting {
     BenjaminiYekutieli,
 }
 
+/// Algorithm selection strategy for AutoML
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AlgorithmSelection {
+    /// Uniform random selection across algorithms
+    Uniform,
+    /// Bayesian optimization for algorithm selection
+    Bayesian,
+    /// Multi-armed bandit based selection (default)
+    #[default]
+    Bandit,
+}
+
 /// Main AutoML entry point
 pub struct AutoML {
     config: AutoMLConfig,
+    /// Algorithm portfolio (populated during fit)
+    #[allow(dead_code)]
+    portfolio: Option<automl::AlgorithmPortfolio>,
+    /// HPO study for hyperparameter optimization
+    #[allow(dead_code)]
+    study: Option<hpo::Study>,
 }
 
 impl AutoML {
     /// Create new AutoML instance with configuration
     pub fn new(config: AutoMLConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            portfolio: None,
+            study: None,
+        }
     }
 
     /// Create with default configuration

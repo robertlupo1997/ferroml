@@ -478,9 +478,11 @@ impl Pipeline {
         for (name, step) in &mut self.steps {
             match step {
                 PipelineStep::Transform(transformer) => {
+                    // Save input BEFORE transformation for cache key
+                    let input_for_cache = current_x.clone();
                     current_x = transformer.fit_transform(&current_x)?;
-                    // Cache the result if enabled
-                    self.cache.set(name, x, current_x.clone());
+                    // Cache with input before transformation as key (not original x)
+                    self.cache.set(name, &input_for_cache, current_x.clone());
                 }
                 PipelineStep::Model(model) => {
                     model.fit(&current_x, y)?;
@@ -534,10 +536,46 @@ impl Pipeline {
 
     /// Fit and transform in one step
     ///
-    /// Equivalent to `fit(x, y)` followed by `transform(x)`.
+    /// More efficient than calling `fit(x, y)` followed by `transform(x)`
+    /// because it avoids recomputing transformations.
     pub fn fit_transform(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<Array2<f64>> {
-        self.fit(x, y)?;
-        self.transform(x)
+        // Inline implementation to avoid double-computation
+        if self.steps.is_empty() {
+            return Err(FerroError::invalid_input(
+                "Pipeline is empty. Add at least one step.",
+            ));
+        }
+
+        if x.nrows() != y.len() {
+            return Err(FerroError::shape_mismatch(
+                format!("X has {} rows", x.nrows()),
+                format!("y has {} elements", y.len()),
+            ));
+        }
+
+        self.n_features_in = Some(x.ncols());
+        self.cache.clear();
+
+        let mut current_x = x.clone();
+
+        for (name, step) in &mut self.steps {
+            match step {
+                PipelineStep::Transform(transformer) => {
+                    let input_for_cache = current_x.clone();
+                    current_x = transformer.fit_transform(&current_x)?;
+                    self.cache.set(name, &input_for_cache, current_x.clone());
+                }
+                PipelineStep::Model(model) => {
+                    model.fit(&current_x, y)?;
+                    // Return the transformed data before the model
+                    self.fitted = true;
+                    return Ok(current_x);
+                }
+            }
+        }
+
+        self.fitted = true;
+        Ok(current_x)
     }
 
     /// Predict using the pipeline

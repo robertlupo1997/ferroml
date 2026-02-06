@@ -43,10 +43,11 @@ impl Sampler for RandomSampler {
     fn sample(
         &self,
         search_space: &SearchSpace,
-        _trials: &[Trial],
+        trials: &[Trial],
     ) -> Result<HashMap<String, ParameterValue>> {
+        // Use trial count to vary seed, ensuring different samples each call
         let mut rng = match self.seed {
-            Some(seed) => StdRng::seed_from_u64(seed),
+            Some(seed) => StdRng::seed_from_u64(seed.wrapping_add(trials.len() as u64)),
             None => StdRng::from_os_rng(),
         };
 
@@ -162,10 +163,20 @@ impl Sampler for GridSampler {
                     let val = if param.log_scale {
                         let log_low = low.ln();
                         let log_high = high.ln();
-                        let step = (log_high - log_low) / (self.grid_points - 1) as f64;
+                        // Guard against division by zero when grid_points=1
+                        let step = if self.grid_points > 1 {
+                            (log_high - log_low) / (self.grid_points - 1) as f64
+                        } else {
+                            0.0
+                        };
                         (log_low + step * grid_idx as f64).exp()
                     } else {
-                        let step = (high - low) / (self.grid_points - 1) as f64;
+                        // Guard against division by zero when grid_points=1
+                        let step = if self.grid_points > 1 {
+                            (high - low) / (self.grid_points - 1) as f64
+                        } else {
+                            0.0
+                        };
                         low + step * grid_idx as f64
                     };
                     ParameterValue::Float(val.clamp(*low, *high))

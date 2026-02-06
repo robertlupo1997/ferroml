@@ -459,7 +459,8 @@ impl ShuffleSplit {
 
     /// Calculate actual train and test sizes from fractions
     fn calculate_sizes(&self, n_samples: usize) -> (usize, usize) {
-        let n_test = (n_samples as f64 * self.test_fraction).round() as usize;
+        // Use floor for consistent behavior (matches sklearn)
+        let n_test = (n_samples as f64 * self.test_fraction).floor() as usize;
         let n_test = n_test.max(1).min(n_samples - 1);
 
         let n_train = match self.train_fraction {

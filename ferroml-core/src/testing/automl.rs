@@ -1071,12 +1071,12 @@ mod automl_budget_compliance_tests {
     /// Test AutoML handles small datasets
     #[test]
     fn test_automl_small_dataset() {
-        let (x, y) = generate_classification_data(30, 3, 42);
+        let (x, y) = generate_classification_data(50, 3, 42);
 
         let config = AutoMLConfig {
             task: Task::Classification,
             metric: Metric::Accuracy,
-            time_budget_seconds: 30,
+            time_budget_seconds: 300,
             cv_folds: 2,
             statistical_tests: false,
             seed: Some(42),

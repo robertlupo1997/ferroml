@@ -623,7 +623,9 @@ impl Transformer for PCA {
         if self.whiten {
             let singular_values = self.singular_values.as_ref().unwrap();
             let n_samples = self.n_samples.unwrap() as f64;
-            let scale = singular_values.mapv(|s| (n_samples - 1.0).sqrt() / s);
+            // Guard against division by near-zero singular values
+            let eps = 1e-10;
+            let scale = singular_values.mapv(|s| (n_samples - 1.0).sqrt() / s.max(eps));
 
             for (j, &s) in scale.iter().enumerate() {
                 x_transformed.column_mut(j).iter_mut().for_each(|v| *v *= s);
@@ -1058,7 +1060,9 @@ impl Transformer for IncrementalPCA {
         if self.whiten {
             let singular_values = self.singular_values.as_ref().unwrap();
             let n_samples = self.n_samples_seen as f64;
-            let scale = singular_values.mapv(|s| (n_samples - 1.0).sqrt() / s);
+            // Guard against division by near-zero singular values
+            let eps = 1e-10;
+            let scale = singular_values.mapv(|s| (n_samples - 1.0).sqrt() / s.max(eps));
 
             for (j, &s) in scale.iter().enumerate() {
                 x_transformed.column_mut(j).iter_mut().for_each(|v| *v *= s);
@@ -1132,10 +1136,11 @@ fn qr_decomposition(a: &Array2<f64>) -> Result<(Array2<f64>, Array2<f64>)> {
         // Start with column j of A
         let mut v = a.column(j).to_owned();
 
-        // Subtract projections onto previous q vectors
+        // Subtract projections onto previous q vectors (Modified Gram-Schmidt)
         for i in 0..j {
             let qi = q.column(i);
-            let proj: f64 = qi.dot(&a.column(j));
+            // Use current v, not original column - this is Modified Gram-Schmidt
+            let proj: f64 = qi.dot(&v);
             r[[i, j]] = proj;
             v -= &(&qi * proj);
         }

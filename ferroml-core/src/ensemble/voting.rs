@@ -332,8 +332,12 @@ impl VotingClassifier {
                 let max_idx = row
                     .iter()
                     .enumerate()
-                    .max_by(|(_, a): &(usize, &f64), (_, b): &(usize, &f64)| {
-                        a.partial_cmp(b).unwrap()
+                    .max_by(|(idx_a, a): &(usize, &f64), (idx_b, b): &(usize, &f64)| {
+                        // On ties, prefer smaller index (matches sklearn behavior)
+                        match a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) {
+                            std::cmp::Ordering::Equal => idx_b.cmp(idx_a),
+                            ord => ord,
+                        }
                     })
                     .map(|(idx, _)| idx)
                     .unwrap_or(0);
@@ -357,8 +361,12 @@ impl VotingClassifier {
                 let max_idx = row
                     .iter()
                     .enumerate()
-                    .max_by(|(_, a): &(usize, &f64), (_, b): &(usize, &f64)| {
-                        a.partial_cmp(b).unwrap()
+                    .max_by(|(idx_a, a): &(usize, &f64), (idx_b, b): &(usize, &f64)| {
+                        // On ties, prefer smaller index (matches sklearn behavior)
+                        match a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal) {
+                            std::cmp::Ordering::Equal => idx_b.cmp(idx_a),
+                            ord => ord,
+                        }
                     })
                     .map(|(idx, _)| idx)
                     .unwrap_or(0);

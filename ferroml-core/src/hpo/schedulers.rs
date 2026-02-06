@@ -377,7 +377,7 @@ impl Bracket {
             rung_n_configs.push(current_n);
             current_resource =
                 (current_resource as f64 * reduction_factor).min(max_resource as f64) as usize;
-            current_n = (current_n as f64 / reduction_factor).ceil() as usize;
+            current_n = (current_n as f64 / reduction_factor).floor().max(1.0) as usize;
         }
 
         let trials_per_rung = vec![Vec::new(); n_rungs];
@@ -823,8 +823,10 @@ impl Scheduler for HyperbandScheduler {
         let mut sorted = trials_at_rung;
         sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
-        // Keep top 1/eta configs
-        let n_keep = (sorted.len() as f64 / self.config.reduction_factor).ceil() as usize;
+        // Keep top 1/eta configs (use floor to ensure reduction, with min 1)
+        let n_keep = (sorted.len() as f64 / self.config.reduction_factor)
+            .floor()
+            .max(1.0) as usize;
         let keep_ids: Vec<usize> = sorted[..n_keep].iter().map(|(i, _)| *i).collect();
 
         !keep_ids.contains(&trial_id)
@@ -890,7 +892,9 @@ impl Scheduler for ASHAScheduler {
                 let mut sorted = trials_at_rung;
                 sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-                let n_keep = (sorted.len() as f64 / self.reduction_factor).ceil() as usize;
+                let n_keep = (sorted.len() as f64 / self.reduction_factor)
+                    .floor()
+                    .max(1.0) as usize;
                 let threshold = sorted[n_keep.min(sorted.len() - 1)];
 
                 return current_value > threshold;

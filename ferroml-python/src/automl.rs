@@ -15,8 +15,9 @@
 
 use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
 use ferroml_core::{
-    automl::{AlgorithmType, EnsembleResult, ParamValue},
-    AutoML, AutoMLConfig, AutoMLResult, LeaderboardEntry, Metric, MultipleTesting, Task,
+    automl::{self, AlgorithmType, EnsembleResult, ParamValue},
+    AlgorithmSelection, AutoML, AutoMLConfig, AutoMLResult, LeaderboardEntry, Metric,
+    MultipleTesting, Task,
 };
 use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -62,14 +63,14 @@ fn metric_from_str(s: &str) -> PyResult<Metric> {
 }
 
 /// Convert multiple testing correction from Python string
-fn multiple_testing_from_str(s: &str) -> MultipleTesting {
+fn multiple_testing_from_str(s: &str) -> PyResult<MultipleTesting> {
     match s.to_lowercase().as_str() {
-        "bonferroni" => MultipleTesting::Bonferroni,
-        "holm" | "holm-bonferroni" => MultipleTesting::Holm,
-        "bh" | "benjamini-hochberg" | "fdr" => MultipleTesting::BenjaminiHochberg,
-        "by" | "benjamini-yekutieli" => MultipleTesting::BenjaminiYekutieli,
-        "none" | "no" => MultipleTesting::None,
-        _ => MultipleTesting::BenjaminiHochberg, // Default
+        "bonferroni" => Ok(MultipleTesting::Bonferroni),
+        "holm" | "holm-bonferroni" => Ok(MultipleTesting::Holm),
+        "bh" | "benjamini-hochberg" | "fdr" => Ok(MultipleTesting::BenjaminiHochberg),
+        "by" | "benjamini-yekutieli" => Ok(MultipleTesting::BenjaminiYekutieli),
+        "none" | "no" => Ok(MultipleTesting::None),
+        _ => Ok(MultipleTesting::BenjaminiHochberg), // Default
     }
 }
 
@@ -277,9 +278,12 @@ impl PyAutoMLConfig {
             cv_folds: self.cv_folds,
             statistical_tests: self.statistical_tests,
             confidence_level: self.confidence_level,
-            multiple_testing_correction: multiple_testing_from_str(&self.multiple_testing),
+            multiple_testing_correction: multiple_testing_from_str(&self.multiple_testing)?,
             seed: self.seed,
             n_jobs: self.n_jobs,
+            algorithm_selection: AlgorithmSelection::default(),
+            ensemble_size: 10,
+            preset: automl::PortfolioPreset::Balanced,
         })
     }
 }

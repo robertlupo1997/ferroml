@@ -918,9 +918,10 @@ mod tests {
         assert!(mean_col0.abs() < EPSILON);
         assert!(mean_col1.abs() < EPSILON);
 
-        // Check std is approximately 1 (using sample std)
-        let std_col0 = x_scaled.std_axis(Axis(0), 1.0)[0];
-        let std_col1 = x_scaled.std_axis(Axis(0), 1.0)[1];
+        // StandardScaler uses population variance (n) to match sklearn,
+        // so check std using population std (ddof=0)
+        let std_col0 = x_scaled.std_axis(Axis(0), 0.0)[0];
+        let std_col1 = x_scaled.std_axis(Axis(0), 0.0)[1];
         assert!((std_col0 - 1.0).abs() < EPSILON);
         assert!((std_col1 - 1.0).abs() < EPSILON);
     }

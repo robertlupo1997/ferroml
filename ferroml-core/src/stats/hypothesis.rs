@@ -167,9 +167,10 @@ fn run_t_test(x: &Array1<f64>, y: &Array1<f64>, equal_var: bool) -> Result<Stati
         "large"
     };
 
-    // CI for effect size (approximate)
-    let se_d =
-        ((n1 + n2) as f64 / (n1 * n2) as f64 + cohens_d.powi(2) / (2.0 * (n1 + n2) as f64)).sqrt();
+    // CI for effect size (approximate) - use (n1+n2-2) denominator per correct formula
+    let se_d = ((n1 + n2) as f64 / (n1 * n2) as f64
+        + cohens_d.powi(2) / (2.0 * (n1 + n2 - 2) as f64))
+        .sqrt();
     let z_crit = 1.96; // 95% CI
     let d_lower = cohens_d - z_crit * se_d;
     let d_upper = cohens_d + z_crit * se_d;

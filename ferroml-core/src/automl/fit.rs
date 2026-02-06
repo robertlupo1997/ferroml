@@ -42,8 +42,7 @@
 
 use crate::automl::{
     AlgorithmConfig, AlgorithmPortfolio, AlgorithmType, DataCharacteristics, EnsembleBuilder,
-    EnsembleConfig, EnsembleResult, ParamValue, PortfolioPreset, TimeBudgetAllocator,
-    TimeBudgetConfig, TrialResult,
+    EnsembleConfig, EnsembleResult, ParamValue, TimeBudgetAllocator, TimeBudgetConfig, TrialResult,
 };
 use crate::cv::{CVFold, CrossValidator, StratifiedKFold};
 use crate::metrics::{
@@ -728,8 +727,8 @@ impl AutoML {
         // Step 1: Analyze data characteristics
         let data_chars = DataCharacteristics::from_data(x, y);
 
-        // Step 2: Select portfolio based on task
-        let preset = PortfolioPreset::Balanced;
+        // Step 2: Select portfolio based on task (use config preset, not hardcoded)
+        let preset = self.config.preset;
         let portfolio = match self.config.task {
             Task::Classification => AlgorithmPortfolio::for_classification(preset),
             Task::Regression => AlgorithmPortfolio::for_regression(preset),
@@ -759,24 +758,26 @@ impl AutoML {
         };
         let maximize = metric_adapter.direction() == Direction::Maximize;
 
-        // Iterate through algorithms in priority order
-        let sorted_algorithms = adapted_portfolio.sorted_by_priority();
-        for (algo_idx, algo_config) in sorted_algorithms.iter().enumerate() {
+        // Use bandit to select algorithms (not priority order)
+        loop {
             // Check time budget
             if Instant::now() >= deadline {
                 break;
             }
 
-            // Get time allocation for this algorithm
+            // Get time allocation from bandit - this determines which algorithm to try
             let allocation = match time_allocator.select_arm() {
                 Some(arm) => arm,
-                None => continue, // No more budget or all arms exhausted
+                None => break, // No more budget or all arms exhausted
             };
 
             // Skip if not enough time
             if allocation.trial_budget_seconds < 1.0 {
                 continue;
             }
+
+            // Use the bandit's selected algorithm index, not loop iteration order
+            let algo_config = &adapted_portfolio.algorithms[allocation.algorithm_index];
 
             let trial_start = Instant::now();
 
@@ -793,7 +794,7 @@ impl AutoML {
 
             let trial_time = trial_start.elapsed().as_secs_f64();
 
-            // Update time allocator with result
+            // Update time allocator with result using correct algorithm index
             let reward = match &trial_result {
                 Ok(result) if result.success => {
                     // Normalize score to [0, 1] for bandit
@@ -805,7 +806,7 @@ impl AutoML {
                 }
                 _ => 0.0,
             };
-            time_allocator.update(algo_idx, reward, trial_time);
+            time_allocator.update(allocation.algorithm_index, reward, trial_time);
 
             match trial_result {
                 Ok(result) => {

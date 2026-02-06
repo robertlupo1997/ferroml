@@ -352,6 +352,10 @@ pub struct TimeBudgetAllocator {
     rng: rand::rngs::StdRng,
     /// Current epsilon for epsilon-greedy
     current_epsilon: f64,
+    /// Current Successive Halving rung (0-indexed)
+    sh_rung: usize,
+    /// Trials completed at current rung per arm
+    sh_trials_at_rung: Vec<usize>,
 }
 
 impl TimeBudgetAllocator {
@@ -385,6 +389,7 @@ impl TimeBudgetAllocator {
             None => rand::rngs::StdRng::from_os_rng(),
         };
 
+        let n_arms = arms.len();
         Self {
             config,
             arms,
@@ -395,6 +400,8 @@ impl TimeBudgetAllocator {
             best_algorithm_index: None,
             rng,
             current_epsilon,
+            sh_rung: 0,
+            sh_trials_at_rung: vec![0; n_arms],
         }
     }
 
@@ -589,18 +596,70 @@ impl TimeBudgetAllocator {
         })
     }
 
-    /// Select arm using successive halving (round-robin among active)
-    fn select_successive_halving(&self) -> Option<ArmSelection> {
-        // Find the arm with fewest trials among active arms
+    /// Select arm using successive halving with proper bracket-based elimination
+    fn select_successive_halving(&mut self) -> Option<ArmSelection> {
+        let (min_resource, max_resource, eta) = match &self.config.strategy {
+            BanditStrategy::SuccessiveHalving {
+                min_resource,
+                max_resource,
+                eta,
+            } => (*min_resource, *max_resource, *eta),
+            _ => return None,
+        };
+
+        // Calculate number of rungs: s_max = floor(log_eta(max_r / min_r))
+        let n_rungs = ((max_resource / min_resource).ln() / eta.ln()).floor() as usize + 1;
+
+        // Calculate resource for current rung: r_i = min_r * eta^i
+        let current_resource = min_resource * eta.powi(self.sh_rung as i32);
+
+        // Get active arms
+        let active_arms: Vec<usize> = self
+            .arms
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| a.active)
+            .map(|(i, _)| i)
+            .collect();
+
+        if active_arms.is_empty() {
+            return None;
+        }
+
+        // Check if all active arms have been evaluated at current rung
+        let all_evaluated_at_rung = active_arms
+            .iter()
+            .all(|&i| self.sh_trials_at_rung[i] > self.sh_rung);
+
+        if all_evaluated_at_rung && self.sh_rung < n_rungs - 1 {
+            // Advance to next rung: eliminate bottom 1/eta configs
+            let n_to_keep = (active_arms.len() as f64 / eta).ceil() as usize;
+            let n_to_keep = n_to_keep.max(1); // Keep at least one
+
+            // Sort by score (descending) and deactivate bottom performers
+            let mut scored: Vec<(usize, f64)> = active_arms
+                .iter()
+                .map(|&i| (i, self.arms[i].mean_score()))
+                .collect();
+            scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+            for (i, _) in scored.iter().skip(n_to_keep) {
+                self.arms[*i].active = false;
+            }
+
+            self.sh_rung += 1;
+        }
+
+        // Select arm with fewest trials at current rung among remaining active
         let selected = self
             .arms
             .iter()
             .enumerate()
             .filter(|(_, a)| a.active)
-            .min_by_key(|(_, a)| a.n_trials);
+            .min_by_key(|(i, _)| self.sh_trials_at_rung[*i]);
 
         selected.map(|(i, arm)| {
-            let trial_budget = self.compute_trial_budget(i);
+            let trial_budget = current_resource.min(self.remaining_budget_seconds());
             ArmSelection {
                 algorithm_index: i,
                 algorithm_type: arm.algorithm_type,

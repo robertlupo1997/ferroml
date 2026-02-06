@@ -360,9 +360,9 @@ pub fn compute_column_statistics(x: &Array2<f64>) -> (Array1<f64>, Array1<f64>, 
         }
     }
 
-    // Compute sample variance (n-1 denominator)
-    let variance = if n_samples > 1 {
-        m2.mapv(|v| v / (n_samples - 1) as f64)
+    // Compute population variance (n denominator) to match sklearn behavior
+    let variance = if n_samples > 0 {
+        m2.mapv(|v| v / n_samples as f64)
     } else {
         Array1::zeros(n_features)
     };
@@ -587,8 +587,8 @@ mod tests {
         assert_eq!(n, 3);
         assert!((mean[0] - 3.0).abs() < 1e-10);
         assert!((mean[1] - 4.0).abs() < 1e-10);
-        // Sample variance: var([1,3,5]) = 4.0, var([2,4,6]) = 4.0
-        assert!((variance[0] - 4.0).abs() < 1e-10);
-        assert!((variance[1] - 4.0).abs() < 1e-10);
+        // Population variance (n): var([1,3,5]) = 8/3, var([2,4,6]) = 8/3
+        assert!((variance[0] - 8.0 / 3.0).abs() < 1e-10);
+        assert!((variance[1] - 8.0 / 3.0).abs() < 1e-10);
     }
 }

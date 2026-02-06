@@ -494,26 +494,18 @@ impl Model for StackingClassifier {
         }
 
         // Step 3: Fit the final estimator on meta-features
-        let final_est = match self.final_estimator.take() {
+        // ACTUALLY USE the user's final_estimator (was ignored before!)
+        let mut fitted_final: Box<dyn Model> = match self.final_estimator.take() {
             Some(est) => est,
             None => {
-                // Default to RidgeRegression which handles multicollinearity in meta-features
-                use crate::models::RidgeRegression;
-                Box::new(RidgeRegression::default())
+                // Default to DecisionTreeClassifier for classification
+                // (supports multiclass unlike LogisticRegression which is binary-only)
+                use crate::models::DecisionTreeClassifier;
+                Box::new(DecisionTreeClassifier::new())
             }
-        };
-
-        // We need to fit a new instance of the final estimator
-        // Since Model doesn't require Clone, we use RidgeRegression as default
-        let mut fitted_final: Box<dyn Model> = {
-            use crate::models::RidgeRegression;
-            Box::new(RidgeRegression::default())
         };
         fitted_final.fit(&meta_features, y)?;
         self.fitted_final = Some(fitted_final);
-
-        // Store the final estimator back (in case user wants to access it later)
-        self.final_estimator = Some(final_est);
 
         self.fitted = true;
         Ok(())

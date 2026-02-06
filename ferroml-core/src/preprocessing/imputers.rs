@@ -684,12 +684,13 @@ impl KNNImputer {
             return None;
         }
 
-        // Normalize by number of valid features to handle varying missing patterns
-        let normalized = sum / valid_count as f64;
-
+        // Scale by n_features/valid_count to project distance to full feature space
+        // This handles varying missing patterns by estimating what distance would be
+        // if all features were present
+        let n_features = a.len();
         Some(match self.metric {
-            KNNMetric::Euclidean => normalized.sqrt(),
-            KNNMetric::Manhattan => normalized,
+            KNNMetric::Euclidean => (sum * n_features as f64 / valid_count as f64).sqrt(),
+            KNNMetric::Manhattan => sum * n_features as f64 / valid_count as f64,
         })
     }
 

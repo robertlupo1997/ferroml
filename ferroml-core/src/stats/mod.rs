@@ -188,11 +188,33 @@ impl DescriptiveStats {
         let q3 = percentile(&sorted, 0.75);
         let iqr = q3 - q1;
 
-        // Skewness and kurtosis
-        let m3: f64 = data.iter().map(|x| ((x - mean) / std).powi(3)).sum::<f64>() / n as f64;
-        let m4: f64 = data.iter().map(|x| ((x - mean) / std).powi(4)).sum::<f64>() / n as f64;
-        let skewness = m3;
-        let kurtosis = m4 - 3.0; // Excess kurtosis
+        // Skewness and kurtosis with Fisher's adjusted sample formulas and std=0 guard
+        let (skewness, kurtosis) = if std == 0.0 || n < 3 {
+            (0.0, 0.0)
+        } else {
+            let m2: f64 = data.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n as f64;
+            let m3: f64 = data.iter().map(|x| (x - mean).powi(3)).sum::<f64>() / n as f64;
+            let m4: f64 = data.iter().map(|x| (x - mean).powi(4)).sum::<f64>() / n as f64;
+
+            // Fisher's adjusted skewness (G1)
+            let g1 = if m2 > 0.0 { m3 / m2.powf(1.5) } else { 0.0 };
+            let adjusted_skewness = if n > 2 {
+                ((n * (n - 1)) as f64).sqrt() / (n - 2) as f64 * g1
+            } else {
+                g1
+            };
+
+            // Fisher's adjusted excess kurtosis (G2)
+            let g2 = if m2 > 0.0 { m4 / m2.powi(2) - 3.0 } else { 0.0 };
+            let adjusted_kurtosis = if n > 3 {
+                let n_f = n as f64;
+                ((n_f - 1.0) / ((n_f - 2.0) * (n_f - 3.0))) * ((n_f + 1.0) * g2 + 6.0)
+            } else {
+                g2
+            };
+
+            (adjusted_skewness, adjusted_kurtosis)
+        };
 
         Ok(Self {
             n,

@@ -970,11 +970,11 @@ fn log_determinant(a: &Array2<f64>) -> Result<f64> {
     let det = lu.determinant();
 
     if det <= 0.0 {
-        // For numerical stability, use a small positive value
-        Ok((1e-10_f64).ln())
-    } else {
-        Ok(det.ln())
+        return Err(FerroError::numerical(
+            "Matrix is singular or not positive definite (determinant <= 0)",
+        ));
     }
+    Ok(det.ln())
 }
 
 /// Varimax rotation (orthogonal).

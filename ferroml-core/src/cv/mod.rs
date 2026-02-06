@@ -138,6 +138,8 @@ pub struct CVResult {
     pub n_folds: usize,
     /// Total samples in dataset
     pub n_samples: usize,
+    /// Raw test scores from each fold
+    scores: Vec<f64>,
 }
 
 impl CVResult {
@@ -200,7 +202,13 @@ impl CVResult {
             confidence_level,
             n_folds,
             n_samples,
+            scores: test_scores,
         }
+    }
+
+    /// Get raw test scores from each fold
+    pub fn scores(&self) -> &[f64] {
+        &self.scores
     }
 
     /// Get a summary string
@@ -926,6 +934,7 @@ mod tests {
             confidence_level: 0.95,
             n_folds: 5,
             n_samples: 100,
+            scores: vec![],
         };
 
         let result2 = CVResult {
@@ -939,6 +948,7 @@ mod tests {
             confidence_level: 0.95,
             n_folds: 5,
             n_samples: 100,
+            scores: vec![],
         };
 
         // For maximization, result1 is significantly better
