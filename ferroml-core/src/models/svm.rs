@@ -403,7 +403,7 @@ impl BinarySVC {
                         } else {
                             (
                                 (alpha[j] - alpha[i]).max(0.0),
-                                (c[j] + alpha[j] - alpha[i]).min(c[j]),
+                                (c[i] + alpha[j] - alpha[i]).min(c[j]),
                             )
                         };
 
@@ -3510,6 +3510,34 @@ mod tests {
                 "LinearSVR pred {} vs SVR pred {}",
                 lp,
                 sp
+            );
+        }
+    }
+
+    #[test]
+    fn test_smo_bounds_asymmetric_c() {
+        // When y[i] != y[j] and C values differ, the high bound should use c[i]
+        // Use ClassWeight::Custom to produce asymmetric per-sample C values
+        let x = Array2::from_shape_vec(
+            (6, 2),
+            vec![0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 3.0, 3.0, 4.0, 3.0, 3.0, 4.0],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+
+        // Asymmetric class weights produce different C per class
+        let mut svc = SVC::new()
+            .with_c(10.0)
+            .with_class_weight(ClassWeight::Custom(vec![(0.0, 1.0), (1.0, 10.0)]));
+
+        svc.fit(&x, &y).unwrap();
+
+        // Model should correctly classify all training points
+        let pred = svc.predict(&x).unwrap();
+        for (i, (&p, &actual)) in pred.iter().zip(y.iter()).enumerate() {
+            assert!(
+                (p - actual).abs() < 1e-10,
+                "Sample {i}: predicted {p}, expected {actual}"
             );
         }
     }

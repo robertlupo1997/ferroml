@@ -1009,7 +1009,9 @@ impl Model for KNeighborsClassifier {
             let best_class_idx = class_weights
                 .iter()
                 .enumerate()
-                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+                .max_by(|(ia, a), (ib, b)| {
+                    a.partial_cmp(b).unwrap_or(Ordering::Equal).then(ib.cmp(ia))
+                })
                 .map(|(idx, _)| idx)
                 .unwrap_or(0);
 
@@ -1928,5 +1930,27 @@ mod tests {
                 pred_ball[i]
             );
         }
+    }
+
+    #[test]
+    fn test_knn_tiebreak_first_class() {
+        // Create data where classes 0.0 and 1.0 have equal k-nearest neighbors
+        // With k=2: one neighbor of each class, should return lowest index (class 0.0)
+        let x = Array2::from_shape_vec((4, 1), vec![0.0, 2.0, 10.0, 12.0]).unwrap();
+        let y = Array1::from_vec(vec![0.0, 1.0, 0.0, 1.0]);
+
+        let mut knn = KNeighborsClassifier::new(2);
+        knn.fit(&x, &y).unwrap();
+
+        // Query point at 1.0: equidistant from 0.0 (class 0) and 2.0 (class 1)
+        let query = Array2::from_shape_vec((1, 1), vec![1.0]).unwrap();
+        let pred = knn.predict(&query).unwrap();
+
+        // On tie, should return lowest class index (0.0), matching sklearn behavior
+        assert!(
+            (pred[0] - 0.0).abs() < 1e-10,
+            "Expected class 0.0 on tie, got {}",
+            pred[0]
+        );
     }
 }

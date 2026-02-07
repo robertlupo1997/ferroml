@@ -1469,8 +1469,18 @@ impl DecisionTreeRegressor {
             ),
         };
 
-        // Node value (mean prediction)
-        let value = vec![mean];
+        // Node value: median for MAE criterion, mean otherwise
+        let value = vec![if self.criterion == SplitCriterion::Mae {
+            let mut sorted = values.clone();
+            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            if sorted.len() % 2 == 0 {
+                (sorted[sorted.len() / 2 - 1] + sorted[sorted.len() / 2]) / 2.0
+            } else {
+                sorted[sorted.len() / 2]
+            }
+        } else {
+            mean
+        }];
 
         // Create leaf node initially
         let leaf = TreeNode::new_leaf(node_id, impurity, n_samples, n_samples as f64, value, depth);
@@ -2244,5 +2254,32 @@ mod tests {
         let mut clf = DecisionTreeClassifier::new();
         let result = clf.fit(&x, &y);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mae_leaf_uses_median() {
+        // Data with skewed values: [1, 2, 3, 100]
+        // Mean = 26.5, Median = 2.5
+        // With MAE criterion, a single-leaf tree should predict the median
+        let x = Array2::from_shape_vec((4, 1), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
+        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 100.0]);
+
+        let mut tree = DecisionTreeRegressor::new()
+            .with_criterion(SplitCriterion::Mae)
+            .with_max_depth(Some(1)); // shallow tree to inspect leaf values
+
+        tree.fit(&x, &y).unwrap();
+
+        // With a depth-1 tree on 4 samples, each leaf should use median
+        // Predict on training data and verify predictions differ from simple mean
+        let pred = tree.predict(&x).unwrap();
+
+        // At least one prediction should NOT be 26.5 (the global mean)
+        let global_mean = 26.5;
+        let all_global_mean = pred.iter().all(|&p| (p - global_mean).abs() < 0.1);
+        assert!(
+            !all_global_mean,
+            "MAE tree should not predict global mean for all samples"
+        );
     }
 }

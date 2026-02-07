@@ -478,11 +478,15 @@ impl RandomForestClassifier {
             for &sample_idx in oob_indices {
                 let sample = x.row(sample_idx).to_owned().insert_axis(Axis(0));
                 if let Ok(proba) = tree.predict_proba(&sample) {
-                    // Use min of forest n_classes and tree output columns
-                    // Tree might have fewer columns if bootstrap sample was missing some classes
-                    let tree_n_classes = proba.ncols().min(n_classes);
-                    for j in 0..tree_n_classes {
-                        oob_proba[[sample_idx, j]] += proba[[0, j]];
+                    // Align tree class indices to forest class indices
+                    if let Some(tree_classes) = tree.classes() {
+                        for (tree_col, &tree_class) in tree_classes.iter().enumerate() {
+                            if let Some(forest_col) =
+                                classes.iter().position(|&c| (c - tree_class).abs() < 1e-10)
+                            {
+                                oob_proba[[sample_idx, forest_col]] += proba[[0, tree_col]];
+                            }
+                        }
                     }
                     oob_counts[sample_idx] += 1;
                 }
@@ -1587,5 +1591,45 @@ mod tests {
         for est in estimators {
             assert!(est.is_fitted());
         }
+    }
+
+    #[test]
+    fn test_oob_missing_class() {
+        // Create a dataset where some bootstrap samples may miss a class
+        // 3 classes, with class 2 having only 2 samples (likely to be missing in some bootstraps)
+        let x = Array2::from_shape_vec(
+            (20, 2),
+            vec![
+                // Class 0: cluster around (0,0)
+                0.1, 0.1, 0.2, 0.2, 0.0, 0.3, 0.3, 0.0, 0.1, 0.2, 0.2, 0.1, 0.0, 0.0, 0.3, 0.3, 0.1,
+                0.0, 0.0, 0.1, // Class 1: cluster around (5,5)
+                5.1, 5.1, 5.2, 5.2, 5.0, 5.3, 5.3, 5.0, 5.1, 5.2, 5.2, 5.1, 5.0, 5.0, 5.3, 5.3,
+                // Class 2: only 2 samples around (10,10)
+                10.0, 10.0, 10.1, 10.1,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+            1.0, 2.0, 2.0,
+        ]);
+
+        let mut clf = RandomForestClassifier::new()
+            .with_n_estimators(20)
+            .with_random_state(42);
+        clf.max_features = None; // Use all features for simpler splits
+
+        // This should not panic even when bootstrap samples miss class 2
+        let result = clf.fit(&x, &y);
+        assert!(result.is_ok(), "Fit should succeed: {:?}", result.err());
+
+        // OOB score should be computed
+        let oob = clf.oob_score();
+        assert!(oob.is_some(), "OOB score should be available");
+        assert!(
+            oob.unwrap() > 0.5,
+            "OOB accuracy should be reasonable: {}",
+            oob.unwrap()
+        );
     }
 }

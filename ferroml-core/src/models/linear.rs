@@ -198,37 +198,11 @@ impl LinearRegression {
     ///
     /// VIF > 5 suggests moderate multicollinearity
     /// VIF > 10 suggests severe multicollinearity
-    pub fn vif(&self) -> Option<Array1<f64>> {
-        let data = self.fitted_data.as_ref()?;
-
-        // VIF is computed from the covariance matrix
-        // VIF_j = (X'X)^(-1)_jj * (n-1) * var(X_j)
-        // We approximate using the diagonal of the covariance matrix
-
-        let n = data.n_features;
-        let mut vifs = Array1::zeros(n);
-
-        // Start from index 1 if intercept is fitted (skip intercept VIF)
-        let start_idx = if self.fit_intercept { 1 } else { 0 };
-
-        for i in 0..n {
-            let cov_idx = start_idx + i;
-            if cov_idx < data.coef_covariance.nrows() {
-                let diag = data.coef_covariance[[cov_idx, cov_idx]];
-                // VIF approximation based on R² when regressing X_j on other Xs
-                // Higher diagonal values indicate higher VIF
-                // This is a simplified computation - full VIF requires regressing each X on others
-                vifs[i] = 1.0 / (1.0 - diag.min(0.99)).max(1.0);
-            } else {
-                vifs[i] = 1.0;
-            }
-        }
-
-        Some(vifs)
+    pub fn vif(&self, x: &Array2<f64>) -> Array1<f64> {
+        self.compute_vif_full(x)
     }
 
     /// Compute VIF properly by regressing each feature on the others
-    #[allow(dead_code)]
     fn compute_vif_full(&self, x: &Array2<f64>) -> Array1<f64> {
         let n_features = x.ncols();
         let mut vifs = Array1::zeros(n_features);
@@ -964,9 +938,11 @@ fn t_critical(p: f64, df: f64) -> f64 {
         let x_norm = z_inv_normal(p);
         y = x_norm * x_norm;
 
-        if df < 5.0 {
-            let _c = (0.3 * (df - 4.5)).mul_add(x_norm + 0.6, c);
-        }
+        let c = if df < 5.0 {
+            (0.3 * (df - 4.5)).mul_add(x_norm + 0.6, c)
+        } else {
+            c
+        };
 
         let c = (0.05 * d)
             .mul_add(x_norm, -5.0)
@@ -998,6 +974,7 @@ fn z_inv_normal(p: f64) -> f64 {
         return f64::INFINITY;
     }
 
+    let original_p = p;
     let p = if p > 0.5 { 1.0 - p } else { p };
 
     let t = (-2.0 * p.ln()).sqrt();
@@ -1013,10 +990,10 @@ fn z_inv_normal(p: f64) -> f64 {
         - (c2 * t).mul_add(t, c0 + c1 * t)
             / (d3 * t * t).mul_add(t, (d2 * t).mul_add(t, 1.0 + d1 * t));
 
-    if p > 0.5 {
-        -z
-    } else {
+    if original_p > 0.5 {
         z
+    } else {
+        -z
     }
 }
 
@@ -1582,5 +1559,79 @@ mod tests {
         // Both features should have positive importance
         assert!(importance[0] > 0.0);
         assert!(importance[1] > 0.0);
+    }
+
+    #[test]
+    fn test_z_inv_normal_sign() {
+        // z_inv_normal(0.975) should be positive (~1.96)
+        let z_upper = z_inv_normal(0.975);
+        assert!(
+            z_upper > 1.5,
+            "z_inv_normal(0.975) = {z_upper}, expected > 1.5"
+        );
+        assert!(
+            z_upper < 2.5,
+            "z_inv_normal(0.975) = {z_upper}, expected < 2.5"
+        );
+
+        // z_inv_normal(0.025) should be negative (~-1.96)
+        let z_lower = z_inv_normal(0.025);
+        assert!(
+            z_lower < -1.5,
+            "z_inv_normal(0.025) = {z_lower}, expected < -1.5"
+        );
+        assert!(
+            z_lower > -2.5,
+            "z_inv_normal(0.025) = {z_lower}, expected > -2.5"
+        );
+
+        // Should be symmetric
+        assert_relative_eq!(z_upper, -z_lower, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_t_critical_small_df() {
+        // t_critical for df=3, p=0.975: known value ~3.182
+        let t3 = t_critical(0.975, 3.0);
+        assert!(t3 > 2.5, "t_critical(0.975, 3) = {t3}, expected > 2.5");
+        assert!(t3 < 4.0, "t_critical(0.975, 3) = {t3}, expected < 4.0");
+
+        // t_critical for df=4, p=0.975: known value ~2.776
+        let t4 = t_critical(0.975, 4.0);
+        assert!(t4 > 2.2, "t_critical(0.975, 4) = {t4}, expected > 2.2");
+        assert!(t4 < 3.5, "t_critical(0.975, 4) = {t4}, expected < 3.5");
+
+        // df=4 should be smaller than df=3
+        assert!(t4 < t3, "t(df=4) should be < t(df=3)");
+    }
+
+    #[test]
+    fn test_vif_collinear() {
+        // x2 = 2*x1 + small noise => highly collinear
+        let x = Array2::from_shape_vec(
+            (10, 2),
+            vec![
+                1.0, 2.01, 2.0, 3.99, 3.0, 6.02, 4.0, 7.98, 5.0, 10.01, 6.0, 11.99, 7.0, 14.02,
+                8.0, 15.98, 9.0, 18.01, 10.0, 19.99,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+
+        let mut reg = LinearRegression::new();
+        reg.fit(&x, &y).unwrap();
+
+        let vifs = reg.vif(&x);
+        // Both features should have high VIF due to collinearity
+        assert!(
+            vifs[0] > 5.0,
+            "VIF[0] = {}, expected > 5.0 for collinear features",
+            vifs[0]
+        );
+        assert!(
+            vifs[1] > 5.0,
+            "VIF[1] = {}, expected > 5.0 for collinear features",
+            vifs[1]
+        );
     }
 }
