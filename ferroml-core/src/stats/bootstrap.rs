@@ -103,8 +103,8 @@ impl Bootstrap {
 
         // Percentile CI
         let alpha = 1.0 - self.confidence;
-        let lower_idx = ((alpha / 2.0) * self.n_bootstrap as f64) as usize;
-        let upper_idx = ((1.0 - alpha / 2.0) * self.n_bootstrap as f64) as usize;
+        let lower_idx = ((alpha / 2.0) * self.n_bootstrap as f64).round() as usize;
+        let upper_idx = ((1.0 - alpha / 2.0) * self.n_bootstrap as f64).round() as usize;
         let ci_percentile = (
             samples[lower_idx],
             samples[upper_idx.min(self.n_bootstrap - 1)],
@@ -182,8 +182,8 @@ impl Bootstrap {
             .sqrt();
 
         let alpha = 1.0 - self.confidence;
-        let lower_idx = ((alpha / 2.0) * self.n_bootstrap as f64) as usize;
-        let upper_idx = ((1.0 - alpha / 2.0) * self.n_bootstrap as f64) as usize;
+        let lower_idx = ((alpha / 2.0) * self.n_bootstrap as f64).round() as usize;
+        let upper_idx = ((1.0 - alpha / 2.0) * self.n_bootstrap as f64).round() as usize;
 
         Ok(BootstrapResult {
             original,
@@ -232,5 +232,19 @@ mod tests {
         assert!((result.original - 5.5).abs() < 1e-10);
         assert!(result.ci_percentile.0 < 5.5);
         assert!(result.ci_percentile.1 > 5.5);
+    }
+
+    #[test]
+    fn test_bootstrap_ci_within_range() {
+        // Regression: percentile index used floor instead of round,
+        // potentially causing off-by-one in CI bounds
+        let data = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+        let bootstrap = Bootstrap::new(999).with_seed(123).with_confidence(0.95);
+        let result = bootstrap.mean(&data).unwrap();
+
+        assert!(result.ci_percentile.0 <= result.original);
+        assert!(result.ci_percentile.1 >= result.original);
+        assert!(result.ci_percentile.0 >= 1.0);
+        assert!(result.ci_percentile.1 <= 5.0);
     }
 }

@@ -243,6 +243,11 @@ fn compute_pr_curve(y_true: &Array1<f64>, y_score: &Array1<f64>) -> Result<(Vec<
         recall.push(r);
     }
 
+    // Backward pass: ensure precision is monotonically decreasing with recall
+    for i in (0..precision.len() - 1).rev() {
+        precision[i] = precision[i].max(precision[i + 1]);
+    }
+
     Ok((precision, recall))
 }
 
@@ -804,5 +809,24 @@ mod tests {
 
         let result = roc_auc_score(&y_true, &y_score);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pr_curve_precision_monotonic() {
+        // Regression: PR curve precision was not monotonically decreasing
+        let y_true = Array1::from_vec(vec![1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0]);
+        let y_score = Array1::from_vec(vec![0.9, 0.8, 0.7, 0.6, 0.55, 0.4, 0.3, 0.1]);
+
+        let (precision, _recall) = compute_pr_curve(&y_true, &y_score).unwrap();
+
+        // Precision should be monotonically non-increasing
+        for i in 0..precision.len() - 1 {
+            assert!(
+                precision[i] >= precision[i + 1] - 1e-10,
+                "Precision not monotonic at index {i}: {} < {}",
+                precision[i],
+                precision[i + 1]
+            );
+        }
     }
 }

@@ -301,20 +301,20 @@ pub fn correlation(x: &Array1<f64>, y: &Array1<f64>, confidence: f64) -> Result<
 
     let r = sum_xy / (sum_x2.sqrt() * sum_y2.sqrt());
 
-    // Fisher's z transformation for CI
-    let z = 0.5 * ((1.0 + r) / (1.0 - r)).ln();
-    let se_z = 1.0 / ((n - 3) as f64).sqrt();
-
     // Get z critical value for confidence level
     let alpha = 1.0 - confidence;
     let z_crit = z_critical(1.0 - alpha / 2.0);
 
-    let z_lower = z - z_crit * se_z;
-    let z_upper = z + z_crit * se_z;
-
-    // Transform back to r
-    let r_lower = (z_lower.exp() - (-z_lower).exp()) / (z_lower.exp() + (-z_lower).exp());
-    let r_upper = (z_upper.exp() - (-z_upper).exp()) / (z_upper.exp() + (-z_upper).exp());
+    // Fisher's z transformation for CI, with guard for r near ±1
+    let (r_lower, r_upper) = if r.abs() >= 1.0 - 1e-10 {
+        (r.clamp(-1.0, 1.0), r.clamp(-1.0, 1.0))
+    } else {
+        let z = 0.5 * ((1.0 + r) / (1.0 - r)).ln();
+        let se_z = 1.0 / ((n - 3) as f64).sqrt();
+        let z_lower = z - z_crit * se_z;
+        let z_upper = z + z_crit * se_z;
+        (z_lower.tanh(), z_upper.tanh())
+    };
 
     // t-test for significance
     let t = r * ((n - 2) as f64).sqrt() / (1.0 - r * r).sqrt();
@@ -368,36 +368,84 @@ fn t_cdf(t: f64, df: f64) -> f64 {
 
 /// Incomplete beta function approximation
 fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
-    if x == 0.0 {
+    if x <= 0.0 {
         return 0.0;
     }
-    if x == 1.0 {
+    if x >= 1.0 {
         return 1.0;
     }
 
-    // Continued fraction approximation
-    let mut result = 0.0;
-    let mut term = 1.0;
+    // Log-space prefix for numerical stability
+    let bt = b
+        .mul_add(
+            (1.0 - x).ln(),
+            a.mul_add(x.ln(), gamma_ln(a + b) - gamma_ln(a) - gamma_ln(b)),
+        )
+        .exp();
 
-    for n in 1..100 {
-        let n = n as f64;
-        let d = (a + n - 1.0) * (a + b + n - 1.0) * x
-            / ((2.0f64.mul_add(n, a) - 1.0) * 2.0f64.mul_add(n, a));
-        term *= d;
-        result += term;
+    // Symmetry for convergence: use direct CF or 1 - CF(b,a,1-x)
+    if x < (a + 1.0) / (a + b + 2.0) {
+        bt * beta_cf(a, b, x) / a
+    } else {
+        1.0 - bt * beta_cf(b, a, 1.0 - x) / b
+    }
+}
 
-        if term.abs() < 1e-10 {
+/// Lentz's continued fraction for incomplete beta
+fn beta_cf(a: f64, b: f64, x: f64) -> f64 {
+    let max_iter = 200;
+    let eps = 3e-12;
+    let fpmin = 1e-30;
+
+    let qab = a + b;
+    let qap = a + 1.0;
+    let qam = a - 1.0;
+
+    let mut c = 1.0;
+    let mut d = 1.0 - qab * x / qap;
+    if d.abs() < fpmin {
+        d = fpmin;
+    }
+    d = 1.0 / d;
+    let mut h = d;
+
+    for m in 1..=max_iter {
+        let m = m as f64;
+        let m2 = 2.0 * m;
+
+        // Even step
+        let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+        d = 1.0 + aa * d;
+        if d.abs() < fpmin {
+            d = fpmin;
+        }
+        c = 1.0 + aa / c;
+        if c.abs() < fpmin {
+            c = fpmin;
+        }
+        d = 1.0 / d;
+        h *= d * c;
+
+        // Odd step
+        let aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+        d = 1.0 + aa * d;
+        if d.abs() < fpmin {
+            d = fpmin;
+        }
+        c = 1.0 + aa / c;
+        if c.abs() < fpmin {
+            c = fpmin;
+        }
+        d = 1.0 / d;
+        let del = d * c;
+        h *= del;
+
+        if (del - 1.0).abs() < eps {
             break;
         }
     }
 
-    let prefix = x.powf(a) * (1.0 - x).powf(b) / (a * beta(a, b));
-    prefix * (1.0 + result)
-}
-
-/// Beta function
-fn beta(a: f64, b: f64) -> f64 {
-    (gamma_ln(a) + gamma_ln(b) - gamma_ln(a + b)).exp()
+    h
 }
 
 /// Log gamma function (Lanczos approximation)
@@ -447,5 +495,33 @@ mod tests {
         let result = correlation(&x, &y, 0.95).unwrap();
         assert_relative_eq!(result.r, 1.0, epsilon = 1e-10);
         assert_relative_eq!(result.r_squared, 1.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_correlation_perfect_r_no_nan() {
+        // Regression: r=±1 caused NaN/Inf in Fisher z-transform
+        let x = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+        let y = Array1::from_vec(vec![2.0, 4.0, 6.0, 8.0, 10.0]);
+        let result = correlation(&x, &y, 0.95).unwrap();
+        assert!(result.ci.0.is_finite(), "lower CI should be finite for r=1");
+        assert!(result.ci.1.is_finite(), "upper CI should be finite for r=1");
+
+        // Negative perfect correlation
+        let y_neg = Array1::from_vec(vec![10.0, 8.0, 6.0, 4.0, 2.0]);
+        let result_neg = correlation(&x, &y_neg, 0.95).unwrap();
+        assert!(result_neg.ci.0.is_finite());
+        assert!(result_neg.ci.1.is_finite());
+    }
+
+    #[test]
+    fn test_incomplete_beta_known_values() {
+        // Known values: I_0.5(1,1) = 0.5, I_0.5(2,2) = 0.5
+        assert_relative_eq!(incomplete_beta(1.0, 1.0, 0.5), 0.5, epsilon = 1e-8);
+        assert_relative_eq!(incomplete_beta(2.0, 2.0, 0.5), 0.5, epsilon = 1e-8);
+        // I_0.3(2,5) = 30 * ∫₀^0.3 t(1-t)⁴ dt = 0.579825
+        assert_relative_eq!(incomplete_beta(2.0, 5.0, 0.3), 0.579825, epsilon = 1e-4);
+        // Edge cases
+        assert_relative_eq!(incomplete_beta(1.0, 1.0, 0.0), 0.0, epsilon = 1e-15);
+        assert_relative_eq!(incomplete_beta(1.0, 1.0, 1.0), 1.0, epsilon = 1e-15);
     }
 }

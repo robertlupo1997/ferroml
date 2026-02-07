@@ -330,8 +330,23 @@ impl Sampler for TPESampler {
 /// Sample from normal distribution
 fn normal_sample(rng: &mut StdRng, mean: f64, std: f64) -> f64 {
     use std::f64::consts::PI;
-    let u1: f64 = rng.random();
+    let u1: f64 = rng.random::<f64>().max(1e-10);
     let u2: f64 = rng.random();
     let z = (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).cos();
     std.mul_add(z, mean)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normal_sample_no_nan() {
+        // Regression: Box-Muller u1=0 produced NaN via ln(0)
+        let mut rng = StdRng::seed_from_u64(42);
+        for _ in 0..10_000 {
+            let val = normal_sample(&mut rng, 0.0, 1.0);
+            assert!(val.is_finite(), "normal_sample produced non-finite: {val}");
+        }
+    }
 }

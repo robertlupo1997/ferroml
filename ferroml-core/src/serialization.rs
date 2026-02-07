@@ -39,9 +39,11 @@
 
 use crate::{FerroError, Result};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
+use std::str::FromStr;
 
 /// Current library version for serialization metadata
 pub const FERROML_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -87,11 +89,94 @@ impl Format {
     }
 }
 
+/// A semantic version with proper ordering (major.minor.patch)
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SemanticVersion {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+impl SemanticVersion {
+    pub fn new(major: u32, minor: u32, patch: u32) -> Self {
+        Self {
+            major,
+            minor,
+            patch,
+        }
+    }
+
+    /// Parse from the compile-time crate version
+    pub fn current() -> Self {
+        FERROML_VERSION.parse().expect("valid CARGO_PKG_VERSION")
+    }
+
+    /// Check if this version is compatible with another (same major version)
+    pub fn is_compatible_with(&self, other: &Self) -> bool {
+        self.major == other.major
+    }
+}
+
+impl fmt::Display for SemanticVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl FromStr for SemanticVersion {
+    type Err = String;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split('.').collect();
+        if parts.len() != 3 {
+            return Err(format!("expected major.minor.patch, got '{s}'"));
+        }
+        Ok(Self {
+            major: parts[0].parse().map_err(|e| format!("bad major: {e}"))?,
+            minor: parts[1].parse().map_err(|e| format!("bad minor: {e}"))?,
+            patch: parts[2].parse().map_err(|e| format!("bad patch: {e}"))?,
+        })
+    }
+}
+
+impl PartialOrd for SemanticVersion {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SemanticVersion {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.major
+            .cmp(&other.major)
+            .then(self.minor.cmp(&other.minor))
+            .then(self.patch.cmp(&other.patch))
+    }
+}
+
+// Serialize/Deserialize as string for backward compatibility
+impl Serialize for SemanticVersion {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for SemanticVersion {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 /// Metadata stored with serialized models for versioning and compatibility
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerializationMetadata {
     /// FerroML library version that created this file
-    pub ferroml_version: String,
+    pub ferroml_version: SemanticVersion,
     /// Type name of the serialized model
     pub model_type: String,
     /// Serialization format used
@@ -106,7 +191,7 @@ impl SerializationMetadata {
     /// Create new metadata for a model
     pub fn new<T>(format: Format) -> Self {
         Self {
-            ferroml_version: FERROML_VERSION.to_string(),
+            ferroml_version: SemanticVersion::current(),
             model_type: std::any::type_name::<T>().to_string(),
             format,
             timestamp: std::time::SystemTime::now()
@@ -235,9 +320,15 @@ where
             writer
                 .write_all(&MAGIC_BYTES)
                 .map_err(FerroError::IoError)?;
-            bincode::serialize_into(&mut writer, container).map_err(|e| {
+            let serialized = bincode::serialize(container).map_err(|e| {
                 FerroError::SerializationError(format!("Bincode serialization failed: {e}"))
             })?;
+            // Write serialized data + CRC32 checksum
+            let crc = crc32fast::hash(&serialized);
+            writer.write_all(&serialized).map_err(FerroError::IoError)?;
+            writer
+                .write_all(&crc.to_le_bytes())
+                .map_err(FerroError::IoError)?;
         }
     }
 
@@ -316,7 +407,26 @@ where
                     "Invalid file format: not a FerroML bincode file".to_string(),
                 ));
             }
-            bincode::deserialize_from(&mut reader).map_err(|e| {
+            // Read remaining bytes, verify CRC32
+            let mut payload = Vec::new();
+            reader
+                .read_to_end(&mut payload)
+                .map_err(FerroError::IoError)?;
+            if payload.len() < 4 {
+                return Err(FerroError::SerializationError(
+                    "Bincode file too short for CRC32".to_string(),
+                ));
+            }
+            let (data, crc_bytes) = payload.split_at(payload.len() - 4);
+            let stored_crc =
+                u32::from_le_bytes([crc_bytes[0], crc_bytes[1], crc_bytes[2], crc_bytes[3]]);
+            let computed_crc = crc32fast::hash(data);
+            if stored_crc != computed_crc {
+                return Err(FerroError::SerializationError(
+                    format!("CRC32 mismatch: file corrupted (expected {stored_crc:#x}, got {computed_crc:#x})")
+                ));
+            }
+            bincode::deserialize(data).map_err(|e| {
                 FerroError::SerializationError(format!("Bincode deserialization failed: {e}"))
             })?
         }
@@ -383,7 +493,9 @@ where
             let model_bytes = bincode::serialize(&container).map_err(|e| {
                 FerroError::SerializationError(format!("Bincode serialization failed: {e}"))
             })?;
-            bytes.extend(model_bytes);
+            let crc = crc32fast::hash(&model_bytes);
+            bytes.extend(&model_bytes);
+            bytes.extend(crc.to_le_bytes());
             bytes
         }
     };
@@ -411,12 +523,8 @@ where
             FerroError::SerializationError(format!("MessagePack deserialization failed: {e}"))
         })?,
         Format::Bincode => {
-            if bytes.len() < 4 || bytes[..4] != MAGIC_BYTES {
-                return Err(FerroError::SerializationError(
-                    "Invalid data format: not a FerroML bincode serialization".to_string(),
-                ));
-            }
-            bincode::deserialize(&bytes[4..]).map_err(|e| {
+            let data = verify_bincode_bytes(bytes)?;
+            bincode::deserialize(data).map_err(|e| {
                 FerroError::SerializationError(format!("Bincode deserialization failed: {e}"))
             })?
         }
@@ -448,18 +556,35 @@ where
             FerroError::SerializationError(format!("MessagePack deserialization failed: {e}"))
         })?,
         Format::Bincode => {
-            if bytes.len() < 4 || bytes[..4] != MAGIC_BYTES {
-                return Err(FerroError::SerializationError(
-                    "Invalid data format: not a FerroML bincode serialization".to_string(),
-                ));
-            }
-            bincode::deserialize(&bytes[4..]).map_err(|e| {
+            let data = verify_bincode_bytes(bytes)?;
+            bincode::deserialize(data).map_err(|e| {
                 FerroError::SerializationError(format!("Bincode deserialization failed: {e}"))
             })?
         }
     };
 
     Ok((container.model, container.metadata))
+}
+
+/// Verify magic bytes and CRC32 on in-memory bincode data.
+/// Returns the payload slice (between magic bytes and CRC32).
+fn verify_bincode_bytes(bytes: &[u8]) -> Result<&[u8]> {
+    // MAGIC(4) + at least 1 byte payload + CRC32(4)
+    if bytes.len() < 9 || bytes[..4] != MAGIC_BYTES {
+        return Err(FerroError::SerializationError(
+            "Invalid data format: not a FerroML bincode serialization".to_string(),
+        ));
+    }
+    let payload = &bytes[4..];
+    let (data, crc_bytes) = payload.split_at(payload.len() - 4);
+    let stored_crc = u32::from_le_bytes([crc_bytes[0], crc_bytes[1], crc_bytes[2], crc_bytes[3]]);
+    let computed_crc = crc32fast::hash(data);
+    if stored_crc != computed_crc {
+        return Err(FerroError::SerializationError(format!(
+            "CRC32 mismatch: data corrupted (expected {stored_crc:#x}, got {computed_crc:#x})"
+        )));
+    }
+    Ok(data)
 }
 
 // =============================================================================
@@ -593,7 +718,25 @@ where
                     "Invalid file format: not a FerroML bincode file".to_string(),
                 ));
             }
-            bincode::deserialize_from(&mut reader).map_err(|e| {
+            let mut payload = Vec::new();
+            reader
+                .read_to_end(&mut payload)
+                .map_err(FerroError::IoError)?;
+            if payload.len() < 4 {
+                return Err(FerroError::SerializationError(
+                    "Bincode file too short for CRC32".to_string(),
+                ));
+            }
+            let (data, crc_bytes) = payload.split_at(payload.len() - 4);
+            let stored_crc =
+                u32::from_le_bytes([crc_bytes[0], crc_bytes[1], crc_bytes[2], crc_bytes[3]]);
+            let computed_crc = crc32fast::hash(data);
+            if stored_crc != computed_crc {
+                return Err(FerroError::SerializationError(
+                    format!("CRC32 mismatch: file corrupted (expected {stored_crc:#x}, got {computed_crc:#x})")
+                ));
+            }
+            bincode::deserialize(data).map_err(|e| {
                 FerroError::SerializationError(format!("Bincode deserialization failed: {e}"))
             })?
         }
@@ -696,7 +839,7 @@ mod tests {
         let (loaded, metadata): (LinearRegression, _) =
             from_bytes_with_metadata(&bytes, Format::Json).unwrap();
 
-        assert_eq!(metadata.ferroml_version, FERROML_VERSION);
+        assert_eq!(metadata.ferroml_version, SemanticVersion::current());
         assert!(metadata.model_type.contains("LinearRegression"));
         assert_eq!(metadata.format, Format::Json);
         assert!(loaded.is_fitted());
@@ -870,5 +1013,67 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_semantic_version_parse_display() {
+        let v: SemanticVersion = "1.2.3".parse().unwrap();
+        assert_eq!(v, SemanticVersion::new(1, 2, 3));
+        assert_eq!(v.to_string(), "1.2.3");
+    }
+
+    #[test]
+    fn test_semantic_version_ordering() {
+        let v010 = SemanticVersion::new(0, 1, 0);
+        let v020 = SemanticVersion::new(0, 2, 0);
+        let v0100 = SemanticVersion::new(0, 10, 0);
+        // String comparison would get "0.10.0" < "0.2.0" wrong
+        assert!(v010 < v020);
+        assert!(v020 < v0100);
+    }
+
+    #[test]
+    fn test_semantic_version_compatibility() {
+        let v1 = SemanticVersion::new(1, 0, 0);
+        let v1_1 = SemanticVersion::new(1, 1, 0);
+        let v2 = SemanticVersion::new(2, 0, 0);
+        assert!(v1.is_compatible_with(&v1_1));
+        assert!(!v1.is_compatible_with(&v2));
+    }
+
+    #[test]
+    fn test_semantic_version_serde_roundtrip() {
+        let v = SemanticVersion::new(0, 1, 0);
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"0.1.0\"");
+        let v2: SemanticVersion = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, v2);
+    }
+
+    #[test]
+    fn test_bincode_crc32_corruption_detected() {
+        let model = create_test_model();
+        let mut bytes = to_bytes(&model, Format::Bincode).unwrap();
+        // Flip a byte in the middle of the serialized data
+        let mid = bytes.len() / 2;
+        bytes[mid] ^= 0xFF;
+        let result: Result<LinearRegression> = from_bytes(&bytes, Format::Bincode);
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("CRC32")
+                || err_msg.contains("corrupted")
+                || err_msg.contains("deserialization")
+        );
+    }
+
+    #[test]
+    fn test_bincode_truncation_detected() {
+        let model = create_test_model();
+        let bytes = to_bytes(&model, Format::Bincode).unwrap();
+        // Truncate — removes CRC32
+        let truncated = &bytes[..bytes.len() - 2];
+        let result: Result<LinearRegression> = from_bytes(truncated, Format::Bincode);
+        assert!(result.is_err());
     }
 }

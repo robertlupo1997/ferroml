@@ -214,35 +214,70 @@ fn t_cdf(t: f64, df: f64) -> f64 {
     0.5f64.mul_add((1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t), 0.5)
 }
 
-/// Incomplete beta function
+/// Regularized incomplete beta function (Lentz's continued fraction)
 fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
-    if x == 0.0 {
+    if x <= 0.0 {
         return 0.0;
     }
-    if x == 1.0 {
+    if x >= 1.0 {
         return 1.0;
     }
+    let bt = b
+        .mul_add(
+            (1.0 - x).ln(),
+            a.mul_add(x.ln(), gamma_ln(a + b) - gamma_ln(a) - gamma_ln(b)),
+        )
+        .exp();
+    if x < (a + 1.0) / (a + b + 2.0) {
+        bt * beta_cf(a, b, x) / a
+    } else {
+        1.0 - bt * beta_cf(b, a, 1.0 - x) / b
+    }
+}
 
-    let mut result = 0.0;
-    let mut term = 1.0;
-
-    for n in 1..100 {
-        let n = n as f64;
-        let d = (a + n - 1.0) * (a + b + n - 1.0) * x
-            / ((2.0f64.mul_add(n, a) - 1.0) * 2.0f64.mul_add(n, a));
-        term *= d;
-        result += term;
-        if term.abs() < 1e-10 {
+fn beta_cf(a: f64, b: f64, x: f64) -> f64 {
+    let fpmin = 1e-30;
+    let qab = a + b;
+    let qap = a + 1.0;
+    let qam = a - 1.0;
+    let mut c = 1.0;
+    let mut d = 1.0 - qab * x / qap;
+    if d.abs() < fpmin {
+        d = fpmin;
+    }
+    d = 1.0 / d;
+    let mut h = d;
+    for m in 1..=200 {
+        let m = m as f64;
+        let m2 = 2.0 * m;
+        let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+        d = 1.0 + aa * d;
+        if d.abs() < fpmin {
+            d = fpmin;
+        }
+        c = 1.0 + aa / c;
+        if c.abs() < fpmin {
+            c = fpmin;
+        }
+        d = 1.0 / d;
+        h *= d * c;
+        let aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+        d = 1.0 + aa * d;
+        if d.abs() < fpmin {
+            d = fpmin;
+        }
+        c = 1.0 + aa / c;
+        if c.abs() < fpmin {
+            c = fpmin;
+        }
+        d = 1.0 / d;
+        let del = d * c;
+        h *= del;
+        if (del - 1.0).abs() < 3e-12 {
             break;
         }
     }
-
-    let prefix = x.powf(a) * (1.0 - x).powf(b) / (a * beta(a, b));
-    prefix * (1.0 + result)
-}
-
-fn beta(a: f64, b: f64) -> f64 {
-    (gamma_ln(a) + gamma_ln(b) - gamma_ln(a + b)).exp()
+    h
 }
 
 fn gamma_ln(x: f64) -> f64 {

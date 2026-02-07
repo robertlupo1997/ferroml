@@ -7,7 +7,7 @@ use super::{
     SqueezeOp, Tensor, TensorI64, TreeEnsembleClassifierOp, TreeEnsembleRegressorOp, Value,
 };
 use crate::onnx::{AttributeProtoType, GraphProto, ModelProto, NodeProto, TensorProto};
-use crate::Result;
+use crate::{FerroError, Result};
 use prost::Message;
 use std::collections::HashMap;
 use std::fs::File;
@@ -257,6 +257,15 @@ fn tensor_proto_to_value(tensor: &TensorProto) -> Result<Value> {
                 .collect();
             return Ok(Value::Tensor(Tensor::from_vec(data, shape)));
         }
+        if elem_type == 6 {
+            // INT32 — widen to i64
+            let data: Vec<i64> = tensor
+                .raw_data
+                .chunks_exact(4)
+                .map(|chunk| i32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as i64)
+                .collect();
+            return Ok(Value::TensorI64(TensorI64::from_vec(data, shape)));
+        }
         if elem_type == 7 {
             // INT64
             let data: Vec<i64> = tensor
@@ -271,10 +280,31 @@ fn tensor_proto_to_value(tensor: &TensorProto) -> Result<Value> {
                 .collect();
             return Ok(Value::TensorI64(TensorI64::from_vec(data, shape)));
         }
+        if elem_type == 11 {
+            // DOUBLE — narrow to f32
+            let data: Vec<f32> = tensor
+                .raw_data
+                .chunks_exact(8)
+                .map(|chunk| {
+                    f64::from_le_bytes([
+                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
+                        chunk[7],
+                    ]) as f32
+                })
+                .collect();
+            return Ok(Value::Tensor(Tensor::from_vec(data, shape)));
+        }
+        return Err(FerroError::invalid_input(format!(
+            "Unsupported ONNX tensor data type: {}",
+            elem_type
+        )));
     }
 
-    // Default to empty float tensor
-    Ok(Value::Tensor(Tensor::zeros(shape)))
+    // Named data fields exhausted and no raw_data — unsupported
+    Err(FerroError::invalid_input(format!(
+        "Unsupported or empty ONNX tensor (data_type={})",
+        tensor.data_type
+    )))
 }
 
 /// Compile a node into an operator

@@ -200,24 +200,59 @@ impl Operator for ReshapeOp {
             .as_tensor()
             .ok_or_else(|| InferenceError::TypeMismatch("Reshape input must be tensor".into()))?;
 
-        // Shape can be int64 tensor
-        let new_shape: Vec<usize> = if let Some(shape_tensor) = inputs[1].as_tensor_i64() {
-            shape_tensor
-                .as_slice()
-                .iter()
-                .map(|&x| x as usize)
-                .collect()
+        // Shape can be int64 tensor — parse as i64 to handle -1 (inferred dimension)
+        let shape_i64: Vec<i64> = if let Some(shape_tensor) = inputs[1].as_tensor_i64() {
+            shape_tensor.as_slice().to_vec()
         } else if let Some(shape_tensor) = inputs[1].as_tensor() {
-            shape_tensor
-                .as_slice()
-                .iter()
-                .map(|&x| x as usize)
-                .collect()
+            shape_tensor.as_slice().iter().map(|&x| x as i64).collect()
         } else {
             return Err(InferenceError::TypeMismatch(
                 "Reshape shape must be tensor".into(),
             ));
         };
+
+        // Resolve -1 dimension by inferring from total element count
+        let total_elements = input.len();
+        let input_shape = input.shape();
+        let mut inferred_idx = None;
+        let mut known_product = 1usize;
+        for (i, &dim) in shape_i64.iter().enumerate() {
+            if dim == -1 {
+                inferred_idx = Some(i);
+            } else if dim == 0 {
+                // 0 means copy from input shape
+                let input_dim = if i < input_shape.len() {
+                    input_shape[i]
+                } else {
+                    1
+                };
+                known_product *= input_dim;
+            } else {
+                known_product *= dim as usize;
+            }
+        }
+
+        let mut new_shape: Vec<usize> = shape_i64
+            .iter()
+            .enumerate()
+            .map(|(i, &dim)| {
+                if dim == -1 {
+                    0 // placeholder, filled below
+                } else if dim == 0 {
+                    if i < input_shape.len() {
+                        input_shape[i]
+                    } else {
+                        1
+                    }
+                } else {
+                    dim as usize
+                }
+            })
+            .collect();
+
+        if let Some(idx) = inferred_idx {
+            new_shape[idx] = total_elements / known_product;
+        }
 
         let result = input.clone().reshape(new_shape)?;
         Ok(vec![Value::Tensor(result)])
@@ -852,5 +887,32 @@ mod tests {
 
         assert!(NodeMode::BranchLt.evaluate(1.0, 2.0));
         assert!(!NodeMode::BranchLt.evaluate(2.0, 2.0));
+    }
+
+    #[test]
+    fn test_reshape_inferred_dimension() {
+        // Regression: Reshape with -1 dimension was not supported
+        let input = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]);
+        let shape = TensorI64::from_vec(vec![3, -1], vec![2]);
+        let op = ReshapeOp;
+        let result = op
+            .execute(&[&Value::Tensor(input), &Value::TensorI64(shape)])
+            .unwrap();
+        let out = result[0].as_tensor().unwrap();
+        assert_eq!(out.shape(), &[3, 2]);
+        assert_eq!(out.as_slice(), &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    }
+
+    #[test]
+    fn test_reshape_flat() {
+        // Reshape to flat with -1
+        let input = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]);
+        let shape = TensorI64::from_vec(vec![-1], vec![1]);
+        let op = ReshapeOp;
+        let result = op
+            .execute(&[&Value::Tensor(input), &Value::TensorI64(shape)])
+            .unwrap();
+        let out = result[0].as_tensor().unwrap();
+        assert_eq!(out.shape(), &[4]);
     }
 }

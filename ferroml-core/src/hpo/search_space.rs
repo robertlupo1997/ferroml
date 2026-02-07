@@ -120,6 +120,7 @@ impl Parameter {
 
     /// Create log-scale integer parameter
     pub fn int_log(low: i64, high: i64) -> Self {
+        assert!(low > 0 && high > 0, "log-scale bounds must be > 0");
         Self {
             param_type: ParameterType::Int { low, high },
             log_scale: true,
@@ -138,6 +139,7 @@ impl Parameter {
 
     /// Create log-scale float parameter
     pub fn float_log(low: f64, high: f64) -> Self {
+        assert!(low > 0.0 && high > 0.0, "log-scale bounds must be > 0");
         Self {
             param_type: ParameterType::Float { low, high },
             log_scale: true,
@@ -246,5 +248,35 @@ pub mod presets {
                 "optimizer",
                 vec!["adam".into(), "sgd".into(), "adamw".into()],
             )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_log_scale_positive_bounds() {
+        // Valid log-scale params should not panic
+        let _ = Parameter::float_log(1e-5, 1e-1);
+        let _ = Parameter::int_log(1, 100);
+    }
+
+    #[test]
+    #[should_panic(expected = "log-scale bounds must be > 0")]
+    fn test_float_log_negative_low_panics() {
+        let _ = Parameter::float_log(-1.0, 1.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "log-scale bounds must be > 0")]
+    fn test_float_log_zero_low_panics() {
+        let _ = Parameter::float_log(0.0, 1.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "log-scale bounds must be > 0")]
+    fn test_int_log_zero_low_panics() {
+        let _ = Parameter::int_log(0, 100);
     }
 }

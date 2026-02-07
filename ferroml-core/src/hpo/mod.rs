@@ -358,5 +358,27 @@ fn correlation(x: &[f64], y: &[f64]) -> f64 {
         sum_y2 += dy * dy;
     }
 
-    sum_xy / (sum_x2.sqrt() * sum_y2.sqrt())
+    let denom = sum_x2.sqrt() * sum_y2.sqrt();
+    if denom == 0.0 {
+        return 0.0;
+    }
+    sum_xy / denom
+}
+
+#[cfg(test)]
+mod tests {
+    use super::correlation;
+
+    #[test]
+    fn test_correlation_zero_variance() {
+        // Regression: zero-variance input caused division by zero / NaN
+        let x = &[1.0, 1.0, 1.0, 1.0];
+        let y = &[1.0, 2.0, 3.0, 4.0];
+        let r = correlation(x, y);
+        assert!(
+            r.is_finite(),
+            "correlation with zero-variance input should be finite"
+        );
+        assert_eq!(r, 0.0);
+    }
 }

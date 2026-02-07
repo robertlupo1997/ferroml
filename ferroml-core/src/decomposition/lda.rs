@@ -671,49 +671,51 @@ impl LDA {
         }
 
         // Solve generalized eigenvalue problem: S_b w = λ S_w w
-        // Equivalent to: S_w^{-1} S_b w = λ w
-
-        // Compute S_w inverse using Cholesky or pseudoinverse
+        // Use symmetric transformation so symmetric_eigen() is valid.
         let sw_mat: nalgebra::DMatrix<f64> =
             nalgebra::DMatrix::from_fn(n_features, n_features, |i, j| sw[[i, j]]);
+        let sb_mat = nalgebra::DMatrix::<f64>::from_fn(n_features, n_features, |i, j| sb[[i, j]]);
 
-        // Try Cholesky, fall back to pseudoinverse
-        let sw_inv: nalgebra::DMatrix<f64> = if let Some(chol) = sw_mat.clone().cholesky() {
-            chol.inverse()
+        // back_transform: eigenvectors of the original problem = back_transform * v
+        let (eigenvalues, eigenvectors) = if let Some(chol) = sw_mat.clone().cholesky() {
+            // Cholesky: S_w = L L^T → M = L^{-1} S_b L^{-T} (symmetric)
+            let l_inv = chol
+                .l()
+                .try_inverse()
+                .ok_or_else(|| FerroError::numerical("Cholesky L inverse failed"))?;
+            let l_inv_t = l_inv.transpose();
+            let m = &l_inv * &sb_mat * &l_inv_t;
+            let eigen = m.symmetric_eigen();
+            // Back-transform: w = L^{-T} v
+            let raw_vecs = &l_inv_t * &eigen.eigenvectors;
+            (eigen.eigenvalues, raw_vecs)
         } else {
-            // Use pseudoinverse via SVD
+            // SVD fallback: S_w^{-1/2} via SVD
             let svd = sw_mat.svd(true, true);
             let u = svd
                 .u
                 .ok_or_else(|| FerroError::numerical("SVD failed for S_w"))?;
-            let s: nalgebra::DVector<f64> = svd.singular_values;
+            let s = svd.singular_values;
             let vt = svd
                 .v_t
                 .ok_or_else(|| FerroError::numerical("SVD failed for S_w"))?;
 
-            // Compute pseudoinverse: V @ S^{-1} @ U^T
-            let mut s_inv = nalgebra::DMatrix::<f64>::zeros(n_features, n_features);
+            // S_w^{-1/2} = V diag(s^{-1/2}) U^T
+            let mut s_inv_sqrt = nalgebra::DMatrix::<f64>::zeros(n_features, n_features);
             for i in 0..n_features {
-                let s_val: f64 = s[i];
-                if s_val > self.tol {
-                    s_inv[(i, i)] = 1.0 / s_val;
+                if s[i] > self.tol {
+                    s_inv_sqrt[(i, i)] = 1.0 / s[i].sqrt();
                 }
             }
+            let sw_inv_sqrt = vt.transpose() * &s_inv_sqrt * u.transpose();
 
-            // V @ S^{-1}
-            let v_s_inv = vt.transpose() * &s_inv;
-            // (V @ S^{-1}) @ U^T
-            v_s_inv * u.transpose()
+            // M = S_w^{-1/2} S_b S_w^{-1/2} (symmetric)
+            let m = &sw_inv_sqrt * &sb_mat * &sw_inv_sqrt;
+            let eigen = m.symmetric_eigen();
+            // Back-transform: w = S_w^{-1/2} v
+            let raw_vecs = &sw_inv_sqrt * &eigen.eigenvectors;
+            (eigen.eigenvalues, raw_vecs)
         };
-
-        // Compute S_w^{-1} S_b
-        let sb_mat = nalgebra::DMatrix::<f64>::from_fn(n_features, n_features, |i, j| sb[[i, j]]);
-        let target: nalgebra::DMatrix<f64> = &sw_inv * &sb_mat;
-
-        // Eigendecomposition
-        let eigen = target.symmetric_eigen();
-        let eigenvalues = eigen.eigenvalues;
-        let eigenvectors = eigen.eigenvectors;
 
         // Sort eigenvalues in descending order
         let mut indices: Vec<usize> = (0..n_features).collect();
@@ -1398,5 +1400,38 @@ mod tests {
         // Class 1 samples should have higher score for class 1
         assert!(scores[[2, 1]] > scores[[2, 0]]);
         assert!(scores[[3, 1]] > scores[[3, 0]]);
+    }
+
+    #[test]
+    fn test_lda_eigen_svd_agreement() {
+        // Regression: Eigen solver called symmetric_eigen on non-symmetric matrix.
+        // Both solvers should produce equivalent predictions on 3-class data.
+        let x = array![
+            [1.0, 2.0],
+            [1.5, 1.8],
+            [1.2, 2.2],
+            [5.0, 6.0],
+            [5.5, 5.8],
+            [5.2, 6.2],
+            [9.0, 2.0],
+            [9.5, 1.8],
+            [9.2, 2.2]
+        ];
+        let y = array![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0];
+
+        let mut lda_eigen = LDA::new().with_solver(LdaSolver::Eigen);
+        let mut lda_svd = LDA::new().with_solver(LdaSolver::Svd);
+
+        lda_eigen.fit(&x, &y).unwrap();
+        lda_svd.fit(&x, &y).unwrap();
+
+        // Both should predict correctly on training data
+        let pred_eigen = lda_eigen.predict(&x).unwrap();
+        let pred_svd = lda_svd.predict(&x).unwrap();
+
+        for i in 0..9 {
+            assert_eq!(pred_eigen[i], y[i], "Eigen solver mispredicted sample {i}");
+            assert_eq!(pred_svd[i], y[i], "SVD solver mispredicted sample {i}");
+        }
     }
 }

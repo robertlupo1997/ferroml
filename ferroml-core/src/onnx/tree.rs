@@ -94,7 +94,11 @@ impl TreeEnsembleBuilder {
     }
 
     /// Build regressor attributes
-    fn build_regressor_attributes(self, n_targets: i64) -> Vec<AttributeProto> {
+    fn build_regressor_attributes(
+        self,
+        n_targets: i64,
+        aggregate_function: &str,
+    ) -> Vec<AttributeProto> {
         vec![
             AttributeProto {
                 name: "n_targets".to_string(),
@@ -182,7 +186,7 @@ impl TreeEnsembleBuilder {
             },
             AttributeProto {
                 name: "aggregate_function".to_string(),
-                s: "SUM".as_bytes().to_vec(),
+                s: aggregate_function.as_bytes().to_vec(),
                 r#type: AttributeProtoType::String as i32,
                 ..Default::default()
             },
@@ -289,6 +293,7 @@ fn create_tree_regressor_graph(
     trees: &[&TreeStructure],
     n_features: usize,
     config: &OnnxConfig,
+    aggregate_function: &str,
 ) -> GraphProto {
     let batch_size = config.input_shape.map(|(b, _)| b);
 
@@ -310,7 +315,7 @@ fn create_tree_regressor_graph(
         builder.add_tree(tree, tree_id as i64);
     }
 
-    let attributes = builder.build_regressor_attributes(1);
+    let attributes = builder.build_regressor_attributes(1, aggregate_function);
 
     // TreeEnsembleRegressor node
     let node = NodeProto {
@@ -440,7 +445,7 @@ impl OnnxExportable for DecisionTreeRegressor {
             .n_features()
             .ok_or_else(|| FerroError::not_fitted("ONNX export"))?;
 
-        let graph = create_tree_regressor_graph(&[tree], n_features, config);
+        let graph = create_tree_regressor_graph(&[tree], n_features, config, "SUM");
         let model = create_model_proto(graph, config, true);
         Ok(model.encode_to_vec())
     }
@@ -499,7 +504,7 @@ impl OnnxExportable for RandomForestRegressor {
             return Err(FerroError::not_fitted("No trees found in forest"));
         }
 
-        let graph = create_tree_regressor_graph(&tree_refs, n_features, config);
+        let graph = create_tree_regressor_graph(&tree_refs, n_features, config, "AVERAGE");
         let model = create_model_proto(graph, config, true);
         Ok(model.encode_to_vec())
     }
