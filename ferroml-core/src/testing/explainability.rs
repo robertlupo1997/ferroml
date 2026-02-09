@@ -149,9 +149,9 @@ mod tests {
             .predict(&Array2::from_shape_vec((1, 3), sample.clone()).unwrap())
             .unwrap()[0];
 
-        // Allow tolerance for tree discretization
+        // Allow tolerance for numerical precision
         assert!(
-            (reconstructed - actual).abs() < 1.0,
+            (reconstructed - actual).abs() < 1e-6,
             "SHAP additivity violated: reconstructed={}, actual={}",
             reconstructed,
             actual

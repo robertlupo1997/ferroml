@@ -658,154 +658,288 @@ impl TreeExplainer {
         })
     }
 
-    /// Compute SHAP values for a single tree using the path-based algorithm
+    /// Compute SHAP values for a single tree using Lundberg's TreeSHAP Algorithm 2
     ///
-    /// This implements a simplified TreeSHAP algorithm that computes SHAP values
-    /// by traversing the tree and computing marginal contributions.
+    /// This implements the exact TreeSHAP algorithm from "Consistent Individualized
+    /// Feature Attribution for Tree Ensembles" (Lundberg et al., 2018). The algorithm
+    /// visits both hot and cold branches, tracking path elements with polynomial
+    /// weights that encode Shapley coefficients.
     fn tree_shap_values(&self, tree: &InternalTree, x: &[f64]) -> Vec<f64> {
         let mut shap_values = vec![0.0; self.n_features];
 
-        // Get the prediction for this sample
-        let prediction = self.tree_predict(tree, x);
+        // Maximum path depth is bounded by tree depth + 1 for sentinel
+        let max_depth = self.estimate_tree_depth(tree);
+        let mut path: Vec<PathElement> = Vec::with_capacity(max_depth + 2);
 
-        // Compute expected value (base value for this tree)
-        let expected_value = tree.nodes[0].value;
-
-        // Compute contribution along the decision path
-        self.compute_path_contributions(tree, x, 0, &mut shap_values);
-
-        // Normalize so that sum(shap_values) = prediction - expected_value
-        let shap_sum: f64 = shap_values.iter().sum();
-        let target_sum = prediction - expected_value;
-
-        if shap_sum.abs() > 1e-10 {
-            let scale = target_sum / shap_sum;
-            for val in &mut shap_values {
-                *val *= scale;
-            }
-        } else if target_sum.abs() > 1e-10 {
-            // If we have no contributions but need some, distribute evenly
-            // among features on the decision path
-            let path = self.get_decision_path(tree, x);
-            if !path.is_empty() {
-                let per_feature = target_sum / path.len() as f64;
-                for &feature in &path {
-                    shap_values[feature] += per_feature;
-                }
-            }
-        }
+        // Start recursive traversal from root with sentinel feature (usize::MAX)
+        // The sentinel ensures pweight calculations match XGBoost exactly
+        self.tree_shap_recursive(
+            tree,
+            x,
+            0,
+            &mut path,
+            1.0,
+            1.0,
+            usize::MAX,
+            &mut shap_values,
+        );
 
         shap_values
     }
 
-    /// Get prediction from a single tree
-    fn tree_predict(&self, tree: &InternalTree, x: &[f64]) -> f64 {
-        let mut node_idx = 0;
-        while !tree.is_leaf(node_idx) {
-            let node = &tree.nodes[node_idx];
-            let feature = node.feature as usize;
-            if x[feature] <= node.threshold {
-                node_idx = node.left_child as usize;
-            } else {
-                node_idx = node.right_child as usize;
+    /// Estimate tree depth for path allocation
+    fn estimate_tree_depth(&self, tree: &InternalTree) -> usize {
+        fn depth_recursive(tree: &InternalTree, node_idx: usize) -> usize {
+            if tree.is_leaf(node_idx) {
+                return 0;
             }
+            let node = &tree.nodes[node_idx];
+            let left_depth = depth_recursive(tree, node.left_child as usize);
+            let right_depth = depth_recursive(tree, node.right_child as usize);
+            1 + left_depth.max(right_depth)
         }
-        tree.nodes[node_idx].value
+        depth_recursive(tree, 0)
     }
 
-    /// Get the features on the decision path
-    fn get_decision_path(&self, tree: &InternalTree, x: &[f64]) -> Vec<usize> {
-        let mut path = Vec::new();
-        let mut node_idx = 0;
-        while !tree.is_leaf(node_idx) {
-            let node = &tree.nodes[node_idx];
-            let feature = node.feature as usize;
-            path.push(feature);
-            if x[feature] <= node.threshold {
-                node_idx = node.left_child as usize;
-            } else {
-                node_idx = node.right_child as usize;
-            }
-        }
-        path
-    }
+    /// Sentinel feature index (indicates non-feature path element)
+    const SENTINEL_FEATURE: usize = usize::MAX;
 
-    /// Compute path contributions using expected values
-    ///
-    /// For each split on the decision path, compute the contribution as the
-    /// difference between the expected value if we take the path vs the
-    /// alternative weighted by sample coverage.
-    fn compute_path_contributions(
+    /// Recursive TreeSHAP traversal visiting both hot and cold branches
+    fn tree_shap_recursive(
         &self,
         tree: &InternalTree,
         x: &[f64],
         node_idx: usize,
+        path: &mut Vec<PathElement>,
+        zero_fraction: f64,
+        one_fraction: f64,
+        parent_feature: usize,
         shap_values: &mut [f64],
     ) {
+        // Always extend path (including sentinel at root)
+        Self::extend_path(path, zero_fraction, one_fraction, parent_feature);
+
         if tree.is_leaf(node_idx) {
+            // At leaf: accumulate contributions for all features in path
+            // Skip index 0 (sentinel) - matches XGBoost's loop starting at i=1
+            let leaf_value = tree.nodes[node_idx].value;
+
+            for i in 1..path.len() {
+                let el = &path[i];
+                // Skip sentinel feature (usize::MAX)
+                if el.feature_index == Self::SENTINEL_FEATURE {
+                    continue;
+                }
+                let w = Self::unwound_path_sum(path, i);
+                let contrib = w * (el.one_fraction - el.zero_fraction) * leaf_value;
+                shap_values[el.feature_index] += contrib;
+            }
+        } else {
+            // Internal node: determine hot vs cold child
+            let node = &tree.nodes[node_idx];
+            let split_feature = node.feature as usize;
+            let threshold = node.threshold;
+
+            let left_idx = node.left_child as usize;
+            let right_idx = node.right_child as usize;
+
+            let left_cover = tree.nodes[left_idx].cover;
+            let right_cover = tree.nodes[right_idx].cover;
+            let node_cover = left_cover + right_cover;
+
+            let go_left = x[split_feature] <= threshold;
+            let (hot_idx, cold_idx) = if go_left {
+                (left_idx, right_idx)
+            } else {
+                (right_idx, left_idx)
+            };
+
+            let hot_cover = if go_left { left_cover } else { right_cover };
+            let cold_cover = if go_left { right_cover } else { left_cover };
+
+            let hot_zero_fraction = if node_cover > 0.0 {
+                hot_cover / node_cover
+            } else {
+                0.5
+            };
+            let cold_zero_fraction = if node_cover > 0.0 {
+                cold_cover / node_cover
+            } else {
+                0.5
+            };
+
+            // Check if this feature was already in path (handle repeated features)
+            let mut incoming_zero_fraction = 1.0;
+            let mut incoming_one_fraction = 1.0;
+
+            let existing_idx = path.iter().position(|el| el.feature_index == split_feature);
+            if let Some(idx) = existing_idx {
+                incoming_zero_fraction = path[idx].zero_fraction;
+                incoming_one_fraction = path[idx].one_fraction;
+                Self::unwind_path(path, idx);
+            }
+
+            // Recurse into hot branch (sample goes this way, one_fraction preserved)
+            // Clone path to preserve state - extend_path modifies all pweights
+            let mut hot_path = path.clone();
+            self.tree_shap_recursive(
+                tree,
+                x,
+                hot_idx,
+                &mut hot_path,
+                hot_zero_fraction * incoming_zero_fraction,
+                incoming_one_fraction,
+                split_feature,
+                shap_values,
+            );
+
+            // Recurse into cold branch (sample doesn't go this way, one_fraction = 0)
+            // Clone path again for cold branch
+            let mut cold_path = path.clone();
+            self.tree_shap_recursive(
+                tree,
+                x,
+                cold_idx,
+                &mut cold_path,
+                cold_zero_fraction * incoming_zero_fraction,
+                0.0, // Cold branch: one_fraction is always 0
+                split_feature,
+                shap_values,
+            );
+
+            // Re-extend path if we unwound a repeated feature (for potential further use)
+            if existing_idx.is_some() {
+                Self::extend_path(
+                    path,
+                    incoming_zero_fraction,
+                    incoming_one_fraction,
+                    split_feature,
+                );
+            }
+        }
+    }
+
+    /// Extend the path with a new feature, updating polynomial weights
+    fn extend_path(
+        path: &mut Vec<PathElement>,
+        zero_fraction: f64,
+        one_fraction: f64,
+        feature_index: usize,
+    ) {
+        let unique_depth = path.len();
+
+        // Add new element
+        path.push(PathElement {
+            feature_index,
+            zero_fraction,
+            one_fraction,
+            pweight: if unique_depth == 0 { 1.0 } else { 0.0 },
+        });
+
+        // Update pweights using recurrence relation
+        // pweight[i+1] += one_fraction * pweight[i] * (i+1) / (d+1)
+        // pweight[i] = zero_fraction * pweight[i] * (d-i) / (d+1)
+        let d_plus_1 = (unique_depth + 1) as f64;
+
+        for i in (0..unique_depth).rev() {
+            let old_pweight = path[i].pweight;
+            path[i + 1].pweight += one_fraction * old_pweight * ((i + 1) as f64) / d_plus_1;
+            path[i].pweight = zero_fraction * old_pweight * ((unique_depth - i) as f64) / d_plus_1;
+        }
+    }
+
+    /// Unwind a feature from the path (for handling repeated features)
+    ///
+    /// This matches XGBoost's unwind_path: pweights are adjusted in place at their
+    /// POSITION indices (not shifted with elements), then only feature/fraction
+    /// data is shifted down.
+    fn unwind_path(path: &mut Vec<PathElement>, path_index: usize) {
+        let unique_depth = path.len() - 1;
+        if unique_depth == 0 {
+            path.remove(path_index);
             return;
         }
 
-        let node = &tree.nodes[node_idx];
-        let feature = node.feature as usize;
-        let threshold = node.threshold;
+        let one_fraction = path[path_index].one_fraction;
+        let zero_fraction = path[path_index].zero_fraction;
 
-        let left_idx = node.left_child as usize;
-        let right_idx = node.right_child as usize;
+        let mut next_one_portion = path[unique_depth].pweight;
+        let d_plus_1 = (unique_depth + 1) as f64;
 
-        let left_cover = tree.nodes[left_idx].cover;
-        let right_cover = tree.nodes[right_idx].cover;
-        let total_cover = left_cover + right_cover;
-
-        let left_value = self.compute_expected_value(tree, left_idx);
-        let right_value = self.compute_expected_value(tree, right_idx);
-
-        // Expected value without knowing this feature (weighted by coverage)
-        let expected_without_feature = if total_cover > 0.0 {
-            left_cover.mul_add(left_value, right_cover * right_value) / total_cover
-        } else {
-            node.value
-        };
-
-        // Determine which branch the sample takes
-        let go_left = x[feature] <= threshold;
-        let actual_value = if go_left { left_value } else { right_value };
-
-        // Contribution of this feature = actual - expected_without
-        let contribution = actual_value - expected_without_feature;
-        shap_values[feature] += contribution;
-
-        // Recurse into the branch the sample takes
-        if go_left {
-            self.compute_path_contributions(tree, x, left_idx, shap_values);
-        } else {
-            self.compute_path_contributions(tree, x, right_idx, shap_values);
+        // Adjust pweights - these stay at their position indices
+        for i in (0..unique_depth).rev() {
+            if one_fraction != 0.0 {
+                let tmp = path[i].pweight;
+                path[i].pweight = next_one_portion * d_plus_1 / (((i + 1) as f64) * one_fraction);
+                next_one_portion =
+                    tmp - path[i].pweight * zero_fraction * ((unique_depth - i) as f64) / d_plus_1;
+            } else if zero_fraction != 0.0 {
+                path[i].pweight =
+                    path[i].pweight * d_plus_1 / (zero_fraction * ((unique_depth - i) as f64));
+            }
         }
+
+        // Shift feature/fraction data down (but NOT pweights - they stay at position)
+        // This matches XGBoost's behavior where pweights are tied to path positions
+        for i in path_index..unique_depth {
+            path[i].feature_index = path[i + 1].feature_index;
+            path[i].zero_fraction = path[i + 1].zero_fraction;
+            path[i].one_fraction = path[i + 1].one_fraction;
+            // Note: pweight is NOT copied, it stays at position i
+        }
+
+        // Remove the last element (now redundant after shift)
+        path.pop();
     }
 
-    /// Compute expected value at a node (mean of leaf values weighted by coverage)
-    fn compute_expected_value(&self, tree: &InternalTree, node_idx: usize) -> f64 {
-        let node = &tree.nodes[node_idx];
-        if tree.is_leaf(node_idx) {
-            return node.value;
+    /// Compute the sum of Shapley weights for unwinding a feature from the path
+    ///
+    /// This implements the formula from XGBoost's treeshap.h. The multiplication by
+    /// (unique_depth + 1) happens at the very end, not inside the loop.
+    fn unwound_path_sum(path: &[PathElement], path_index: usize) -> f64 {
+        let unique_depth = path.len() - 1;
+        if unique_depth == 0 {
+            return 1.0;
         }
 
-        let left_idx = node.left_child as usize;
-        let right_idx = node.right_child as usize;
+        let one_fraction = path[path_index].one_fraction;
+        let zero_fraction = path[path_index].zero_fraction;
 
-        let left_cover = tree.nodes[left_idx].cover;
-        let right_cover = tree.nodes[right_idx].cover;
-        let total_cover = left_cover + right_cover;
+        let mut total = 0.0;
 
-        if total_cover <= 0.0 {
-            return node.value;
+        if one_fraction != 0.0 {
+            // Hot branch case: iterative formula (matching XGBoost exactly)
+            let mut next_one_portion = path[unique_depth].pweight;
+
+            for i in (0..unique_depth).rev() {
+                let tmp = next_one_portion / (((i + 1) as f64) * one_fraction);
+                total += tmp;
+                next_one_portion =
+                    path[i].pweight - tmp * zero_fraction * ((unique_depth - i) as f64);
+            }
+        } else if zero_fraction != 0.0 {
+            // Cold branch case: direct summation formula
+            for i in 0..unique_depth {
+                total += path[i].pweight / (zero_fraction * ((unique_depth - i) as f64));
+            }
         }
 
-        let left_value = self.compute_expected_value(tree, left_idx);
-        let right_value = self.compute_expected_value(tree, right_idx);
-
-        left_cover.mul_add(left_value, right_cover * right_value) / total_cover
+        // Final multiplication by (unique_depth + 1) as per XGBoost
+        total * ((unique_depth + 1) as f64)
     }
+}
+
+/// Path element for TreeSHAP algorithm
+#[derive(Clone, Debug)]
+struct PathElement {
+    /// Index of the feature at this path position
+    feature_index: usize,
+    /// Fraction of samples going this way when feature is NOT in coalition
+    zero_fraction: f64,
+    /// Fraction when feature IS in coalition (1 for hot, 0 for cold)
+    one_fraction: f64,
+    /// Polynomial weight encoding Shapley coefficients
+    pweight: f64,
 }
 
 // =============================================================================
@@ -1124,6 +1258,209 @@ mod tests {
         assert_eq!(
             result.feature_names,
             Some(vec!["height".to_string(), "weight".to_string()])
+        );
+    }
+
+    /// Test TreeSHAP on manually constructed depth-1 tree with known Shapley values
+    #[test]
+    fn test_treeshap_depth1_manual_verification() {
+        // Tree structure:
+        // Node 0: split on f0 at threshold 5, left->1, right->2
+        // Node 1: leaf, value=2, cover=3
+        // Node 2: leaf, value=8, cover=2
+        //
+        // Sample x=[3,0] goes left (f0=3 <= 5)
+        // Base = (3*2 + 2*8) / 5 = 22/5 = 4.4
+        // Prediction = 2.0
+        // Expected: SHAP[0] = 2.0 - 4.4 = -2.4, SHAP[1] = 0.0
+
+        let tree = super::InternalTree {
+            nodes: vec![
+                super::InternalNode {
+                    feature: 0,
+                    threshold: 5.0,
+                    left_child: 1,
+                    right_child: 2,
+                    value: 4.4, // root value = expected value
+                    cover: 5.0,
+                },
+                super::InternalNode {
+                    feature: -1,
+                    threshold: 0.0,
+                    left_child: -1,
+                    right_child: -1,
+                    value: 2.0,
+                    cover: 3.0,
+                },
+                super::InternalNode {
+                    feature: -1,
+                    threshold: 0.0,
+                    left_child: -1,
+                    right_child: -1,
+                    value: 8.0,
+                    cover: 2.0,
+                },
+            ],
+            n_features: 2,
+        };
+
+        let explainer = TreeExplainer {
+            trees: vec![tree],
+            base_value: 4.4,
+            n_features: 2,
+            is_classifier: false,
+            scale_factor: 1.0,
+            feature_names: None,
+            model_type: "test".to_string(),
+        };
+
+        let sample = vec![3.0, 0.0];
+        let shap = explainer.tree_shap_values(&explainer.trees[0], &sample);
+
+        // SHAP[0] should be prediction - base = 2.0 - 4.4 = -2.4
+        assert!(
+            (shap[0] - (-2.4)).abs() < 1e-10,
+            "SHAP[0] = {}, expected -2.4",
+            shap[0]
+        );
+
+        // SHAP[1] should be 0 (f1 is not on the decision path)
+        assert!(shap[1].abs() < 1e-10, "SHAP[1] = {}, expected 0.0", shap[1]);
+
+        // Sum should equal prediction - base
+        let shap_sum: f64 = shap.iter().sum();
+        assert!(
+            (shap_sum - (-2.4)).abs() < 1e-10,
+            "SHAP sum = {}, expected -2.4",
+            shap_sum
+        );
+    }
+
+    /// Test TreeSHAP on manually constructed depth-2 tree with known Shapley values
+    #[test]
+    fn test_treeshap_depth2_manual_verification() {
+        // Tree structure:
+        // Node 0: split on f0 at 5, left->1, right->4
+        // Node 1: split on f1 at 2, left->2, right->3
+        // Node 2: leaf, value=1, cover=2
+        // Node 3: leaf, value=4, cover=1
+        // Node 4: leaf, value=10, cover=2
+        //
+        // Sample x=[3,1] goes left-left to leaf 2 (f0=3<=5, f1=1<=2)
+        // Base = (2*1 + 1*4 + 2*10) / 5 = 26/5 = 5.2
+        // Prediction = 1.0
+        //
+        // Hand-computed Shapley values:
+        // Let f(S) = E[prediction | features in S are known]
+        // f({}) = 5.2 (base)
+        // f({0}) = E[pred | f0=3] = (2*1 + 1*4) / 3 = 2.0 (goes left subtree)
+        // f({1}) = E[pred | f1=1] = (2*1 + 2*10) / 5 * (2/3) + (1*4) / 5 * (1/3)
+        //        = Actually this is more complex...
+        //
+        // Using Shapley formula directly:
+        // φ_0 = 0.5 * [f({0}) - f({})] + 0.5 * [f({0,1}) - f({1})]
+        // φ_1 = 0.5 * [f({1}) - f({})] + 0.5 * [f({0,1}) - f({0})]
+        //
+        // f({}) = 5.2
+        // f({0,1}) = 1.0 (prediction)
+        // f({0}) = weighted avg of left subtree = (2*1 + 1*4) / 3 = 6/3 = 2.0
+        // f({1}) = need to compute E[pred | only f1 known]
+        //   - With f1=1 (<=2), we know we'd go left at node 1 IF we're in left subtree
+        //   - But from root, without f0, we might go left or right
+        //   - P(left at root) = 3/5, then we're at node 1, where f1=1 goes left -> value 1
+        //   - P(right at root) = 2/5, we're at leaf 4 -> value 10
+        //   - f({1}) = (3/5)*1 + (2/5)*10 = 3/5 + 4 = 0.6 + 4 = 4.6
+        //
+        // φ_0 = 0.5 * (2.0 - 5.2) + 0.5 * (1.0 - 4.6)
+        //     = 0.5 * (-3.2) + 0.5 * (-3.6)
+        //     = -1.6 + (-1.8) = -3.4
+        //
+        // φ_1 = 0.5 * (4.6 - 5.2) + 0.5 * (1.0 - 2.0)
+        //     = 0.5 * (-0.6) + 0.5 * (-1.0)
+        //     = -0.3 + (-0.5) = -0.8
+        //
+        // Sum = -3.4 + (-0.8) = -4.2 = 1.0 - 5.2 ✓
+
+        let tree = super::InternalTree {
+            nodes: vec![
+                super::InternalNode {
+                    feature: 0,
+                    threshold: 5.0,
+                    left_child: 1,
+                    right_child: 4,
+                    value: 5.2,
+                    cover: 5.0,
+                },
+                super::InternalNode {
+                    feature: 1,
+                    threshold: 2.0,
+                    left_child: 2,
+                    right_child: 3,
+                    value: 2.0, // (2*1 + 1*4) / 3
+                    cover: 3.0,
+                },
+                super::InternalNode {
+                    feature: -1,
+                    threshold: 0.0,
+                    left_child: -1,
+                    right_child: -1,
+                    value: 1.0,
+                    cover: 2.0,
+                },
+                super::InternalNode {
+                    feature: -1,
+                    threshold: 0.0,
+                    left_child: -1,
+                    right_child: -1,
+                    value: 4.0,
+                    cover: 1.0,
+                },
+                super::InternalNode {
+                    feature: -1,
+                    threshold: 0.0,
+                    left_child: -1,
+                    right_child: -1,
+                    value: 10.0,
+                    cover: 2.0,
+                },
+            ],
+            n_features: 2,
+        };
+
+        let explainer = TreeExplainer {
+            trees: vec![tree],
+            base_value: 5.2,
+            n_features: 2,
+            is_classifier: false,
+            scale_factor: 1.0,
+            feature_names: None,
+            model_type: "test".to_string(),
+        };
+
+        let sample = vec![3.0, 1.0];
+        let shap = explainer.tree_shap_values(&explainer.trees[0], &sample);
+
+        // Sum should equal prediction - base = 1.0 - 5.2 = -4.2
+        let shap_sum: f64 = shap.iter().sum();
+        let expected_sum = 1.0 - 5.2;
+        assert!(
+            (shap_sum - expected_sum).abs() < 1e-10,
+            "SHAP sum = {}, expected {}",
+            shap_sum,
+            expected_sum
+        );
+
+        // Verify individual Shapley values match hand computation
+        // φ_0 = -3.4, φ_1 = -0.8
+        assert!(
+            (shap[0] - (-3.4)).abs() < 1e-10,
+            "SHAP[0] = {}, expected -3.4",
+            shap[0]
+        );
+        assert!(
+            (shap[1] - (-0.8)).abs() < 1e-10,
+            "SHAP[1] = {}, expected -0.8",
+            shap[1]
         );
     }
 }
