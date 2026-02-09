@@ -1620,7 +1620,8 @@ impl DecisionTreeRegressor {
                     left_weight.mul_add(left_impurity, right_weight * right_impurity);
                 let gain = parent_impurity - weighted_child_impurity;
 
-                if gain > best_gain {
+                // Use epsilon comparison to ensure consistent tie-breaking across platforms
+                if gain > best_gain + 1e-10 {
                     best_gain = gain;
                     best_split = Some((feature_idx, threshold, left_indices, right_indices, gain));
                 }

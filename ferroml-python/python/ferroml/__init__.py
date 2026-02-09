@@ -11,6 +11,8 @@ linear
     Linear models with full statistical diagnostics (R-style output)
 trees
     Tree-based models including RandomForest, GradientBoosting, and HistGradientBoosting
+neighbors
+    K-Nearest Neighbors for classification and regression
 preprocessing
     Data preprocessing transformers (scalers, encoders, imputers)
 pipeline
@@ -43,6 +45,7 @@ __version__ = _native.__version__
 # Re-export submodules for cleaner imports
 from ferroml import linear
 from ferroml import trees
+from ferroml import neighbors
 from ferroml import preprocessing
 from ferroml import pipeline
 from ferroml import automl
@@ -51,6 +54,7 @@ __all__ = [
     "__version__",
     "linear",
     "trees",
+    "neighbors",
     "preprocessing",
     "pipeline",
     "automl",

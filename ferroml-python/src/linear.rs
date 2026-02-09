@@ -26,7 +26,7 @@
 //!
 //! See `crate::array_utils` for detailed documentation.
 
-use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::models::{
     ElasticNet, LassoRegression, LinearRegression, LogisticRegression, Model, ProbabilisticModel,
@@ -721,13 +721,26 @@ impl PyLogisticRegression {
     }
 
     /// Fit the model to training data.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Training data.
+    /// y : array-like of shape (n_samples,)
+    ///     Target values. Can be integer or float array.
+    ///
+    /// Returns
+    /// -------
+    /// self : LogisticRegression
+    ///     Fitted estimator.
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
-        y: PyReadonlyArray1<'py, f64>,
+        y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let x_arr = to_owned_array_2d(x);
-        let y_arr = to_owned_array_1d(y);
+        let y_arr = py_array_to_f64_1d(py, y)?;
 
         slf.inner
             .fit(&x_arr, &y_arr)

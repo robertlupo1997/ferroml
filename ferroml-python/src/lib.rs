@@ -6,6 +6,7 @@
 //!
 //! - `ferroml.linear` - Linear models (LinearRegression, LogisticRegression, Ridge, Lasso, ElasticNet)
 //! - `ferroml.trees` - Tree models (DecisionTree, RandomForest, GradientBoosting, HistGradientBoosting)
+//! - `ferroml.neighbors` - Nearest neighbors (KNeighborsClassifier, KNeighborsRegressor)
 //! - `ferroml.preprocessing` - Preprocessing transformers (Scalers, Encoders, Imputers)
 //! - `ferroml.pipeline` - Pipeline, ColumnTransformer, FeatureUnion
 //! - `ferroml.automl` - AutoML (AutoML, AutoMLConfig, AutoMLResult)
@@ -36,6 +37,7 @@ mod array_utils;
 mod automl;
 mod datasets;
 mod linear;
+mod neighbors;
 #[cfg(feature = "pandas")]
 pub mod pandas_utils;
 pub mod pickle;
@@ -55,6 +57,7 @@ fn ferroml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Register submodules
     linear::register_linear_module(m)?;
     trees::register_trees_module(m)?;
+    neighbors::register_neighbors_module(m)?;
     preprocessing::register_preprocessing_module(m)?;
     pipeline::register_pipeline_module(m)?;
     automl::register_automl_module(m)?;

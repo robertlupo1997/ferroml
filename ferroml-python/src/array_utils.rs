@@ -170,6 +170,26 @@ pub fn to_owned_array_1d_i64(x: PyReadonlyArray1<'_, i64>) -> Array1<i64> {
     x.as_array().to_owned()
 }
 
+/// Convert any numeric 1D array (int or float) to an owned Array1<f64>.
+///
+/// This is useful for target arrays in classification, which may be passed
+/// as integer arrays (e.g., `np.array([0, 1, 2])`) but need to be converted
+/// to f64 for the Rust model.
+///
+/// Supports: f64, f32, i64, i32, i16, i8, u64, u32, u16, u8
+pub fn py_array_to_f64_1d<'py>(py: Python<'py>, arr: &Bound<'py, PyAny>) -> PyResult<Array1<f64>> {
+    // Try to get numpy module
+    let np = py.import("numpy")?;
+
+    // Convert to float64 array using numpy's astype
+    let arr_f64 = arr.call_method1("astype", (np.getattr("float64")?,))?;
+
+    // Extract as PyReadonlyArray1<f64>
+    let readonly: PyReadonlyArray1<'py, f64> = arr_f64.extract()?;
+
+    Ok(to_owned_array_1d(readonly))
+}
+
 /// Convert an Array1<i64> to a NumPy array, transferring ownership.
 #[inline]
 pub fn array1_i64_into_pyarray<'py>(
