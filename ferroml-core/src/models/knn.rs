@@ -21,8 +21,8 @@
 //!
 //! ## Example - Classification
 //!
-//! ```ignore
-//! use ferroml_core::models::knn::{KNeighborsClassifier, DistanceMetric, KNNWeights};
+//! ```
+//! use ferroml_core::models::knn::KNeighborsClassifier;
 //! use ferroml_core::models::{Model, ProbabilisticModel};
 //! use ndarray::{Array1, Array2};
 //!
@@ -35,13 +35,13 @@
 //! model.fit(&x, &y).unwrap();
 //!
 //! let predictions = model.predict(&x).unwrap();
-//! let probas = model.predict_proba(&x).unwrap();
+//! assert_eq!(predictions.len(), 6);
 //! ```
 //!
 //! ## Example - Regression
 //!
-//! ```ignore
-//! use ferroml_core::models::knn::{KNeighborsRegressor, DistanceMetric, KNNWeights};
+//! ```
+//! use ferroml_core::models::knn::KNeighborsRegressor;
 //! use ferroml_core::models::Model;
 //! use ndarray::{Array1, Array2};
 //!
@@ -54,6 +54,7 @@
 //! model.fit(&x, &y).unwrap();
 //!
 //! let predictions = model.predict(&x).unwrap();
+//! assert_eq!(predictions.len(), 5);
 //! ```
 
 use crate::hpo::SearchSpace;

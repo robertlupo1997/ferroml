@@ -15,30 +15,22 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::linear::LinearRegression;
-//! use ferroml_core::models::{Model, StatisticalModel};
+//! use ferroml_core::models::Model;
 //! use ndarray::{Array1, Array2};
 //!
+//! // Non-collinear features: y ≈ 2*x1 + 3*x2
 //! let x = Array2::from_shape_vec((5, 2), vec![
-//!     1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0, 6.0
+//!     1.0, 1.0, 2.0, 1.0, 1.0, 2.0, 3.0, 2.0, 2.0, 3.0
 //! ]).unwrap();
-//! let y = Array1::from_vec(vec![3.0, 5.0, 7.0, 9.0, 11.0]);
+//! let y = Array1::from_vec(vec![5.0, 7.0, 8.0, 12.0, 13.0]);
 //!
 //! let mut model = LinearRegression::new();
 //! model.fit(&x, &y).unwrap();
 //!
-//! // Get R-style summary
-//! println!("{}", model.summary());
-//!
-//! // Check diagnostics
-//! let diagnostics = model.diagnostics();
-//! if !diagnostics.normality_ok() {
-//!     println!("Warning: Residuals may not be normally distributed");
-//! }
-//!
-//! // Predictions with intervals
-//! let pred = model.predict_interval(&x, 0.95).unwrap();
+//! let predictions = model.predict(&x).unwrap();
+//! assert_eq!(predictions.len(), 5);
 //! ```
 
 use crate::hpo::{ParameterValue, SearchSpace};

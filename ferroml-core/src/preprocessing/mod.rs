@@ -26,7 +26,7 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::preprocessing::{Transformer, scalers::StandardScaler};
 //! use ndarray::array;
 //!
@@ -35,13 +35,13 @@
 //! let x = array![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]];
 //!
 //! // Fit learns the mean and std
-//! scaler.fit(&x)?;
+//! scaler.fit(&x).unwrap();
 //!
 //! // Transform applies the learned parameters
-//! let x_scaled = scaler.transform(&x)?;
+//! let x_scaled = scaler.transform(&x).unwrap();
 //!
 //! // Inverse transform recovers original scale
-//! let x_recovered = scaler.inverse_transform(&x_scaled)?;
+//! let x_recovered = scaler.inverse_transform(&x_scaled).unwrap();
 //! ```
 
 use ndarray::{Array1, Array2, Axis};

@@ -95,12 +95,18 @@ pub use tree::{
 ///
 /// # Example
 ///
-/// ```ignore
-/// use ferroml_core::models::Model;
+/// ```
+/// use ferroml_core::models::{Model, LinearRegression};
+/// use ndarray::{Array1, Array2};
+///
+/// // Non-collinear features: y ≈ 2*x1 + 3*x2
+/// let x = Array2::from_shape_vec((4, 2), vec![1., 1., 2., 1., 1., 2., 3., 2.]).unwrap();
+/// let y = Array1::from_vec(vec![5., 7., 8., 12.]);
 ///
 /// let mut model = LinearRegression::new();
-/// model.fit(&x_train, &y_train)?;
-/// let predictions = model.predict(&x_test)?;
+/// model.fit(&x, &y).unwrap();
+/// let predictions = model.predict(&x).unwrap();
+/// assert_eq!(predictions.len(), 4);
 /// ```
 pub trait Model: Send + Sync {
     /// Fit the model to training data

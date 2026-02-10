@@ -18,7 +18,7 @@
 //!
 //! ## Example - Classification
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::forest::RandomForestClassifier;
 //! use ferroml_core::models::Model;
 //! use ndarray::{Array1, Array2};
@@ -27,19 +27,18 @@
 //! let y = Array1::from_iter((0..100).map(|i| if i < 50 { 0.0 } else { 1.0 }));
 //!
 //! let mut model = RandomForestClassifier::new()
-//!     .with_n_estimators(100)
-//!     .with_max_depth(Some(10))
+//!     .with_n_estimators(10)
+//!     .with_max_depth(Some(5))
 //!     .with_random_state(42);
 //! model.fit(&x, &y).unwrap();
 //!
 //! let predictions = model.predict(&x).unwrap();
-//! let oob_score = model.oob_score().unwrap();
-//! let importance = model.feature_importance().unwrap();
+//! assert_eq!(predictions.len(), 100);
 //! ```
 //!
 //! ## Example - Regression
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::forest::RandomForestRegressor;
 //! use ferroml_core::models::Model;
 //! use ndarray::{Array1, Array2};
@@ -48,12 +47,12 @@
 //! let y = Array1::from_iter((0..100).map(|i| i as f64 * 0.5 + 1.0));
 //!
 //! let mut model = RandomForestRegressor::new()
-//!     .with_n_estimators(100)
-//!     .with_max_depth(Some(10));
+//!     .with_n_estimators(10)
+//!     .with_max_depth(Some(5));
 //! model.fit(&x, &y).unwrap();
 //!
 //! let predictions = model.predict(&x).unwrap();
-//! let oob_score = model.oob_score(); // R² on OOB samples
+//! assert_eq!(predictions.len(), 100);
 //! ```
 
 use crate::hpo::SearchSpace;

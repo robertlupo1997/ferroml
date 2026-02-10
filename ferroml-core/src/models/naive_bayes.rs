@@ -18,7 +18,7 @@
 //!
 //! ## Example - GaussianNB
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::naive_bayes::GaussianNB;
 //! use ferroml_core::models::{Model, ProbabilisticModel};
 //! use ndarray::{Array1, Array2};
@@ -31,13 +31,13 @@
 //! let mut model = GaussianNB::new();
 //! model.fit(&x, &y).unwrap();
 //!
-//! // Get probability predictions
-//! let probas = model.predict_proba(&x).unwrap();
+//! let predictions = model.predict(&x).unwrap();
+//! assert_eq!(predictions.len(), 6);
 //! ```
 //!
 //! ## Example - MultinomialNB (Text Classification)
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::naive_bayes::MultinomialNB;
 //! use ferroml_core::models::{Model, ProbabilisticModel};
 //! use ndarray::{Array1, Array2};
@@ -53,12 +53,13 @@
 //!
 //! let mut model = MultinomialNB::new();
 //! model.fit(&x, &y).unwrap();
-//! let probas = model.predict_proba(&x).unwrap();
+//! let predictions = model.predict(&x).unwrap();
+//! assert_eq!(predictions.len(), 4);
 //! ```
 //!
 //! ## Example - BernoulliNB (Binary Features)
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::naive_bayes::BernoulliNB;
 //! use ferroml_core::models::{Model, ProbabilisticModel};
 //! use ndarray::{Array1, Array2};
@@ -74,7 +75,8 @@
 //!
 //! let mut model = BernoulliNB::new();
 //! model.fit(&x, &y).unwrap();
-//! let probas = model.predict_proba(&x).unwrap();
+//! let predictions = model.predict(&x).unwrap();
+//! assert_eq!(predictions.len(), 4);
 //! ```
 
 use crate::hpo::SearchSpace;

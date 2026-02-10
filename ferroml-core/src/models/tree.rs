@@ -17,7 +17,7 @@
 //!
 //! ## Example - Classification
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::tree::{DecisionTreeClassifier, SplitCriterion};
 //! use ferroml_core::models::Model;
 //! use ndarray::{Array1, Array2};
@@ -38,7 +38,7 @@
 //!
 //! ## Example - Regression
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::tree::{DecisionTreeRegressor, SplitCriterion};
 //! use ferroml_core::models::Model;
 //! use ndarray::{Array1, Array2};

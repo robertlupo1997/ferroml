@@ -17,21 +17,25 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::regularized::{RidgeRegression, LassoRegression, ElasticNet};
 //! use ferroml_core::models::Model;
+//! use ndarray::{Array1, Array2};
+//!
+//! let x = Array2::from_shape_vec((5, 2), vec![1., 2., 3., 4., 5., 6., 7., 8., 9., 10.]).unwrap();
+//! let y = Array1::from_vec(vec![3., 7., 11., 15., 19.]);
 //!
 //! // Ridge regression with L2 penalty
 //! let mut ridge = RidgeRegression::new(1.0);
-//! ridge.fit(&x, &y)?;
+//! ridge.fit(&x, &y).unwrap();
 //!
 //! // Lasso with L1 penalty (sparse solutions)
 //! let mut lasso = LassoRegression::new(0.1);
-//! lasso.fit(&x, &y)?;
+//! lasso.fit(&x, &y).unwrap();
 //!
 //! // ElasticNet combining L1 and L2
 //! let mut elastic = ElasticNet::new(0.1, 0.5); // alpha=0.1, l1_ratio=0.5
-//! elastic.fit(&x, &y)?;
+//! elastic.fit(&x, &y).unwrap();
 //! ```
 
 use crate::hpo::SearchSpace;

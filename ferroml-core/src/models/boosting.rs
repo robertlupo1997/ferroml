@@ -18,40 +18,41 @@
 //!
 //! ## Example - Regression
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::boosting::GradientBoostingRegressor;
 //! use ferroml_core::models::Model;
 //! use ndarray::{Array1, Array2};
 //!
-//! let x = Array2::from_shape_vec((100, 4), (0..400).map(|i| i as f64 / 100.0).collect()).unwrap();
-//! let y = Array1::from_iter((0..100).map(|i| i as f64 * 0.5 + 1.0));
+//! let x = Array2::from_shape_vec((20, 2), (0..40).map(|i| i as f64 / 10.0).collect()).unwrap();
+//! let y = Array1::from_iter((0..20).map(|i| i as f64 * 0.5 + 1.0));
 //!
 //! let mut model = GradientBoostingRegressor::new()
-//!     .with_n_estimators(100)
+//!     .with_n_estimators(10)
 //!     .with_learning_rate(0.1)
 //!     .with_max_depth(Some(3));
 //! model.fit(&x, &y).unwrap();
 //!
 //! let predictions = model.predict(&x).unwrap();
+//! assert_eq!(predictions.len(), 20);
 //! ```
 //!
 //! ## Example - Classification
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::boosting::GradientBoostingClassifier;
 //! use ferroml_core::models::Model;
 //! use ndarray::{Array1, Array2};
 //!
-//! let x = Array2::from_shape_vec((100, 4), (0..400).map(|i| i as f64 / 100.0).collect()).unwrap();
-//! let y = Array1::from_iter((0..100).map(|i| if i < 50 { 0.0 } else { 1.0 }));
+//! let x = Array2::from_shape_vec((20, 2), (0..40).map(|i| i as f64 / 10.0).collect()).unwrap();
+//! let y = Array1::from_iter((0..20).map(|i| if i < 10 { 0.0 } else { 1.0 }));
 //!
 //! let mut model = GradientBoostingClassifier::new()
-//!     .with_n_estimators(100)
+//!     .with_n_estimators(10)
 //!     .with_learning_rate(0.1);
 //! model.fit(&x, &y).unwrap();
 //!
 //! let predictions = model.predict(&x).unwrap();
-//! let probas = model.predict_proba(&x).unwrap();
+//! assert_eq!(predictions.len(), 20);
 //! ```
 
 use crate::hpo::SearchSpace;

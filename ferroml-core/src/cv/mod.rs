@@ -25,18 +25,19 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::cv::{CrossValidator, KFold};
 //!
 //! // Create 5-fold cross-validator
 //! let cv = KFold::new(5).with_shuffle(true).with_seed(42);
 //!
 //! // Generate splits for 100 samples
-//! let splits = cv.split(100, None, None)?;
+//! let splits = cv.split(100, None, None).unwrap();
 //!
-//! for (fold_idx, fold) in splits.iter().enumerate() {
-//!     println!("Fold {}: train={}, test={}",
-//!              fold_idx, fold.train_indices.len(), fold.test_indices.len());
+//! assert_eq!(splits.len(), 5);
+//! for fold in &splits {
+//!     assert_eq!(fold.train_indices.len(), 80);
+//!     assert_eq!(fold.test_indices.len(), 20);
 //! }
 //! ```
 

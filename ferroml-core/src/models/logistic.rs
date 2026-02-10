@@ -15,9 +15,9 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::logistic::LogisticRegression;
-//! use ferroml_core::models::{Model, StatisticalModel, ProbabilisticModel};
+//! use ferroml_core::models::{Model, ProbabilisticModel};
 //! use ndarray::{Array1, Array2};
 //!
 //! let x = Array2::from_shape_vec((6, 2), vec![
@@ -28,11 +28,9 @@
 //! let mut model = LogisticRegression::new();
 //! model.fit(&x, &y).unwrap();
 //!
-//! // Get R-style summary with odds ratios
-//! println!("{}", model.summary());
-//!
 //! // Get probability predictions
 //! let probas = model.predict_proba(&x).unwrap();
+//! assert_eq!(probas.nrows(), 6);
 //! ```
 
 use crate::hpo::{ParameterValue, SearchSpace};

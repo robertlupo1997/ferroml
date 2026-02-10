@@ -25,12 +25,12 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::cv::{CrossValidator, KFold};
 ///
 /// // 5-fold CV with shuffling
 /// let cv = KFold::new(5).with_shuffle(true).with_seed(42);
-/// let folds = cv.split(100, None, None)?;
+/// let folds = cv.split(100, None, None).unwrap();
 ///
 /// assert_eq!(folds.len(), 5);
 /// for fold in &folds {
@@ -198,12 +198,12 @@ impl CrossValidator for KFold {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::cv::{CrossValidator, RepeatedKFold};
 ///
 /// // 5-fold CV repeated 10 times = 50 total folds
 /// let cv = RepeatedKFold::new(5, 10).with_seed(42);
-/// let folds = cv.split(100, None, None)?;
+/// let folds = cv.split(100, None, None).unwrap();
 ///
 /// assert_eq!(folds.len(), 50);
 /// ```
