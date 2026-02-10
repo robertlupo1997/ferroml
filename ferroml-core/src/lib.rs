@@ -242,6 +242,7 @@
 #![allow(clippy::double_comparisons)] // Sometimes clearer
 
 pub mod automl;
+pub mod clustering;
 pub mod cv;
 pub mod datasets;
 pub mod decomposition;
