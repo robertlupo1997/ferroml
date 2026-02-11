@@ -13,6 +13,8 @@ trees
     Tree-based models including RandomForest, GradientBoosting, and HistGradientBoosting
 neighbors
     K-Nearest Neighbors for classification and regression
+clustering
+    Clustering algorithms (KMeans, DBSCAN) with statistical extensions
 preprocessing
     Data preprocessing transformers (scalers, encoders, imputers)
 pipeline
@@ -46,6 +48,7 @@ __version__ = _native.__version__
 from ferroml import linear
 from ferroml import trees
 from ferroml import neighbors
+from ferroml import clustering
 from ferroml import preprocessing
 from ferroml import pipeline
 from ferroml import automl
@@ -55,6 +58,7 @@ __all__ = [
     "linear",
     "trees",
     "neighbors",
+    "clustering",
     "preprocessing",
     "pipeline",
     "automl",
