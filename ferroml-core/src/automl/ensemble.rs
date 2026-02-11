@@ -320,22 +320,12 @@ impl EnsembleResult {
 pub struct EnsembleBuilder {
     /// Configuration
     config: EnsembleConfig,
-    /// Random number generator (for tie-breaking and stochastic selection)
-    #[allow(dead_code)]
-    rng: rand::rngs::StdRng,
 }
 
 impl EnsembleBuilder {
     /// Create a new ensemble builder
     pub fn new(config: EnsembleConfig) -> Self {
-        use rand::SeedableRng;
-
-        let rng = match config.random_state {
-            Some(seed) => rand::rngs::StdRng::seed_from_u64(seed),
-            None => rand::rngs::StdRng::from_os_rng(),
-        };
-
-        Self { config, rng }
+        Self { config }
     }
 
     /// Build ensemble from trial results

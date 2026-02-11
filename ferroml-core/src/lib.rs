@@ -476,22 +476,12 @@ pub enum AlgorithmSelection {
 /// Main AutoML entry point
 pub struct AutoML {
     config: AutoMLConfig,
-    /// Algorithm portfolio (populated during fit)
-    #[allow(dead_code)]
-    portfolio: Option<automl::AlgorithmPortfolio>,
-    /// HPO study for hyperparameter optimization
-    #[allow(dead_code)]
-    study: Option<hpo::Study>,
 }
 
 impl AutoML {
     /// Create new AutoML instance with configuration
     pub fn new(config: AutoMLConfig) -> Self {
-        Self {
-            config,
-            portfolio: None,
-            study: None,
-        }
+        Self { config }
     }
 
     /// Create with default configuration

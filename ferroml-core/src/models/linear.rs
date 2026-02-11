@@ -371,59 +371,6 @@ impl LinearRegression {
         self.fitted_data.as_ref()?.condition_number
     }
 
-    /// Perform Breusch-Pagan test for heteroscedasticity
-    #[allow(dead_code)]
-    fn breusch_pagan_test(&self, x: &Array2<f64>) -> AssumptionTestResult {
-        let data = match &self.fitted_data {
-            Some(d) => d,
-            None => {
-                return AssumptionTestResult::new(
-                    Assumption::Homoscedasticity,
-                    "Breusch-Pagan",
-                    0.0,
-                    1.0,
-                    0.05,
-                )
-            }
-        };
-
-        // Regress squared residuals on X
-        let u2 = data.residuals.mapv(|r| r.powi(2));
-        let u2_mean = u2.mean().unwrap_or(1.0);
-
-        // Standardize squared residuals
-        let g = &u2 / u2_mean;
-
-        // Regress g on X
-        let mut reg = LinearRegression::new();
-        if reg.fit(x, &g).is_ok() {
-            if let Some(reg_data) = &reg.fitted_data {
-                let ess = reg_data.tss - reg_data.rss;
-                let lm_stat = ess / 2.0; // Lagrange multiplier statistic
-
-                // Chi-squared test with k degrees of freedom
-                let df = x.ncols() as f64;
-                let p_value = 1.0 - chi_squared_cdf(lm_stat, df);
-
-                return AssumptionTestResult::new(
-                    Assumption::Homoscedasticity,
-                    "Breusch-Pagan",
-                    lm_stat,
-                    p_value,
-                    0.05,
-                );
-            }
-        }
-
-        AssumptionTestResult::new(
-            Assumption::Homoscedasticity,
-            "Breusch-Pagan",
-            0.0,
-            1.0,
-            0.05,
-        )
-    }
-
     /// Get feature name for index
     fn get_feature_name(&self, idx: usize) -> String {
         if let Some(ref names) = self.feature_names {
@@ -1008,16 +955,6 @@ fn f_cdf(f: f64, df1: f64, df2: f64) -> f64 {
     incomplete_beta_regularized(df1 / 2.0, df2 / 2.0, x)
 }
 
-/// Chi-squared CDF approximation
-#[allow(dead_code)]
-fn chi_squared_cdf(x: f64, df: f64) -> f64 {
-    if x <= 0.0 {
-        return 0.0;
-    }
-    // Chi-squared is Gamma(df/2, 2), CDF = lower incomplete gamma / Gamma(df/2)
-    lower_incomplete_gamma(df / 2.0, x / 2.0) / gamma(df / 2.0)
-}
-
 /// Regularized incomplete beta function
 fn incomplete_beta_regularized(a: f64, b: f64, x: f64) -> f64 {
     if x <= 0.0 {
@@ -1123,76 +1060,6 @@ fn ln_gamma(x: f64) -> f64 {
     }
 
     -tmp + (2.506_628_274_631_000_5 * ser / x).ln()
-}
-
-/// Gamma function
-#[allow(dead_code)]
-fn gamma(x: f64) -> f64 {
-    ln_gamma(x).exp()
-}
-
-/// Lower incomplete gamma function
-#[allow(dead_code)]
-fn lower_incomplete_gamma(a: f64, x: f64) -> f64 {
-    if x < 0.0 {
-        return 0.0;
-    }
-    if x == 0.0 {
-        return 0.0;
-    }
-
-    // Use series expansion for x < a + 1
-    if x < a + 1.0 {
-        let mut sum = 1.0 / a;
-        let mut term = 1.0 / a;
-
-        for n in 1..100 {
-            term *= x / (a + n as f64);
-            sum += term;
-            if term.abs() < 1e-10 * sum.abs() {
-                break;
-            }
-        }
-
-        x.powf(a) * (-x).exp() * sum
-    } else {
-        // Use continued fraction for x >= a + 1
-        gamma(a) - upper_incomplete_gamma_cf(a, x)
-    }
-}
-
-/// Upper incomplete gamma via continued fraction
-#[allow(dead_code)]
-fn upper_incomplete_gamma_cf(a: f64, x: f64) -> f64 {
-    let max_iter = 100;
-    let eps = 1e-10;
-    let fpmin = 1e-30;
-
-    let mut b = x + 1.0 - a;
-    let mut c = 1.0 / fpmin;
-    let mut d = 1.0 / b;
-    let mut h = d;
-
-    for i in 1..=max_iter {
-        let an = -(i as f64) * (i as f64 - a);
-        b += 2.0;
-        d = an.mul_add(d, b);
-        if d.abs() < fpmin {
-            d = fpmin;
-        }
-        c = b + an / c;
-        if c.abs() < fpmin {
-            c = fpmin;
-        }
-        d = 1.0 / d;
-        let del = d * c;
-        h *= del;
-        if (del - 1.0).abs() < eps {
-            break;
-        }
-    }
-
-    x.powf(a) * (-x).exp() * h
 }
 
 // =============================================================================

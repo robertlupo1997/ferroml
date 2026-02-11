@@ -115,7 +115,6 @@ default = ["parallel", "onnx"]
 parallel = []
 simd = ["wide"]  # SIMD acceleration for distance calculations
 sparse = ["sprs"]  # Native sparse matrix operations
-gpu = []  # Future CUDA/Metal support
 onnx = []  # ONNX export support
 onnx-validation = ["ort"]  # For ONNX round-trip testing
 faer-backend = ["faer"]    # High-performance linear algebra

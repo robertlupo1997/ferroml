@@ -461,49 +461,6 @@ mod proptest_tests {
         ]
     }
 
-    /// Strategy for edge-case matrices.
-    #[allow(dead_code)]
-    pub fn edge_case_matrix_strategy(
-        n_samples: usize,
-        n_features: usize,
-    ) -> impl Strategy<Value = Vec<Vec<f64>>> {
-        prop_oneof![
-            // Normal random data
-            5 => proptest::collection::vec(
-                proptest::collection::vec(reasonable_float_strategy(), n_features),
-                n_samples
-            ),
-            // Near-zero values
-            1 => proptest::collection::vec(
-                proptest::collection::vec(-1e-8..1e-8f64, n_features),
-                n_samples
-            ),
-            // Large values (but not extreme)
-            1 => proptest::collection::vec(
-                proptest::collection::vec(1e6..1e8f64, n_features),
-                n_samples
-            ),
-            // Negative values
-            1 => proptest::collection::vec(
-                proptest::collection::vec(-100.0..-1.0f64, n_features),
-                n_samples
-            ),
-            // Mixed scales
-            1 => proptest::collection::vec(
-                proptest::collection::vec(
-                    prop_oneof![
-                        Just(0.0),
-                        -1e-6..1e-6f64,
-                        -100.0..100.0f64,
-                        1e4..1e6f64,
-                    ],
-                    n_features
-                ),
-                n_samples
-            ),
-        ]
-    }
-
     /// Strategy for random seeds for reproducibility testing.
     pub fn random_seed_strategy() -> impl Strategy<Value = u64> {
         0u64..=u64::MAX

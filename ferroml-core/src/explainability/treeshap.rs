@@ -268,8 +268,6 @@ struct InternalNode {
 #[derive(Debug, Clone)]
 struct InternalTree {
     nodes: Vec<InternalNode>,
-    #[allow(dead_code)]
-    n_features: usize,
 }
 
 impl InternalTree {
@@ -307,10 +305,7 @@ impl InternalTree {
             })
             .collect();
 
-        Self {
-            nodes,
-            n_features: tree.n_features,
-        }
+        Self { nodes }
     }
 
     /// Check if a node is a leaf
@@ -338,12 +333,6 @@ pub struct TreeExplainer {
     base_value: f64,
     /// Feature names (if available)
     feature_names: Option<Vec<String>>,
-    /// Model type for context
-    #[allow(dead_code)]
-    model_type: String,
-    /// Whether this is a classifier
-    #[allow(dead_code)]
-    is_classifier: bool,
     /// Scaling factor for ensemble (e.g., 1/n_trees for average)
     scale_factor: f64,
 }
@@ -366,8 +355,6 @@ impl TreeExplainer {
             n_features,
             base_value,
             feature_names: tree.feature_names.clone(),
-            model_type: "DecisionTreeRegressor".to_string(),
-            is_classifier: false,
             scale_factor: 1.0,
         })
     }
@@ -389,8 +376,6 @@ impl TreeExplainer {
             n_features,
             base_value,
             feature_names: tree.feature_names.clone(),
-            model_type: "DecisionTreeClassifier".to_string(),
-            is_classifier: true,
             scale_factor: 1.0,
         })
     }
@@ -428,8 +413,6 @@ impl TreeExplainer {
             n_features,
             base_value,
             feature_names: None,
-            model_type: "RandomForestRegressor".to_string(),
-            is_classifier: false,
             scale_factor: 1.0 / n_trees as f64,
         })
     }
@@ -467,8 +450,6 @@ impl TreeExplainer {
             n_features,
             base_value,
             feature_names: None,
-            model_type: "RandomForestClassifier".to_string(),
-            is_classifier: true,
             scale_factor: 1.0 / n_trees as f64,
         })
     }
@@ -507,8 +488,6 @@ impl TreeExplainer {
             n_features,
             base_value: init_prediction,
             feature_names: None,
-            model_type: "GradientBoostingRegressor".to_string(),
-            is_classifier: false,
             scale_factor: 1.0, // Learning rate is already in tree values
         })
     }
@@ -1301,17 +1280,14 @@ mod tests {
                     cover: 2.0,
                 },
             ],
-            n_features: 2,
         };
 
         let explainer = TreeExplainer {
             trees: vec![tree],
             base_value: 4.4,
             n_features: 2,
-            is_classifier: false,
             scale_factor: 1.0,
             feature_names: None,
-            model_type: "test".to_string(),
         };
 
         let sample = vec![3.0, 0.0];
@@ -1424,17 +1400,14 @@ mod tests {
                     cover: 2.0,
                 },
             ],
-            n_features: 2,
         };
 
         let explainer = TreeExplainer {
             trees: vec![tree],
             base_value: 5.2,
             n_features: 2,
-            is_classifier: false,
             scale_factor: 1.0,
             feature_names: None,
-            model_type: "test".to_string(),
         };
 
         let sample = vec![3.0, 1.0];

@@ -702,9 +702,6 @@ pub struct WarmStartSampler {
     warm_configs: Vec<HashMap<String, ParameterValue>>,
     /// Prior knowledge for guided sampling
     prior: PriorKnowledge,
-    /// Search space for sampling (kept for future use with bounds validation)
-    #[allow(dead_code)]
-    search_space: SearchSpace,
     /// Number of warm-start configs consumed
     warm_start_idx: usize,
     /// Probability of sampling from prior vs uniform (after warm-start)
@@ -713,7 +710,7 @@ pub struct WarmStartSampler {
 
 impl WarmStartSampler {
     /// Create a new warm-start sampler
-    pub fn new(warm_start: &WarmStartResult, search_space: SearchSpace) -> Self {
+    pub fn new(warm_start: &WarmStartResult, _search_space: SearchSpace) -> Self {
         let warm_configs: Vec<_> = warm_start
             .configurations
             .iter()
@@ -724,19 +721,17 @@ impl WarmStartSampler {
             base_seed: None,
             warm_configs,
             prior: PriorKnowledge::from_warm_start(warm_start),
-            search_space,
             warm_start_idx: 0,
             prior_weight: 0.5,
         }
     }
 
     /// Create from prior knowledge directly
-    pub fn from_prior(prior: PriorKnowledge, search_space: SearchSpace) -> Self {
+    pub fn from_prior(prior: PriorKnowledge, _search_space: SearchSpace) -> Self {
         Self {
             base_seed: None,
             warm_configs: Vec::new(),
             prior,
-            search_space,
             warm_start_idx: 0,
             prior_weight: 0.5,
         }

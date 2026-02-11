@@ -102,23 +102,6 @@ impl SplitCriterion {
     }
 }
 
-/// Compute Gini impurity for a set of class counts (used by classifier implementation)
-#[allow(dead_code)]
-fn gini_impurity(class_counts: &[usize], total: usize) -> f64 {
-    if total == 0 {
-        return 0.0;
-    }
-    let total_f = total as f64;
-    let sum_sq: f64 = class_counts
-        .iter()
-        .map(|&c| {
-            let p = c as f64 / total_f;
-            p * p
-        })
-        .sum();
-    1.0 - sum_sq
-}
-
 /// Compute weighted Gini impurity for a set of class weight sums
 fn weighted_gini_impurity(class_weights: &[f64], total_weight: f64) -> f64 {
     if total_weight <= 0.0 {
@@ -132,23 +115,6 @@ fn weighted_gini_impurity(class_weights: &[f64], total_weight: f64) -> f64 {
         })
         .sum();
     1.0 - sum_sq
-}
-
-/// Compute entropy for a set of class counts (used by classifier implementation)
-#[allow(dead_code)]
-fn entropy(class_counts: &[usize], total: usize) -> f64 {
-    if total == 0 {
-        return 0.0;
-    }
-    let total_f = total as f64;
-    -class_counts
-        .iter()
-        .filter(|&&c| c > 0)
-        .map(|&c| {
-            let p = c as f64 / total_f;
-            p * p.ln()
-        })
-        .sum::<f64>()
 }
 
 /// Compute MSE for a set of values
@@ -605,92 +571,6 @@ impl DecisionTreeClassifier {
         node_id
     }
 
-    /// Build the tree recursively (classifier tree-building, kept for future use)
-    #[allow(dead_code)]
-    fn build_tree(
-        &self,
-        x: &Array2<f64>,
-        y: &Array1<f64>,
-        indices: &[usize],
-        classes: &[f64],
-        depth: usize,
-        nodes: &mut Vec<TreeNode>,
-    ) -> usize {
-        let node_id = nodes.len();
-        let n_samples = indices.len();
-        let n_classes = classes.len();
-
-        // Compute class counts
-        let mut class_counts = vec![0usize; n_classes];
-        for &idx in indices {
-            let label = y[idx];
-            if let Some(pos) = classes.iter().position(|&c| (c - label).abs() < 1e-10) {
-                class_counts[pos] += 1;
-            }
-        }
-
-        // Compute impurity
-        let impurity = match self.criterion {
-            SplitCriterion::Gini => gini_impurity(&class_counts, n_samples),
-            SplitCriterion::Entropy => entropy(&class_counts, n_samples),
-            _ => panic!(
-                "Invalid criterion {:?} for classification tree; use Gini or Entropy",
-                self.criterion
-            ),
-        };
-
-        // Node value (class counts as floats)
-        let value: Vec<f64> = class_counts.iter().map(|&c| c as f64).collect();
-
-        // Create leaf node initially
-        let leaf = TreeNode::new_leaf(node_id, impurity, n_samples, n_samples as f64, value, depth);
-        nodes.push(leaf);
-
-        // Check stopping conditions
-        let should_stop = n_samples < self.min_samples_split
-            || self.max_depth.is_some_and(|d| depth >= d)
-            || impurity < 1e-10
-            || class_counts.iter().filter(|&&c| c > 0).count() <= 1;
-
-        if should_stop {
-            return node_id;
-        }
-
-        // Find best split
-        let best_split = self.find_best_split(x, y, indices, classes, impurity);
-
-        if let Some((feature_idx, threshold, left_indices, right_indices, impurity_decrease)) =
-            best_split
-        {
-            // Check min_impurity_decrease
-            if impurity_decrease < self.min_impurity_decrease {
-                return node_id;
-            }
-
-            // Check min_samples_leaf
-            if left_indices.len() < self.min_samples_leaf
-                || right_indices.len() < self.min_samples_leaf
-            {
-                return node_id;
-            }
-
-            // Recursively build children
-            let left_id = self.build_tree(x, y, &left_indices, classes, depth + 1, nodes);
-            let right_id = self.build_tree(x, y, &right_indices, classes, depth + 1, nodes);
-
-            // Update current node to internal node
-            nodes[node_id].make_internal(
-                feature_idx,
-                threshold,
-                left_id,
-                right_id,
-                impurity_decrease,
-            );
-        }
-
-        node_id
-    }
-
     /// Build tree with sample weights for handling class imbalance
     fn build_tree_weighted(
         &self,
@@ -898,122 +778,6 @@ impl DecisionTreeClassifier {
                         right_indices.clone(),
                         gain,
                     ));
-                }
-            }
-        }
-
-        best_split
-    }
-
-    /// Find the best split for a node (classifier split-finding, kept for future use)
-    #[allow(dead_code)]
-    fn find_best_split(
-        &self,
-        x: &Array2<f64>,
-        y: &Array1<f64>,
-        indices: &[usize],
-        classes: &[f64],
-        parent_impurity: f64,
-    ) -> Option<(usize, f64, Vec<usize>, Vec<usize>, f64)> {
-        let n_features = x.ncols();
-        let n_samples = indices.len();
-
-        let mut best_gain = f64::NEG_INFINITY;
-        let mut best_split = None;
-
-        // Determine which features to consider
-        let features_to_check: Vec<usize> = if let Some(max_f) = self.max_features {
-            // Random subset of features
-            use std::collections::HashSet;
-            let mut rng = self.random_state.unwrap_or(42);
-            let mut selected = HashSet::new();
-            let max_f = max_f.min(n_features);
-            while selected.len() < max_f {
-                // Simple LCG for reproducibility
-                rng = rng.wrapping_mul(1103515245).wrapping_add(12345);
-                let idx = (rng as usize) % n_features;
-                selected.insert(idx);
-            }
-            // Sort for deterministic order (HashSet iteration is non-deterministic)
-            let mut features: Vec<usize> = selected.into_iter().collect();
-            features.sort();
-            features
-        } else {
-            (0..n_features).collect()
-        };
-
-        for &feature_idx in &features_to_check {
-            // Get unique values for this feature among the indices
-            let mut values: Vec<f64> = indices.iter().map(|&i| x[[i, feature_idx]]).collect();
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            values.dedup();
-
-            if values.len() < 2 {
-                continue;
-            }
-
-            // Try midpoints between consecutive values
-            for i in 0..values.len() - 1 {
-                let threshold = (values[i] + values[i + 1]) / 2.0;
-
-                // Split indices
-                let mut left_indices = Vec::new();
-                let mut right_indices = Vec::new();
-                for &idx in indices {
-                    if x[[idx, feature_idx]] <= threshold {
-                        left_indices.push(idx);
-                    } else {
-                        right_indices.push(idx);
-                    }
-                }
-
-                if left_indices.is_empty() || right_indices.is_empty() {
-                    continue;
-                }
-
-                // Compute impurity for children
-                let n_classes = classes.len();
-                let mut left_counts = vec![0usize; n_classes];
-                let mut right_counts = vec![0usize; n_classes];
-
-                for &idx in &left_indices {
-                    if let Some(pos) = classes.iter().position(|&c| (c - y[idx]).abs() < 1e-10) {
-                        left_counts[pos] += 1;
-                    }
-                }
-                for &idx in &right_indices {
-                    if let Some(pos) = classes.iter().position(|&c| (c - y[idx]).abs() < 1e-10) {
-                        right_counts[pos] += 1;
-                    }
-                }
-
-                let left_impurity = match self.criterion {
-                    SplitCriterion::Gini => gini_impurity(&left_counts, left_indices.len()),
-                    SplitCriterion::Entropy => entropy(&left_counts, left_indices.len()),
-                    _ => panic!(
-                        "Invalid criterion {:?} for classification tree; use Gini or Entropy",
-                        self.criterion
-                    ),
-                };
-                let right_impurity = match self.criterion {
-                    SplitCriterion::Gini => gini_impurity(&right_counts, right_indices.len()),
-                    SplitCriterion::Entropy => entropy(&right_counts, right_indices.len()),
-                    _ => panic!(
-                        "Invalid criterion {:?} for classification tree; use Gini or Entropy",
-                        self.criterion
-                    ),
-                };
-
-                // Weighted impurity decrease
-                let left_weight = left_indices.len() as f64 / n_samples as f64;
-                let right_weight = right_indices.len() as f64 / n_samples as f64;
-                let weighted_child_impurity =
-                    left_weight.mul_add(left_impurity, right_weight * right_impurity);
-                let gain = parent_impurity - weighted_child_impurity;
-
-                if gain > best_gain {
-                    best_gain = gain;
-                    best_split = Some((feature_idx, threshold, left_indices, right_indices, gain));
                 }
             }
         }
@@ -1846,27 +1610,6 @@ mod tests {
         .unwrap();
         let y = Array1::from_vec(vec![2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0, 6.0]);
         (x, y)
-    }
-
-    #[test]
-    fn test_gini_impurity() {
-        // Pure node (all same class)
-        assert_abs_diff_eq!(gini_impurity(&[10, 0], 10), 0.0, epsilon = 1e-10);
-
-        // Maximum impurity (equal split in binary)
-        assert_abs_diff_eq!(gini_impurity(&[5, 5], 10), 0.5, epsilon = 1e-10);
-
-        // 3-class case
-        assert_abs_diff_eq!(gini_impurity(&[4, 3, 3], 10), 0.66, epsilon = 1e-2);
-    }
-
-    #[test]
-    fn test_entropy_impurity() {
-        // Pure node
-        assert_abs_diff_eq!(entropy(&[10, 0], 10), 0.0, epsilon = 1e-10);
-
-        // Maximum entropy (equal split in binary)
-        assert_abs_diff_eq!(entropy(&[5, 5], 10), (2.0_f64).ln(), epsilon = 1e-10);
     }
 
     #[test]
