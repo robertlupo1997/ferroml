@@ -254,6 +254,7 @@ pub mod hpo;
 pub mod inference;
 pub mod metrics;
 pub mod models;
+pub mod neural;
 #[cfg(feature = "onnx")]
 pub mod onnx;
 pub mod pipeline;

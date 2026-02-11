@@ -40,6 +40,7 @@ mod clustering;
 mod datasets;
 mod linear;
 mod neighbors;
+mod neural;
 #[cfg(feature = "pandas")]
 pub mod pandas_utils;
 pub mod pickle;
@@ -60,6 +61,7 @@ fn ferroml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     linear::register_linear_module(m)?;
     trees::register_trees_module(m)?;
     neighbors::register_neighbors_module(m)?;
+    neural::register_neural_module(m)?;
     clustering::register_clustering_module(m)?;
     preprocessing::register_preprocessing_module(m)?;
     pipeline::register_pipeline_module(m)?;
