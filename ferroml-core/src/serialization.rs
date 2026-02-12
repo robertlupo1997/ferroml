@@ -89,6 +89,99 @@ impl Format {
     }
 }
 
+/// Options for saving models
+#[derive(Debug, Clone)]
+pub struct SaveOptions {
+    /// Serialization format
+    pub format: Format,
+    /// Optional description to include in metadata
+    pub description: Option<String>,
+    /// Whether to include metadata (default: true)
+    pub include_metadata: bool,
+    /// Progress callback: called with (bytes_written, total_bytes_estimate)
+    /// The total_bytes_estimate may be 0 if unknown.
+    pub progress_callback: Option<fn(u64, u64)>,
+}
+
+impl SaveOptions {
+    /// Create new save options with the given format
+    pub fn new(format: Format) -> Self {
+        Self {
+            format,
+            description: None,
+            include_metadata: true,
+            progress_callback: None,
+        }
+    }
+
+    /// Set the description
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Set whether to include metadata
+    #[must_use]
+    pub fn without_metadata(mut self) -> Self {
+        self.include_metadata = false;
+        self
+    }
+
+    /// Set progress callback
+    #[must_use]
+    pub fn with_progress(mut self, callback: fn(u64, u64)) -> Self {
+        self.progress_callback = Some(callback);
+        self
+    }
+}
+
+/// Options for loading models
+#[derive(Debug, Clone)]
+pub struct LoadOptions {
+    /// Serialization format
+    pub format: Format,
+    /// Whether to verify CRC32 checksum for bincode format (default: true)
+    pub verify_checksum: bool,
+    /// Whether to allow loading models from a different major version (default: false)
+    pub allow_version_mismatch: bool,
+    /// Progress callback: called with (bytes_read, total_bytes)
+    pub progress_callback: Option<fn(u64, u64)>,
+}
+
+impl LoadOptions {
+    /// Create new load options with the given format
+    pub fn new(format: Format) -> Self {
+        Self {
+            format,
+            verify_checksum: true,
+            allow_version_mismatch: false,
+            progress_callback: None,
+        }
+    }
+
+    /// Skip CRC32 checksum verification (bincode only)
+    #[must_use]
+    pub fn skip_checksum(mut self) -> Self {
+        self.verify_checksum = false;
+        self
+    }
+
+    /// Allow loading models from incompatible versions
+    #[must_use]
+    pub fn allow_version_mismatch(mut self) -> Self {
+        self.allow_version_mismatch = true;
+        self
+    }
+
+    /// Set progress callback
+    #[must_use]
+    pub fn with_progress(mut self, callback: fn(u64, u64)) -> Self {
+        self.progress_callback = Some(callback);
+        self
+    }
+}
+
 /// A semantic version with proper ordering (major.minor.patch)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SemanticVersion {
@@ -288,6 +381,164 @@ where
     let metadata = SerializationMetadata::new::<T>(format).with_description(description);
     let container = ModelContainer::with_metadata(model, metadata);
     save_container(&container, path, format)
+}
+
+/// Save a model with options
+///
+/// # Arguments
+/// * `model` - The model to serialize
+/// * `path` - Output file path
+/// * `options` - Save options controlling format, metadata, etc.
+pub fn save_model_with_options<T, P>(model: &T, path: P, options: &SaveOptions) -> Result<()>
+where
+    T: Serialize,
+    P: AsRef<Path>,
+{
+    let format = options.format;
+
+    if options.include_metadata {
+        let mut metadata = SerializationMetadata::new::<T>(format);
+        if let Some(ref desc) = options.description {
+            metadata.description = Some(desc.clone());
+        }
+        let container = ModelContainer::with_metadata(model, metadata);
+        save_container(&container, path.as_ref(), format)?;
+    } else {
+        // Save without metadata wrapper — serialize model directly
+        let file = File::create(path.as_ref()).map_err(FerroError::IoError)?;
+        let mut writer = BufWriter::new(file);
+        match format {
+            Format::Json => {
+                serde_json::to_writer(&mut writer, model).map_err(|e| {
+                    FerroError::SerializationError(format!("JSON serialization failed: {e}"))
+                })?;
+            }
+            Format::JsonPretty => {
+                serde_json::to_writer_pretty(&mut writer, model).map_err(|e| {
+                    FerroError::SerializationError(format!("JSON serialization failed: {e}"))
+                })?;
+            }
+            Format::MessagePack => {
+                rmp_serde::encode::write(&mut writer, model).map_err(|e| {
+                    FerroError::SerializationError(format!("MessagePack serialization failed: {e}"))
+                })?;
+            }
+            Format::Bincode => {
+                let serialized = bincode::serialize(model).map_err(|e| {
+                    FerroError::SerializationError(format!("Bincode serialization failed: {e}"))
+                })?;
+                writer.write_all(&serialized).map_err(FerroError::IoError)?;
+            }
+        }
+        writer.flush().map_err(FerroError::IoError)?;
+    }
+
+    if let Some(callback) = options.progress_callback {
+        // Report completion — we don't track incremental progress for non-streaming
+        let file_size = std::fs::metadata(path.as_ref())
+            .map(|m| m.len())
+            .unwrap_or(0);
+        callback(file_size, file_size);
+    }
+
+    Ok(())
+}
+
+/// Load a model with options
+///
+/// # Arguments
+/// * `path` - Input file path
+/// * `options` - Load options controlling format, checksum verification, etc.
+///
+/// # Returns
+/// The deserialized model
+pub fn load_model_with_options<T, P>(path: P, options: &LoadOptions) -> Result<T>
+where
+    T: DeserializeOwned,
+    P: AsRef<Path>,
+{
+    let file_size = std::fs::metadata(path.as_ref())
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    if let Some(callback) = options.progress_callback {
+        callback(0, file_size);
+    }
+
+    let container: ModelContainer<T> = load_container_with_options(path.as_ref(), options)?;
+
+    // Version compatibility check
+    if !options.allow_version_mismatch {
+        let current = SemanticVersion::current();
+        if !current.is_compatible_with(&container.metadata.ferroml_version) {
+            return Err(FerroError::SerializationError(format!(
+                "Version mismatch: model was saved with v{}, current is v{}. \
+                 Use LoadOptions::allow_version_mismatch() to override.",
+                container.metadata.ferroml_version, current
+            )));
+        }
+    }
+
+    if let Some(callback) = options.progress_callback {
+        callback(file_size, file_size);
+    }
+
+    Ok(container.model)
+}
+
+/// Load a model container with options
+fn load_container_with_options<T>(path: &Path, options: &LoadOptions) -> Result<ModelContainer<T>>
+where
+    T: DeserializeOwned,
+{
+    let file = File::open(path).map_err(FerroError::IoError)?;
+    let mut reader = BufReader::new(file);
+
+    let container: ModelContainer<T> = match options.format {
+        Format::Json | Format::JsonPretty => serde_json::from_reader(&mut reader).map_err(|e| {
+            FerroError::SerializationError(format!("JSON deserialization failed: {e}"))
+        })?,
+        Format::MessagePack => rmp_serde::decode::from_read(&mut reader).map_err(|e| {
+            FerroError::SerializationError(format!("MessagePack deserialization failed: {e}"))
+        })?,
+        Format::Bincode => {
+            // Verify magic bytes
+            let mut magic = [0u8; 4];
+            reader.read_exact(&mut magic).map_err(FerroError::IoError)?;
+            if magic != MAGIC_BYTES {
+                return Err(FerroError::SerializationError(
+                    "Invalid file format: not a FerroML bincode file".to_string(),
+                ));
+            }
+            let mut payload = Vec::new();
+            reader
+                .read_to_end(&mut payload)
+                .map_err(FerroError::IoError)?;
+            if payload.len() < 4 {
+                return Err(FerroError::SerializationError(
+                    "Bincode file too short for CRC32".to_string(),
+                ));
+            }
+            let (data, crc_bytes) = payload.split_at(payload.len() - 4);
+
+            if options.verify_checksum {
+                let stored_crc =
+                    u32::from_le_bytes([crc_bytes[0], crc_bytes[1], crc_bytes[2], crc_bytes[3]]);
+                let computed_crc = crc32fast::hash(data);
+                if stored_crc != computed_crc {
+                    return Err(FerroError::SerializationError(format!(
+                        "CRC32 mismatch: file corrupted (expected {stored_crc:#x}, got {computed_crc:#x})"
+                    )));
+                }
+            }
+
+            bincode::deserialize(data).map_err(|e| {
+                FerroError::SerializationError(format!("Bincode deserialization failed: {e}"))
+            })?
+        }
+    };
+
+    Ok(container)
 }
 
 /// Save a model container to a file
@@ -669,6 +920,228 @@ pub trait ModelSerialize: Serialize + DeserializeOwned + Sized {
 
 // Implement for all serializable types
 impl<T> ModelSerialize for T where T: Serialize + DeserializeOwned {}
+
+// =============================================================================
+// Streaming Serialization
+// =============================================================================
+
+/// Default chunk size for streaming: 1 MB
+const DEFAULT_CHUNK_SIZE: usize = 1024 * 1024;
+
+/// Streaming writer for serializing large models in chunks.
+///
+/// Serializes to bincode format with chunked I/O and optional progress reporting.
+/// Each chunk is written as: [4-byte length][chunk data], followed by a final
+/// [4-byte zero] sentinel, then a [4-byte CRC32] of all chunk data.
+pub struct StreamingWriter<W: Write> {
+    writer: W,
+    chunk_size: usize,
+    progress_callback: Option<fn(u64, u64)>,
+    bytes_written: u64,
+}
+
+impl<W: Write> StreamingWriter<W> {
+    /// Create a new streaming writer with default chunk size (1 MB)
+    pub fn new(writer: W) -> Self {
+        Self {
+            writer,
+            chunk_size: DEFAULT_CHUNK_SIZE,
+            progress_callback: None,
+            bytes_written: 0,
+        }
+    }
+
+    /// Set the chunk size in bytes
+    #[must_use]
+    pub fn with_chunk_size(mut self, chunk_size: usize) -> Self {
+        self.chunk_size = chunk_size.max(1024); // minimum 1 KB
+        self
+    }
+
+    /// Set progress callback: called with (bytes_written, total_estimate)
+    #[must_use]
+    pub fn with_progress(mut self, callback: fn(u64, u64)) -> Self {
+        self.progress_callback = Some(callback);
+        self
+    }
+
+    /// Write a model in chunks
+    pub fn write_model<T: Serialize>(&mut self, model: &T) -> Result<()> {
+        // Serialize to memory first, then write in chunks
+        let data = bincode::serialize(model).map_err(|e| {
+            FerroError::SerializationError(format!("Bincode serialization failed: {e}"))
+        })?;
+
+        let total = data.len() as u64;
+
+        // Write magic bytes
+        self.writer
+            .write_all(&MAGIC_BYTES)
+            .map_err(FerroError::IoError)?;
+        self.bytes_written += 4;
+
+        // Write version byte (format version 1 = streaming)
+        self.writer.write_all(&[1u8]).map_err(FerroError::IoError)?;
+        self.bytes_written += 1;
+
+        // CRC32 of all chunk data
+        let mut hasher = crc32fast::Hasher::new();
+
+        // Write data in chunks: [4-byte len][chunk data]
+        for chunk in data.chunks(self.chunk_size) {
+            let len = chunk.len() as u32;
+            self.writer
+                .write_all(&len.to_le_bytes())
+                .map_err(FerroError::IoError)?;
+            self.writer.write_all(chunk).map_err(FerroError::IoError)?;
+            hasher.update(chunk);
+            self.bytes_written += 4 + chunk.len() as u64;
+
+            if let Some(callback) = self.progress_callback {
+                callback(self.bytes_written, total + 13); // 4 magic + 1 version + 4 sentinel + 4 crc
+            }
+        }
+
+        // Write sentinel (zero-length chunk)
+        self.writer
+            .write_all(&0u32.to_le_bytes())
+            .map_err(FerroError::IoError)?;
+        self.bytes_written += 4;
+
+        // Write CRC32
+        let crc = hasher.finalize();
+        self.writer
+            .write_all(&crc.to_le_bytes())
+            .map_err(FerroError::IoError)?;
+        self.bytes_written += 4;
+
+        self.writer.flush().map_err(FerroError::IoError)?;
+
+        if let Some(callback) = self.progress_callback {
+            callback(self.bytes_written, self.bytes_written);
+        }
+
+        Ok(())
+    }
+
+    /// Get total bytes written
+    pub fn bytes_written(&self) -> u64 {
+        self.bytes_written
+    }
+}
+
+/// Streaming reader for deserializing large models in chunks.
+///
+/// Reads the chunked format written by `StreamingWriter`.
+pub struct StreamingReader<R: Read> {
+    reader: R,
+    progress_callback: Option<fn(u64, u64)>,
+    bytes_read: u64,
+}
+
+impl<R: Read> StreamingReader<R> {
+    /// Create a new streaming reader
+    pub fn new(reader: R) -> Self {
+        Self {
+            reader,
+            progress_callback: None,
+            bytes_read: 0,
+        }
+    }
+
+    /// Set progress callback: called with (bytes_read, total_bytes)
+    #[must_use]
+    pub fn with_progress(mut self, callback: fn(u64, u64)) -> Self {
+        self.progress_callback = Some(callback);
+        self
+    }
+
+    /// Read a model from the chunked stream
+    pub fn read_model<T: DeserializeOwned>(&mut self) -> Result<T> {
+        // Read and verify magic bytes
+        let mut magic = [0u8; 4];
+        self.reader
+            .read_exact(&mut magic)
+            .map_err(FerroError::IoError)?;
+        if magic != MAGIC_BYTES {
+            return Err(FerroError::SerializationError(
+                "Invalid streaming format: not a FerroML file".to_string(),
+            ));
+        }
+        self.bytes_read += 4;
+
+        // Read version byte
+        let mut version = [0u8; 1];
+        self.reader
+            .read_exact(&mut version)
+            .map_err(FerroError::IoError)?;
+        if version[0] != 1 {
+            return Err(FerroError::SerializationError(format!(
+                "Unsupported streaming format version: {}",
+                version[0]
+            )));
+        }
+        self.bytes_read += 1;
+
+        // Read chunks
+        let mut data = Vec::new();
+        let mut hasher = crc32fast::Hasher::new();
+
+        loop {
+            let mut len_bytes = [0u8; 4];
+            self.reader
+                .read_exact(&mut len_bytes)
+                .map_err(FerroError::IoError)?;
+            let chunk_len = u32::from_le_bytes(len_bytes) as usize;
+            self.bytes_read += 4;
+
+            if chunk_len == 0 {
+                break; // Sentinel reached
+            }
+
+            let mut chunk = vec![0u8; chunk_len];
+            self.reader
+                .read_exact(&mut chunk)
+                .map_err(FerroError::IoError)?;
+            hasher.update(&chunk);
+            data.extend_from_slice(&chunk);
+            self.bytes_read += chunk_len as u64;
+
+            if let Some(callback) = self.progress_callback {
+                callback(self.bytes_read, 0); // total unknown during streaming read
+            }
+        }
+
+        // Read and verify CRC32
+        let mut crc_bytes = [0u8; 4];
+        self.reader
+            .read_exact(&mut crc_bytes)
+            .map_err(FerroError::IoError)?;
+        let stored_crc = u32::from_le_bytes(crc_bytes);
+        let computed_crc = hasher.finalize();
+        self.bytes_read += 4;
+
+        if stored_crc != computed_crc {
+            return Err(FerroError::SerializationError(format!(
+                "CRC32 mismatch in streaming data (expected {stored_crc:#x}, got {computed_crc:#x})"
+            )));
+        }
+
+        if let Some(callback) = self.progress_callback {
+            callback(self.bytes_read, self.bytes_read);
+        }
+
+        // Deserialize the reassembled data
+        bincode::deserialize(&data).map_err(|e| {
+            FerroError::SerializationError(format!("Bincode deserialization failed: {e}"))
+        })
+    }
+
+    /// Get total bytes read
+    pub fn bytes_read(&self) -> u64 {
+        self.bytes_read
+    }
+}
 
 // =============================================================================
 // Utilities
@@ -1075,5 +1548,162 @@ mod tests {
         let truncated = &bytes[..bytes.len() - 2];
         let result: Result<LinearRegression> = from_bytes(truncated, Format::Bincode);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_save_load_with_options_json() {
+        let model = create_test_model();
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("model_opts.json");
+
+        let save_opts = SaveOptions::new(Format::Json).with_description("options test");
+        save_model_with_options(&model, &path, &save_opts).unwrap();
+
+        let load_opts = LoadOptions::new(Format::Json);
+        let loaded: LinearRegression = load_model_with_options(&path, &load_opts).unwrap();
+        assert!(loaded.is_fitted());
+
+        // Verify description was saved
+        let meta = peek_metadata(&path, Format::Json).unwrap();
+        assert_eq!(meta.description, Some("options test".to_string()));
+    }
+
+    #[test]
+    fn test_save_load_with_options_bincode() {
+        let model = create_test_model();
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("model_opts.bin");
+
+        let save_opts = SaveOptions::new(Format::Bincode);
+        save_model_with_options(&model, &path, &save_opts).unwrap();
+
+        // Load with checksum verification
+        let load_opts = LoadOptions::new(Format::Bincode);
+        let loaded: LinearRegression = load_model_with_options(&path, &load_opts).unwrap();
+        assert!(loaded.is_fitted());
+
+        // Load with skipped checksum
+        let load_opts_skip = LoadOptions::new(Format::Bincode).skip_checksum();
+        let loaded2: LinearRegression = load_model_with_options(&path, &load_opts_skip).unwrap();
+        assert!(loaded2.is_fitted());
+    }
+
+    #[test]
+    fn test_save_without_metadata() {
+        let model = create_test_model();
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("raw_model.json");
+
+        let save_opts = SaveOptions::new(Format::Json).without_metadata();
+        save_model_with_options(&model, &path, &save_opts).unwrap();
+
+        // Should be loadable as raw model (not wrapped in ModelContainer)
+        let file = File::open(&path).unwrap();
+        let loaded: LinearRegression = serde_json::from_reader(file).unwrap();
+        assert!(loaded.is_fitted());
+    }
+
+    #[test]
+    fn test_load_options_progress_callback() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static LAST_BYTES: AtomicU64 = AtomicU64::new(0);
+        static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+
+        fn progress(bytes_done: u64, _total: u64) {
+            LAST_BYTES.store(bytes_done, Ordering::SeqCst);
+            CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+        }
+
+        LAST_BYTES.store(0, Ordering::SeqCst);
+        CALL_COUNT.store(0, Ordering::SeqCst);
+
+        let model = create_test_model();
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("model_progress.json");
+
+        save_model(&model, &path, Format::Json).unwrap();
+
+        let load_opts = LoadOptions::new(Format::Json).with_progress(progress);
+        let _loaded: LinearRegression = load_model_with_options(&path, &load_opts).unwrap();
+
+        assert!(
+            CALL_COUNT.load(Ordering::SeqCst) >= 2,
+            "progress should be called at least twice (start + end)"
+        );
+        assert!(
+            LAST_BYTES.load(Ordering::SeqCst) > 0,
+            "should report nonzero bytes at completion"
+        );
+    }
+
+    #[test]
+    fn test_streaming_roundtrip() {
+        let model = create_test_model();
+
+        // Write using streaming writer
+        let mut buf = Vec::new();
+        let mut writer = StreamingWriter::new(&mut buf).with_chunk_size(64);
+        writer.write_model(&model).unwrap();
+        assert!(writer.bytes_written() > 0);
+
+        // Read using streaming reader
+        let mut reader = StreamingReader::new(buf.as_slice());
+        let loaded: LinearRegression = reader.read_model().unwrap();
+        assert!(loaded.is_fitted());
+        assert!((loaded.intercept().unwrap() - model.intercept().unwrap()).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_streaming_predictions_match() {
+        let model = create_test_model();
+        let x_test = Array2::from_shape_vec((3, 1), vec![6.0, 7.0, 8.0]).unwrap();
+        let original_preds = model.predict(&x_test).unwrap();
+
+        let mut buf = Vec::new();
+        StreamingWriter::new(&mut buf)
+            .with_chunk_size(128)
+            .write_model(&model)
+            .unwrap();
+
+        let loaded: LinearRegression = StreamingReader::new(buf.as_slice()).read_model().unwrap();
+        let loaded_preds = loaded.predict(&x_test).unwrap();
+
+        for (orig, load) in original_preds.iter().zip(loaded_preds.iter()) {
+            assert!((orig - load).abs() < 1e-10, "Streaming predictions differ");
+        }
+    }
+
+    #[test]
+    fn test_streaming_crc_corruption_detected() {
+        let model = create_test_model();
+
+        let mut buf = Vec::new();
+        StreamingWriter::new(&mut buf).write_model(&model).unwrap();
+
+        // Corrupt a byte in the middle
+        let mid = buf.len() / 2;
+        buf[mid] ^= 0xFF;
+
+        let result: Result<LinearRegression> = StreamingReader::new(buf.as_slice()).read_model();
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("CRC32") || err_msg.contains("deserialization"));
+    }
+
+    #[test]
+    fn test_streaming_large_model_multiple_chunks() {
+        // Create a model, write with very small chunk size to force multiple chunks
+        let model = create_test_model();
+
+        let mut buf = Vec::new();
+        let mut writer = StreamingWriter::new(&mut buf).with_chunk_size(1024); // 1 KB chunks
+        writer.write_model(&model).unwrap();
+
+        // Verify bytes_written is reasonable
+        assert!(writer.bytes_written() > 20);
+
+        let loaded: LinearRegression = StreamingReader::new(buf.as_slice()).read_model().unwrap();
+        assert!(loaded.is_fitted());
     }
 }

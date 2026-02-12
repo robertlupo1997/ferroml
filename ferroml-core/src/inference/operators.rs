@@ -360,7 +360,7 @@ pub enum PostTransform {
     Logistic,
     /// Normalize (sum to 1)
     SoftmaxZero,
-    /// Probit (not implemented)
+    /// Probit (standard normal CDF)
     Probit,
 }
 
@@ -754,7 +754,10 @@ impl TreeEnsembleClassifierOp {
                 }
             }
             PostTransform::Probit => {
-                // Not implemented - leave as is
+                // Probit transform: apply standard normal CDF Φ(x) to each score
+                for score in scores.iter_mut() {
+                    *score = probit_transform(*score);
+                }
             }
         }
     }
@@ -824,6 +827,23 @@ impl Operator for TreeEnsembleClassifierOp {
 
     fn name(&self) -> &str {
         "TreeEnsembleClassifier"
+    }
+}
+
+/// Standard normal CDF Φ(x) for probit transform (f32 precision)
+fn probit_transform(x: f32) -> f32 {
+    let x = x as f64;
+    let t = 1.0 / 0.2316419f64.mul_add(x.abs(), 1.0);
+    let d = 0.398_942_280_401_432_7; // 1/sqrt(2*pi)
+    let p = d * (-x * x / 2.0).exp();
+    let c = t
+        * (0.319381530
+            + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+
+    if x >= 0.0 {
+        (1.0 - p * c) as f32
+    } else {
+        (p * c) as f32
     }
 }
 
@@ -914,5 +934,19 @@ mod tests {
             .unwrap();
         let out = result[0].as_tensor().unwrap();
         assert_eq!(out.shape(), &[4]);
+    }
+
+    #[test]
+    fn test_probit_transform() {
+        // Φ(0) = 0.5
+        assert!((probit_transform(0.0) - 0.5).abs() < 1e-5);
+        // Φ(-∞) → 0, Φ(+∞) → 1
+        assert!(probit_transform(-5.0) < 0.001);
+        assert!(probit_transform(5.0) > 0.999);
+        // Φ(1.96) ≈ 0.975
+        assert!((probit_transform(1.96) - 0.975).abs() < 0.002);
+        // Monotonicity
+        assert!(probit_transform(-1.0) < probit_transform(0.0));
+        assert!(probit_transform(0.0) < probit_transform(1.0));
     }
 }
