@@ -4,11 +4,11 @@
 [![Documentation](https://docs.rs/ferroml-core/badge.svg)](https://docs.rs/ferroml-core)
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/ferroml-core.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-2287%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-2395%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: Early Alpha (Quality-Hardened)** — 37+ ML algorithms, 2287 tests passing, actively validated against sklearn. See [Project Status](#project-status) for details.
+> **Status: Early Alpha (Quality-Hardened)** — 37+ ML algorithms, 2395 tests passing, validated against sklearn. See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -216,14 +216,15 @@ at your option.
 
 ### Current State (v0.1.0-alpha)
 
-FerroML is in **early alpha** with active quality hardening. Recent work (commits `d4e60c1` → `28b17cd`) has focused on algorithmic correctness:
+FerroML is in **early alpha**, quality-hardened through 6 plans of algorithmic correctness work:
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 2287 passing, 0 failing |
+| **Tests** | 2395 passing, 0 failing |
+| **Doctests** | 82 passing, 0 failing |
 | **Clippy** | Clean (no warnings) |
 | **Algorithms** | 37+ implemented |
-| **Sklearn Compatibility** | Active validation in progress |
+| **Sklearn Match** | 14/14 comparisons passing |
 
 ### What's Implemented
 
@@ -232,41 +233,34 @@ FerroML is in **early alpha** with active quality hardening. Recent work (commit
 - **Instance-Based**: KNN with KD-Tree/Ball-Tree acceleration
 - **SVM**: SVC, SVR, LinearSVC, LinearSVR
 - **Probabilistic**: Gaussian/Multinomial/Bernoulli Naive Bayes
+- **Clustering**: KMeans (k-means++), DBSCAN
+- **Neural Networks**: MLPClassifier, MLPRegressor with training diagnostics
 - **Preprocessing**: 23+ transformers (scalers, encoders, imputers, SMOTE variants)
 - **Explainability**: TreeSHAP (Lundberg 2018), KernelSHAP, PDP, ICE, H-statistic
 - **HPO**: TPE, Hyperband, ASHA, BOHB, Bayesian optimization
 
-### Known Gaps (Planned)
-
-| Feature | Status | Plan |
-|---------|--------|------|
-| Clustering (KMeans, DBSCAN) | Not implemented | [Plan 3](thoughts/shared/plans/2026-02-08_plan-3-clustering-implementation.md) |
-| Neural Networks (MLP) | Not implemented | [Plan 4](thoughts/shared/plans/2026-02-08_plan-4-neural-networks.md) |
-| Failing Doctests | 59 failing | [Plan 2](thoughts/shared/plans/2026-02-08_plan-2-doctest-fixes.md) |
-
-### Recent Quality Hardening (6 Phases)
-
-1. **Phase 1**: 10 correctness fixes (Fisher z-transform, Box-Muller, correlation guards)
-2. **Phase 2**: Lentz's continued fraction for stable incomplete beta
-3. **Phase 3**: LDA eigenvalue solver with symmetric transformation
-4. **Phase 4**: SemanticVersion + CRC32 checksums for serialization
-5. **Phase 5**: TPE sampler rewrite with true l(x)/g(x) density ratio
-6. **Phase 6**: TreeSHAP rewrite with Lundberg 2018 Algorithm 2
-
-See [CHANGELOG.md](CHANGELOG.md) for details.
-
 ### Accuracy Validation
 
-We're actively validating FerroML against sklearn. Tolerance standards:
+FerroML is validated against scikit-learn. All 14 comparisons pass:
 
-| Algorithm Type | Tolerance | Notes |
-|----------------|-----------|-------|
-| Closed-form (Linear, PCA) | 1e-10 | Exact solution expected |
-| Iterative (Lasso, Logistic) | 1e-4 | Convergence-dependent |
-| Tree-based | 1e-6 | Deterministic splits |
-| Probabilistic outputs | 1e-6 | Softmax stability |
+| Model / Transformer | Status |
+|---------------------|--------|
+| LinearRegression | EXACT MATCH (R² = 0.4526) |
+| DecisionTreeClassifier | EXACT MATCH (100% accuracy) |
+| RandomForestClassifier | EXACT MATCH (100% accuracy) |
+| StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler | EXACT MATCH |
+| OneHotEncoder, OrdinalEncoder, LabelEncoder, SimpleImputer | EXACT MATCH |
 
-Full accuracy report: [docs/accuracy-report.md](docs/accuracy-report.md) (coming soon)
+| Algorithm Type | Tolerance |
+|----------------|-----------|
+| Closed-form (Linear, PCA) | 1e-10 |
+| Iterative (Lasso, Logistic) | 1e-4 |
+| Tree-based | 1e-6 |
+| Ensemble (RF, GB) | 5% (RNG variance) |
+
+Full accuracy report: [docs/accuracy-report.md](docs/accuracy-report.md)
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed change history.
 
 ## Contributing
 

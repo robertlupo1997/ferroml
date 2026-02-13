@@ -37,7 +37,7 @@
 // Helper Functions (available in both test and non-test builds)
 // ============================================================================
 
-/// Convert a Vec<Vec<f64>> to ndarray Array2.
+/// Convert a `Vec<Vec<f64>>` to ndarray Array2.
 pub fn vecs_to_array2(vecs: Vec<Vec<f64>>) -> ndarray::Array2<f64> {
     if vecs.is_empty() {
         return ndarray::Array2::zeros((0, 0));
@@ -48,7 +48,7 @@ pub fn vecs_to_array2(vecs: Vec<Vec<f64>>) -> ndarray::Array2<f64> {
     ndarray::Array2::from_shape_vec((n_rows, n_cols), flat).unwrap()
 }
 
-/// Convert a Vec<f64> to ndarray Array1.
+/// Convert a `Vec<f64>` to ndarray Array1.
 pub fn vec_to_array1(vec: Vec<f64>) -> ndarray::Array1<f64> {
     ndarray::Array1::from_vec(vec)
 }
