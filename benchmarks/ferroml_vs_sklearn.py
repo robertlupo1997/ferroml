@@ -126,21 +126,20 @@ def benchmark_classification():
         best = result.best_model()
         best_score = best.cv_score if best else 0.0
 
-        # Prediction - check if available
+        # Prediction using result.predict(X_train, y_train, X_test)
         pred_time = None
-        accuracy = best_score  # Use CV score as proxy
+        accuracy = best_score  # Use CV score as fallback
 
-        # Try to get test set predictions if predict is available
         predict_available = False
         try:
-            # Note: AutoML.predict() may not be implemented yet (Phase 4)
-            if hasattr(automl, 'predict'):
-                start = time.time()
-                y_pred = automl.predict(X_test)
-                pred_time = time.time() - start
-                accuracy = accuracy_score(y_test, y_pred)
-                predict_available = True
-        except (AttributeError, NotImplementedError):
+            start = time.time()
+            y_pred = result.predict(
+                X_train, y_train.astype(np.float64), X_test
+            )
+            pred_time = time.time() - start
+            accuracy = accuracy_score(y_test, np.round(y_pred).astype(int))
+            predict_available = True
+        except Exception:
             pass
 
         results.append({
@@ -149,7 +148,7 @@ def benchmark_classification():
             'accuracy': accuracy,
             'train_time': train_time,
             'pred_time': pred_time,
-            'note': 'CV score' if not predict_available else '',
+            'note': '' if predict_available else 'CV score',
         })
 
     return results
@@ -227,21 +226,18 @@ def benchmark_regression():
         best = result.best_model()
         best_score = best.cv_score if best else 0.0
 
-        # Prediction - check if available
+        # Prediction using result.predict(X_train, y_train, X_test)
         pred_time = None
-        r2 = best_score  # Use CV score as proxy
+        r2 = best_score  # Use CV score as fallback
 
-        # Try to get test set predictions if predict is available
         predict_available = False
         try:
-            # Note: AutoML.predict() may not be implemented yet (Phase 4)
-            if hasattr(automl, 'predict'):
-                start = time.time()
-                y_pred = automl.predict(X_test)
-                pred_time = time.time() - start
-                r2 = r2_score(y_test, y_pred)
-                predict_available = True
-        except (AttributeError, NotImplementedError):
+            start = time.time()
+            y_pred = result.predict(X_train, y_train, X_test)
+            pred_time = time.time() - start
+            r2 = r2_score(y_test, y_pred)
+            predict_available = True
+        except Exception:
             pass
 
         results.append({
@@ -250,7 +246,7 @@ def benchmark_regression():
             'r2': r2,
             'train_time': train_time,
             'pred_time': pred_time,
-            'note': 'CV score' if not predict_available else '',
+            'note': '' if predict_available else 'CV score',
         })
 
     return results
