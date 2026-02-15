@@ -30,3 +30,9 @@ ralph.log
 
 # Local settings
 .claude/settings.local.json
+
+# Documents
+*.docx
+
+# Test artifacts
+**/test_write.txt

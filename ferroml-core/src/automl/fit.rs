@@ -936,17 +936,28 @@ impl AutoML {
         };
 
         // Step 8: Compute best model statistics
-        let best_model_stats = leaderboard.first().map(|best| {
-            let trial = trials.iter().find(|t| t.trial_id == best.trial_id).unwrap();
-            ModelStatistics {
-                mean_score: trial.cv_score,
-                std_score: trial.cv_std,
-                ci_lower: best.ci_lower,
-                ci_upper: best.ci_upper,
-                n_folds: trial.fold_scores.len(),
-                fold_scores: trial.fold_scores.clone(),
-            }
-        });
+        let best_model_stats = leaderboard
+            .first()
+            .map(|best| {
+                let trial = trials
+                    .iter()
+                    .find(|t| t.trial_id == best.trial_id)
+                    .ok_or_else(|| {
+                        FerroError::invalid_input(format!(
+                            "Trial {} not found in completed trials",
+                            best.trial_id
+                        ))
+                    })?;
+                Ok::<_, FerroError>(ModelStatistics {
+                    mean_score: trial.cv_score,
+                    std_score: trial.cv_std,
+                    ci_lower: best.ci_lower,
+                    ci_upper: best.ci_upper,
+                    n_folds: trial.fold_scores.len(),
+                    fold_scores: trial.fold_scores.clone(),
+                })
+            })
+            .transpose()?;
 
         // Step 9: Compute aggregated feature importance
         let aggregated_importance = compute_aggregated_feature_importance(
@@ -1007,9 +1018,9 @@ impl AutoML {
 
         for fold in folds {
             // Extract train/test data
-            let x_train = select_rows(x, &fold.train_indices);
+            let x_train = select_rows(x, &fold.train_indices)?;
             let y_train = select_elements(y, &fold.train_indices);
-            let x_test = select_rows(x, &fold.test_indices);
+            let x_test = select_rows(x, &fold.test_indices)?;
             let y_test = select_elements(y, &fold.test_indices);
 
             // Create and fit model
@@ -1120,7 +1131,7 @@ fn create_model(algorithm: AlgorithmType) -> Result<Box<dyn Model>> {
 }
 
 /// Select rows from a 2D array by indices
-fn select_rows(array: &Array2<f64>, indices: &[usize]) -> Array2<f64> {
+fn select_rows(array: &Array2<f64>, indices: &[usize]) -> Result<Array2<f64>> {
     let n_cols = array.ncols();
     let n_rows = indices.len();
 
@@ -1131,7 +1142,8 @@ fn select_rows(array: &Array2<f64>, indices: &[usize]) -> Array2<f64> {
         }
     }
 
-    Array2::from_shape_vec((n_rows, n_cols), data).expect("Shape mismatch in select_rows")
+    Array2::from_shape_vec((n_rows, n_cols), data)
+        .map_err(|e| FerroError::invalid_input(format!("select_rows shape error: {e}")))
 }
 
 /// Select elements from a 1D array by indices
@@ -1701,7 +1713,7 @@ mod tests {
         let array =
             Array2::from_shape_vec((4, 2), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).unwrap();
 
-        let selected = select_rows(&array, &[0, 2]);
+        let selected = select_rows(&array, &[0, 2]).unwrap();
         assert_eq!(selected.nrows(), 2);
         assert_eq!(selected.ncols(), 2);
         assert!((selected[[0, 0]] - 1.0).abs() < 1e-10);
