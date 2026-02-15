@@ -51,8 +51,9 @@ use crate::metrics::{
 use crate::models::{
     DecisionTreeClassifier, DecisionTreeRegressor, GaussianNB, GradientBoostingClassifier,
     GradientBoostingRegressor, HistGradientBoostingClassifier, HistGradientBoostingRegressor,
-    KNeighborsClassifier, KNeighborsRegressor, LinearRegression, LogisticRegression, Model,
-    MultinomialNB, RandomForestClassifier, RandomForestRegressor, RidgeRegression,
+    KNeighborsClassifier, KNeighborsRegressor, LinearRegression, LinearSVC, LinearSVR,
+    LogisticRegression, Model, MultinomialNB, QuantileRegression, RandomForestClassifier,
+    RandomForestRegressor, RidgeRegression, SVC, SVR,
 };
 use crate::{AutoML, FerroError, Metric, Result, Task};
 use ndarray::{Array1, Array2};
@@ -105,6 +106,53 @@ impl AutoMLResult {
     #[must_use]
     pub fn best_model(&self) -> Option<&LeaderboardEntry> {
         self.leaderboard.first()
+    }
+
+    /// Predict using the best model
+    ///
+    /// This method re-creates and re-fits the best model from the leaderboard,
+    /// then uses it to make predictions on new data.
+    ///
+    /// # Arguments
+    /// * `x_train` - Training features used to fit the best model
+    /// * `y_train` - Training targets used to fit the best model
+    /// * `x_test` - Test features to predict on
+    ///
+    /// # Returns
+    /// * Predictions for `x_test`
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - No model succeeded in AutoML
+    /// - Model creation fails
+    /// - Model fitting fails
+    /// - Prediction fails
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let result = automl.fit(&x_train, &y_train)?;
+    /// let predictions = result.predict(&x_train, &y_train, &x_test)?;
+    /// ```
+    pub fn predict(
+        &self,
+        x_train: &Array2<f64>,
+        y_train: &Array1<f64>,
+        x_test: &Array2<f64>,
+    ) -> Result<Array1<f64>> {
+        // Get best model from leaderboard
+        let best = self
+            .best_model()
+            .ok_or_else(|| FerroError::not_fitted("No successful models in AutoML result"))?;
+
+        // Re-create the model
+        let mut model = create_model(best.algorithm)?;
+
+        // Fit on full training data
+        model.fit(x_train, y_train)?;
+
+        // Predict on test data
+        model.predict(x_test)
     }
 
     /// Get the ensemble score (if ensemble was built)
@@ -1052,13 +1100,19 @@ fn create_model(algorithm: AlgorithmType) -> Result<Box<dyn Model>> {
             Ok(Box::new(HistGradientBoostingRegressor::new()))
         }
 
+        // Classification - SVM
+        AlgorithmType::SVC => Ok(Box::new(SVC::new())),
+        AlgorithmType::LinearSVC => Ok(Box::new(LinearSVC::new())),
+
+        // Regression - SVM
+        AlgorithmType::SVR => Ok(Box::new(SVR::new())),
+        AlgorithmType::LinearSVR => Ok(Box::new(LinearSVR::new())),
+
+        // Regression - Quantile
+        AlgorithmType::QuantileRegression => Ok(Box::new(QuantileRegression::new(0.5))),
+
         // Not yet implemented
-        AlgorithmType::SVC
-        | AlgorithmType::SVR
-        | AlgorithmType::LinearSVC
-        | AlgorithmType::LinearSVR
-        | AlgorithmType::QuantileRegression
-        | AlgorithmType::RobustRegression => Err(FerroError::NotImplemented(format!(
+        AlgorithmType::RobustRegression => Err(FerroError::NotImplemented(format!(
             "Algorithm {:?} not yet available for AutoML",
             algorithm
         ))),
@@ -1870,6 +1924,88 @@ mod tests {
                 assert!(lower <= mean);
                 assert!(mean <= upper);
             }
+        }
+    }
+
+    #[test]
+    fn test_automl_result_predict() {
+        let (x, y) = create_classification_data();
+
+        // Split into train/test
+        let n_train = 80;
+        let x_train = x.slice(ndarray::s![..n_train, ..]).to_owned();
+        let y_train = y.slice(ndarray::s![..n_train]).to_owned();
+        let x_test = x.slice(ndarray::s![n_train.., ..]).to_owned();
+        let y_test = y.slice(ndarray::s![n_train..]).to_owned();
+
+        let config = AutoMLConfig {
+            task: Task::Classification,
+            metric: Metric::Accuracy,
+            time_budget_seconds: 30,
+            cv_folds: 2,
+            seed: Some(42),
+            ..Default::default()
+        };
+
+        let automl = AutoML::new(config);
+        let result = automl.fit(&x_train, &y_train).unwrap();
+
+        // Test predict method
+        let predictions = result.predict(&x_train, &y_train, &x_test).unwrap();
+
+        // Should have correct number of predictions
+        assert_eq!(predictions.len(), y_test.len());
+
+        // Predictions should be binary (0 or 1) for classification
+        for &pred in predictions.iter() {
+            assert!(pred == 0.0 || pred == 1.0);
+        }
+
+        // Should have reasonable accuracy
+        let correct = predictions
+            .iter()
+            .zip(y_test.iter())
+            .filter(|(p, t)| (*p - *t).abs() < 0.5)
+            .count();
+        let accuracy = correct as f64 / y_test.len() as f64;
+        assert!(
+            accuracy > 0.5,
+            "Accuracy {} should be better than random",
+            accuracy
+        );
+    }
+
+    #[test]
+    fn test_automl_result_predict_regression() {
+        let (x, y) = create_regression_data();
+
+        // Split into train/test
+        let n_train = 80;
+        let x_train = x.slice(ndarray::s![..n_train, ..]).to_owned();
+        let y_train = y.slice(ndarray::s![..n_train]).to_owned();
+        let x_test = x.slice(ndarray::s![n_train.., ..]).to_owned();
+
+        let config = AutoMLConfig {
+            task: Task::Regression,
+            metric: Metric::R2,
+            time_budget_seconds: 30,
+            cv_folds: 2,
+            seed: Some(42),
+            ..Default::default()
+        };
+
+        let automl = AutoML::new(config);
+        let result = automl.fit(&x_train, &y_train).unwrap();
+
+        // Test predict method
+        let predictions = result.predict(&x_train, &y_train, &x_test).unwrap();
+
+        // Should have correct number of predictions
+        assert_eq!(predictions.len(), x_test.nrows());
+
+        // Predictions should be finite
+        for &pred in predictions.iter() {
+            assert!(pred.is_finite());
         }
     }
 }

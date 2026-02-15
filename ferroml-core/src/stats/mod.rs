@@ -14,7 +14,6 @@
 pub mod bootstrap;
 pub mod confidence;
 pub mod diagnostics;
-pub mod distributions;
 pub mod effect_size;
 pub mod hypothesis;
 pub mod multiple_testing;

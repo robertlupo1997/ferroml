@@ -1,14 +1,12 @@
 # FerroML
 
-[![Crates.io](https://img.shields.io/crates/v/ferroml-core.svg)](https://crates.io/crates/ferroml-core)
-[![Documentation](https://docs.rs/ferroml-core/badge.svg)](https://docs.rs/ferroml-core)
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/ferroml-core.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-2395%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-2608%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: Early Alpha (Quality-Hardened)** — 37+ ML algorithms, 2395 tests passing, validated against sklearn. See [Project Status](#project-status) for details.
+> **Status: Early Alpha (Quality-Hardened)** — 37+ ML algorithms, 2608 tests passing, validated against sklearn. See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -82,24 +80,23 @@ fn main() -> ferroml_core::Result<()> {
 import ferroml as fml
 
 # Load data
-X, y = fml.datasets.load_iris()
+dataset, info = fml.datasets.load_iris()
+X, y = dataset.x, dataset.y
 
-# Create AutoML with explicit statistical controls
-automl = fml.AutoML(
+# Create and fit a model
+config = fml.AutoMLConfig(
     task="classification",
     metric="accuracy",
-    statistical_tests=True,
-    confidence_level=0.95,
     time_budget_seconds=60,
 )
-
-# Fit with cross-validation
-result = automl.fit(X, y, cv=5)
+automl = fml.AutoML(config)
+result = automl.fit(X, y)
 
 # Results with statistical guarantees
-print(result.best_model)
-print(result.confidence_interval)
-print(result.model_comparisons)
+best = result.best_model()
+print(f"Best: {best.algorithm}")
+print(f"Score: {best.cv_score:.4f} ± {best.cv_std:.4f}")
+print(f"95% CI: [{best.ci_lower:.4f}, {best.ci_upper:.4f}]")
 ```
 
 ## Architecture
@@ -220,7 +217,7 @@ FerroML is in **early alpha**, quality-hardened through 6 plans of algorithmic c
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 2395 passing, 0 failing |
+| **Tests** | 2,608 passing, 0 failing |
 | **Doctests** | 82 passing, 0 failing |
 | **Clippy** | Clean (no warnings) |
 | **Algorithms** | 37+ implemented |

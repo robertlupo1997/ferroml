@@ -742,6 +742,48 @@ impl PyAutoMLResult {
         self.inner.summary()
     }
 
+    /// Predict using the best model.
+    ///
+    /// This method re-creates and re-fits the best model from the leaderboard,
+    /// then uses it to make predictions on new data.
+    ///
+    /// Parameters
+    /// ----------
+    /// X_train : array-like of shape (n_samples, n_features)
+    ///     Training features used to fit the best model.
+    /// y_train : array-like of shape (n_samples,)
+    ///     Training targets used to fit the best model.
+    /// X_test : array-like of shape (n_samples, n_features)
+    ///     Test features to predict on.
+    ///
+    /// Returns
+    /// -------
+    /// array-like of shape (n_samples,)
+    ///     Predictions for X_test.
+    ///
+    /// Examples
+    /// --------
+    /// >>> result = automl.fit(X_train, y_train)
+    /// >>> predictions = result.predict(X_train, y_train, X_test)
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x_train: PyReadonlyArray2<'_, f64>,
+        y_train: PyReadonlyArray1<'_, f64>,
+        x_test: PyReadonlyArray2<'_, f64>,
+    ) -> PyResult<Bound<'py, numpy::PyArray1<f64>>> {
+        let x_train_arr = to_owned_array_2d(x_train);
+        let y_train_arr = to_owned_array_1d(y_train);
+        let x_test_arr = to_owned_array_2d(x_test);
+
+        let predictions = self
+            .inner
+            .predict(&x_train_arr, &y_train_arr, &x_test_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(numpy::PyArray1::from_vec(py, predictions.to_vec()))
+    }
+
     /// Get the best model statistics.
     ///
     /// Returns
