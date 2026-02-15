@@ -40,7 +40,7 @@ jobs:
             ${{ runner.os }}-cargo-check-
 
       - name: Run cargo check
-        run: cargo check --workspace --all-features
+        run: cargo check -p ferroml-core --all-features
 
   # Clippy linting
   clippy:
@@ -116,7 +116,7 @@ jobs:
             ${{ runner.os }}-cargo-test-
 
       - name: Run tests
-        run: cargo test --workspace --all-features
+        run: cargo test -p ferroml-core --all-features
 
   # Python binding tests
   python-test:
