@@ -249,9 +249,12 @@ pub mod decomposition;
 pub mod ensemble;
 pub mod error;
 pub mod explainability;
+#[cfg(feature = "gpu")]
+pub mod gpu;
 pub mod hpo;
 #[cfg(feature = "onnx")]
 pub mod inference;
+pub mod linalg;
 pub mod metrics;
 pub mod models;
 pub mod neural;

@@ -419,11 +419,12 @@ impl Model for LinearRegression {
             let diag: Vec<f64> = (0..r.ncols()).map(|i| r[[i, i]].abs()).collect();
             let max_diag = diag.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
             let min_diag = diag.iter().cloned().fold(f64::INFINITY, f64::min);
-            if min_diag > 1e-14 {
-                Some(max_diag / min_diag)
-            } else {
-                None
+            if min_diag <= 1e-14 {
+                return Err(FerroError::numerical(
+                    "Matrix is rank-deficient (collinear features)",
+                ));
             }
+            Some(max_diag / min_diag)
         };
 
         // Solve R * beta = Q' * y
@@ -776,76 +777,20 @@ impl ProbabilisticModel for LinearRegression {
 // =============================================================================
 
 /// QR decomposition using modified Gram-Schmidt
+/// QR decomposition — delegates to shared linalg module (Modified Gram-Schmidt,
+/// with optional faer backend for high-performance on large matrices).
 fn qr_decomposition(a: &Array2<f64>) -> Result<(Array2<f64>, Array2<f64>)> {
-    let (m, n) = (a.nrows(), a.ncols());
-    let mut q = Array2::zeros((m, n));
-    let mut r = Array2::zeros((n, n));
-
-    for j in 0..n {
-        let mut v = a.column(j).to_owned();
-
-        for i in 0..j {
-            r[[i, j]] = q.column(i).dot(&a.column(j));
-            v = v - &(q.column(i).to_owned() * r[[i, j]]);
-        }
-
-        r[[j, j]] = v.dot(&v).sqrt();
-
-        if r[[j, j]].abs() < 1e-14 {
-            return Err(FerroError::numerical(
-                "Matrix is rank-deficient (collinear features)",
-            ));
-        }
-
-        q.column_mut(j).assign(&(&v / r[[j, j]]));
-    }
-
-    Ok((q, r))
+    crate::linalg::qr_decomposition(a)
 }
 
-/// Solve upper triangular system Rx = b
+/// Solve upper triangular system Rx = b — delegates to shared linalg module.
 fn solve_upper_triangular(r: &Array2<f64>, b: &Array1<f64>) -> Result<Array1<f64>> {
-    let n = r.nrows();
-    let mut x = Array1::zeros(n);
-
-    for i in (0..n).rev() {
-        if r[[i, i]].abs() < 1e-14 {
-            return Err(FerroError::numerical(
-                "Singular matrix in back-substitution",
-            ));
-        }
-
-        let mut sum = b[i];
-        for j in (i + 1)..n {
-            sum -= r[[i, j]] * x[j];
-        }
-        x[i] = sum / r[[i, i]];
-    }
-
-    Ok(x)
+    crate::linalg::solve_upper_triangular(r, b)
 }
 
-/// Invert upper triangular matrix
+/// Invert upper triangular matrix — delegates to shared linalg module.
 fn invert_upper_triangular(r: &Array2<f64>) -> Result<Array2<f64>> {
-    let n = r.nrows();
-    let mut inv = Array2::zeros((n, n));
-
-    for i in 0..n {
-        if r[[i, i]].abs() < 1e-14 {
-            return Err(FerroError::numerical("Singular matrix in inversion"));
-        }
-        inv[[i, i]] = 1.0 / r[[i, i]];
-
-        for j in (0..i).rev() {
-            let mut sum = 0.0;
-            for k in (j + 1)..=i {
-                sum += r[[j, k]] * inv[[k, i]];
-            }
-            inv[[j, i]] = -sum / r[[j, j]];
-        }
-    }
-
-    Ok(inv)
+    crate::linalg::invert_upper_triangular(r)
 }
 
 // =============================================================================
@@ -1291,9 +1236,18 @@ mod tests {
 
     #[test]
     fn test_f_statistic() {
-        let x = Array2::from_shape_vec((20, 2), (0..40).map(|i| i as f64).collect()).unwrap();
-        let y: Array1<f64> = (0..20)
-            .map(|i| 1.0 + 2.0 * (i * 2) as f64 + 3.0 * (i * 2 + 1) as f64)
+        // Use non-collinear features (x1 = i, x2 = i^2)
+        let x = Array2::from_shape_fn((20, 2), |(i, j)| {
+            if j == 0 {
+                (i + 1) as f64
+            } else {
+                ((i + 1) as f64).powi(2)
+            }
+        });
+        let y: Array1<f64> = x
+            .rows()
+            .into_iter()
+            .map(|row| 1.0 + 2.0 * row[0] + 0.5 * row[1])
             .collect();
 
         let mut model = LinearRegression::new();

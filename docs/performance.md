@@ -345,8 +345,19 @@ cargo bench --bench memory_benchmarks -p ferroml-core
 | linear_models | OLS, Ridge, Lasso | ~30 seconds |
 | tree_models | DecisionTree, RandomForest | ~2 minutes |
 | gradient_boosting | GB, HistGB | ~3 minutes |
+| svm_models | SVC, LinearSVC, SVR | ~2 minutes |
+| knn_models | KNN Classifier/Regressor | ~1 minute |
+| logistic_models | LogisticRegression | ~30 seconds |
+| sgd_models | SGD Classifier/Regressor | ~1 minute |
+| adaboost_models | AdaBoost Classifier/Regressor | ~2 minutes |
+| clustering_benches | KMeans, Agglomerative | ~2 minutes |
+| decomposition_benches | PCA, TruncatedSVD | ~1 minute |
+| naive_bayes_benches | GaussianNB | ~30 seconds |
 | preprocessing | Scalers, encoders | ~30 seconds |
 | scaling | Performance vs dataset size | ~2 minutes |
+| gpu_benchmarks* | GPU vs CPU comparisons | ~5 minutes |
+
+\* Requires `--features gpu` and a compatible GPU.
 
 ### Interpreting Results
 
@@ -416,6 +427,81 @@ let predictions = model.predict(&x)?;
 let predict_duration = start.elapsed();
 
 println!("Fit: {:?}, Predict: {:?}", fit_duration, predict_duration);
+```
+
+---
+
+## GPU Acceleration
+
+FerroML supports optional GPU-accelerated computation via the `gpu` feature flag, using [wgpu](https://wgpu.rs/) for cross-platform GPU compute (Vulkan, Metal, DX12).
+
+### Supported Operations
+
+| Operation | Module | Speedup Range |
+|-----------|--------|---------------|
+| Matrix multiplication (GEMM) | Neural network layers | 2-10x for large matrices |
+| Pairwise distance matrix | KMeans clustering | 5-20x for large datasets |
+
+### Enabling GPU Support
+
+```toml
+[dependencies]
+ferroml-core = { version = "0.1", features = ["gpu"] }
+```
+
+```rust
+use ferroml_core::gpu::WgpuBackend;
+use ferroml_core::neural::MLP;
+use std::sync::Arc;
+
+// Create GPU backend (returns None if no GPU available)
+if let Some(backend) = WgpuBackend::try_new() {
+    let gpu = Arc::new(backend);
+
+    // MLP with GPU acceleration
+    let mlp = MLP::new()
+        .hidden_layer_sizes(&[256, 128])
+        .with_gpu(gpu.clone());
+
+    // KMeans with GPU acceleration
+    let kmeans = KMeans::new(10)
+        .with_gpu(gpu);
+}
+```
+
+### When GPU Helps vs Hurts
+
+GPU acceleration has overhead from data transfer (CPU→GPU→CPU). It pays off for:
+
+- **GEMM**: Matrix sizes > 256x256 (below this, CPU is faster)
+- **KMeans distance**: Datasets with > 5,000 samples and > 10 features
+- **MLP training**: Batch sizes > 500 with hidden layers > 256 units
+
+For small datasets or models, the CPU path is faster. FerroML falls back to CPU automatically if the GPU path fails.
+
+### Precision Notes
+
+wgpu compute shaders only support f32 arithmetic. Data is converted:
+- **Upload**: f64 → f32 (potential precision loss ~1e-7 relative)
+- **Download**: f32 → f64
+
+This is acceptable for most ML workloads. For applications requiring full f64 precision, use the CPU path (disable `gpu` feature or don't call `with_gpu()`).
+
+### Hardware Requirements
+
+Any GPU supported by wgpu:
+- **Windows**: DirectX 12 compatible GPU
+- **macOS**: Metal-compatible GPU (most Macs since 2012)
+- **Linux**: Vulkan-compatible GPU with up-to-date drivers
+
+### Running GPU Benchmarks
+
+```bash
+# GPU vs CPU comparison benchmarks
+cargo bench --bench gpu_benchmarks -p ferroml-core --features gpu
+
+# GPU tests (skip gracefully if no GPU)
+cargo test -p ferroml-core --lib --features gpu -- gpu
 ```
 
 ---

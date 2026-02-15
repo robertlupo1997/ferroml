@@ -58,6 +58,10 @@ pub struct KMeans {
     random_state: Option<u64>,
     /// Number of times to run with different centroid seeds
     n_init: usize,
+    /// Optional GPU backend for accelerated distance computation
+    #[cfg(feature = "gpu")]
+    #[serde(skip)]
+    gpu_backend: Option<std::sync::Arc<dyn crate::gpu::GpuBackend>>,
 
     // Fitted state
     /// Cluster centers after fitting
@@ -88,6 +92,8 @@ impl KMeans {
             tol: 1e-4,
             random_state: None,
             n_init: 10,
+            #[cfg(feature = "gpu")]
+            gpu_backend: None,
             cluster_centers_: None,
             labels_: None,
             inertia_: None,
@@ -110,6 +116,13 @@ impl KMeans {
     /// Set random seed for reproducibility
     pub fn random_state(mut self, seed: u64) -> Self {
         self.random_state = Some(seed);
+        self
+    }
+
+    /// Set GPU backend for accelerated distance computation
+    #[cfg(feature = "gpu")]
+    pub fn with_gpu(mut self, backend: std::sync::Arc<dyn crate::gpu::GpuBackend>) -> Self {
+        self.gpu_backend = Some(backend);
         self
     }
 
@@ -181,7 +194,64 @@ impl KMeans {
         centers
     }
 
+    /// CPU assignment step: assign each point to nearest center.
+    fn cpu_assign(
+        x: &Array2<f64>,
+        centers: &Array2<f64>,
+        n_clusters: usize,
+        n_samples: usize,
+    ) -> (Array1<i32>, f64) {
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            let results: Vec<(i32, f64)> = (0..n_samples)
+                .into_par_iter()
+                .map(|i| {
+                    let mut min_dist = f64::MAX;
+                    let mut min_idx = 0i32;
+                    for k in 0..n_clusters {
+                        let dist = squared_euclidean(&x.row(i), &centers.row(k));
+                        if dist < min_dist {
+                            min_dist = dist;
+                            min_idx = k as i32;
+                        }
+                    }
+                    (min_idx, min_dist)
+                })
+                .collect();
+            let mut labels = Array1::zeros(n_samples);
+            let mut total_inertia = 0.0;
+            for (i, (label, dist)) in results.iter().enumerate() {
+                labels[i] = *label;
+                total_inertia += dist;
+            }
+            (labels, total_inertia)
+        }
+        #[cfg(not(feature = "parallel"))]
+        {
+            let mut labels = Array1::zeros(n_samples);
+            let mut total_inertia = 0.0;
+            for i in 0..n_samples {
+                let mut min_dist = f64::MAX;
+                let mut min_idx = 0;
+                for k in 0..n_clusters {
+                    let dist = squared_euclidean(&x.row(i), &centers.row(k));
+                    if dist < min_dist {
+                        min_dist = dist;
+                        min_idx = k;
+                    }
+                }
+                labels[i] = min_idx as i32;
+                total_inertia += min_dist;
+            }
+            (labels, total_inertia)
+        }
+    }
+
     /// Run a single kmeans iteration
+    ///
+    /// When the `parallel` feature is enabled, the assignment step uses rayon
+    /// for near-linear speedup with core count.
     fn run_kmeans(
         &self,
         x: &Array2<f64>,
@@ -195,20 +265,42 @@ impl KMeans {
 
         for iter in 0..self.max_iter {
             // Assignment step: assign each point to nearest center
-            let mut inertia = 0.0;
-            for i in 0..n_samples {
-                let mut min_dist = f64::MAX;
-                let mut min_idx = 0;
-                for k in 0..self.n_clusters {
-                    let dist = squared_euclidean(&x.row(i), &centers.row(k));
-                    if dist < min_dist {
-                        min_dist = dist;
-                        min_idx = k;
+
+            // GPU-accelerated path: compute full distance matrix on GPU
+            #[cfg(feature = "gpu")]
+            let gpu_result = self.gpu_backend.as_ref().and_then(|gpu| {
+                gpu.pairwise_distances(x, &centers).ok().map(|dist_matrix| {
+                    let mut total_inertia = 0.0;
+                    let mut new_labels = Array1::zeros(n_samples);
+                    for i in 0..n_samples {
+                        let mut min_dist = f64::MAX;
+                        let mut min_idx = 0i32;
+                        for k in 0..self.n_clusters {
+                            let d = dist_matrix[[i, k]];
+                            if d < min_dist {
+                                min_dist = d;
+                                min_idx = k as i32;
+                            }
+                        }
+                        new_labels[i] = min_idx;
+                        total_inertia += min_dist;
                     }
-                }
-                labels[i] = min_idx as i32;
-                inertia += min_dist;
-            }
+                    (new_labels, total_inertia)
+                })
+            });
+
+            #[cfg(feature = "gpu")]
+            let (new_labels, inertia) = if let Some(result) = gpu_result {
+                result
+            } else {
+                // Fall through to CPU path below
+                Self::cpu_assign(x, &centers, self.n_clusters, n_samples)
+            };
+
+            #[cfg(not(feature = "gpu"))]
+            let (new_labels, inertia) = Self::cpu_assign(x, &centers, self.n_clusters, n_samples);
+
+            labels = new_labels;
 
             // Check convergence
             if (prev_inertia - inertia).abs() < self.tol {
@@ -618,9 +710,17 @@ impl ClusteringStatistics for KMeans {
 }
 
 /// Compute squared Euclidean distance between two vectors
+///
+/// Uses SIMD-accelerated computation when the `simd` feature is enabled via
+/// the shared `linalg` module.
 #[inline]
 fn squared_euclidean(a: &ArrayView1<f64>, b: &ArrayView1<f64>) -> f64 {
-    a.iter().zip(b.iter()).map(|(&x, &y)| (x - y).powi(2)).sum()
+    // Try to get contiguous slices for SIMD path
+    if let (Some(a_slice), Some(b_slice)) = (a.as_slice(), b.as_slice()) {
+        crate::linalg::squared_euclidean_distance(a_slice, b_slice)
+    } else {
+        a.iter().zip(b.iter()).map(|(&x, &y)| (x - y).powi(2)).sum()
+    }
 }
 
 #[cfg(test)]

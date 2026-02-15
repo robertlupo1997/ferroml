@@ -69,6 +69,21 @@ use serde::{Deserialize, Serialize};
 // Split Criteria
 // =============================================================================
 
+/// Strategy for selecting split thresholds in decision trees.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SplitStrategy {
+    /// Exhaustive search for the best threshold (standard decision tree).
+    Best,
+    /// Random threshold per feature (ExtraTrees / Extremely Randomized Trees).
+    Random,
+}
+
+impl Default for SplitStrategy {
+    fn default() -> Self {
+        Self::Best
+    }
+}
+
 /// Split criterion for decision trees
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SplitCriterion {
@@ -376,6 +391,8 @@ pub struct DecisionTreeClassifier {
     pub random_state: Option<u64>,
     /// Class weights for handling imbalanced datasets
     pub class_weight: ClassWeight,
+    /// Split strategy (Best = exhaustive, Random = ExtraTrees)
+    pub split_strategy: SplitStrategy,
 
     // Fitted parameters
     tree: Option<TreeStructure>,
@@ -404,11 +421,19 @@ impl DecisionTreeClassifier {
             ccp_alpha: 0.0,
             random_state: None,
             class_weight: ClassWeight::Uniform,
+            split_strategy: SplitStrategy::Best,
             tree: None,
             classes: None,
             n_features: None,
             feature_importances: None,
         }
+    }
+
+    /// Set the split strategy (Best = exhaustive search, Random = ExtraTrees)
+    #[must_use]
+    pub fn with_split_strategy(mut self, strategy: SplitStrategy) -> Self {
+        self.split_strategy = strategy;
+        self
     }
 
     /// Set the split criterion
@@ -618,9 +643,15 @@ impl DecisionTreeClassifier {
             return node_id;
         }
 
-        // Find best split with weights
-        let best_split =
-            self.find_best_split_weighted(x, y, sample_weights, indices, classes, impurity);
+        // Find best split with weights (dispatch on split strategy)
+        let best_split = match self.split_strategy {
+            SplitStrategy::Random => {
+                self.find_random_split_weighted(x, y, sample_weights, indices, classes, impurity)
+            }
+            SplitStrategy::Best => {
+                self.find_best_split_weighted(x, y, sample_weights, indices, classes, impurity)
+            }
+        };
 
         if let Some((feature_idx, threshold, left_indices, right_indices, impurity_decrease)) =
             best_split
@@ -670,7 +701,134 @@ impl DecisionTreeClassifier {
         node_id
     }
 
+    /// Find split using random thresholds (ExtraTrees / Extremely Randomized Trees).
+    ///
+    /// For each candidate feature, picks a random threshold uniformly between
+    /// the min and max values observed in the current node, then evaluates
+    /// impurity gain. Picks the feature with the best gain.
+    fn find_random_split_weighted(
+        &self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        sample_weights: &Array1<f64>,
+        indices: &[usize],
+        classes: &[f64],
+        parent_impurity: f64,
+    ) -> Option<(usize, f64, Vec<usize>, Vec<usize>, f64)> {
+        let n_features = x.ncols();
+        let n_classes = classes.len();
+
+        let total_weight: f64 = indices.iter().map(|&i| sample_weights[i]).sum();
+
+        // Use deterministic RNG from random_state + n_samples to vary per node
+        let mut rng = self
+            .random_state
+            .unwrap_or(42)
+            .wrapping_add(indices.len() as u64);
+
+        // Select features to check
+        let features_to_check: Vec<usize> = if let Some(max_f) = self.max_features {
+            use std::collections::HashSet;
+            let mut selected = HashSet::new();
+            let max_f = max_f.min(n_features);
+            while selected.len() < max_f {
+                rng = rng.wrapping_mul(1103515245).wrapping_add(12345);
+                let idx = (rng as usize) % n_features;
+                selected.insert(idx);
+            }
+            let mut features: Vec<usize> = selected.into_iter().collect();
+            features.sort();
+            features
+        } else {
+            (0..n_features).collect()
+        };
+
+        // Pre-compute class index for each sample
+        let sample_class_idx: Vec<usize> = indices
+            .iter()
+            .map(|&idx| {
+                classes
+                    .iter()
+                    .position(|&c| (c - y[idx]).abs() < 1e-10)
+                    .unwrap_or(0)
+            })
+            .collect();
+
+        let mut best_gain = f64::NEG_INFINITY;
+        let mut best_split = None;
+
+        for &feature_idx in &features_to_check {
+            // Find min/max of this feature across current indices
+            let mut feat_min = f64::INFINITY;
+            let mut feat_max = f64::NEG_INFINITY;
+            for &i in indices {
+                let v = x[[i, feature_idx]];
+                if v < feat_min {
+                    feat_min = v;
+                }
+                if v > feat_max {
+                    feat_max = v;
+                }
+            }
+            // Skip constant features
+            if (feat_max - feat_min).abs() < 1e-10 {
+                continue;
+            }
+
+            // Generate random threshold in [feat_min, feat_max]
+            rng = rng.wrapping_mul(1103515245).wrapping_add(12345);
+            let frac = (rng as u32) as f64 / u32::MAX as f64;
+            let threshold = feat_min + frac * (feat_max - feat_min);
+
+            // Partition and compute weighted impurity
+            let mut left_weights = vec![0.0f64; n_classes];
+            let mut right_weights = vec![0.0f64; n_classes];
+            let mut left_total = 0.0f64;
+            let mut right_total = 0.0f64;
+            let mut left_indices = Vec::new();
+            let mut right_indices = Vec::new();
+
+            for (si, &idx) in indices.iter().enumerate() {
+                let w = sample_weights[idx];
+                let ci = sample_class_idx[si];
+                if x[[idx, feature_idx]] <= threshold {
+                    left_weights[ci] += w;
+                    left_total += w;
+                    left_indices.push(idx);
+                } else {
+                    right_weights[ci] += w;
+                    right_total += w;
+                    right_indices.push(idx);
+                }
+            }
+
+            // Skip empty partitions
+            if left_indices.is_empty() || right_indices.is_empty() {
+                continue;
+            }
+
+            let left_impurity = weighted_gini_impurity(&left_weights, left_total);
+            let right_impurity = weighted_gini_impurity(&right_weights, right_total);
+
+            let left_prop = left_total / total_weight;
+            let right_prop = right_total / total_weight;
+            let weighted_child_impurity =
+                left_prop.mul_add(left_impurity, right_prop * right_impurity);
+            let gain = parent_impurity - weighted_child_impurity;
+
+            if gain > best_gain {
+                best_gain = gain;
+                best_split = Some((feature_idx, threshold, left_indices, right_indices, gain));
+            }
+        }
+
+        best_split
+    }
+
     /// Find the best split for a node with sample weights
+    ///
+    /// Optimized: sorts indices once per feature and sweeps left-to-right
+    /// accumulating running class weight counts. O(n * p * log n) instead of O(n^2 * p).
     fn find_best_split_weighted(
         &self,
         x: &Array2<f64>,
@@ -681,6 +839,7 @@ impl DecisionTreeClassifier {
         parent_impurity: f64,
     ) -> Option<(usize, f64, Vec<usize>, Vec<usize>, f64)> {
         let n_features = x.ncols();
+        let n_samples = indices.len();
 
         // Compute total weight for this node
         let total_weight: f64 = indices.iter().map(|&i| sample_weights[i]).sum();
@@ -699,7 +858,6 @@ impl DecisionTreeClassifier {
                 let idx = (rng as usize) % n_features;
                 selected.insert(idx);
             }
-            // Sort for deterministic order (HashSet iteration is non-deterministic)
             let mut features: Vec<usize> = selected.into_iter().collect();
             features.sort();
             features
@@ -709,60 +867,74 @@ impl DecisionTreeClassifier {
 
         let n_classes = classes.len();
 
-        for &feature_idx in &features_to_check {
-            // Get unique values for this feature
-            let mut values: Vec<f64> = indices.iter().map(|&i| x[[i, feature_idx]]).collect();
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            values.dedup();
+        // Pre-allocate buffers reused across features
+        let mut sorted_indices: Vec<usize> = Vec::with_capacity(n_samples);
+        let mut left_weights = vec![0.0f64; n_classes];
+        let mut right_weights = vec![0.0f64; n_classes];
 
-            if values.len() < 2 {
-                continue;
+        // Pre-compute class index for each sample to avoid repeated linear search
+        let sample_class_idx: Vec<usize> = indices
+            .iter()
+            .map(|&idx| {
+                classes
+                    .iter()
+                    .position(|&c| (c - y[idx]).abs() < 1e-10)
+                    .unwrap_or(0)
+            })
+            .collect();
+
+        for &feature_idx in &features_to_check {
+            // Sort indices by feature value
+            sorted_indices.clear();
+            sorted_indices.extend(0..n_samples);
+            sorted_indices.sort_by(|&a, &b| {
+                x[[indices[a], feature_idx]]
+                    .partial_cmp(&x[[indices[b], feature_idx]])
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            // Initialize: everything in right partition
+            for w in left_weights.iter_mut() {
+                *w = 0.0;
+            }
+            for w in right_weights.iter_mut() {
+                *w = 0.0;
+            }
+            let mut left_total = 0.0f64;
+            let mut right_total = 0.0f64;
+
+            for &si in &sorted_indices {
+                let idx = indices[si];
+                let w = sample_weights[idx];
+                right_total += w;
+                right_weights[sample_class_idx[si]] += w;
             }
 
-            // Try midpoints between consecutive values
-            for i in 0..values.len() - 1 {
-                let threshold = (values[i] + values[i + 1]) / 2.0;
+            // Sweep left-to-right through sorted indices
+            for pos in 0..n_samples - 1 {
+                let si = sorted_indices[pos];
+                let idx = indices[si];
+                let w = sample_weights[idx];
+                let ci = sample_class_idx[si];
 
-                // Split indices
-                let mut left_indices = Vec::new();
-                let mut right_indices = Vec::new();
-                for &idx in indices {
-                    if x[[idx, feature_idx]] <= threshold {
-                        left_indices.push(idx);
-                    } else {
-                        right_indices.push(idx);
-                    }
-                }
+                // Move sample from right to left
+                left_weights[ci] += w;
+                right_weights[ci] -= w;
+                left_total += w;
+                right_total -= w;
 
-                if left_indices.is_empty() || right_indices.is_empty() {
+                // Skip if same feature value as next (no valid threshold between equal values)
+                let next_si = sorted_indices[pos + 1];
+                let next_idx = indices[next_si];
+                if (x[[idx, feature_idx]] - x[[next_idx, feature_idx]]).abs() < 1e-10 {
                     continue;
                 }
 
-                // Compute weighted class counts for children
-                let mut left_weights = vec![0.0f64; n_classes];
-                let mut right_weights = vec![0.0f64; n_classes];
-                let mut left_total = 0.0f64;
-                let mut right_total = 0.0f64;
-
-                for &idx in &left_indices {
-                    let w = sample_weights[idx];
-                    left_total += w;
-                    if let Some(pos) = classes.iter().position(|&c| (c - y[idx]).abs() < 1e-10) {
-                        left_weights[pos] += w;
-                    }
-                }
-                for &idx in &right_indices {
-                    let w = sample_weights[idx];
-                    right_total += w;
-                    if let Some(pos) = classes.iter().position(|&c| (c - y[idx]).abs() < 1e-10) {
-                        right_weights[pos] += w;
-                    }
-                }
+                let threshold = (x[[idx, feature_idx]] + x[[next_idx, feature_idx]]) / 2.0;
 
                 let left_impurity = weighted_gini_impurity(&left_weights, left_total);
                 let right_impurity = weighted_gini_impurity(&right_weights, right_total);
 
-                // Weighted impurity decrease
                 let left_prop = left_total / total_weight;
                 let right_prop = right_total / total_weight;
                 let weighted_child_impurity =
@@ -771,11 +943,18 @@ impl DecisionTreeClassifier {
 
                 if gain > best_gain {
                     best_gain = gain;
+                    let split_pos = pos + 1;
                     best_split = Some((
                         feature_idx,
                         threshold,
-                        left_indices.clone(),
-                        right_indices.clone(),
+                        sorted_indices[..split_pos]
+                            .iter()
+                            .map(|&si| indices[si])
+                            .collect(),
+                        sorted_indices[split_pos..]
+                            .iter()
+                            .map(|&si| indices[si])
+                            .collect(),
                         gain,
                     ));
                 }
@@ -1038,6 +1217,78 @@ impl Model for DecisionTreeClassifier {
     fn n_features(&self) -> Option<usize> {
         self.n_features
     }
+
+    fn fit_weighted(
+        &mut self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        sample_weight: &Array1<f64>,
+    ) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        if sample_weight.len() != y.len() {
+            return Err(FerroError::shape_mismatch(
+                format!("{} samples", y.len()),
+                format!("{} weights", sample_weight.len()),
+            ));
+        }
+
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        let classes = get_unique_classes(y);
+        if classes.len() < 2 {
+            return Err(FerroError::invalid_input(
+                "DecisionTreeClassifier requires at least 2 classes",
+            ));
+        }
+
+        // Combine class weights with sample weights
+        let class_weights = compute_sample_weights(y, &classes, &self.class_weight);
+        let combined_weights: Array1<f64> = sample_weight
+            .iter()
+            .zip(class_weights.iter())
+            .map(|(sw, cw)| sw * cw)
+            .collect();
+
+        let classes_vec: Vec<f64> = classes.iter().copied().collect();
+        self.classes = Some(classes);
+        self.n_features = Some(n_features);
+
+        let indices: Vec<usize> = (0..n_samples).collect();
+        let mut nodes = Vec::new();
+        self.build_tree_weighted(
+            x,
+            y,
+            &combined_weights,
+            &indices,
+            &classes_vec,
+            0,
+            &mut nodes,
+        );
+
+        let max_depth = nodes.iter().map(|n| n.depth).max().unwrap_or(0);
+        let n_leaves = nodes.iter().filter(|n| n.is_leaf).count();
+
+        self.tree = Some(TreeStructure {
+            nodes,
+            n_features,
+            n_classes: classes_vec.len(),
+            feature_names: None,
+            class_names: None,
+            max_depth,
+            n_leaves,
+        });
+
+        self.prune_tree();
+        self.compute_feature_importances();
+
+        Ok(())
+    }
+
+    fn model_name(&self) -> &str {
+        "DecisionTreeClassifier"
+    }
 }
 
 // =============================================================================
@@ -1073,6 +1324,8 @@ pub struct DecisionTreeRegressor {
     pub ccp_alpha: f64,
     /// Random seed for reproducibility
     pub random_state: Option<u64>,
+    /// Split strategy (Best = exhaustive, Random = ExtraTrees)
+    pub split_strategy: SplitStrategy,
 
     // Fitted parameters
     tree: Option<TreeStructure>,
@@ -1099,10 +1352,18 @@ impl DecisionTreeRegressor {
             min_impurity_decrease: 0.0,
             ccp_alpha: 0.0,
             random_state: None,
+            split_strategy: SplitStrategy::Best,
             tree: None,
             n_features: None,
             feature_importances: None,
         }
+    }
+
+    /// Set the split strategy (Best = exhaustive search, Random = ExtraTrees)
+    #[must_use]
+    pub fn with_split_strategy(mut self, strategy: SplitStrategy) -> Self {
+        self.split_strategy = strategy;
+        self
     }
 
     /// Set the split criterion
@@ -1260,7 +1521,10 @@ impl DecisionTreeRegressor {
         }
 
         // Find best split
-        let best_split = self.find_best_split(x, y, indices, impurity);
+        let best_split = match self.split_strategy {
+            SplitStrategy::Random => self.find_random_split(x, y, indices, impurity),
+            SplitStrategy::Best => self.find_best_split(x, y, indices, impurity),
+        };
 
         if let Some((feature_idx, threshold, left_indices, right_indices, impurity_decrease)) =
             best_split
@@ -1295,6 +1559,111 @@ impl DecisionTreeRegressor {
     }
 
     /// Find the best split for a node
+    ///
+    /// Optimized: sorts indices once per feature and sweeps left-to-right.
+    /// For MSE: accumulates running sum/sum_sq for O(1) impurity per threshold.
+    /// For MAE: still computes from values but avoids re-partitioning.
+    /// Overall: O(n * p * log n) instead of O(n^2 * p).
+    /// Find split using random thresholds (ExtraTrees) for regression.
+    fn find_random_split(
+        &self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        indices: &[usize],
+        parent_impurity: f64,
+    ) -> Option<(usize, f64, Vec<usize>, Vec<usize>, f64)> {
+        let n_features = x.ncols();
+        let n_samples = indices.len();
+
+        let mut rng = self
+            .random_state
+            .unwrap_or(42)
+            .wrapping_add(n_samples as u64);
+
+        let features_to_check: Vec<usize> = if let Some(max_f) = self.max_features {
+            use std::collections::HashSet;
+            let mut selected = HashSet::new();
+            let max_f = max_f.min(n_features);
+            while selected.len() < max_f {
+                rng = rng.wrapping_mul(1103515245).wrapping_add(12345);
+                let idx = (rng as usize) % n_features;
+                selected.insert(idx);
+            }
+            let mut features: Vec<usize> = selected.into_iter().collect();
+            features.sort();
+            features
+        } else {
+            (0..n_features).collect()
+        };
+
+        let mut best_gain = f64::NEG_INFINITY;
+        let mut best_split = None;
+
+        for &feature_idx in &features_to_check {
+            let mut feat_min = f64::INFINITY;
+            let mut feat_max = f64::NEG_INFINITY;
+            for &i in indices {
+                let v = x[[i, feature_idx]];
+                if v < feat_min {
+                    feat_min = v;
+                }
+                if v > feat_max {
+                    feat_max = v;
+                }
+            }
+            if (feat_max - feat_min).abs() < 1e-10 {
+                continue;
+            }
+
+            rng = rng.wrapping_mul(1103515245).wrapping_add(12345);
+            let frac = (rng as u32) as f64 / u32::MAX as f64;
+            let threshold = feat_min + frac * (feat_max - feat_min);
+
+            let mut left_indices = Vec::new();
+            let mut right_indices = Vec::new();
+            let mut left_sum = 0.0f64;
+            let mut left_sum_sq = 0.0f64;
+            let mut right_sum = 0.0f64;
+            let mut right_sum_sq = 0.0f64;
+
+            for &idx in indices {
+                let yi = y[idx];
+                if x[[idx, feature_idx]] <= threshold {
+                    left_sum += yi;
+                    left_sum_sq += yi * yi;
+                    left_indices.push(idx);
+                } else {
+                    right_sum += yi;
+                    right_sum_sq += yi * yi;
+                    right_indices.push(idx);
+                }
+            }
+
+            if left_indices.is_empty() || right_indices.is_empty() {
+                continue;
+            }
+
+            let left_n = left_indices.len() as f64;
+            let right_n = right_indices.len() as f64;
+            let left_mean = left_sum / left_n;
+            let right_mean = right_sum / right_n;
+            let left_mse = left_sum_sq / left_n - left_mean * left_mean;
+            let right_mse = right_sum_sq / right_n - right_mean * right_mean;
+
+            let left_weight = left_n / n_samples as f64;
+            let right_weight = right_n / n_samples as f64;
+            let weighted_child_impurity = left_weight.mul_add(left_mse, right_weight * right_mse);
+            let gain = parent_impurity - weighted_child_impurity;
+
+            if gain > best_gain {
+                best_gain = gain;
+                best_split = Some((feature_idx, threshold, left_indices, right_indices, gain));
+            }
+        }
+
+        best_split
+    }
+
     fn find_best_split(
         &self,
         x: &Array2<f64>,
@@ -1319,7 +1688,6 @@ impl DecisionTreeRegressor {
                 let idx = (rng as usize) % n_features;
                 selected.insert(idx);
             }
-            // Sort for deterministic order (HashSet iteration is non-deterministic)
             let mut features: Vec<usize> = selected.into_iter().collect();
             features.sort();
             features
@@ -1327,68 +1695,134 @@ impl DecisionTreeRegressor {
             (0..n_features).collect()
         };
 
+        // Pre-allocate sorted indices buffer (indices into the `indices` slice)
+        let mut sorted_pos: Vec<usize> = Vec::with_capacity(n_samples);
+
         for &feature_idx in &features_to_check {
-            // Get unique values for this feature
-            let mut values: Vec<f64> = indices.iter().map(|&i| x[[i, feature_idx]]).collect();
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            values.dedup();
+            // Sort positions by feature value
+            sorted_pos.clear();
+            sorted_pos.extend(0..n_samples);
+            sorted_pos.sort_by(|&a, &b| {
+                x[[indices[a], feature_idx]]
+                    .partial_cmp(&x[[indices[b], feature_idx]])
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
 
-            if values.len() < 2 {
-                continue;
-            }
+            match self.criterion {
+                SplitCriterion::Mse => {
+                    // Running sums for O(1) MSE computation per split point
+                    let total_sum: f64 = indices.iter().map(|&i| y[i]).sum();
+                    let total_sum_sq: f64 = indices.iter().map(|&i| y[i] * y[i]).sum();
 
-            // Try midpoints between consecutive values
-            for i in 0..values.len() - 1 {
-                let threshold = (values[i] + values[i + 1]) / 2.0;
+                    let mut left_sum = 0.0f64;
+                    let mut left_sum_sq = 0.0f64;
+                    let mut left_count = 0usize;
 
-                // Split indices
-                let mut left_indices = Vec::new();
-                let mut right_indices = Vec::new();
-                for &idx in indices {
-                    if x[[idx, feature_idx]] <= threshold {
-                        left_indices.push(idx);
-                    } else {
-                        right_indices.push(idx);
+                    for pos in 0..n_samples - 1 {
+                        let idx = indices[sorted_pos[pos]];
+                        let yi = y[idx];
+                        left_sum += yi;
+                        left_sum_sq += yi * yi;
+                        left_count += 1;
+
+                        // Skip if same feature value as next
+                        let next_idx = indices[sorted_pos[pos + 1]];
+                        if (x[[idx, feature_idx]] - x[[next_idx, feature_idx]]).abs() < 1e-10 {
+                            continue;
+                        }
+
+                        let right_count = n_samples - left_count;
+                        let right_sum = total_sum - left_sum;
+                        let right_sum_sq = total_sum_sq - left_sum_sq;
+
+                        let threshold = (x[[idx, feature_idx]] + x[[next_idx, feature_idx]]) / 2.0;
+
+                        // MSE = E[X^2] - E[X]^2
+                        let left_mean = left_sum / left_count as f64;
+                        let left_mse = left_sum_sq / left_count as f64 - left_mean * left_mean;
+                        let right_mean = right_sum / right_count as f64;
+                        let right_mse = right_sum_sq / right_count as f64 - right_mean * right_mean;
+
+                        let left_weight = left_count as f64 / n_samples as f64;
+                        let right_weight = right_count as f64 / n_samples as f64;
+                        let weighted_child_impurity =
+                            left_weight.mul_add(left_mse, right_weight * right_mse);
+                        let gain = parent_impurity - weighted_child_impurity;
+
+                        if gain > best_gain + 1e-10 {
+                            best_gain = gain;
+                            let split_pos = pos + 1;
+                            best_split = Some((
+                                feature_idx,
+                                threshold,
+                                sorted_pos[..split_pos]
+                                    .iter()
+                                    .map(|&sp| indices[sp])
+                                    .collect(),
+                                sorted_pos[split_pos..]
+                                    .iter()
+                                    .map(|&sp| indices[sp])
+                                    .collect(),
+                                gain,
+                            ));
+                        }
                     }
                 }
+                SplitCriterion::Mae => {
+                    // MAE requires median, no running-sum shortcut — but we still
+                    // avoid the separate O(n) partition step per threshold.
+                    for pos in 0..n_samples - 1 {
+                        let idx = indices[sorted_pos[pos]];
+                        let next_idx = indices[sorted_pos[pos + 1]];
 
-                if left_indices.is_empty() || right_indices.is_empty() {
-                    continue;
+                        // Skip if same feature value
+                        if (x[[idx, feature_idx]] - x[[next_idx, feature_idx]]).abs() < 1e-10 {
+                            continue;
+                        }
+
+                        let threshold = (x[[idx, feature_idx]] + x[[next_idx, feature_idx]]) / 2.0;
+                        let split_pos = pos + 1;
+
+                        let left_values: Vec<f64> = sorted_pos[..split_pos]
+                            .iter()
+                            .map(|&sp| y[indices[sp]])
+                            .collect();
+                        let right_values: Vec<f64> = sorted_pos[split_pos..]
+                            .iter()
+                            .map(|&sp| y[indices[sp]])
+                            .collect();
+
+                        let left_impurity = mae(&left_values);
+                        let right_impurity = mae(&right_values);
+
+                        let left_weight = split_pos as f64 / n_samples as f64;
+                        let right_weight = (n_samples - split_pos) as f64 / n_samples as f64;
+                        let weighted_child_impurity =
+                            left_weight.mul_add(left_impurity, right_weight * right_impurity);
+                        let gain = parent_impurity - weighted_child_impurity;
+
+                        if gain > best_gain + 1e-10 {
+                            best_gain = gain;
+                            best_split = Some((
+                                feature_idx,
+                                threshold,
+                                sorted_pos[..split_pos]
+                                    .iter()
+                                    .map(|&sp| indices[sp])
+                                    .collect(),
+                                sorted_pos[split_pos..]
+                                    .iter()
+                                    .map(|&sp| indices[sp])
+                                    .collect(),
+                                gain,
+                            ));
+                        }
+                    }
                 }
-
-                // Compute impurity for children
-                let left_values: Vec<f64> = left_indices.iter().map(|&i| y[i]).collect();
-                let right_values: Vec<f64> = right_indices.iter().map(|&i| y[i]).collect();
-
-                let left_impurity = match self.criterion {
-                    SplitCriterion::Mse => mse(&left_values),
-                    SplitCriterion::Mae => mae(&left_values),
-                    _ => panic!(
-                        "Invalid criterion {:?} for regression tree; use Mse or Mae",
-                        self.criterion
-                    ),
-                };
-                let right_impurity = match self.criterion {
-                    SplitCriterion::Mse => mse(&right_values),
-                    SplitCriterion::Mae => mae(&right_values),
-                    _ => panic!(
-                        "Invalid criterion {:?} for regression tree; use Mse or Mae",
-                        self.criterion
-                    ),
-                };
-
-                // Weighted impurity decrease
-                let left_weight = left_indices.len() as f64 / n_samples as f64;
-                let right_weight = right_indices.len() as f64 / n_samples as f64;
-                let weighted_child_impurity =
-                    left_weight.mul_add(left_impurity, right_weight * right_impurity);
-                let gain = parent_impurity - weighted_child_impurity;
-
-                // Use epsilon comparison to ensure consistent tie-breaking across platforms
-                if gain > best_gain + 1e-10 {
-                    best_gain = gain;
-                    best_split = Some((feature_idx, threshold, left_indices, right_indices, gain));
-                }
+                _ => panic!(
+                    "Invalid criterion {:?} for regression tree; use Mse or Mae",
+                    self.criterion
+                ),
             }
         }
 

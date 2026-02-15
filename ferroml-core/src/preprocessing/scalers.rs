@@ -896,6 +896,204 @@ impl PipelineTransformer for MaxAbsScaler {
     }
 }
 
+// =============================================================================
+// Normalizer
+// =============================================================================
+
+/// Norm type for sample normalization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NormType {
+    /// L1 norm: sum of absolute values
+    L1,
+    /// L2 norm: Euclidean length (default)
+    L2,
+    /// Max norm: maximum absolute value
+    Max,
+}
+
+impl Default for NormType {
+    fn default() -> Self {
+        Self::L2
+    }
+}
+
+/// Normalize samples individually to unit norm.
+///
+/// Each sample (row) is scaled so that its norm equals 1. Unlike scalers that
+/// operate column-wise, the Normalizer operates row-wise.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Normalizer {
+    /// Norm to use (L1, L2, or Max)
+    pub norm: NormType,
+    n_features_in: Option<usize>,
+}
+
+impl Default for Normalizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Normalizer {
+    /// Create a new Normalizer with L2 norm.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            norm: NormType::L2,
+            n_features_in: None,
+        }
+    }
+
+    /// Set the norm type.
+    #[must_use]
+    pub fn with_norm(mut self, norm: NormType) -> Self {
+        self.norm = norm;
+        self
+    }
+}
+
+impl Transformer for Normalizer {
+    fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
+        check_non_empty(x)?;
+        self.n_features_in = Some(x.ncols());
+        Ok(())
+    }
+
+    fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(self.is_fitted(), "transform")?;
+        check_shape(x, self.n_features_in.unwrap())?;
+
+        let mut result = x.clone();
+        for mut row in result.rows_mut() {
+            let norm = match self.norm {
+                NormType::L1 => row.iter().map(|v| v.abs()).sum::<f64>(),
+                NormType::L2 => row.iter().map(|v| v * v).sum::<f64>().sqrt(),
+                NormType::Max => row.iter().map(|v| v.abs()).fold(0.0f64, f64::max),
+            };
+            if norm > 1e-15 {
+                row.iter_mut().for_each(|v| *v /= norm);
+            }
+        }
+        Ok(result)
+    }
+
+    fn is_fitted(&self) -> bool {
+        self.n_features_in.is_some()
+    }
+
+    fn get_feature_names_out(&self, input_names: Option<&[String]>) -> Option<Vec<String>> {
+        let n = self.n_features_in?;
+        Some(
+            input_names
+                .map(|names| names.to_vec())
+                .unwrap_or_else(|| generate_feature_names(n)),
+        )
+    }
+
+    fn n_features_in(&self) -> Option<usize> {
+        self.n_features_in
+    }
+
+    fn n_features_out(&self) -> Option<usize> {
+        self.n_features_in
+    }
+}
+
+impl PipelineTransformer for Normalizer {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "Normalizer"
+    }
+}
+
+// =============================================================================
+// Binarizer
+// =============================================================================
+
+/// Binarize features based on a threshold.
+///
+/// Values greater than the threshold are mapped to 1.0, values less than or
+/// equal to the threshold are mapped to 0.0.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Binarizer {
+    /// Threshold for binarization (default 0.0)
+    pub threshold: f64,
+    n_features_in: Option<usize>,
+}
+
+impl Default for Binarizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Binarizer {
+    /// Create a new Binarizer with threshold 0.0.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            threshold: 0.0,
+            n_features_in: None,
+        }
+    }
+
+    /// Set the threshold.
+    #[must_use]
+    pub fn with_threshold(mut self, threshold: f64) -> Self {
+        self.threshold = threshold;
+        self
+    }
+}
+
+impl Transformer for Binarizer {
+    fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
+        check_non_empty(x)?;
+        self.n_features_in = Some(x.ncols());
+        Ok(())
+    }
+
+    fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(self.is_fitted(), "transform")?;
+        check_shape(x, self.n_features_in.unwrap())?;
+
+        Ok(x.mapv(|v| if v > self.threshold { 1.0 } else { 0.0 }))
+    }
+
+    fn is_fitted(&self) -> bool {
+        self.n_features_in.is_some()
+    }
+
+    fn get_feature_names_out(&self, input_names: Option<&[String]>) -> Option<Vec<String>> {
+        let n = self.n_features_in?;
+        Some(
+            input_names
+                .map(|names| names.to_vec())
+                .unwrap_or_else(|| generate_feature_names(n)),
+        )
+    }
+
+    fn n_features_in(&self) -> Option<usize> {
+        self.n_features_in
+    }
+
+    fn n_features_out(&self) -> Option<usize> {
+        self.n_features_in
+    }
+}
+
+impl PipelineTransformer for Binarizer {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "Binarizer"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1264,5 +1462,91 @@ mod tests {
         let x_scaled = minmax.transform(&x).unwrap();
         // Constant features map to 0 (target min)
         assert!((x_scaled[[0, 0]] - 0.0).abs() < EPSILON);
+    }
+
+    // ==================== Normalizer Tests ====================
+
+    #[test]
+    fn test_normalizer_l2() {
+        let x = array![[3.0, 4.0], [0.0, 0.0], [1.0, 0.0]];
+        let mut norm = Normalizer::new();
+        let out = norm.fit_transform(&x).unwrap();
+
+        // [3,4] -> [0.6, 0.8] (norm=5)
+        assert!((out[[0, 0]] - 0.6).abs() < EPSILON);
+        assert!((out[[0, 1]] - 0.8).abs() < EPSILON);
+        // [0,0] -> [0,0] (zero-norm row unchanged)
+        assert!((out[[1, 0]]).abs() < EPSILON);
+        // [1,0] -> [1,0]
+        assert!((out[[2, 0]] - 1.0).abs() < EPSILON);
+    }
+
+    #[test]
+    fn test_normalizer_l1() {
+        let x = array![[3.0, -4.0]];
+        let mut norm = Normalizer::new().with_norm(NormType::L1);
+        let out = norm.fit_transform(&x).unwrap();
+        // norm = |3|+|-4| = 7
+        assert!((out[[0, 0]] - 3.0 / 7.0).abs() < EPSILON);
+        assert!((out[[0, 1]] - (-4.0 / 7.0)).abs() < EPSILON);
+    }
+
+    #[test]
+    fn test_normalizer_max() {
+        let x = array![[3.0, -4.0], [1.0, 2.0]];
+        let mut norm = Normalizer::new().with_norm(NormType::Max);
+        let out = norm.fit_transform(&x).unwrap();
+        // row 0: max|v| = 4 -> [0.75, -1.0]
+        assert!((out[[0, 0]] - 0.75).abs() < EPSILON);
+        assert!((out[[0, 1]] - (-1.0)).abs() < EPSILON);
+        // row 1: max|v| = 2 -> [0.5, 1.0]
+        assert!((out[[1, 0]] - 0.5).abs() < EPSILON);
+    }
+
+    #[test]
+    fn test_normalizer_feature_names() {
+        let x = array![[1.0, 2.0, 3.0]];
+        let mut norm = Normalizer::new();
+        norm.fit(&x).unwrap();
+        assert_eq!(norm.n_features_in(), Some(3));
+        assert_eq!(norm.n_features_out(), Some(3));
+        let names = norm.get_feature_names_out(None).unwrap();
+        assert_eq!(names.len(), 3);
+    }
+
+    // ==================== Binarizer Tests ====================
+
+    #[test]
+    fn test_binarizer_default() {
+        let x = array![[-1.0, 0.0, 1.0], [0.5, -0.5, 0.0]];
+        let mut bin = Binarizer::new();
+        let out = bin.fit_transform(&x).unwrap();
+        // threshold=0: >0 -> 1, <=0 -> 0
+        assert!((out[[0, 0]] - 0.0).abs() < EPSILON); // -1 <= 0
+        assert!((out[[0, 1]] - 0.0).abs() < EPSILON); //  0 <= 0
+        assert!((out[[0, 2]] - 1.0).abs() < EPSILON); //  1 > 0
+        assert!((out[[1, 0]] - 1.0).abs() < EPSILON); //  0.5 > 0
+        assert!((out[[1, 1]] - 0.0).abs() < EPSILON); // -0.5 <= 0
+        assert!((out[[1, 2]] - 0.0).abs() < EPSILON); //  0 <= 0
+    }
+
+    #[test]
+    fn test_binarizer_custom_threshold() {
+        let x = array![[1.0, 2.0, 3.0, 4.0]];
+        let mut bin = Binarizer::new().with_threshold(2.5);
+        let out = bin.fit_transform(&x).unwrap();
+        assert!((out[[0, 0]] - 0.0).abs() < EPSILON); // 1 <= 2.5
+        assert!((out[[0, 1]] - 0.0).abs() < EPSILON); // 2 <= 2.5
+        assert!((out[[0, 2]] - 1.0).abs() < EPSILON); // 3 > 2.5
+        assert!((out[[0, 3]] - 1.0).abs() < EPSILON); // 4 > 2.5
+    }
+
+    #[test]
+    fn test_binarizer_feature_names() {
+        let x = array![[1.0, 2.0]];
+        let mut bin = Binarizer::new();
+        bin.fit(&x).unwrap();
+        assert_eq!(bin.n_features_in(), Some(2));
+        assert_eq!(bin.n_features_out(), Some(2));
     }
 }

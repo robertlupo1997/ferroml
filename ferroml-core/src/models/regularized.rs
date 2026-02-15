@@ -595,44 +595,62 @@ impl Model for LassoRegression {
             Array1::zeros(p)
         };
 
-        // Precompute X'X diagonal and X'y
-        let mut x_col_norms_sq = Array1::zeros(p);
-        for j in 0..p {
-            x_col_norms_sq[j] = x_centered.column(j).dot(&x_centered.column(j));
-        }
+        // Precompute Gram matrix (X'X) when p is manageable, otherwise use column dots
         let xty = x_centered.t().dot(&y_centered);
+        let gram = if p <= 500 {
+            Some(x_centered.t().dot(&x_centered))
+        } else {
+            None
+        };
+
+        let mut x_col_norms_sq = Array1::zeros(p);
+        if let Some(ref g) = gram {
+            for j in 0..p {
+                x_col_norms_sq[j] = g[[j, j]];
+            }
+        } else {
+            for j in 0..p {
+                x_col_norms_sq[j] = x_centered.column(j).dot(&x_centered.column(j));
+            }
+        }
 
         // Coordinate descent
         let alpha_n = self.alpha * n as f64;
         let mut n_iter = 0;
 
         for iter in 0..self.max_iter {
-            let coef_old = coef.clone();
+            let mut max_change = 0.0f64;
 
             for j in 0..p {
                 if x_col_norms_sq[j] < 1e-14 {
                     continue;
                 }
 
-                // Compute partial residual
+                // Compute partial residual using Gram matrix or column dots
                 let mut partial_residual = xty[j];
-                for k in 0..p {
-                    if k != j {
-                        partial_residual -=
-                            x_centered.column(j).dot(&x_centered.column(k)) * coef[k];
+                if let Some(ref g) = gram {
+                    for k in 0..p {
+                        if k != j {
+                            partial_residual -= g[[j, k]] * coef[k];
+                        }
+                    }
+                } else {
+                    for k in 0..p {
+                        if k != j {
+                            partial_residual -=
+                                x_centered.column(j).dot(&x_centered.column(k)) * coef[k];
+                        }
                     }
                 }
 
                 // Soft thresholding
-                coef[j] = soft_threshold(partial_residual, alpha_n) / x_col_norms_sq[j];
+                let new_coef = soft_threshold(partial_residual, alpha_n) / x_col_norms_sq[j];
+                max_change = max_change.max((new_coef - coef[j]).abs());
+                coef[j] = new_coef;
             }
 
             n_iter = iter + 1;
 
-            // Check convergence
-            let max_change = (&coef - &coef_old)
-                .mapv(|c| c.abs())
-                .fold(0.0_f64, |a, &b| a.max(b));
             if max_change < self.tol {
                 break;
             }
@@ -987,12 +1005,24 @@ impl Model for ElasticNet {
             Array1::zeros(p)
         };
 
-        // Precompute X'X diagonal and X'y
-        let mut x_col_norms_sq = Array1::zeros(p);
-        for j in 0..p {
-            x_col_norms_sq[j] = x_centered.column(j).dot(&x_centered.column(j));
-        }
+        // Precompute Gram matrix (X'X) when p is manageable
         let xty = x_centered.t().dot(&y_centered);
+        let gram = if p <= 500 {
+            Some(x_centered.t().dot(&x_centered))
+        } else {
+            None
+        };
+
+        let mut x_col_norms_sq = Array1::zeros(p);
+        if let Some(ref g) = gram {
+            for j in 0..p {
+                x_col_norms_sq[j] = g[[j, j]];
+            }
+        } else {
+            for j in 0..p {
+                x_col_norms_sq[j] = x_centered.column(j).dot(&x_centered.column(j));
+            }
+        }
 
         // ElasticNet coordinate descent
         let alpha_l1 = self.alpha * self.l1_ratio * n as f64;
@@ -1000,7 +1030,7 @@ impl Model for ElasticNet {
         let mut n_iter = 0;
 
         for iter in 0..self.max_iter {
-            let coef_old = coef.clone();
+            let mut max_change = 0.0f64;
 
             for j in 0..p {
                 let denom = x_col_norms_sq[j] + alpha_l2;
@@ -1008,25 +1038,31 @@ impl Model for ElasticNet {
                     continue;
                 }
 
-                // Compute partial residual
+                // Compute partial residual using Gram matrix or column dots
                 let mut partial_residual = xty[j];
-                for k in 0..p {
-                    if k != j {
-                        partial_residual -=
-                            x_centered.column(j).dot(&x_centered.column(k)) * coef[k];
+                if let Some(ref g) = gram {
+                    for k in 0..p {
+                        if k != j {
+                            partial_residual -= g[[j, k]] * coef[k];
+                        }
+                    }
+                } else {
+                    for k in 0..p {
+                        if k != j {
+                            partial_residual -=
+                                x_centered.column(j).dot(&x_centered.column(k)) * coef[k];
+                        }
                     }
                 }
 
                 // Soft thresholding with L2 scaling
-                coef[j] = soft_threshold(partial_residual, alpha_l1) / denom;
+                let new_coef = soft_threshold(partial_residual, alpha_l1) / denom;
+                max_change = max_change.max((new_coef - coef[j]).abs());
+                coef[j] = new_coef;
             }
 
             n_iter = iter + 1;
 
-            // Check convergence
-            let max_change = (&coef - &coef_old)
-                .mapv(|c| c.abs())
-                .fold(0.0_f64, |a, &b| a.max(b));
             if max_change < self.tol {
                 break;
             }
@@ -1955,6 +1991,168 @@ impl Model for ElasticNetCV {
 }
 
 // =============================================================================
+// RidgeClassifier
+// =============================================================================
+
+/// Ridge Classifier
+///
+/// Classification using Ridge regression on {-1, +1} encoded targets.
+/// For binary classification, fits a single Ridge and thresholds at 0.
+/// For multiclass, fits one Ridge per class (One-vs-Rest) and predicts argmax.
+///
+/// This is equivalent to sklearn's `RidgeClassifier`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RidgeClassifier {
+    /// Regularization strength
+    pub alpha: f64,
+    /// Whether to fit an intercept
+    pub fit_intercept: bool,
+
+    // Fitted state
+    classes: Option<Array1<f64>>,
+    /// One Ridge per class (or one for binary)
+    ridges: Option<Vec<RidgeRegression>>,
+    n_features: Option<usize>,
+}
+
+impl RidgeClassifier {
+    /// Create a new RidgeClassifier with the given regularization strength.
+    pub fn new(alpha: f64) -> Self {
+        Self {
+            alpha,
+            fit_intercept: true,
+            classes: None,
+            ridges: None,
+            n_features: None,
+        }
+    }
+
+    /// Set whether to fit an intercept.
+    pub fn with_fit_intercept(mut self, fit_intercept: bool) -> Self {
+        self.fit_intercept = fit_intercept;
+        self
+    }
+
+    /// Get the unique classes.
+    pub fn classes(&self) -> Option<&Array1<f64>> {
+        self.classes.as_ref()
+    }
+
+    /// Compute decision function values for each class.
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.ridges, "decision_function")?;
+        let n_features = self.n_features.unwrap();
+        validate_predict_input(x, n_features)?;
+
+        let ridges = self.ridges.as_ref().unwrap();
+        let n_samples = x.nrows();
+        let n_outputs = ridges.len();
+        let mut decision = Array2::zeros((n_samples, n_outputs));
+
+        for (j, ridge) in ridges.iter().enumerate() {
+            let pred = ridge.predict(x)?;
+            decision.column_mut(j).assign(&pred);
+        }
+
+        Ok(decision)
+    }
+}
+
+impl Model for RidgeClassifier {
+    fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        let classes = crate::models::get_unique_classes(y);
+        let n_classes = classes.len();
+        if n_classes < 2 {
+            return Err(FerroError::invalid_input(
+                "RidgeClassifier requires at least 2 classes",
+            ));
+        }
+
+        let n_features = x.ncols();
+        let mut ridges = Vec::with_capacity(if n_classes == 2 { 1 } else { n_classes });
+
+        if n_classes == 2 {
+            // Binary: encode as {-1, +1}
+            let y_encoded: Array1<f64> = y
+                .iter()
+                .map(|&v| {
+                    if (v - classes[0]).abs() < 1e-10 {
+                        -1.0
+                    } else {
+                        1.0
+                    }
+                })
+                .collect();
+            let mut ridge = RidgeRegression::new(self.alpha).with_fit_intercept(self.fit_intercept);
+            ridge.fit(x, &y_encoded)?;
+            ridges.push(ridge);
+        } else {
+            // Multiclass: OvR, one Ridge per class
+            for &c in classes.iter() {
+                let y_encoded: Array1<f64> = y
+                    .iter()
+                    .map(|&v| if (v - c).abs() < 1e-10 { 1.0 } else { -1.0 })
+                    .collect();
+                let mut ridge =
+                    RidgeRegression::new(self.alpha).with_fit_intercept(self.fit_intercept);
+                ridge.fit(x, &y_encoded)?;
+                ridges.push(ridge);
+            }
+        }
+
+        self.classes = Some(classes);
+        self.ridges = Some(ridges);
+        self.n_features = Some(n_features);
+        Ok(())
+    }
+
+    fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+        let decision = self.decision_function(x)?;
+        let classes = self.classes.as_ref().unwrap();
+
+        if classes.len() == 2 {
+            // Binary: threshold at 0
+            Ok(decision
+                .column(0)
+                .iter()
+                .map(|&v| if v >= 0.0 { classes[1] } else { classes[0] })
+                .collect())
+        } else {
+            // Multiclass: argmax
+            Ok(decision
+                .rows()
+                .into_iter()
+                .map(|row| {
+                    let max_idx = row
+                        .iter()
+                        .enumerate()
+                        .max_by(|(_, a), (_, b)| {
+                            a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                        .map(|(i, _)| i)
+                        .unwrap_or(0);
+                    classes[max_idx]
+                })
+                .collect())
+        }
+    }
+
+    fn is_fitted(&self) -> bool {
+        self.ridges.is_some()
+    }
+
+    fn n_features(&self) -> Option<usize> {
+        self.n_features
+    }
+
+    fn model_name(&self) -> &str {
+        "RidgeClassifier"
+    }
+}
+
+// =============================================================================
 // Helper Functions
 // =============================================================================
 
@@ -2488,5 +2686,113 @@ mod tests {
 
         let mut elastic = ElasticNet::new(1.0, 1.5);
         assert!(elastic.fit(&x, &y).is_err());
+    }
+
+    // -------------------------------------------------------------------------
+    // RidgeClassifier Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_ridge_classifier_binary() {
+        // Two well-separated clusters
+        let x = Array2::from_shape_vec(
+            (8, 2),
+            vec![
+                1.0, 1.0, 2.0, 1.0, 1.0, 2.0, 2.0, 2.0, // class 0
+                6.0, 6.0, 7.0, 6.0, 6.0, 7.0, 7.0, 7.0, // class 1
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]);
+
+        let mut clf = RidgeClassifier::new(1.0);
+        clf.fit(&x, &y).unwrap();
+
+        assert!(clf.is_fitted());
+        assert_eq!(clf.n_features(), Some(2));
+
+        let preds = clf.predict(&x).unwrap();
+        // Should classify training data correctly
+        for i in 0..4 {
+            assert!((preds[i] - 0.0).abs() < 1e-10, "Expected class 0 at {}", i);
+        }
+        for i in 4..8 {
+            assert!((preds[i] - 1.0).abs() < 1e-10, "Expected class 1 at {}", i);
+        }
+    }
+
+    #[test]
+    fn test_ridge_classifier_multiclass() {
+        // Well-separated clusters for reliable multiclass
+        let x = Array2::from_shape_vec(
+            (12, 2),
+            vec![
+                0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, // class 0
+                10.0, 0.0, 11.0, 0.0, 10.0, 1.0, 11.0, 1.0, // class 1
+                5.0, 10.0, 6.0, 10.0, 5.0, 11.0, 6.0, 11.0, // class 2
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0,
+        ]);
+
+        let mut clf = RidgeClassifier::new(0.1);
+        clf.fit(&x, &y).unwrap();
+
+        let preds = clf.predict(&x).unwrap();
+        let correct: usize = preds
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (**p - **t).abs() < 1e-10)
+            .count();
+        assert!(
+            correct >= 10,
+            "Expected at least 10/12 correct, got {}",
+            correct
+        );
+    }
+
+    #[test]
+    fn test_ridge_classifier_decision_function() {
+        let x = Array2::from_shape_vec(
+            (6, 2),
+            vec![
+                1.0, 1.0, 2.0, 2.0, 3.0, 3.0, // class 0
+                7.0, 7.0, 8.0, 8.0, 9.0, 9.0, // class 1
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+
+        let mut clf = RidgeClassifier::new(1.0);
+        clf.fit(&x, &y).unwrap();
+
+        let decision = clf.decision_function(&x).unwrap();
+        // Binary: 1 column
+        assert_eq!(decision.ncols(), 1);
+        // Class 0 samples should have negative decision values
+        for i in 0..3 {
+            assert!(decision[[i, 0]] < 0.0, "Expected negative for class 0");
+        }
+        // Class 1 samples should have positive decision values
+        for i in 3..6 {
+            assert!(decision[[i, 0]] > 0.0, "Expected positive for class 1");
+        }
+    }
+
+    #[test]
+    fn test_ridge_classifier_not_fitted() {
+        let clf = RidgeClassifier::new(1.0);
+        let x = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
+        assert!(clf.predict(&x).is_err());
+    }
+
+    #[test]
+    fn test_ridge_classifier_single_class_error() {
+        let x = Array2::from_shape_vec((3, 2), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0]);
+        let mut clf = RidgeClassifier::new(1.0);
+        assert!(clf.fit(&x, &y).is_err());
     }
 }

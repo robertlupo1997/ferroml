@@ -31,8 +31,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 // Submodules
+pub mod adaboost;
 pub mod boosting;
 pub mod calibration;
+pub mod extra_trees;
 pub mod forest;
 pub mod hist_boosting;
 pub mod knn;
@@ -42,6 +44,7 @@ pub mod naive_bayes;
 pub mod quantile;
 pub mod regularized;
 pub mod robust;
+pub mod sgd;
 pub mod svm;
 pub mod traits;
 pub mod tree;
@@ -50,6 +53,7 @@ pub mod tree;
 mod compliance_tests;
 
 // Re-export models for convenience
+pub use adaboost::{AdaBoostClassifier, AdaBoostLoss, AdaBoostRegressor};
 pub use boosting::{
     ClassificationLoss, EarlyStopping, GradientBoostingClassifier, GradientBoostingRegressor,
     LearningRateSchedule, RegressionLoss, TrainingHistory,
@@ -58,6 +62,7 @@ pub use calibration::{
     calibration_curve, CalibrableClassifier, CalibratedClassifierCV, CalibrationMethod,
     CalibrationResult, Calibrator, IsotonicCalibrator, SigmoidCalibrator,
 };
+pub use extra_trees::{ExtraTreesClassifier, ExtraTreesRegressor};
 pub use forest::{
     FeatureImportanceWithCI, MaxFeatures, RandomForestClassifier, RandomForestRegressor,
 };
@@ -68,7 +73,7 @@ pub use hist_boosting::{
 };
 pub use knn::{
     BallTree, DistanceMetric, KDTree, KNNAlgorithm, KNNWeights, KNeighborsClassifier,
-    KNeighborsRegressor,
+    KNeighborsRegressor, NearestCentroid,
 };
 pub use linear::LinearRegression;
 pub use logistic::{LogisticRegression, OddsRatioInfo};
@@ -76,16 +81,21 @@ pub use naive_bayes::{BernoulliNB, GaussianNB, MultinomialNB};
 pub use quantile::{MultiQuantileResults, QuantileRegression};
 pub use regularized::{
     elastic_net_path, lasso_path, ElasticNet, ElasticNetCV, LassoCV, LassoRegression,
-    RegularizationPath, RidgeCV, RidgeRegression,
+    RegularizationPath, RidgeCV, RidgeClassifier, RidgeRegression,
 };
 pub use robust::{MEstimator, RobustRegression, ScaleMethod};
+pub use sgd::{
+    LearningRateScheduleType as SGDLearningRate, PassiveAggressiveClassifier, Penalty, Perceptron,
+    SGDClassifier, SGDClassifierLoss, SGDRegressor, SGDRegressorLoss,
+};
 pub use svm::{
     ClassWeight, Kernel, LinearSVC, LinearSVCLoss, LinearSVR, LinearSVRLoss, MulticlassStrategy,
     SVC, SVR,
 };
 pub use traits::*;
 pub use tree::{
-    DecisionTreeClassifier, DecisionTreeRegressor, SplitCriterion, TreeNode, TreeStructure,
+    DecisionTreeClassifier, DecisionTreeRegressor, SplitCriterion, SplitStrategy, TreeNode,
+    TreeStructure,
 };
 
 /// Core trait for all machine learning models

@@ -131,24 +131,25 @@ impl Kernel {
     }
 
     /// Compute the kernel function between two vectors.
+    ///
+    /// Uses SIMD-accelerated dot product and distance when the `simd` feature is
+    /// enabled.
     #[inline]
     pub fn compute(&self, x: &[f64], y: &[f64]) -> f64 {
         match self {
-            Kernel::Linear => dot_product(x, y),
+            Kernel::Linear => crate::linalg::dot_product(x, y),
             Kernel::Rbf { gamma } => {
-                let diff_sq: f64 = x
-                    .iter()
-                    .zip(y.iter())
-                    .map(|(xi, yi)| (xi - yi).powi(2))
-                    .sum();
+                let diff_sq = crate::linalg::squared_euclidean_distance(x, y);
                 (-gamma * diff_sq).exp()
             }
             Kernel::Polynomial {
                 gamma,
                 coef0,
                 degree,
-            } => (gamma * dot_product(x, y) + coef0).powi(*degree as i32),
-            Kernel::Sigmoid { gamma, coef0 } => (gamma * dot_product(x, y) + coef0).tanh(),
+            } => (gamma * crate::linalg::dot_product(x, y) + coef0).powi(*degree as i32),
+            Kernel::Sigmoid { gamma, coef0 } => {
+                (gamma * crate::linalg::dot_product(x, y) + coef0).tanh()
+            }
         }
     }
 
@@ -530,15 +531,27 @@ impl BinarySVC {
     }
 
     /// Compute full kernel matrix.
+    ///
+    /// Optimized: uses array slices directly instead of allocating Vecs per pair.
     fn compute_kernel_matrix(&self, x: &Array2<f64>) -> Array2<f64> {
         let n = x.nrows();
+        // Ensure contiguous layout for slice access
+        let x_c = if x.is_standard_layout() {
+            None
+        } else {
+            Some(x.as_standard_layout().into_owned())
+        };
+        let x_ref = x_c.as_ref().unwrap_or(x);
+
         let mut k = Array2::zeros((n, n));
 
         for i in 0..n {
-            let xi: Vec<f64> = x.row(i).to_vec();
+            let ri = x_ref.row(i);
+            let xi = ri.as_slice().unwrap();
             for j in i..n {
-                let xj: Vec<f64> = x.row(j).to_vec();
-                let val = self.kernel.compute(&xi, &xj);
+                let rj = x_ref.row(j);
+                let xj = rj.as_slice().unwrap();
+                let val = self.kernel.compute(xi, xj);
                 k[[i, j]] = val;
                 k[[j, i]] = val;
             }
@@ -548,6 +561,8 @@ impl BinarySVC {
     }
 
     /// Predict decision values for samples.
+    ///
+    /// Optimized: uses array slices directly instead of allocating Vecs per sample.
     fn decision_function(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let sv = self
             .support_vectors
@@ -556,15 +571,31 @@ impl BinarySVC {
         let dual_coef = self.dual_coef.as_ref().unwrap();
         let n_samples = x.nrows();
 
+        // Ensure contiguous layout for slice access
+        let x_c = if x.is_standard_layout() {
+            None
+        } else {
+            Some(x.as_standard_layout().into_owned())
+        };
+        let x_ref = x_c.as_ref().unwrap_or(x);
+        let sv_c = if sv.is_standard_layout() {
+            None
+        } else {
+            Some(sv.as_standard_layout().into_owned())
+        };
+        let sv_ref = sv_c.as_ref().unwrap_or(sv);
+
         let mut decisions = Array1::zeros(n_samples);
 
         for i in 0..n_samples {
-            let xi: Vec<f64> = x.row(i).to_vec();
+            let ri = x_ref.row(i);
+            let xi = ri.as_slice().unwrap();
             let mut sum = 0.0;
 
             for (j, coef) in dual_coef.iter().enumerate() {
-                let svj: Vec<f64> = sv.row(j).to_vec();
-                sum += coef * self.kernel.compute(&xi, &svj);
+                let rj = sv_ref.row(j);
+                let svj = rj.as_slice().unwrap();
+                sum += coef * self.kernel.compute(xi, svj);
             }
 
             decisions[i] = sum + self.intercept;
@@ -2445,16 +2476,10 @@ impl Model for LinearSVR {
 // Helper Functions
 // =============================================================================
 
-/// Compute dot product between two slices.
-#[inline]
-fn dot_product(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b.iter()).map(|(ai, bi)| ai * bi).sum()
-}
-
 /// Compute dot product between an Array1 and another Array1.
 #[inline]
 fn dot_product_array(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
-    a.iter().zip(b.iter()).map(|(ai, bi)| ai * bi).sum()
+    a.dot(b)
 }
 
 // =============================================================================

@@ -167,7 +167,7 @@ impl Default for MaxFeatures {
 
 impl MaxFeatures {
     /// Compute the actual number of features to use
-    fn compute(&self, n_features: usize) -> usize {
+    pub fn compute(&self, n_features: usize) -> usize {
         match self {
             MaxFeatures::All => n_features,
             MaxFeatures::Sqrt => (n_features as f64).sqrt().ceil() as usize,

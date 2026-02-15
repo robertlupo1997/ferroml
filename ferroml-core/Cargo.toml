@@ -36,6 +36,11 @@ crossbeam.workspace = true
 # SIMD (optional)
 wide = { workspace = true, optional = true }
 
+# GPU (optional)
+wgpu = { version = "23", optional = true }
+bytemuck = { version = "1", features = ["derive"], optional = true }
+pollster = { version = "0.4", optional = true }
+
 # Sparse matrices (optional)
 sprs = { workspace = true, optional = true }
 
@@ -66,6 +71,7 @@ test-case = "3.3"
 rstest = "0.23"
 dhat = "0.3"
 memory-stats = "1.2"
+pollster = "0.4"
 
 # Optional dependencies for advanced testing
 [dependencies.ort]
@@ -89,6 +95,11 @@ harness = false
 [[bench]]
 name = "performance_optimizations"
 harness = false
+
+[[bench]]
+name = "gpu_benchmarks"
+harness = false
+required-features = ["gpu"]
 
 [[example]]
 name = "linear_regression"
@@ -118,6 +129,7 @@ sparse = ["sprs"]  # Native sparse matrix operations
 onnx = []  # ONNX export support
 onnx-validation = ["ort"]  # For ONNX round-trip testing
 faer-backend = ["faer"]    # High-performance linear algebra
+gpu = ["wgpu", "bytemuck", "pollster"]  # GPU acceleration via wgpu
 
 # docs.rs configuration
 [package.metadata.docs.rs]

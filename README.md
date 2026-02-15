@@ -189,6 +189,7 @@ ferroml-core = { version = "0.1", features = ["simd", "sparse", "onnx"] }
 | `simd` | SIMD acceleration for distance calculations |
 | `sparse` | Native sparse matrix operations |
 | `onnx` | ONNX model export (enabled by default) |
+| `gpu` | GPU acceleration via wgpu (GEMM, distance matrix) |
 
 ## Performance
 

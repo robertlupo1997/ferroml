@@ -63,6 +63,10 @@ pub struct MLP {
     /// Adam optimizer state
     #[serde(skip)]
     pub adam_state: Option<AdamState>,
+    /// Optional GPU backend for accelerated matrix operations
+    #[cfg(feature = "gpu")]
+    #[serde(skip)]
+    pub gpu_backend: Option<std::sync::Arc<dyn crate::gpu::GpuBackend>>,
 }
 
 impl Default for MLP {
@@ -89,6 +93,8 @@ impl Default for MLP {
             history: None,
             sgd_state: None,
             adam_state: None,
+            #[cfg(feature = "gpu")]
+            gpu_backend: None,
         }
     }
 }
@@ -125,6 +131,13 @@ impl MLP {
     /// Set solver type
     pub fn solver(mut self, solver: Solver) -> Self {
         self.solver = solver;
+        self
+    }
+
+    /// Set GPU backend for accelerated matrix operations
+    #[cfg(feature = "gpu")]
+    pub fn with_gpu(mut self, backend: std::sync::Arc<dyn crate::gpu::GpuBackend>) -> Self {
+        self.gpu_backend = Some(backend);
         self
     }
 
@@ -294,6 +307,14 @@ impl MLP {
                     &mut rng,
                 )?;
             } else {
+                // Use GPU-accelerated forward when available
+                #[cfg(feature = "gpu")]
+                {
+                    if let Some(ref gpu) = self.gpu_backend {
+                        output = layer.forward_gpu(&output, training, gpu.as_ref())?;
+                        continue;
+                    }
+                }
                 output = layer.forward(&output, training)?;
             }
         }
@@ -318,6 +339,13 @@ impl MLP {
 
         // Backpropagate through layers in reverse order
         for layer in self.layers.iter().rev() {
+            #[cfg(feature = "gpu")]
+            let (grad_w, grad_b, grad_input) = if let Some(ref gpu) = self.gpu_backend {
+                layer.backward_gpu(&grad, gpu.as_ref())?
+            } else {
+                layer.backward(&grad)?
+            };
+            #[cfg(not(feature = "gpu"))]
             let (grad_w, grad_b, grad_input) = layer.backward(&grad)?;
             gradients.push((grad_w, grad_b));
             grad = grad_input;

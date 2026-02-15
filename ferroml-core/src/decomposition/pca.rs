@@ -1186,49 +1186,11 @@ impl Transformer for IncrementalPCA {
     }
 }
 
-/// Simple QR decomposition using Gram-Schmidt.
-#[allow(clippy::many_single_char_names)]
+/// QR decomposition — delegates to shared linalg module (Modified Gram-Schmidt,
+/// with optional faer backend for high-performance on large matrices).
 #[allow(clippy::unnecessary_wraps)]
 fn qr_decomposition(a: &Array2<f64>) -> Result<(Array2<f64>, Array2<f64>)> {
-    let (m, n) = a.dim();
-    let k = m.min(n);
-
-    let mut q = Array2::zeros((m, k));
-    let mut r = Array2::zeros((k, n));
-
-    for j in 0..k {
-        // Start with column j of A
-        let mut v = a.column(j).to_owned();
-
-        // Subtract projections onto previous q vectors (Modified Gram-Schmidt)
-        for i in 0..j {
-            let qi = q.column(i);
-            // Use current v, not original column - this is Modified Gram-Schmidt
-            let proj: f64 = qi.dot(&v);
-            r[[i, j]] = proj;
-            v -= &(&qi * proj);
-        }
-
-        // Normalize
-        let norm: f64 = v.dot(&v).sqrt();
-        if norm > 1e-10 {
-            r[[j, j]] = norm;
-            q.column_mut(j).assign(&(&v / norm));
-        } else {
-            // Handle near-zero column
-            r[[j, j]] = 0.0;
-            q.column_mut(j).fill(0.0);
-        }
-    }
-
-    // Fill remaining R columns
-    for j in k..n {
-        for i in 0..k {
-            r[[i, j]] = q.column(i).dot(&a.column(j));
-        }
-    }
-
-    Ok((q, r))
+    crate::linalg::qr_decomposition(a)
 }
 
 #[cfg(test)]

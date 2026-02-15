@@ -522,45 +522,9 @@ impl Transformer for TruncatedSVD {
 ///
 /// Returns (Q, R) where Q is orthonormal and R is upper triangular.
 #[allow(clippy::many_single_char_names)]
+/// QR decomposition — delegates to shared linalg module.
 fn qr_decomposition(a: &Array2<f64>) -> Result<(Array2<f64>, Array2<f64>)> {
-    let (m, n) = a.dim();
-    let k = m.min(n);
-
-    let mut q = Array2::zeros((m, k));
-    let mut r = Array2::zeros((k, n));
-
-    for j in 0..k {
-        // Start with column j of A
-        let mut v = a.column(j).to_owned();
-
-        // Modified Gram-Schmidt: subtract projections onto previous q vectors
-        for i in 0..j {
-            let qi = q.column(i);
-            let proj: f64 = qi.dot(&v);
-            r[[i, j]] = proj;
-            v -= &(&qi * proj);
-        }
-
-        // Normalize
-        let norm: f64 = v.dot(&v).sqrt();
-        if norm > 1e-14 {
-            r[[j, j]] = norm;
-            q.column_mut(j).assign(&(&v / norm));
-        } else {
-            // Handle near-zero column (linearly dependent)
-            r[[j, j]] = 0.0;
-            q.column_mut(j).fill(0.0);
-        }
-    }
-
-    // Fill remaining R columns (if n > m)
-    for j in k..n {
-        for i in 0..k {
-            r[[i, j]] = q.column(i).dot(&a.column(j));
-        }
-    }
-
-    Ok((q, r))
+    crate::linalg::qr_decomposition(a)
 }
 
 #[cfg(test)]

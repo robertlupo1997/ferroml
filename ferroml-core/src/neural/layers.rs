@@ -266,6 +266,82 @@ impl Layer {
         self.last_output = None;
         self.dropout_mask = None;
     }
+
+    /// GPU-accelerated forward pass
+    ///
+    /// Uses the GPU backend for matrix multiplication when available.
+    /// Falls back to CPU if GPU matmul fails.
+    #[cfg(feature = "gpu")]
+    pub fn forward_gpu(
+        &mut self,
+        input: &Array2<f64>,
+        training: bool,
+        gpu: &dyn crate::gpu::GpuBackend,
+    ) -> Result<Array2<f64>> {
+        if input.ncols() != self.n_inputs {
+            return Err(crate::FerroError::InvalidInput(format!(
+                "Expected {} input features, got {}",
+                self.n_inputs,
+                input.ncols()
+            )));
+        }
+
+        // z = X @ W + b (GPU-accelerated matmul)
+        let z = match gpu.matmul(input, &self.weights) {
+            Ok(result) => result + &self.biases,
+            Err(_) => input.dot(&self.weights) + &self.biases, // CPU fallback
+        };
+
+        let output = self.activation.apply_2d(&z);
+
+        if training {
+            self.last_input = Some(input.clone());
+            self.last_z = Some(z);
+            self.last_output = Some(output.clone());
+        }
+
+        Ok(output)
+    }
+
+    /// GPU-accelerated backward pass
+    #[cfg(feature = "gpu")]
+    pub fn backward_gpu(
+        &self,
+        grad_output: &Array2<f64>,
+        gpu: &dyn crate::gpu::GpuBackend,
+    ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
+        let z = self
+            .last_z
+            .as_ref()
+            .ok_or_else(|| crate::FerroError::not_fitted("backward"))?;
+        let output = self
+            .last_output
+            .as_ref()
+            .ok_or_else(|| crate::FerroError::not_fitted("backward"))?;
+        let input = self
+            .last_input
+            .as_ref()
+            .ok_or_else(|| crate::FerroError::not_fitted("backward"))?;
+
+        let grad_output = match &self.dropout_mask {
+            Some(mask) => grad_output * mask,
+            None => grad_output.clone(),
+        };
+
+        let activation_deriv = self.activation.derivative_2d(z, output);
+        let delta = &grad_output * &activation_deriv;
+
+        // GPU-accelerated matrix multiplications
+        let grad_weights = gpu
+            .matmul(&input.t().to_owned(), &delta)
+            .unwrap_or_else(|_| input.t().dot(&delta));
+        let grad_biases = delta.sum_axis(Axis(0));
+        let grad_input = gpu
+            .matmul(&delta, &self.weights.t().to_owned())
+            .unwrap_or_else(|_| delta.dot(&self.weights.t()));
+
+        Ok((grad_weights, grad_biases, grad_input))
+    }
 }
 
 #[cfg(test)]

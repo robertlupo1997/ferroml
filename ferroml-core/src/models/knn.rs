@@ -63,7 +63,7 @@ use crate::models::{
     PredictionInterval, ProbabilisticModel,
 };
 use crate::{FerroError, Result};
-use ndarray::{Array1, Array2};
+use ndarray::{Array1, Array2, Axis};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -1407,6 +1407,177 @@ impl Model for KNeighborsRegressor {
 }
 
 // =============================================================================
+// NearestCentroid Classifier
+// =============================================================================
+
+/// Nearest Centroid classifier.
+///
+/// Classifies each sample by the class whose centroid is nearest.
+/// The centroid of a class is the mean of all training samples in that class.
+///
+/// This is equivalent to sklearn's `NearestCentroid`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NearestCentroid {
+    /// Distance metric for centroid comparison
+    pub metric: DistanceMetric,
+    /// Shrink threshold (optional). Centroids are shrunk toward the overall
+    /// centroid by this factor. `None` means no shrinkage.
+    pub shrink_threshold: Option<f64>,
+
+    // Fitted state
+    classes: Option<Array1<f64>>,
+    centroids: Option<Array2<f64>>,
+    n_features: Option<usize>,
+}
+
+impl NearestCentroid {
+    /// Create a new NearestCentroid with Euclidean metric.
+    pub fn new() -> Self {
+        Self {
+            metric: DistanceMetric::Euclidean,
+            shrink_threshold: None,
+            classes: None,
+            centroids: None,
+            n_features: None,
+        }
+    }
+
+    /// Set the distance metric.
+    pub fn with_metric(mut self, metric: DistanceMetric) -> Self {
+        self.metric = metric;
+        self
+    }
+
+    /// Set the shrink threshold for centroid shrinkage.
+    pub fn with_shrink_threshold(mut self, threshold: f64) -> Self {
+        self.shrink_threshold = Some(threshold);
+        self
+    }
+
+    /// Get the fitted centroids, shape (n_classes, n_features).
+    pub fn centroids(&self) -> Option<&Array2<f64>> {
+        self.centroids.as_ref()
+    }
+
+    /// Get the fitted classes.
+    pub fn classes(&self) -> Option<&Array1<f64>> {
+        self.classes.as_ref()
+    }
+}
+
+impl Default for NearestCentroid {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Model for NearestCentroid {
+    fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        let classes = crate::models::get_unique_classes(y);
+        let n_classes = classes.len();
+        if n_classes < 2 {
+            return Err(FerroError::invalid_input(
+                "NearestCentroid requires at least 2 classes",
+            ));
+        }
+
+        let n_features = x.ncols();
+        let mut centroids = Array2::zeros((n_classes, n_features));
+
+        // Compute centroid for each class
+        for (ci, &c) in classes.iter().enumerate() {
+            let mask: Vec<usize> = y
+                .iter()
+                .enumerate()
+                .filter(|(_, &v)| (v - c).abs() < 1e-10)
+                .map(|(i, _)| i)
+                .collect();
+
+            if mask.is_empty() {
+                return Err(FerroError::invalid_input(format!(
+                    "No samples for class {}",
+                    c
+                )));
+            }
+
+            let mut centroid = Array1::zeros(n_features);
+            for &idx in &mask {
+                centroid += &x.row(idx).to_owned();
+            }
+            centroid /= mask.len() as f64;
+            centroids.row_mut(ci).assign(&centroid);
+        }
+
+        // Optional centroid shrinkage
+        if let Some(threshold) = self.shrink_threshold {
+            let overall_centroid = x.mean_axis(Axis(0)).unwrap();
+            for mut row in centroids.rows_mut() {
+                let diff = &row.to_owned() - &overall_centroid;
+                let shrunk: Array1<f64> = diff
+                    .iter()
+                    .map(|&d| {
+                        let sign = d.signum();
+                        let abs_d = d.abs();
+                        sign * (abs_d - threshold).max(0.0)
+                    })
+                    .collect();
+                row.assign(&(&overall_centroid + &shrunk));
+            }
+        }
+
+        self.classes = Some(classes);
+        self.centroids = Some(centroids);
+        self.n_features = Some(n_features);
+        Ok(())
+    }
+
+    fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+        check_is_fitted(&self.centroids, "predict")?;
+        let n_features = self.n_features.unwrap();
+        validate_predict_input(x, n_features)?;
+
+        let classes = self.classes.as_ref().unwrap();
+        let centroids = self.centroids.as_ref().unwrap();
+        let n_samples = x.nrows();
+        let mut predictions = Array1::zeros(n_samples);
+
+        for i in 0..n_samples {
+            let sample = x.row(i);
+            let mut best_dist = f64::INFINITY;
+            let mut best_class = classes[0];
+
+            for (ci, centroid) in centroids.rows().into_iter().enumerate() {
+                let dist = self
+                    .metric
+                    .compute(sample.as_slice().unwrap(), centroid.as_slice().unwrap());
+                if dist < best_dist {
+                    best_dist = dist;
+                    best_class = classes[ci];
+                }
+            }
+
+            predictions[i] = best_class;
+        }
+
+        Ok(predictions)
+    }
+
+    fn is_fitted(&self) -> bool {
+        self.centroids.is_some()
+    }
+
+    fn n_features(&self) -> Option<usize> {
+        self.n_features
+    }
+
+    fn model_name(&self) -> &str {
+        "NearestCentroid"
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
@@ -1953,5 +2124,120 @@ mod tests {
             "Expected class 0.0 on tie, got {}",
             pred[0]
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // NearestCentroid Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_nearest_centroid_basic() {
+        let x = Array2::from_shape_vec(
+            (6, 2),
+            vec![
+                1.0, 1.0, 2.0, 1.0, 1.0, 2.0, // class 0 centroid ~ (1.33, 1.33)
+                7.0, 7.0, 8.0, 7.0, 7.0, 8.0, // class 1 centroid ~ (7.33, 7.33)
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+
+        let mut clf = NearestCentroid::new();
+        clf.fit(&x, &y).unwrap();
+
+        assert!(clf.is_fitted());
+        assert_eq!(clf.n_features(), Some(2));
+
+        let preds = clf.predict(&x).unwrap();
+        for i in 0..3 {
+            assert!((preds[i] - 0.0).abs() < 1e-10);
+        }
+        for i in 3..6 {
+            assert!((preds[i] - 1.0).abs() < 1e-10);
+        }
+    }
+
+    #[test]
+    fn test_nearest_centroid_multiclass() {
+        let x = Array2::from_shape_vec(
+            (9, 2),
+            vec![
+                0.0, 0.0, 1.0, 0.0, 0.0, 1.0, // class 0
+                10.0, 0.0, 11.0, 0.0, 10.0, 1.0, // class 1
+                5.0, 10.0, 6.0, 10.0, 5.0, 11.0, // class 2
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0]);
+
+        let mut clf = NearestCentroid::new();
+        clf.fit(&x, &y).unwrap();
+
+        let preds = clf.predict(&x).unwrap();
+        for (p, t) in preds.iter().zip(y.iter()) {
+            assert!((p - t).abs() < 1e-10, "Expected {}, got {}", t, p);
+        }
+    }
+
+    #[test]
+    fn test_nearest_centroid_centroids() {
+        let x = Array2::from_shape_vec((4, 2), vec![0.0, 0.0, 2.0, 2.0, 10.0, 10.0, 12.0, 12.0])
+            .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut clf = NearestCentroid::new();
+        clf.fit(&x, &y).unwrap();
+
+        let centroids = clf.centroids().unwrap();
+        assert_eq!(centroids.nrows(), 2);
+        // Class 0 centroid = (1, 1)
+        assert!((centroids[[0, 0]] - 1.0).abs() < 1e-10);
+        assert!((centroids[[0, 1]] - 1.0).abs() < 1e-10);
+        // Class 1 centroid = (11, 11)
+        assert!((centroids[[1, 0]] - 11.0).abs() < 1e-10);
+        assert!((centroids[[1, 1]] - 11.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_nearest_centroid_manhattan() {
+        let x = Array2::from_shape_vec((4, 2), vec![0.0, 0.0, 1.0, 1.0, 10.0, 10.0, 11.0, 11.0])
+            .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut clf = NearestCentroid::new().with_metric(DistanceMetric::Manhattan);
+        clf.fit(&x, &y).unwrap();
+
+        let preds = clf.predict(&x).unwrap();
+        assert!((preds[0] - 0.0).abs() < 1e-10);
+        assert!((preds[3] - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_nearest_centroid_shrink_threshold() {
+        let x = Array2::from_shape_vec((4, 2), vec![0.0, 0.0, 2.0, 2.0, 10.0, 10.0, 12.0, 12.0])
+            .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        let mut clf = NearestCentroid::new().with_shrink_threshold(0.5);
+        clf.fit(&x, &y).unwrap();
+
+        // Centroids should be shrunk toward overall centroid (5.5, 5.5)
+        let centroids = clf.centroids().unwrap();
+        // Class 0 original centroid = (1,1), diff from overall = (-4.5, -4.5)
+        // After shrinkage by 0.5: (-4.0, -4.0), so centroid = (1.5, 1.5)
+        assert!((centroids[[0, 0]] - 1.5).abs() < 1e-10);
+        assert!((centroids[[0, 1]] - 1.5).abs() < 1e-10);
+
+        // Should still classify correctly
+        let preds = clf.predict(&x).unwrap();
+        assert!((preds[0] - 0.0).abs() < 1e-10);
+        assert!((preds[3] - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_nearest_centroid_not_fitted() {
+        let clf = NearestCentroid::new();
+        let x = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
+        assert!(clf.predict(&x).is_err());
     }
 }

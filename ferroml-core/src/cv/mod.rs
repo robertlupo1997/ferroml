@@ -55,6 +55,7 @@ mod group;
 mod kfold;
 mod loo;
 mod nested;
+pub mod search;
 mod stratified;
 mod timeseries;
 
@@ -66,6 +67,7 @@ pub use group::{GroupKFold, StratifiedGroupKFold};
 pub use kfold::{KFold, RepeatedKFold};
 pub use loo::{LeaveOneOut, LeavePOut, ShuffleSplit};
 pub use nested::{nested_cv_score, NestedCVConfig, NestedCVFoldResult, NestedCVResult};
+pub use search::{GridSearchCV, ParamGrid, RandomizedSearchCV, SearchResult};
 pub use stratified::{RepeatedStratifiedKFold, StratifiedKFold};
 pub use timeseries::TimeSeriesSplit;
 

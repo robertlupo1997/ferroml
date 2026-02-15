@@ -1,21 +1,21 @@
 ---
 date: 2026-02-09T00:30:00-0500
-updated: 2026-02-10T20:00:00-0500
+updated: 2026-02-10T22:00:00-0500
 researcher: Claude Opus 4.5
-git_commit: 855c546
+git_commit: bd2c014
 git_branch: master
 repository: ferroml
-topic: Sklearn Accuracy Testing, Doctest Fixes & Clustering Implementation
-tags: [sklearn-comparison, python-bindings, knn, decision-tree, preprocessing, doctests, clustering, kmeans, dbscan]
+topic: Sklearn Accuracy Testing, Doctest Fixes, Clustering & Neural Networks
+tags: [sklearn-comparison, python-bindings, knn, decision-tree, preprocessing, doctests, clustering, kmeans, dbscan, neural-networks, mlp]
 status: in_progress
 ---
 
-# Handoff: Sklearn Accuracy Testing, Doctest Fixes & Clustering
+# Handoff: Sklearn Accuracy Testing, Doctest Fixes, Clustering & Neural Networks
 
 ## Task Status
 
 ### Current Phase
-Plan 3 (Clustering) — **Complete** (All tasks done including Python bindings)
+Plan 4 (Neural Networks) — **Complete** (All 10 tasks done including Python bindings)
 
 ### Progress
 - [x] Comprehensive codebase research completed
@@ -34,51 +34,77 @@ Plan 3 (Clustering) — **Complete** (All tasks done including Python bindings)
 - [x] **Plan 2: Selective doctest fixes** — 82 passed, 0 failed, 123 ignored (commit 252733f)
 - [x] **Commit documentation updates** — CHANGELOG, README, docs/, plans/ (commit 6c49f75)
 - [x] **Plan 3: Clustering core implementation** — KMeans, DBSCAN, metrics, diagnostics (commit 855c546)
-- [x] **Task 3.10: Python bindings for clustering** — KMeans, DBSCAN, 7 metric functions
+- [x] **Task 3.10: Python bindings for clustering** — KMeans, DBSCAN, 7 metric functions (commit bd2c014)
+- [x] **Plan 4: Neural Networks implementation** — MLPClassifier, MLPRegressor + Python bindings
 
 ## Recent Commits
 
 | Commit | Description |
 |--------|-------------|
+| bd2c014 | feat: add Python bindings for clustering module |
 | 855c546 | feat: implement clustering module (KMeans, DBSCAN) with statistical extensions |
 | 6c49f75 | docs: add project documentation, roadmap, and implementation plans |
 | 252733f | docs: enable 19 module-level doctests with proper test data |
 | 1972549 | feat: add KNN Python bindings + fix LogisticRegression types + DecisionTree tie-breaking |
 
-## Plan 3: Clustering Implementation (2026-02-10)
+## Plan 4: Neural Networks Implementation (2026-02-10)
 
-### Completed (Tasks 3.1-3.9)
-- **KMeans** (`clustering/kmeans.rs`)
-  - Lloyd's algorithm with kmeans++ initialization
-  - sklearn-compatible API: fit(), predict(), fit_predict()
-  - Statistical extensions: cluster_stability(), silhouette_with_ci()
-  - Optimal k selection: gap statistic and elbow method
+### All Tasks Complete (4.1-4.10)
 
-- **DBSCAN** (`clustering/dbscan.rs`)
-  - Density-based clustering with noise detection
-  - sklearn-compatible API with core_sample_indices_, components_
-  - Statistical extensions: optimal_eps(), cluster_persistence(), noise_analysis()
+**Core Architecture** (`neural/mod.rs`, `neural/mlp.rs`)
+- Neural module structure with Layer trait, activations, optimizers
+- Core MLP with forward pass, backpropagation
+- sklearn-compatible builder API
 
-- **Clustering Metrics** (`clustering/metrics.rs`)
-  - Internal: silhouette_score, calinski_harabasz_score, davies_bouldin_score
-  - External: adjusted_rand_index, normalized_mutual_info
-  - Clustering tendency: hopkins_statistic
+**Activation Functions** (`neural/activations.rs`)
+- ReLU, Sigmoid, Tanh, Softmax, Linear, LeakyReLU, ELU
+- Forward and derivative computations for both 1D and 2D arrays
+- Numerically stable softmax implementation
 
-- **Cluster Diagnostics** (`clustering/diagnostics.rs`)
-  - Variance decomposition (within-cluster SS, between-cluster SS)
-  - Per-cluster silhouette scores and outlier detection
-  - Dunn index and variance ratio
+**Optimizers** (`neural/optimizers.rs`)
+- SGD with momentum
+- Adam optimizer with bias correction
+- Learning rate schedules: Constant, InverseScaling, Adaptive
 
-### Completed (Task 3.10)
-- [x] **Python bindings for clustering** — `ferroml-python/src/clustering.rs`
-  - PyKMeans: fit, predict, fit_predict, cluster_stability, silhouette_with_ci
-  - PyDBSCAN: fit, predict, fit_predict, noise_analysis
-  - Static methods: KMeans.optimal_k, KMeans.elbow, DBSCAN.optimal_eps, DBSCAN.cluster_persistence
-  - 7 metric functions: silhouette_score, silhouette_samples, calinski_harabasz_score, davies_bouldin_score, adjusted_rand_index, normalized_mutual_info, hopkins_statistic
+**MLPClassifier** (`neural/classifier.rs`)
+- sklearn-compatible API: fit(), predict(), predict_proba()
+- Cross-entropy loss with softmax output
+- Early stopping with validation fraction
+- Multiclass classification support
+
+**MLPRegressor** (`neural/regressor.rs`)
+- sklearn-compatible API: fit(), predict(), score()
+- MSE loss with linear output
+- Target normalization for stable training
+- Early stopping support
+
+**Training Diagnostics** (`neural/diagnostics.rs`)
+- Loss curve tracking with convergence detection
+- Gradient statistics per layer
+- Learning rate analysis (too high/low detection)
+- Vanishing/exploding gradient detection
+
+**Weight Analysis** (`neural/analysis.rs`)
+- Weight statistics (mean, std, sparsity, skewness, kurtosis)
+- Dead neuron detection for ReLU networks
+- Weight distribution tests (normality, initialization quality)
+- Weight change analysis
+
+**Uncertainty Quantification** (`neural/uncertainty.rs`)
+- MC Dropout for prediction intervals
+- Confidence interval estimation
+- Calibration analysis (ECE, MCE)
+- Reliability diagram support
+
+**Python Bindings** (`ferroml-python/src/neural.rs`)
+- PyMLPClassifier: fit, predict, predict_proba, classes_, loss_curve_
+- PyMLPRegressor: fit, predict, score, loss_curve_
+- Full sklearn-compatible API
 
 ### Test Results
-- 20 clustering tests pass
-- Clippy clean
+- 75 neural module tests pass
+- 2382 total tests pass (up from 2307)
+- Clippy clean for both ferroml-core and ferroml-python
 
 ## Sklearn Comparison Results
 
@@ -112,7 +138,7 @@ Plan 3 (Clustering) — **Complete** (All tasks done including Python bindings)
 | Plan 1 | 8 | High | **Complete** | Sklearn accuracy testing — all models validated |
 | Plan 2 | 10 | High | **Complete** | Doctests: 82 pass, 0 fail, 123 ignored |
 | Plan 3 | 10 | High | **Complete** | Clustering: KMeans, DBSCAN + Python bindings |
-| Plan 4 | 10 | Medium | Pending | Neural networks (MLP) |
+| Plan 4 | 10 | Medium | **Complete** | Neural networks: MLPClassifier, MLPRegressor + Python bindings |
 | Plan 5 | 8 | Medium | Pending | Code quality cleanup |
 | Plan 6 | 8 | Low | Pending | Advanced features (BCa, GPU) |
 | Plan 7 | 8 | Medium | Pending | Documentation completion |
@@ -126,40 +152,59 @@ Plan 3 (Clustering) — **Complete** (All tasks done including Python bindings)
 - `cargo clean` resolves Windows PDB linker corruption
 - Selective doctest fixes more efficient than fixing all 142
 - Using project's existing rand API (`from_os_rng()`, `random_range()`, `random()`)
+- Following existing patterns (clustering module) for new modules
 
 ### Root Cause Analysis
 - **Doctest "failures"**: Windows-specific PDB file corruption, not code issues
 - **RandomForest variance**: Different RNG implementations between Rust/Python (expected)
 - **Collinear test data**: Linear regression doctests needed non-collinear feature data
 - **Type inference**: ndarray operations sometimes need explicit type annotations
+- **Borrow checker**: Calculate loop bounds before the loop when modifying collections
 
 ## Action Items & Next Steps
 
 Priority order:
-1. [x] **Add Python bindings for clustering** — Task 3.10 ✓
-2. [ ] **Start Plan 4 (Neural Networks)** — MLP implementation
-3. [ ] **Or Plan 5 (Code Quality)** — Cleanup and refactoring
+1. [x] **Plan 4: Neural Networks** — All 10 tasks complete ✓
+2. [ ] **Start Plan 5 (Code Quality)** — Cleanup and refactoring
+3. [ ] **Or Plan 7 (Documentation)** — Complete docstrings and guides
 
 ## Verification Commands
 
 ```bash
-# Verify all tests pass (2307 unit tests)
+# Verify all tests pass (2382 unit tests)
 cargo test -p ferroml-core --lib 2>&1 | tail -5
 
-# Verify clustering tests
-cargo test -p ferroml-core clustering:: 2>&1 | tail -10
+# Verify neural network tests
+cargo test -p ferroml-core neural:: 2>&1 | tail -10
 
 # Check clippy status
 cargo clippy -p ferroml-core -- -D warnings 2>&1 | tail -5
 cargo clippy -p ferroml-python -- -D warnings 2>&1 | tail -5
 
-# Verify Python clustering bindings
-cd ferroml-python && uv run python -c "from ferroml.clustering import KMeans, DBSCAN, silhouette_score; print('OK')"
+# Verify Python neural bindings
+cd ferroml-python && uv run python -c "from ferroml.neural import MLPClassifier, MLPRegressor; print('OK')"
 ```
 
 ## Uncommitted Files
 
 ```
+New (neural network implementation):
+  ferroml-core/src/neural/mod.rs
+  ferroml-core/src/neural/activations.rs
+  ferroml-core/src/neural/analysis.rs
+  ferroml-core/src/neural/classifier.rs
+  ferroml-core/src/neural/diagnostics.rs
+  ferroml-core/src/neural/layers.rs
+  ferroml-core/src/neural/mlp.rs
+  ferroml-core/src/neural/optimizers.rs
+  ferroml-core/src/neural/regressor.rs
+  ferroml-core/src/neural/uncertainty.rs
+  ferroml-python/src/neural.rs
+
+Modified:
+  ferroml-core/src/lib.rs (added neural module)
+  ferroml-python/src/lib.rs (added neural module registration)
+
 Untracked (test artifacts):
   ferroml-core/tests/sklearn_comparison.py
   ferroml-core/tests/test_write.txt
@@ -173,9 +218,10 @@ Untracked (test artifacts):
 
 ## Other Notes
 
-- All 2307 unit tests pass, clippy clean
+- All 2382 unit tests pass, clippy clean
 - 82 doctests pass, 0 fail
-- 20 clustering tests in ferroml-core
-- Python bindings verified against sklearn (exact match for KMeans inertia, silhouette, DBSCAN clusters/noise)
+- 75 neural network tests in ferroml-core
+- Python bindings for neural networks verified
 - Project is in early alpha, quality-hardened state
-- Clustering module follows FerroML patterns (statistical extensions beyond sklearn)
+- Neural module follows FerroML patterns (statistical extensions beyond sklearn)
+- Features training diagnostics, weight analysis, uncertainty quantification

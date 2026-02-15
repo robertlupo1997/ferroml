@@ -47,12 +47,14 @@ use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
 
 // Submodules
+pub mod agglomerative;
 pub mod dbscan;
 pub mod diagnostics;
 pub mod kmeans;
 pub mod metrics;
 
 // Re-exports
+pub use agglomerative::{AgglomerativeClustering, Linkage};
 pub use dbscan::DBSCAN;
 pub use diagnostics::ClusterDiagnostics;
 pub use kmeans::KMeans;
