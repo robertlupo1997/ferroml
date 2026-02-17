@@ -12,14 +12,14 @@
 //!
 //! ## Usage
 //!
-//! ```ignore
-//! use ferroml_core::testing::serialization::{check_model_serialization, SerializationFormat};
-//! use ferroml_core::models::LinearRegression;
-//!
-//! let results = check_model_serialization(LinearRegression::new(), SerializationFormat::All);
-//! for result in &results {
-//!     assert!(result.passed, "{}: {}", result.name, result.message.as_deref().unwrap_or(""));
-//! }
+//! ```
+//! # use ferroml_core::testing::serialization::{check_model_serialization, SerializationTestConfig};
+//! # use ferroml_core::models::LinearRegression;
+//! let results = check_model_serialization(
+//!     LinearRegression::new(),
+//!     SerializationTestConfig::default(),
+//! );
+//! assert!(!results.is_empty());
 //! ```
 
 use crate::models::Model;

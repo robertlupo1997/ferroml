@@ -1058,7 +1058,10 @@ fn beta(a: f64, b: f64) -> f64 {
 ///
 /// # Example Implementation
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::preprocessing::selection::FeatureImportanceEstimator;
+/// # use ferroml_core::Result;
+/// # use ndarray::{Array1, Array2};
 /// struct SimpleLinearModel {
 ///     coefficients: Option<Array1<f64>>,
 /// }

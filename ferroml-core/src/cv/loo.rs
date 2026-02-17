@@ -27,7 +27,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, LeaveOneOut};
 ///
 /// let cv = LeaveOneOut::new();
@@ -38,6 +39,8 @@ use serde::{Deserialize, Serialize};
 ///     assert_eq!(fold.test_indices.len(), 1);
 ///     assert_eq!(fold.train_indices.len(), 99);
 /// }
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # When to Use
@@ -125,7 +128,8 @@ impl CrossValidator for LeaveOneOut {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, LeavePOut};
 ///
 /// // Leave-2-out: C(10, 2) = 45 folds
@@ -137,6 +141,8 @@ impl CrossValidator for LeaveOneOut {
 ///     assert_eq!(fold.test_indices.len(), 2);
 ///     assert_eq!(fold.train_indices.len(), 8);
 /// }
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Computational Complexity
@@ -338,7 +344,8 @@ impl CrossValidator for LeavePOut {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, ShuffleSplit};
 ///
 /// // 10 random splits with 20% test size
@@ -353,6 +360,8 @@ impl CrossValidator for LeavePOut {
 ///     assert_eq!(fold.test_indices.len(), 20);
 ///     assert_eq!(fold.train_indices.len(), 80);
 /// }
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # When to Use

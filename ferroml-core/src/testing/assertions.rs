@@ -6,9 +6,13 @@
 //!
 //! # Usage
 //!
-//! ```ignore
-//! use ferroml_core::testing::assertions::{tolerances, assert_approx_eq, assert_array_approx_eq};
-//!
+//! ```
+//! # use ferroml_core::testing::assertions::{tolerances, assert_approx_eq, assert_array_approx_eq};
+//! # use ndarray::array;
+//! # let actual = 1.0_f64;
+//! # let expected = 1.0_f64;
+//! # let actual_array = array![1.0_f64, 2.0, 3.0];
+//! # let expected_array = array![1.0_f64, 2.0, 3.0];
 //! // For closed-form solutions (linear regression, QR decomposition)
 //! assert_approx_eq!(actual, expected, tolerances::CLOSED_FORM);
 //!
@@ -116,11 +120,10 @@ pub mod tolerances {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use ferroml_core::testing::assertions::{assert_approx_eq, tolerances};
-///
-/// let actual = 2.0000001;
-/// let expected = 2.0;
+/// ```
+/// # use ferroml_core::testing::assertions::{assert_approx_eq, tolerances};
+/// let actual = 2.0000001_f64;
+/// let expected = 2.0_f64;
 /// assert_approx_eq!(actual, expected, tolerances::ITERATIVE);
 /// ```
 ///
@@ -174,12 +177,11 @@ macro_rules! assert_approx_eq {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use ferroml_core::testing::assertions::{assert_array_approx_eq, tolerances};
-/// use ndarray::array;
-///
-/// let actual = array![1.0, 2.0, 3.0];
-/// let expected = array![1.00001, 2.00001, 3.00001];
+/// ```
+/// # use ferroml_core::testing::assertions::{assert_array_approx_eq, tolerances};
+/// # use ndarray::array;
+/// let actual = array![1.0_f64, 2.0, 3.0];
+/// let expected = array![1.00001_f64, 2.00001, 3.00001];
 /// assert_array_approx_eq!(actual, expected, tolerances::ITERATIVE);
 /// ```
 ///

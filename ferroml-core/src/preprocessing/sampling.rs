@@ -39,7 +39,8 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::preprocessing::sampling::{SMOTE, Resampler};
 //! use ndarray::{Array1, Array2};
 //!
@@ -54,6 +55,8 @@
 //! let (x_resampled, y_resampled) = smote.fit_resample(&x, &y)?;
 //!
 //! // Now the minority class has more samples
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Statistical Considerations
@@ -146,7 +149,11 @@ impl Default for SamplingStrategy {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ndarray::{Array1, Array2};
+/// # let x = Array2::from_shape_fn((110, 2), |(i, j)| if i < 100 { (i + j) as f64 } else { 100.0 + (i + j) as f64 });
+/// # let y = Array1::from_iter((0..100).map(|_| 0.0).chain((0..10).map(|_| 1.0)));
 /// use ferroml_core::preprocessing::sampling::{SMOTE, Resampler, SamplingStrategy};
 ///
 /// // Create SMOTE with 5 nearest neighbors
@@ -155,6 +162,8 @@ impl Default for SamplingStrategy {
 ///     .with_random_state(42);
 ///
 /// let (x_resampled, y_resampled) = smote.fit_resample(&x, &y)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SMOTE {
@@ -757,7 +766,11 @@ impl Resampler for BorderlineSMOTE {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ndarray::{Array1, Array2};
+/// # let x = Array2::from_shape_fn((110, 2), |(i, j)| if i < 100 { (i + j) as f64 } else { 100.0 + (i + j) as f64 });
+/// # let y = Array1::from_iter((0..100).map(|_| 0.0).chain((0..10).map(|_| 1.0)));
 /// use ferroml_core::preprocessing::sampling::{ADASYN, Resampler};
 ///
 /// // Create ADASYN with 5 nearest neighbors
@@ -766,6 +779,8 @@ impl Resampler for BorderlineSMOTE {
 ///     .with_random_state(42);
 ///
 /// let (x_resampled, y_resampled) = adasyn.fit_resample(&x, &y)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ADASYN {
@@ -1270,13 +1285,19 @@ impl Resampler for ADASYN {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ndarray::{Array1, Array2};
+/// # let x = Array2::from_shape_fn((110, 2), |(i, j)| if i < 100 { (i + j) as f64 } else { 100.0 + (i + j) as f64 });
+/// # let y = Array1::from_iter((0..100).map(|_| 0.0).chain((0..10).map(|_| 1.0)));
 /// use ferroml_core::preprocessing::sampling::{RandomUnderSampler, Resampler};
 ///
 /// let mut rus = RandomUnderSampler::new()
 ///     .with_random_state(42);
 ///
 /// let (x_resampled, y_resampled) = rus.fit_resample(&x, &y)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RandomUnderSampler {
@@ -1540,13 +1561,19 @@ impl Resampler for RandomUnderSampler {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ndarray::{Array1, Array2};
+/// # let x = Array2::from_shape_fn((110, 2), |(i, j)| if i < 100 { (i + j) as f64 } else { 100.0 + (i + j) as f64 });
+/// # let y = Array1::from_iter((0..100).map(|_| 0.0).chain((0..10).map(|_| 1.0)));
 /// use ferroml_core::preprocessing::sampling::{RandomOverSampler, Resampler};
 ///
 /// let mut ros = RandomOverSampler::new()
 ///     .with_random_state(42);
 ///
 /// let (x_resampled, y_resampled) = ros.fit_resample(&x, &y)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RandomOverSampler {
@@ -2028,7 +2055,11 @@ impl EditedNearestNeighborsDetector {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ndarray::{Array1, Array2};
+/// # let x = Array2::from_shape_fn((110, 2), |(i, j)| if i < 100 { (i + j) as f64 } else { 100.0 + (i + j) as f64 });
+/// # let y = Array1::from_iter((0..100).map(|_| 0.0).chain((0..10).map(|_| 1.0)));
 /// use ferroml_core::preprocessing::sampling::{SMOTETomek, Resampler};
 ///
 /// let mut smote_tomek = SMOTETomek::new()
@@ -2036,6 +2067,8 @@ impl EditedNearestNeighborsDetector {
 ///     .with_random_state(42);
 ///
 /// let (x_resampled, y_resampled) = smote_tomek.fit_resample(&x, &y)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SMOTETomek {
@@ -2198,7 +2231,11 @@ impl Resampler for SMOTETomek {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ndarray::{Array1, Array2};
+/// # let x = Array2::from_shape_fn((110, 2), |(i, j)| if i < 100 { (i + j) as f64 } else { 100.0 + (i + j) as f64 });
+/// # let y = Array1::from_iter((0..100).map(|_| 0.0).chain((0..10).map(|_| 1.0)));
 /// use ferroml_core::preprocessing::sampling::{SMOTEENN, Resampler, ENNKind};
 ///
 /// let mut smote_enn = SMOTEENN::new()
@@ -2208,6 +2245,8 @@ impl Resampler for SMOTETomek {
 ///     .with_random_state(42);
 ///
 /// let (x_resampled, y_resampled) = smote_enn.fit_resample(&x, &y)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SMOTEENN {

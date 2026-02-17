@@ -43,7 +43,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, TimeSeriesSplit};
 ///
 /// // 5 splits for 100 time-ordered samples
@@ -59,11 +60,14 @@ use serde::{Deserialize, Serialize};
 ///     println!("Fold {}: train={:?}, test={:?}",
 ///              i, fold.train_indices.len(), fold.test_indices.len());
 /// }
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Example with Gap
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, TimeSeriesSplit};
 ///
 /// // With a gap of 5 samples between train and test
@@ -72,6 +76,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// // The last 5 samples of training are excluded to prevent leakage
 /// // from autocorrelated observations
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Notes
@@ -106,7 +112,7 @@ impl TimeSeriesSplit {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use ferroml_core::cv::TimeSeriesSplit;
     ///
     /// let cv = TimeSeriesSplit::new(5);
@@ -134,7 +140,7 @@ impl TimeSeriesSplit {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use ferroml_core::cv::TimeSeriesSplit;
     ///
     /// // Sliding window with max 50 training samples
@@ -172,7 +178,7 @@ impl TimeSeriesSplit {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use ferroml_core::cv::TimeSeriesSplit;
     ///
     /// // Gap of 5 samples to avoid autocorrelation leakage

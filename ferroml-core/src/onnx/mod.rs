@@ -22,11 +22,14 @@
 //!
 //! ## Example
 //!
-//! ```ignore
-//! use ferroml_core::models::linear::LinearRegression;
-//! use ferroml_core::models::Model;
-//! use ferroml_core::onnx::{OnnxExportable, OnnxConfig};
-//!
+//! ```no_run
+//! # use ferroml_core::models::linear::LinearRegression;
+//! # use ferroml_core::models::Model;
+//! # use ferroml_core::onnx::{OnnxExportable, OnnxConfig};
+//! # use ndarray::{Array1, Array2};
+//! # fn main() -> ferroml_core::Result<()> {
+//! # let x = Array2::from_shape_vec((4, 2), vec![1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0]).unwrap();
+//! # let y = Array1::from_vec(vec![5.0, 11.0, 17.0, 23.0]);
 //! let mut model = LinearRegression::new();
 //! model.fit(&x, &y)?;
 //!
@@ -36,6 +39,8 @@
 //!
 //! // Or get bytes for in-memory use
 //! let bytes = model.to_onnx(&config)?;
+//! # Ok(())
+//! # }
 //! ```
 
 mod linear;

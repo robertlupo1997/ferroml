@@ -14,12 +14,17 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::automl::ensemble::{
 //!     EnsembleBuilder, EnsembleConfig, TrialResult,
 //! };
+//! # use ndarray::{Array1, Array2};
 //!
 //! // After running AutoML trials, collect results
+//! # fn run_automl_trials(_x: &Array2<f64>, _y: &Array1<f64>) -> Vec<TrialResult> { vec![] }
+//! # let x = Array2::zeros((10, 3));
+//! # let y = Array1::zeros(10);
 //! let trials: Vec<TrialResult> = run_automl_trials(&x, &y);
 //!
 //! // Build ensemble from top trials
@@ -28,10 +33,12 @@
 //!     .with_selection_iterations(50);
 //!
 //! let mut builder = EnsembleBuilder::new(config);
-//! let ensemble_result = builder.build_from_trials(&trials)?;
+//! let ensemble_result = builder.build_from_trials(&trials, &y)?;
 //!
-//! // Use the ensemble for predictions
-//! let predictions = ensemble_result.predict(&x_test)?;
+//! // Inspect the ensemble
+//! println!("Ensemble score: {:.4}", ensemble_result.ensemble_score);
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::automl::portfolio::AlgorithmType;

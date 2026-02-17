@@ -20,12 +20,15 @@
 //!
 //! ## Example
 //!
-//! ```ignore
-//! use ferroml_core::inference::{InferenceSession, Tensor};
-//! use ferroml_core::models::linear::LinearRegression;
-//! use ferroml_core::models::Model;
-//! use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
-//!
+//! ```
+//! # use ferroml_core::inference::{InferenceSession, Tensor};
+//! # use ferroml_core::models::linear::LinearRegression;
+//! # use ferroml_core::models::Model;
+//! # use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
+//! # use ndarray::{Array1, Array2};
+//! # fn main() -> ferroml_core::Result<()> {
+//! # let x = Array2::from_shape_vec((4, 2), vec![1.0,5.0,3.0,2.0,5.0,1.0,7.0,4.0]).unwrap();
+//! # let y = Array1::from_vec(vec![5.0, 11.0, 17.0, 23.0]);
 //! // Train and export a model
 //! let mut model = LinearRegression::new();
 //! model.fit(&x, &y)?;
@@ -42,7 +45,8 @@
 //!
 //! // Get prediction
 //! let prediction = outputs.get("output").unwrap();
-//! println!("Prediction: {:?}", prediction.as_f32_slice());
+//! # Ok(())
+//! # }
 //! ```
 
 mod operators;

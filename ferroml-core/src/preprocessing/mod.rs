@@ -78,7 +78,10 @@ mod compliance_tests;
 ///
 /// # Example Implementation
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::preprocessing::Transformer;
+/// # use ferroml_core::{FerroError, Result};
+/// # use ndarray::{Array1, Array2, Axis};
 /// struct MyScaler {
 ///     mean: Option<Array1<f64>>,
 ///     feature_names: Option<Vec<String>>,
@@ -99,6 +102,9 @@ mod compliance_tests;
 ///     fn is_fitted(&self) -> bool {
 ///         self.mean.is_some()
 ///     }
+/// #   fn get_feature_names_out(&self, _: Option<&[String]>) -> Option<Vec<String>> { None }
+/// #   fn n_features_in(&self) -> Option<usize> { None }
+/// #   fn n_features_out(&self) -> Option<usize> { None }
 /// }
 /// ```
 pub trait Transformer: Send + Sync {

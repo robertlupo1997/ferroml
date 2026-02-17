@@ -60,40 +60,56 @@
 //! - [`MemmappedDatasetBuilder`] - Builder for creating memory-mapped datasets
 //! - [`MemmappedArray2`], [`MemmappedArray1`] - Low-level memory-mapped arrays
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
+//! # use ndarray::{array, Array2, Array1};
+//! # let dir = tempfile::tempdir()?;
+//! # let path = dir.path().join("large_data.fmm");
+//! # let x = array![[1.0, 2.0], [3.0, 4.0]];
+//! # let y = array![0.0, 1.0];
 //! use ferroml_core::datasets::{Dataset, MemmappedDataset, MemmappedDatasetBuilder};
 //!
 //! // Create a memory-mapped dataset from arrays
-//! let dataset = MemmappedDatasetBuilder::new("large_data.fmm")
-//!     .with_features(x)
-//!     .with_targets(y)
+//! let dataset = MemmappedDatasetBuilder::new(&path)
+//!     .with_features(x.clone())
+//!     .with_targets(y.clone())
 //!     .build()?;
 //!
 //! // Or from an existing Dataset
-//! let mmap_dataset = MemmappedDataset::from_dataset("large_data.fmm", &dataset)?;
+//! # let path2 = dir.path().join("large_data2.fmm");
+//! # let dataset = Dataset::new(x, y);
+//! let mmap_dataset = MemmappedDataset::from_dataset(&path2, &dataset)?;
 //!
 //! // Access data with zero-copy views
 //! let x_view = mmap_dataset.x_view();
 //! let y_view = mmap_dataset.y_view();
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Loading from Files
 //!
-//! ```ignore
-//! use ferroml_core::datasets::{load_csv, load_parquet, load_file, CsvOptions};
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
+//! # use std::io::Write;
+//! # let dir = tempfile::tempdir()?;
+//! # let path = dir.path().join("data.csv");
+//! # let mut f = std::fs::File::create(&path)?;
+//! # writeln!(f, "a,b,target_column\n1,2,0\n3,4,1")?;
+//! # drop(f);
+//! use ferroml_core::datasets::{load_csv, load_csv_with_options, load_file, CsvOptions};
 //!
 //! // Load CSV file
-//! let (dataset, info) = load_csv("data.csv", Some("target_column"))?;
+//! let (dataset, info) = load_csv(&path, Some("target_column"))?;
 //!
 //! // Load with custom options
-//! let opts = CsvOptions::new().with_delimiter(b';');
-//! let (dataset, info) = load_csv_with_options("data.csv", Some("target"), opts)?;
-//!
-//! // Load Parquet file
-//! let (dataset, info) = load_parquet("data.parquet", Some("target"))?;
+//! let opts = CsvOptions::new().with_delimiter(b',');
+//! let (dataset, info) = load_csv_with_options(&path, Some("target_column"), opts)?;
 //!
 //! // Auto-detect format
-//! let (dataset, info) = load_file("data.csv", Some("target"))?;
+//! let (dataset, info) = load_file(&path, Some("target_column"))?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Statistical Rigor

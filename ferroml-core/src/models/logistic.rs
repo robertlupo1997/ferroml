@@ -241,7 +241,7 @@ impl LogisticRegression {
     /// * `class_weight` - Weight specification: `Uniform`, `Balanced`, or `Custom`
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use ferroml_core::models::{LogisticRegression, ClassWeight};
     ///
     /// // Automatically balance weights inversely proportional to class frequencies

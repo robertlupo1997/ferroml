@@ -212,7 +212,12 @@ pub trait Model: Send + Sync {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::{Model, StatisticalModel, LinearRegression};
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x = Array2::from_shape_vec((5, 2), vec![1.0,0.5,2.0,1.5,3.0,0.8,4.0,2.1,5.0,1.0]).unwrap();
+/// # let y = Array1::from_vec(vec![1.1, 2.3, 2.9, 4.2, 5.0]);
 /// use ferroml_core::models::{Model, StatisticalModel};
 ///
 /// let mut model = LinearRegression::new();
@@ -227,6 +232,8 @@ pub trait Model: Send + Sync {
 /// if !diagnostics.normality_ok() {
 ///     println!("Warning: Residuals may not be normally distributed");
 /// }
+/// # Ok(())
+/// # }
 /// ```
 pub trait StatisticalModel: Model {
     /// Get comprehensive model summary (R-style output)
@@ -263,7 +270,13 @@ pub trait StatisticalModel: Model {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::{Model, ProbabilisticModel, LogisticRegression};
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x = Array2::from_shape_vec((6, 2), vec![1.0,2.0,2.0,1.0,3.0,3.0,6.0,7.0,7.0,6.0,8.0,8.0]).unwrap();
+/// # let y = Array1::from_vec(vec![0.0,0.0,0.0,1.0,1.0,1.0]);
+/// # let x_test = x.clone();
 /// use ferroml_core::models::{Model, ProbabilisticModel};
 ///
 /// let mut model = LogisticRegression::new();
@@ -274,6 +287,8 @@ pub trait StatisticalModel: Model {
 ///
 /// // Get prediction interval for regression
 /// let interval = model.predict_interval(&x_test, 0.95)?;
+/// # Ok(())
+/// # }
 /// ```
 pub trait ProbabilisticModel: Model {
     /// Predict class probabilities

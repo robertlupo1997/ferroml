@@ -57,7 +57,7 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::decomposition::{PCA, TruncatedSVD, LDA};
 //! use ferroml_core::preprocessing::Transformer;
 //! use ndarray::array;

@@ -22,11 +22,10 @@
 //!
 //! ## Example - BaggingClassifier
 //!
-//! ```ignore
-//! use ferroml_core::ensemble::BaggingClassifier;
-//! use ferroml_core::models::DecisionTreeClassifier;
-//! use ndarray::{Array1, Array2};
-//!
+//! ```
+//! # use ferroml_core::ensemble::BaggingClassifier;
+//! # use ferroml_core::models::{DecisionTreeClassifier, Model};
+//! # use ndarray::{Array1, Array2};
 //! let x = Array2::from_shape_vec((100, 4), (0..400).map(|i| i as f64 / 100.0).collect()).unwrap();
 //! let y = Array1::from_iter((0..100).map(|i| if i < 50 { 0.0 } else { 1.0 }));
 //!
@@ -42,11 +41,10 @@
 //!
 //! ## Example - BaggingRegressor
 //!
-//! ```ignore
-//! use ferroml_core::ensemble::BaggingRegressor;
-//! use ferroml_core::models::DecisionTreeRegressor;
-//! use ndarray::{Array1, Array2};
-//!
+//! ```
+//! # use ferroml_core::ensemble::BaggingRegressor;
+//! # use ferroml_core::models::{DecisionTreeRegressor, Model};
+//! # use ndarray::{Array1, Array2};
 //! let x = Array2::from_shape_vec((100, 4), (0..400).map(|i| i as f64 / 100.0).collect()).unwrap();
 //! let y = Array1::from_iter((0..100).map(|i| i as f64 * 0.5 + 1.0));
 //!

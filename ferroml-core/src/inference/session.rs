@@ -40,8 +40,13 @@ impl InferenceSession {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use ferroml_core::inference::InferenceSession;
+    /// # fn main() -> ferroml_core::Result<()> {
+    /// # let onnx_bytes: Vec<u8> = vec![];
     /// let session = InferenceSession::from_bytes(&onnx_bytes)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let model =
@@ -125,10 +130,16 @@ impl InferenceSession {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use ferroml_core::inference::{InferenceSession, Tensor};
+    /// # fn main() -> ferroml_core::Result<()> {
+    /// # let onnx_bytes: Vec<u8> = vec![];
+    /// # let session = InferenceSession::from_bytes(&onnx_bytes)?;
     /// let input = Tensor::from_vec(vec![1.0f32, 2.0], vec![1, 2]);
     /// let outputs = session.run(&[("input", input)])?;
     /// let prediction = outputs.get("output").unwrap();
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn run(&self, inputs: &[(&str, Tensor)]) -> Result<HashMap<String, Value>> {
         let mut values: HashMap<String, Value> = self.initializers.clone();

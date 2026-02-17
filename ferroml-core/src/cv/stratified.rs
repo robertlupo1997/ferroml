@@ -27,7 +27,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, StratifiedKFold};
 /// use ndarray::Array1;
 ///
@@ -40,6 +41,8 @@ use serde::{Deserialize, Serialize};
 /// let folds = cv.split(10, Some(&y), None)?;
 ///
 /// // Each fold preserves ~90%/10% class distribution
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Algorithm
@@ -232,7 +235,8 @@ impl CrossValidator for StratifiedKFold {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, RepeatedStratifiedKFold};
 /// use ndarray::Array1;
 ///
@@ -243,6 +247,8 @@ impl CrossValidator for StratifiedKFold {
 /// let folds = cv.split(6, Some(&y), None)?;
 ///
 /// assert_eq!(folds.len(), 15);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Statistical Notes

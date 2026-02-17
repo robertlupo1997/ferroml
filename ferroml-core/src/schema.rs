@@ -14,9 +14,12 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::schema::{FeatureSchema, FeatureSpec, ValidationMode};
 //! use ndarray::Array2;
+//! # let x_train = Array2::from_shape_vec((3, 3), vec![25.5, 50000.5, 80.1, 30.2, 60000.3, 90.4, 35.7, 70000.8, 85.9]).unwrap();
+//! # let x_test = Array2::from_shape_vec((2, 3), vec![28.1, 55000.2, 82.3, 32.4, 65000.5, 88.6]).unwrap();
 //!
 //! // Create a schema during training
 //! let schema = FeatureSchema::from_array(&x_train)
@@ -24,7 +27,9 @@
 //!     .with_mode(ValidationMode::Strict);
 //!
 //! // Validate new data before prediction
-//! schema.validate(&x_test)?;
+//! schema.validate_strict(&x_test)?;
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::{FerroError, Result};

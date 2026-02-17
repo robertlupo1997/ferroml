@@ -20,13 +20,14 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::quantile::QuantileRegression;
 //! use ferroml_core::models::{Model, StatisticalModel};
 //! use ndarray::{Array1, Array2};
 //!
-//! let x = Array2::from_shape_vec((100, 2), /* ... */).unwrap();
-//! let y = Array1::from_vec(/* ... */);
+//! # fn main() -> ferroml_core::Result<()> {
+//! let x = Array2::from_shape_vec((100, 2), (0..200).map(|i| (i as f64 * 0.1).sin()).collect()).unwrap();
+//! let y = Array1::from_vec((0..100).map(|i| (i as f64 * 0.3).cos() + 1.0).collect());
 //!
 //! // Fit median regression (tau = 0.5)
 //! let mut model = QuantileRegression::new(0.5);
@@ -37,6 +38,8 @@
 //!
 //! // Fit multiple quantiles at once
 //! let results = QuantileRegression::fit_quantiles(&x, &y, &[0.25, 0.5, 0.75]).unwrap();
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::hpo::SearchSpace;

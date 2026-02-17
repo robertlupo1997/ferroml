@@ -10,8 +10,12 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::{AutoML, AutoMLConfig, Task, Metric};
+//! # use ndarray::{Array1, Array2};
+//! # let x = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64).collect()).unwrap();
+//! # let y = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
 //!
 //! let config = AutoMLConfig {
 //!     task: Task::Classification,
@@ -24,8 +28,8 @@
 //! let automl = AutoML::new(config);
 //! let result = automl.fit(&x, &y)?;
 //!
-//! println!("Best model: {}", result.best_model().algorithm.name());
-//! println!("Ensemble score: {:.4}", result.ensemble_score());
+//! println!("Best model: {}", result.best_model().unwrap().algorithm.name());
+//! println!("Ensemble score: {:.4}", result.ensemble_score().unwrap());
 //!
 //! // Get statistical comparisons between models
 //! if let Some(comparisons) = &result.model_comparisons {
@@ -38,6 +42,8 @@
 //! if let Some(importance) = &result.aggregated_importance {
 //!     println!("Top features: {:?}", importance.top_k(5));
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::automl::{
@@ -130,9 +136,18 @@ impl AutoMLResult {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # fn main() -> ferroml_core::Result<()> {
+    /// # use ferroml_core::{AutoML, AutoMLConfig};
+    /// # use ndarray::{Array1, Array2};
+    /// # let x_train = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64).collect()).unwrap();
+    /// # let y_train = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
+    /// # let x_test = x_train.clone();
+    /// # let automl = AutoML::new(AutoMLConfig::default());
     /// let result = automl.fit(&x_train, &y_train)?;
     /// let predictions = result.predict(&x_train, &y_train, &x_test)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn predict(
         &self,
@@ -763,10 +778,17 @@ impl AutoML {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # fn main() -> ferroml_core::Result<()> {
+    /// # use ferroml_core::{AutoML, AutoMLConfig};
+    /// # use ndarray::{Array1, Array2};
+    /// # let x = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64).collect()).unwrap();
+    /// # let y = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
     /// let config = AutoMLConfig::default();
     /// let automl = AutoML::new(config);
     /// let result = automl.fit(&x, &y)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn fit(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<AutoMLResult> {
         let start_time = Instant::now();

@@ -251,7 +251,13 @@ impl GaussianNB {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// # use ferroml_core::models::naive_bayes::GaussianNB;
+    /// # use ndarray::{Array1, Array2};
+    /// # let x1 = Array2::from_shape_vec((4, 2), vec![1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0]).unwrap();
+    /// # let y1 = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+    /// # let x2 = x1.clone(); let y2 = y1.clone();
+    /// # let x3 = x1.clone(); let y3 = y1.clone();
     /// let mut model = GaussianNB::new();
     ///
     /// // First batch - must specify all classes

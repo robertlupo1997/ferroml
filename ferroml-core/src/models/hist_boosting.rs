@@ -15,7 +15,7 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::hist_boosting::HistGradientBoostingClassifier;
 //! use ferroml_core::models::Model;
 //! use ndarray::{Array1, Array2};
@@ -1315,7 +1315,8 @@ impl HistGradientBoostingClassifier {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// # use ferroml_core::models::hist_boosting::HistGradientBoostingClassifier;
     /// let model = HistGradientBoostingClassifier::new()
     ///     .with_categorical_features(vec![0, 2, 5]); // Features 0, 2, 5 are categorical
     /// ```
@@ -1842,7 +1843,7 @@ impl HistGradientBoostingClassifier {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::models::hist_boosting::{HistGradientBoostingRegressor, HistRegressionLoss};
 /// use ferroml_core::models::Model;
 /// use ndarray::{Array1, Array2};
@@ -2068,7 +2069,8 @@ impl HistGradientBoostingRegressor {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// # use ferroml_core::models::hist_boosting::HistGradientBoostingRegressor;
     /// let model = HistGradientBoostingRegressor::new()
     ///     .with_categorical_features(vec![0, 2, 5]); // Features 0, 2, 5 are categorical
     /// ```
@@ -2468,18 +2470,22 @@ struct CategoryStats {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::models::hist_boosting::CategoricalFeatureHandler;
+/// # use ndarray::{Array1, Array2};
 ///
+/// # let x = Array2::from_shape_vec((6, 3), vec![1.0, 2.0, 3.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 2.0, 1.0, 3.0, 1.0, 2.0, 1.0, 3.0, 1.0, 2.0]).unwrap();
+/// # let y = Array1::from_vec(vec![1.0, 0.0, 1.0, 0.0, 1.0, 0.0]);
+/// # let n_features = 3;
 /// let categorical_features = vec![0, 2]; // Features 0 and 2 are categorical
 /// let mut handler = CategoricalFeatureHandler::new(categorical_features)
 ///     .with_smoothing(1.0);
 ///
 /// // Fit computes ordered target statistics
-/// handler.fit(&x, &y, n_features, random_permutation);
+/// handler.fit(&x, &y, n_features);
 ///
 /// // Transform converts categories to encoded values
-/// let encoded = handler.transform(&x, &y, is_training);
+/// let encoded = handler.transform(&x, Some(&y), None, false);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoricalFeatureHandler {

@@ -10,9 +10,26 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
+//! # use ferroml_core::traits::{Estimator, Predictor, PredictionWithUncertainty};
+//! # use ferroml_core::hpo::SearchSpace;
+//! # use ferroml_core::metrics::{Metric, MetricValue, Direction};
+//! # use ndarray::{Array1, Array2};
+//! # #[derive(Clone)]
+//! # struct MyModel;
+//! # struct MyFitted(f64);
+//! # impl Predictor for MyFitted {
+//! #     fn predict(&self, x: &Array2<f64>) -> ferroml_core::Result<Array1<f64>> { Ok(Array1::from_elem(x.nrows(), self.0)) }
+//! #     fn predict_with_uncertainty(&self, x: &Array2<f64>, c: f64) -> ferroml_core::Result<PredictionWithUncertainty> { let p = self.predict(x)?; let n = p.len(); Ok(PredictionWithUncertainty { predictions: p.clone(), lower: p.clone(), upper: p, confidence_level: c, std_errors: None }) }
+//! # }
+//! # impl Estimator for MyModel { type Fitted = MyFitted; fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> ferroml_core::Result<MyFitted> { Ok(MyFitted(y.mean().unwrap_or(0.0))) } fn search_space(&self) -> SearchSpace { SearchSpace::new() } }
+//! # struct AccuracyMetric;
+//! # impl Metric for AccuracyMetric { fn name(&self) -> &str { "acc" } fn direction(&self) -> Direction { Direction::Maximize } fn compute(&self, a: &Array1<f64>, b: &Array1<f64>) -> ferroml_core::Result<MetricValue> { Ok(MetricValue::new("acc", 0.9, Direction::Maximize)) } }
+//! # let x = Array2::from_shape_vec((30, 2), (0..60).map(|i| i as f64).collect()).unwrap();
+//! # let y = Array1::from_vec((0..30).map(|i| (i % 2) as f64).collect());
+//! # let model = MyModel;
 //! use ferroml_core::cv::{learning_curve, KFold, LearningCurveConfig};
-//! use ferroml_core::metrics::AccuracyMetric;
 //!
 //! let cv = KFold::new(5);
 //! let train_sizes = vec![0.1, 0.25, 0.5, 0.75, 1.0];
@@ -33,6 +50,8 @@
 //!              size, train_summary.mean, train_summary.std,
 //!              test_summary.mean, test_summary.std);
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::metrics::Metric;
@@ -242,7 +261,25 @@ impl LearningCurveResult {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ferroml_core::traits::{Estimator, Predictor, PredictionWithUncertainty};
+/// # use ferroml_core::hpo::SearchSpace;
+/// # use ferroml_core::metrics::{Metric, MetricValue, Direction};
+/// # use ndarray::{Array1, Array2};
+/// # #[derive(Clone)]
+/// # struct MyModel;
+/// # struct MyFitted(f64);
+/// # impl Predictor for MyFitted {
+/// #     fn predict(&self, x: &Array2<f64>) -> ferroml_core::Result<Array1<f64>> { Ok(Array1::from_elem(x.nrows(), self.0)) }
+/// #     fn predict_with_uncertainty(&self, x: &Array2<f64>, c: f64) -> ferroml_core::Result<PredictionWithUncertainty> { let p = self.predict(x)?; Ok(PredictionWithUncertainty { predictions: p.clone(), lower: p.clone(), upper: p, confidence_level: c, std_errors: None }) }
+/// # }
+/// # impl Estimator for MyModel { type Fitted = MyFitted; fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> ferroml_core::Result<MyFitted> { Ok(MyFitted(y.mean().unwrap_or(0.0))) } fn search_space(&self) -> SearchSpace { SearchSpace::new() } }
+/// # struct AccuracyMetric;
+/// # impl Metric for AccuracyMetric { fn name(&self) -> &str { "acc" } fn direction(&self) -> Direction { Direction::Maximize } fn compute(&self, _a: &Array1<f64>, _b: &Array1<f64>) -> ferroml_core::Result<MetricValue> { Ok(MetricValue::new("acc", 0.9, Direction::Maximize)) } }
+/// # let x = Array2::from_shape_vec((30, 2), (0..60).map(|i| i as f64).collect()).unwrap();
+/// # let y = Array1::from_vec((0..30).map(|i| (i % 2) as f64).collect());
+/// # let model = MyModel;
 /// use ferroml_core::cv::{learning_curve, KFold, LearningCurveConfig};
 ///
 /// let train_sizes = vec![0.1, 0.33, 0.55, 0.78, 1.0];
@@ -252,6 +289,8 @@ impl LearningCurveResult {
 /// )?;
 ///
 /// // Diagnose: if test scores are much lower than train, model is overfitting
+/// # Ok(())
+/// # }
 /// ```
 pub fn learning_curve<E, M>(
     estimator: &E,
@@ -619,7 +658,27 @@ pub trait ParameterSettable: Estimator {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ferroml_core::traits::{Estimator, Predictor, PredictionWithUncertainty};
+/// # use ferroml_core::hpo::SearchSpace;
+/// # use ferroml_core::metrics::{Metric, MetricValue, Direction};
+/// # use ferroml_core::cv::ParameterSettable;
+/// # use ndarray::{Array1, Array2};
+/// # #[derive(Clone)]
+/// # struct MyModel { regularization: f64 }
+/// # struct MyFitted(f64);
+/// # impl Predictor for MyFitted {
+/// #     fn predict(&self, x: &Array2<f64>) -> ferroml_core::Result<Array1<f64>> { Ok(Array1::from_elem(x.nrows(), self.0)) }
+/// #     fn predict_with_uncertainty(&self, x: &Array2<f64>, c: f64) -> ferroml_core::Result<PredictionWithUncertainty> { let p = self.predict(x)?; Ok(PredictionWithUncertainty { predictions: p.clone(), lower: p.clone(), upper: p, confidence_level: c, std_errors: None }) }
+/// # }
+/// # impl Estimator for MyModel { type Fitted = MyFitted; fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> ferroml_core::Result<MyFitted> { Ok(MyFitted(y.mean().unwrap_or(0.0))) } fn search_space(&self) -> SearchSpace { SearchSpace::new() } }
+/// # impl ParameterSettable for MyModel { fn set_param(&mut self, _n: &str, v: f64) -> ferroml_core::Result<()> { self.regularization = v; Ok(()) } fn get_param(&self, _n: &str) -> ferroml_core::Result<f64> { Ok(self.regularization) } }
+/// # struct AccuracyMetric;
+/// # impl Metric for AccuracyMetric { fn name(&self) -> &str { "acc" } fn direction(&self) -> Direction { Direction::Maximize } fn compute(&self, _a: &Array1<f64>, _b: &Array1<f64>) -> ferroml_core::Result<MetricValue> { Ok(MetricValue::new("acc", 0.9, Direction::Maximize)) } }
+/// # let x = Array2::from_shape_vec((30, 2), (0..60).map(|i| i as f64).collect()).unwrap();
+/// # let y = Array1::from_vec((0..30).map(|i| (i % 2) as f64).collect());
+/// # let model = MyModel { regularization: 1.0 };
 /// use ferroml_core::cv::{validation_curve, KFold, ValidationCurveConfig};
 ///
 /// let param_values = vec![0.001, 0.01, 0.1, 1.0, 10.0, 100.0];
@@ -630,6 +689,8 @@ pub trait ParameterSettable: Estimator {
 ///
 /// // Find optimal regularization
 /// let best_reg = result.best_param_value(true);
+/// # Ok(())
+/// # }
 /// ```
 pub fn validation_curve<E, M>(
     estimator: &E,

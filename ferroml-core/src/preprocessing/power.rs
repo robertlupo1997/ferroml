@@ -23,7 +23,7 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::preprocessing::power::{PowerTransformer, PowerMethod};
 //! use ferroml_core::preprocessing::Transformer;
 //! use ndarray::array;

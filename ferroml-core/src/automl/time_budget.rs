@@ -13,7 +13,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
 //! use ferroml_core::automl::{
 //!     AlgorithmPortfolio, PortfolioPreset, TimeBudgetAllocator,
 //!     BanditStrategy, TimeBudgetConfig,
@@ -31,6 +31,8 @@
 //! while let Some(arm) = allocator.select_arm() {
 //!     let algorithm = &portfolio.algorithms[arm.algorithm_index];
 //!     // ... run trial for algorithm ...
+//! #   let score = 0.9_f64;
+//! #   let elapsed_seconds = 1.0_f64;
 //!     allocator.update(arm.algorithm_index, score, elapsed_seconds);
 //! }
 //! ```

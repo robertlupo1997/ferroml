@@ -274,7 +274,8 @@ pub(crate) fn compute_t_confidence_interval(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, KFold};
 ///
 /// let cv = KFold::new(5);
@@ -285,6 +286,8 @@ pub(crate) fn compute_t_confidence_interval(
 ///     assert_eq!(fold.train_indices.len(), 80);
 ///     assert_eq!(fold.test_indices.len(), 20);
 /// }
+/// # Ok(())
+/// # }
 /// ```
 pub trait CrossValidator: Send + Sync {
     /// Generate train/test splits for the given number of samples
@@ -523,9 +526,26 @@ pub(crate) fn validate_n_folds(n_folds: usize, n_samples: usize) -> Result<()> {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ferroml_core::traits::{Estimator, Predictor, PredictionWithUncertainty};
+/// # use ferroml_core::hpo::SearchSpace;
+/// # use ferroml_core::metrics::{Metric, MetricValue, Direction};
+/// # use ndarray::{Array1, Array2};
+/// # #[derive(Clone)]
+/// # struct MyModel;
+/// # struct MyFitted(f64);
+/// # impl Predictor for MyFitted {
+/// #     fn predict(&self, x: &Array2<f64>) -> ferroml_core::Result<Array1<f64>> { Ok(Array1::from_elem(x.nrows(), self.0)) }
+/// #     fn predict_with_uncertainty(&self, x: &Array2<f64>, c: f64) -> ferroml_core::Result<PredictionWithUncertainty> { let p = self.predict(x)?; Ok(PredictionWithUncertainty { predictions: p.clone(), lower: p.clone(), upper: p, confidence_level: c, std_errors: None }) }
+/// # }
+/// # impl Estimator for MyModel { type Fitted = MyFitted; fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> ferroml_core::Result<MyFitted> { Ok(MyFitted(y.mean().unwrap_or(0.0))) } fn search_space(&self) -> SearchSpace { SearchSpace::new() } }
+/// # struct AccuracyMetric;
+/// # impl Metric for AccuracyMetric { fn name(&self) -> &str { "acc" } fn direction(&self) -> Direction { Direction::Maximize } fn compute(&self, _a: &Array1<f64>, _b: &Array1<f64>) -> ferroml_core::Result<MetricValue> { Ok(MetricValue::new("acc", 0.9, Direction::Maximize)) } }
+/// # let x = Array2::from_shape_vec((30, 2), (0..60).map(|i| i as f64).collect()).unwrap();
+/// # let y = Array1::from_vec((0..30).map(|i| (i % 2) as f64).collect());
+/// # let model = MyModel;
 /// use ferroml_core::cv::{cross_val_score, KFold, CVConfig};
-/// use ferroml_core::metrics::accuracy;
 ///
 /// let cv = KFold::new(5).with_shuffle(true).with_seed(42);
 /// let config = CVConfig::default().with_train_score();
@@ -541,6 +561,8 @@ pub(crate) fn validate_n_folds(n_folds: usize, n_samples: usize) -> Result<()> {
 /// )?;
 ///
 /// println!("CV Score: {}", result.summary());
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Parallel Execution
@@ -715,11 +737,31 @@ pub(crate) fn select_elements(array: &Array1<f64>, indices: &[usize]) -> Array1<
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ferroml_core::traits::{Estimator, Predictor, PredictionWithUncertainty};
+/// # use ferroml_core::hpo::SearchSpace;
+/// # use ferroml_core::metrics::{Metric, MetricValue, Direction};
+/// # use ndarray::{Array1, Array2};
+/// # #[derive(Clone)]
+/// # struct MyModel;
+/// # struct MyFitted(f64);
+/// # impl Predictor for MyFitted {
+/// #     fn predict(&self, x: &Array2<f64>) -> ferroml_core::Result<Array1<f64>> { Ok(Array1::from_elem(x.nrows(), self.0)) }
+/// #     fn predict_with_uncertainty(&self, x: &Array2<f64>, c: f64) -> ferroml_core::Result<PredictionWithUncertainty> { let p = self.predict(x)?; Ok(PredictionWithUncertainty { predictions: p.clone(), lower: p.clone(), upper: p, confidence_level: c, std_errors: None }) }
+/// # }
+/// # impl Estimator for MyModel { type Fitted = MyFitted; fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> ferroml_core::Result<MyFitted> { Ok(MyFitted(y.mean().unwrap_or(0.0))) } fn search_space(&self) -> SearchSpace { SearchSpace::new() } }
+/// # struct AccuracyMetric;
+/// # impl Metric for AccuracyMetric { fn name(&self) -> &str { "acc" } fn direction(&self) -> Direction { Direction::Maximize } fn compute(&self, _a: &Array1<f64>, _b: &Array1<f64>) -> ferroml_core::Result<MetricValue> { Ok(MetricValue::new("acc", 0.9, Direction::Maximize)) } }
+/// # let x = Array2::from_shape_vec((30, 2), (0..60).map(|i| i as f64).collect()).unwrap();
+/// # let y = Array1::from_vec((0..30).map(|i| (i % 2) as f64).collect());
+/// # let model = MyModel;
 /// use ferroml_core::cv::{cross_val_score_simple, KFold};
 ///
 /// let cv = KFold::new(5);
 /// let result = cross_val_score_simple(&model, &x, &y, &cv, &AccuracyMetric)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn cross_val_score_simple<E, M>(
     estimator: &E,

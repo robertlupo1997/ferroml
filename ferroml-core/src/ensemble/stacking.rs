@@ -19,16 +19,16 @@
 //!
 //! ## Example - StackingClassifier
 //!
-//! ```ignore
-//! use ferroml_core::ensemble::StackingClassifier;
-//! use ferroml_core::models::{LogisticRegression, DecisionTreeClassifier, GaussianNB};
-//! use ndarray::{Array1, Array2};
-//!
+//! ```
+//! # use ferroml_core::ensemble::StackingClassifier;
+//! # use ferroml_core::models::{LogisticRegression, DecisionTreeClassifier, GaussianNB, Model};
+//! # use ferroml_core::ensemble::voting::VotingClassifierEstimator;
+//! # use ndarray::{Array1, Array2};
 //! let x = Array2::from_shape_vec((100, 4), (0..400).map(|i| i as f64 / 100.0).collect()).unwrap();
 //! let y = Array1::from_iter((0..100).map(|i| if i < 50 { 0.0 } else { 1.0 }));
 //!
 //! let mut stacker = StackingClassifier::new(vec![
-//!     ("tree", Box::new(DecisionTreeClassifier::new())),
+//!     ("tree", Box::new(DecisionTreeClassifier::new()) as Box<dyn VotingClassifierEstimator>),
 //!     ("nb", Box::new(GaussianNB::new())),
 //! ]).with_final_estimator(Box::new(LogisticRegression::new()));
 //!
@@ -38,16 +38,16 @@
 //!
 //! ## Example - StackingRegressor
 //!
-//! ```ignore
-//! use ferroml_core::ensemble::StackingRegressor;
-//! use ferroml_core::models::{LinearRegression, DecisionTreeRegressor, RidgeRegression};
-//! use ndarray::{Array1, Array2};
-//!
-//! let x = Array2::from_shape_vec((100, 4), (0..400).map(|i| i as f64 / 100.0).collect()).unwrap();
-//! let y = Array1::from_iter((0..100).map(|i| i as f64 * 0.5 + 1.0));
+//! ```
+//! # use ferroml_core::ensemble::StackingRegressor;
+//! # use ferroml_core::models::{LinearRegression, DecisionTreeRegressor, RidgeRegression, Model};
+//! # use ferroml_core::ensemble::voting::VotingRegressorEstimator;
+//! # use ndarray::{Array1, Array2};
+//! let x = Array2::from_shape_vec((50, 2), (0..100).map(|i| ((i as f64) * 0.37).sin()).collect()).unwrap();
+//! let y = Array1::from_iter((0..50).map(|i| i as f64 * 0.5 + 1.0));
 //!
 //! let mut stacker = StackingRegressor::new(vec![
-//!     ("linear", Box::new(LinearRegression::new())),
+//!     ("linear", Box::new(LinearRegression::new()) as Box<dyn VotingRegressorEstimator>),
 //!     ("tree", Box::new(DecisionTreeRegressor::new())),
 //! ]).with_final_estimator(Box::new(RidgeRegression::default()));
 //!

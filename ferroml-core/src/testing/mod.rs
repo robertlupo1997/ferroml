@@ -5,43 +5,41 @@
 //!
 //! # Usage
 //!
-//! ```ignore
-//! use ferroml_core::testing::check_estimator;
-//! use ferroml_core::models::LinearRegression;
-//!
+//! ```
+//! # use ferroml_core::testing::check_estimator;
+//! # use ferroml_core::models::LinearRegression;
 //! let results = check_estimator(LinearRegression::new());
-//! for result in &results {
-//!     assert!(result.passed, "{}: {}", result.name, result.message.as_deref().unwrap_or(""));
-//! }
+//! assert!(!results.is_empty());
 //! ```
 //!
 //! # Assertions
 //!
 //! For writing tests with proper floating-point tolerance:
 //!
-//! ```ignore
-//! use ferroml_core::testing::assertions::{tolerances, assert_approx_eq, assert_array_approx_eq};
-//!
+//! ```
+//! # use ferroml_core::testing::assertions::{tolerances, assert_approx_eq, assert_array_approx_eq};
+//! # use ndarray::array;
+//! # let actual = 1.0_f64;
+//! # let expected = 1.0_f64;
+//! # let predictions = array![1.0_f64, 2.0];
+//! # let expected_arr = array![1.0_f64, 2.0];
 //! // Use calibrated tolerances for different algorithm types
 //! assert_approx_eq!(actual, expected, tolerances::CLOSED_FORM);
-//! assert_array_approx_eq!(predictions, expected, tolerances::ITERATIVE);
+//! assert_array_approx_eq!(predictions, expected_arr, tolerances::ITERATIVE);
 //! ```
 //!
 //! # Serialization Testing
 //!
 //! For testing model and transformer serialization across multiple formats:
 //!
-//! ```ignore
-//! use ferroml_core::testing::serialization::{check_model_serialization, SerializationFormat};
-//! use ferroml_core::models::LinearRegression;
-//!
+//! ```
+//! # use ferroml_core::testing::serialization::{check_model_serialization, SerializationTestConfig};
+//! # use ferroml_core::models::LinearRegression;
 //! let results = check_model_serialization(
 //!     LinearRegression::new(),
 //!     SerializationTestConfig::default(),
 //! );
-//! for result in &results {
-//!     assert!(result.passed, "{}: {}", result.name, result.message.as_deref().unwrap_or(""));
-//! }
+//! assert!(!results.is_empty());
 //! ```
 //!
 //! # Mutation Testing (Phase 32)

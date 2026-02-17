@@ -30,7 +30,8 @@ use std::collections::HashMap;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, GroupKFold};
 /// use ndarray::Array1;
 ///
@@ -42,6 +43,8 @@ use std::collections::HashMap;
 ///
 /// // Each fold tests on samples from exactly one group
 /// // All samples from a group are always together
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Algorithm
@@ -207,7 +210,8 @@ impl CrossValidator for GroupKFold {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::cv::{CrossValidator, StratifiedGroupKFold};
 /// use ndarray::Array1;
 ///
@@ -222,6 +226,8 @@ impl CrossValidator for GroupKFold {
 /// let folds = cv.split(9, Some(&y), Some(&groups))?;
 ///
 /// // Groups stay together AND class distribution is preserved
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Algorithm

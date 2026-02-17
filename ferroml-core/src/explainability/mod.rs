@@ -35,10 +35,17 @@
 //!
 //! ### Permutation Importance
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::explainability::permutation_importance;
 //! use ferroml_core::models::RandomForestClassifier;
 //! use ferroml_core::metrics::accuracy;
+//! # use ferroml_core::models::Model;
+//! # use ndarray::{Array1, Array2};
+//! # let x_train = Array2::from_shape_vec((20, 2), (0..40).map(|i| i as f64 / 40.0).collect()).unwrap();
+//! # let y_train = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
+//! # let x_test = x_train.clone();
+//! # let y_test = y_train.clone();
 //!
 //! let mut model = RandomForestClassifier::new();
 //! model.fit(&x_train, &y_train)?;
@@ -54,13 +61,22 @@
 //!
 //! println!("Feature importances: {:?}", result.importances_mean);
 //! println!("95% CI: [{:?}, {:?}]", result.ci_lower, result.ci_upper);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Partial Dependence Plots
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::explainability::{partial_dependence, GridMethod};
 //! use ferroml_core::models::RandomForestRegressor;
+//! # use ferroml_core::explainability::partial_dependence_2d;
+//! # use ferroml_core::models::Model;
+//! # use ndarray::{Array1, Array2};
+//! # let x_train = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64 / 60.0).collect()).unwrap();
+//! # let y_train = Array1::from_vec((0..20).map(|i| i as f64).collect());
+//! # let x_test = x_train.clone();
 //!
 //! let mut model = RandomForestRegressor::new();
 //! model.fit(&x_train, &y_train)?;
@@ -73,13 +89,21 @@
 //! // 2D PDP for feature interaction
 //! let result_2d = partial_dependence_2d(&model, &x_test, 0, 1, 20, GridMethod::Percentile)?;
 //! println!("Interaction effect: {:?}", result_2d.pdp_values);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Individual Conditional Expectation (ICE)
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::explainability::{individual_conditional_expectation, ICEConfig};
 //! use ferroml_core::models::RandomForestRegressor;
+//! # use ferroml_core::models::Model;
+//! # use ndarray::{Array1, Array2};
+//! # let x_train = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64 / 60.0).collect()).unwrap();
+//! # let y_train = Array1::from_vec((0..20).map(|i| i as f64).collect());
+//! # let x_test = x_train.clone();
 //!
 //! let mut model = RandomForestRegressor::new();
 //! model.fit(&x_train, &y_train)?;
@@ -96,13 +120,21 @@
 //! let result = individual_conditional_expectation(&model, &x_test, 0, config)?;
 //! println!("Centered ICE: {:?}", result.centered_ice);
 //! println!("Derivative ICE: {:?}", result.derivative_ice);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Feature Interaction Detection (H-Statistic)
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::explainability::{h_statistic, h_statistic_matrix, HStatisticConfig};
 //! use ferroml_core::models::RandomForestRegressor;
+//! # use ferroml_core::models::Model;
+//! # use ndarray::{Array1, Array2};
+//! # let x_train = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64 / 60.0).collect()).unwrap();
+//! # let y_train = Array1::from_vec((0..20).map(|i| i as f64).collect());
+//! # let x_test = x_train.clone();
 //!
 //! let mut model = RandomForestRegressor::new();
 //! model.fit(&x_train, &y_train)?;
@@ -125,13 +157,21 @@
 //! for (i, j, h2) in top_interactions {
 //!     println!("Features {} x {}: H² = {:.4}", i, j, h2);
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### KernelSHAP (Model-Agnostic SHAP)
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::explainability::{KernelExplainer, KernelSHAPConfig, SHAPResult};
 //! use ferroml_core::models::RandomForestRegressor;
+//! # use ferroml_core::models::Model;
+//! # use ndarray::{Array1, Array2};
+//! # let x_train = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64 / 60.0).collect()).unwrap();
+//! # let y_train = Array1::from_vec((0..20).map(|i| i as f64).collect());
+//! # let x_test = x_train.clone();
 //!
 //! let mut model = RandomForestRegressor::new();
 //! model.fit(&x_train, &y_train)?;
@@ -151,6 +191,8 @@
 //! // Explain multiple predictions
 //! let batch_result = explainer.explain_batch(&x_test)?;
 //! println!("Global importance: {:?}", batch_result.mean_abs_shap());
+//! # Ok(())
+//! # }
 //! ```
 
 mod h_statistic;

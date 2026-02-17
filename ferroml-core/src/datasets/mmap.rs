@@ -30,24 +30,32 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
+//! # use ndarray::{array, Array2, Array1};
+//! # let dir = tempfile::tempdir()?;
+//! # let path = dir.path().join("large_dataset.fmm");
+//! # let x = array![[1.0, 2.0], [3.0, 4.0]];
+//! # let y = array![0.0, 1.0];
 //! use ferroml_core::datasets::mmap::{MemmappedDataset, MemmappedDatasetBuilder};
 //! use ferroml_core::datasets::Dataset;
 //!
 //! // Create a memory-mapped dataset from an existing dataset
 //! let dataset = Dataset::new(x, y);
-//! MemmappedDatasetBuilder::new("large_dataset.fmm")
-//!     .from_dataset(&dataset)?
+//! MemmappedDatasetBuilder::new(&path)
+//!     .from_dataset(&dataset)
 //!     .build()?;
 //!
 //! // Load it back for processing
-//! let mmap_dataset = MemmappedDataset::open("large_dataset.fmm")?;
+//! let mmap_dataset = MemmappedDataset::open(&path)?;
 //!
 //! // Access data as array views (zero-copy)
 //! let x_view = mmap_dataset.x_view();
 //! let y_view = mmap_dataset.y_view();
 //!
 //! println!("Samples: {}, Features: {}", mmap_dataset.n_samples(), mmap_dataset.n_features());
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Performance Considerations
@@ -365,11 +373,18 @@ impl MemmappedArray1 {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ndarray::{array, Array2, Array1};
+/// # let dir = tempfile::tempdir()?;
+/// # let path = dir.path().join("large_data.fmm");
+/// # let x_arr = array![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]];
+/// # let y_arr = array![0.0, 1.0, 0.0];
+/// # ferroml_core::datasets::mmap::MemmappedDataset::create(&path, &x_arr, Some(&y_arr))?;
 /// use ferroml_core::datasets::mmap::MemmappedDataset;
 ///
 /// // Open an existing memory-mapped dataset
-/// let dataset = MemmappedDataset::open("large_data.fmm")?;
+/// let dataset = MemmappedDataset::open(&path)?;
 ///
 /// // Access data as array views (zero-copy)
 /// let x = dataset.x_view();
@@ -381,6 +396,8 @@ impl MemmappedArray1 {
 ///     let x_batch = dataset.x_rows(batch_start, batch_end)?;
 ///     // Process batch...
 /// }
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug)]
 pub struct MemmappedDataset {
@@ -798,19 +815,29 @@ impl ExactSizeIterator for SampleIterator<'_> {}
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ndarray::{array, Array2, Array1};
+/// # let dir = tempfile::tempdir()?;
+/// # let path = dir.path().join("data.fmm");
+/// # let x = array![[1.0, 2.0], [3.0, 4.0]];
+/// # let y = array![0.0, 1.0];
 /// use ferroml_core::datasets::mmap::MemmappedDatasetBuilder;
 ///
 /// // Create from arrays
-/// let dataset = MemmappedDatasetBuilder::new("data.fmm")
-///     .with_features(x)
-///     .with_targets(y)
+/// let dataset = MemmappedDatasetBuilder::new(&path)
+///     .with_features(x.clone())
+///     .with_targets(y.clone())
 ///     .build()?;
 ///
 /// // Create from existing Dataset
-/// let dataset = MemmappedDatasetBuilder::new("data.fmm")
-///     .from_dataset(&existing_dataset)?
+/// # let path2 = dir.path().join("data2.fmm");
+/// # let existing_dataset = ferroml_core::datasets::Dataset::new(x, y);
+/// let dataset = MemmappedDatasetBuilder::new(&path2)
+///     .from_dataset(&existing_dataset)
 ///     .build()?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct MemmappedDatasetBuilder {
     path: PathBuf,

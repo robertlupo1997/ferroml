@@ -29,8 +29,9 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::sparse::{CsrMatrix, sparse_euclidean_distance};
+//! use ndarray::array;
 //!
 //! // Create sparse matrix from dense data
 //! let dense = array![[1.0, 0.0, 0.0, 2.0], [0.0, 3.0, 0.0, 0.0]];

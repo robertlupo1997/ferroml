@@ -17,7 +17,10 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```
+//! # use ndarray::{Array1, Array2};
+//! # let x = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64).collect()).unwrap();
+//! # let y = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
 //! use ferroml_core::automl::{
 //!     PreprocessingSelector, PreprocessingConfig, PreprocessingStrategy,
 //!     DataCharacteristics, PreprocessingRequirement,
@@ -39,7 +42,7 @@
 //!     PreprocessingRequirement::Scaling,
 //! ];
 //!
-//! let pipeline_spec = selector.build_pipeline(&chars, &requirements);
+//! let pipeline_spec = selector.build_pipeline(&chars, &requirements, None);
 //! ```
 
 use ndarray::{Array1, Array2};

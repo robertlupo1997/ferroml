@@ -11,10 +11,13 @@
 //!
 //! ## Usage
 //!
-//! ```ignore
-//! use ferroml_core::gpu::WgpuBackend;
+//! ```no_run
+//! use ferroml_core::gpu::{WgpuBackend, GpuBackend};
+//! use ndarray::array;
 //!
 //! if let Some(backend) = WgpuBackend::try_new() {
+//!     let a = array![[1.0, 2.0], [3.0, 4.0]];
+//!     let b = array![[5.0, 6.0], [7.0, 8.0]];
 //!     let c = backend.matmul(&a, &b).unwrap();
 //! }
 //! ```

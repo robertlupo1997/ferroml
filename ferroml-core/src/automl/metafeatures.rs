@@ -11,7 +11,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::automl::metafeatures::{DatasetMetafeatures, MetafeatureConfig};
 //! use ndarray::{Array1, Array2};
 //!

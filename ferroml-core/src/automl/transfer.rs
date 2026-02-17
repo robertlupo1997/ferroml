@@ -8,14 +8,27 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::automl::{
 //!     MetaLearningStore, WarmStartConfig, DatasetMetafeatures,
 //!     TransferredSearchSpace, WarmStartSampler, PriorKnowledge,
 //! };
 //! use ferroml_core::hpo::{Study, Direction};
+//! # use ferroml_core::automl::TransferConfig;
+//! # use ferroml_core::hpo::SearchSpace;
+//! # use ferroml_core::Task;
 //!
 //! // Get warm-start configurations from similar datasets
+//! # let saved_store = "{}".to_string();
+//! # let metafeatures = {
+//! #     use ndarray::{Array1, Array2};
+//! #     let x = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64).collect()).unwrap();
+//! #     let y = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
+//! #     DatasetMetafeatures::extract(&x, &y, true, None)?
+//! # };
+//! # let config = WarmStartConfig::new();
+//! # let task = Task::Classification;
 //! let store = MetaLearningStore::from_json(&saved_store)?;
 //! let warm_start = store.get_warm_start_configs(&metafeatures, &config, task)?;
 //!
@@ -31,6 +44,8 @@
 //! let sampler = WarmStartSampler::new(&warm_start, original_space.clone());
 //! let study = Study::new("my_study", transferred.search_space, Direction::Maximize)
 //!     .with_sampler(sampler);
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::automl::portfolio::AlgorithmType;

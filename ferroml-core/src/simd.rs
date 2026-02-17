@@ -27,7 +27,7 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::simd::{euclidean_distance, manhattan_distance};
 //!
 //! let a = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
@@ -104,7 +104,7 @@ pub fn squared_euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::simd::euclidean_distance;
 ///
 /// let a = [0.0, 0.0];
@@ -131,7 +131,7 @@ pub fn euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::simd::manhattan_distance;
 ///
 /// let a = [0.0, 0.0];
@@ -510,7 +510,7 @@ pub fn cosine_distance(a: &[f64], b: &[f64]) -> f64 {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::simd::matrix_vector_mul;
 ///
 /// // 2×3 matrix [[1, 2, 3], [4, 5, 6]]

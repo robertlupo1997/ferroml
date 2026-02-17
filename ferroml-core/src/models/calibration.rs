@@ -31,21 +31,26 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::models::calibration::{CalibratedClassifierCV, CalibrationMethod};
-//! use ferroml_core::models::{SVC, Model};
+//! use ferroml_core::models::{LogisticRegression, Model};
 //! use ndarray::{Array1, Array2};
+//! # let x = Array2::from_shape_vec((20, 2), (0..40).map(|i| i as f64 * 0.1).collect()).unwrap();
+//! # let y = Array1::from_vec(vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
 //!
-//! // SVC with RBF kernel (probabilities may be miscalibrated)
-//! let svc = SVC::new();
+//! // LogisticRegression (probabilities may be miscalibrated)
+//! let lr = LogisticRegression::new();
 //!
 //! // Wrap with calibration
-//! let mut calibrated = CalibratedClassifierCV::new(Box::new(svc))
+//! let mut calibrated = CalibratedClassifierCV::new(Box::new(lr))
 //!     .with_method(CalibrationMethod::Sigmoid)
-//!     .with_n_folds(5);
+//!     .with_n_folds(3);
 //!
 //! calibrated.fit(&x, &y)?;
 //! let calibrated_probas = calibrated.predict_proba(&x)?;
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::cv::{CrossValidator, KFold, StratifiedKFold};
@@ -632,7 +637,12 @@ pub trait MulticlassCalibrator: Send + Sync {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::calibration::{TemperatureScalingCalibrator, Calibrator};
+/// # use ndarray::Array1;
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let y_prob = Array1::from_vec(vec![0.9, 0.8, 0.3, 0.2, 0.7]);
+/// # let y_true = Array1::from_vec(vec![1.0, 1.0, 0.0, 0.0, 1.0]);
 /// use ferroml_core::models::calibration::TemperatureScalingCalibrator;
 ///
 /// let mut calibrator = TemperatureScalingCalibrator::new();
@@ -640,6 +650,8 @@ pub trait MulticlassCalibrator: Send + Sync {
 ///
 /// let calibrated = calibrator.transform(&y_prob)?;
 /// println!("Learned temperature: {}", calibrator.temperature().unwrap());
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ## Reference
@@ -963,17 +975,23 @@ pub trait CalibrableClassifier: Model {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::models::calibration::{CalibratedClassifierCV, CalibrationMethod};
-/// use ferroml_core::models::SVC;
+/// use ferroml_core::models::{LogisticRegression, Model};
+/// # use ndarray::{Array1, Array2};
+/// # let x = Array2::from_shape_vec((20, 2), (0..40).map(|i| i as f64 * 0.1).collect()).unwrap();
+/// # let y = Array1::from_vec(vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
 ///
-/// let svc = SVC::new();
-/// let mut calibrated = CalibratedClassifierCV::new(Box::new(svc))
+/// let lr = LogisticRegression::new();
+/// let mut calibrated = CalibratedClassifierCV::new(Box::new(lr))
 ///     .with_method(CalibrationMethod::Sigmoid)
-///     .with_n_folds(5);
+///     .with_n_folds(3);
 ///
 /// calibrated.fit(&x, &y)?;
 /// let proba = calibrated.predict_proba(&x)?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct CalibratedClassifierCV {
     /// Base classifier to calibrate

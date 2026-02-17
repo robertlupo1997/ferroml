@@ -180,9 +180,17 @@ impl std::fmt::Display for PermutationImportanceResult {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::explainability::permutation_importance;
 /// use ferroml_core::models::RandomForestClassifier;
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # use ferroml_core::Result;
+/// # let x_train = Array2::from_shape_vec((20, 2), (0..40).map(|i| i as f64 / 40.0).collect()).unwrap();
+/// # let y_train = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
+/// # let x_test = x_train.clone();
+/// # let y_test = y_train.clone();
 ///
 /// let mut model = RandomForestClassifier::new();
 /// model.fit(&x_train, &y_train)?;
@@ -198,6 +206,8 @@ impl std::fmt::Display for PermutationImportanceResult {
 ///
 /// let result = permutation_importance(&model, &x_test, &y_test, scoring, 10, Some(42))?;
 /// println!("{}", result);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors

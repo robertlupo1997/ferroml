@@ -25,10 +25,9 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Example
 ///
-/// ```ignore
-/// use ferroml_core::neural::{MLPRegressor, Activation, Solver};
-/// use ndarray::{Array1, Array2};
-///
+/// ```
+/// # use ferroml_core::neural::{MLPRegressor, Activation, Solver, NeuralModel};
+/// # use ndarray::{Array1, Array2};
 /// let X = Array2::from_shape_vec((4, 1), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
 /// let y = Array1::from_vec(vec![2.0, 4.0, 6.0, 8.0]); // y = 2x
 ///

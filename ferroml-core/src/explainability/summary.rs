@@ -12,9 +12,15 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::explainability::{TreeExplainer, SHAPSummary};
 //! use ferroml_core::models::RandomForestRegressor;
+//! # use ferroml_core::models::Model;
+//! # use ndarray::{Array1, Array2};
+//! # let x_train = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64 / 60.0).collect()).unwrap();
+//! # let y_train = Array1::from_vec((0..20).map(|i| i as f64).collect());
+//! # let x_test = x_train.clone();
 //!
 //! let mut model = RandomForestRegressor::new();
 //! model.fit(&x_train, &y_train)?;
@@ -33,9 +39,11 @@
 //!
 //! // Get beeswarm plot data
 //! let beeswarm = summary.beeswarm_plot_data();
-//! for (feature_idx, points) in beeswarm.points_by_feature.iter().enumerate() {
+//! for (feature_idx, points) in beeswarm.points_by_feature().iter().enumerate() {
 //!     println!("Feature {}: {} points", feature_idx, points.len());
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## References

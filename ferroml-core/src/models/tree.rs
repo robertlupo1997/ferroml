@@ -502,7 +502,7 @@ impl DecisionTreeClassifier {
     /// * `class_weight` - Weight specification: `Uniform`, `Balanced`, or `Custom`
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use ferroml_core::models::{DecisionTreeClassifier, ClassWeight};
     ///
     /// let model = DecisionTreeClassifier::new()

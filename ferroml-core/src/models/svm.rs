@@ -26,7 +26,7 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::svm::{SVC, Kernel};
 //! use ferroml_core::models::{Model, ProbabilisticModel};
 //! use ndarray::{Array1, Array2};
@@ -48,7 +48,11 @@
 //!
 //! ## LinearSVC Example
 //!
-//! ```ignore
+//! ```
+//! # use ndarray::{Array1, Array2};
+//! # let x_train = Array2::from_shape_vec((6, 2), vec![1.0,2.0,2.0,1.0,3.0,3.0,6.0,7.0,7.0,6.0,8.0,8.0]).unwrap();
+//! # let y_train = Array1::from_vec(vec![0.0,0.0,0.0,1.0,1.0,1.0]);
+//! # let x_test = x_train.clone();
 //! use ferroml_core::models::svm::LinearSVC;
 //! use ferroml_core::models::Model;
 //!
@@ -731,7 +735,14 @@ impl BinarySVC {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::svm::{SVC, Kernel, MulticlassStrategy};
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x_train = Array2::from_shape_vec((6, 2), vec![1.0,2.0,2.0,1.0,3.0,3.0,6.0,7.0,7.0,6.0,8.0,8.0]).unwrap();
+/// # let y_train = Array1::from_vec(vec![0.0,0.0,0.0,1.0,1.0,1.0]);
+/// # let x_test = x_train.clone();
 /// use ferroml_core::models::svm::{SVC, Kernel, MulticlassStrategy};
 /// use ferroml_core::models::Model;
 ///
@@ -743,6 +754,8 @@ impl BinarySVC {
 ///
 /// clf.fit(&x_train, &y_train)?;
 /// let predictions = clf.predict(&x_test)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SVC {
@@ -1285,7 +1298,14 @@ impl ProbabilisticModel for SVC {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::svm::{SVR, Kernel};
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x_train = Array2::from_shape_vec((6, 2), vec![1.0,2.0,2.0,1.0,3.0,3.0,6.0,7.0,7.0,6.0,8.0,8.0]).unwrap();
+/// # let y_train = Array1::from_vec(vec![0.0,0.1,0.2,1.0,1.1,1.2]);
+/// # let x_test = x_train.clone();
 /// use ferroml_core::models::svm::{SVR, Kernel};
 /// use ferroml_core::models::Model;
 ///
@@ -1296,6 +1316,8 @@ impl ProbabilisticModel for SVC {
 ///
 /// reg.fit(&x_train, &y_train)?;
 /// let predictions = reg.predict(&x_test)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SVR {
@@ -1726,7 +1748,14 @@ impl Default for LinearSVCLoss {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::svm::LinearSVC;
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x_train = Array2::from_shape_vec((6, 2), vec![1.0,2.0,2.0,1.0,3.0,3.0,6.0,7.0,7.0,6.0,8.0,8.0]).unwrap();
+/// # let y_train = Array1::from_vec(vec![0.0,0.0,0.0,1.0,1.0,1.0]);
+/// # let x_test = x_train.clone();
 /// use ferroml_core::models::svm::LinearSVC;
 /// use ferroml_core::models::Model;
 ///
@@ -1736,6 +1765,8 @@ impl Default for LinearSVCLoss {
 ///
 /// clf.fit(&x_train, &y_train)?;
 /// let predictions = clf.predict(&x_test)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ## Algorithm
@@ -2210,7 +2241,14 @@ impl Default for LinearSVRLoss {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::svm::LinearSVR;
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x_train = Array2::from_shape_vec((6, 2), vec![1.0,2.0,2.0,1.0,3.0,3.0,6.0,7.0,7.0,6.0,8.0,8.0]).unwrap();
+/// # let y_train = Array1::from_vec(vec![0.0,0.1,0.2,1.0,1.1,1.2]);
+/// # let x_test = x_train.clone();
 /// use ferroml_core::models::svm::LinearSVR;
 /// use ferroml_core::models::Model;
 ///
@@ -2221,6 +2259,8 @@ impl Default for LinearSVRLoss {
 ///
 /// reg.fit(&x_train, &y_train)?;
 /// let predictions = reg.predict(&x_test)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ## Algorithm

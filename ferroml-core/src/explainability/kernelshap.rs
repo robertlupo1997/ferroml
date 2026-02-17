@@ -21,9 +21,15 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::explainability::{KernelExplainer, KernelSHAPConfig};
 //! use ferroml_core::models::RandomForestRegressor;
+//! # use ferroml_core::models::Model;
+//! # use ndarray::{Array1, Array2};
+//! # let x_train = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64 / 60.0).collect()).unwrap();
+//! # let y_train = Array1::from_vec((0..20).map(|i| i as f64).collect());
+//! # let x_test = x_train.clone();
 //!
 //! let mut model = RandomForestRegressor::new();
 //! model.fit(&x_train, &y_train)?;
@@ -38,6 +44,8 @@
 //!
 //! // Explain multiple predictions
 //! let results = explainer.explain_batch(&x_test)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## References

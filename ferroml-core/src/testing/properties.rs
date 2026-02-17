@@ -27,10 +27,13 @@
 //! Property tests are only available during test compilation.
 //! Use `cargo test -p ferroml-core properties` to run them.
 //!
-//! ```ignore
-//! // Property tests are run via cargo test
-//! cargo test -p ferroml-core properties
-//! cargo test -p ferroml-core properties -- --ignored  // For longer-running tests
+//! ```
+//! # use ferroml_core::testing::properties::{vecs_to_array2, vec_to_array1, all_finite};
+//! // Helper functions for property-based testing
+//! let x = vecs_to_array2(vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+//! assert_eq!(x.shape(), &[2, 2]);
+//! let y = vec_to_array1(vec![1.0, 2.0]);
+//! assert!(all_finite(&y));
 //! ```
 
 // ============================================================================

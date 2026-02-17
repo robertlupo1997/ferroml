@@ -9,15 +9,11 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use ferroml_core::testing::callbacks::*;
-//!
-//! // Run all callback tests
-//! #[test]
-//! fn test_all_callbacks() {
-//!     test_early_stopping_patience();
-//!     test_learning_rate_schedulers();
-//! }
+//! ```
+//! # use ferroml_core::testing::callbacks::*;
+//! // Callback types are available for use in tests
+//! let recorder = EventRecorderCallback::new();
+//! let counter = CounterCallback::new();
 //! ```
 
 #![allow(unused_imports)]

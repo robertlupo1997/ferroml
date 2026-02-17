@@ -32,10 +32,9 @@
 //!
 //! ## Example
 //!
-//! ```ignore
-//! use ferroml_core::neural::{MLPClassifier, Activation, Solver};
-//! use ndarray::{Array1, Array2};
-//!
+//! ```
+//! # use ferroml_core::neural::{MLPClassifier, Activation, Solver, NeuralModel, NeuralDiagnostics};
+//! # use ndarray::{Array1, Array2};
 //! let X = Array2::from_shape_vec((4, 2), vec![
 //!     0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0
 //! ]).unwrap();

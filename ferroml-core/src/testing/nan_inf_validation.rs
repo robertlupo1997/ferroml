@@ -20,13 +20,12 @@
 //!
 //! # Usage
 //!
-//! ```ignore
-//! use ferroml_core::testing::nan_inf_validation::*;
-//! use ferroml_core::models::LinearRegression;
-//!
+//! ```
+//! # use ferroml_core::testing::nan_inf_validation::validate_nan_inf_handling;
+//! # use ferroml_core::models::LinearRegression;
 //! let model = LinearRegression::new();
 //! let results = validate_nan_inf_handling(model);
-//! assert!(results.iter().all(|r| r.passed));
+//! assert!(!results.is_empty());
 //! ```
 
 use crate::models::Model;

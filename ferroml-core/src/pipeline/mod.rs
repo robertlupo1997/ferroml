@@ -15,10 +15,16 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::pipeline::{Pipeline, PipelineStep, FeatureUnion};
-//! use ferroml_core::preprocessing::scalers::StandardScaler;
+//! use ferroml_core::preprocessing::scalers::{StandardScaler, MinMaxScaler};
+//! use ferroml_core::preprocessing::Transformer;
 //! use ferroml_core::models::LinearRegression;
+//! # use ndarray::{Array1, Array2};
+//! # let x_train = Array2::from_shape_vec((10, 2), (0..20).map(|i| (i as f64 * 0.7).sin()).collect()).unwrap();
+//! # let y_train = Array1::from_vec((0..10).map(|i| i as f64).collect());
+//! # let x_test = x_train.clone();
 //!
 //! // Create a pipeline with scaler and model
 //! let mut pipeline = Pipeline::new()
@@ -35,12 +41,14 @@
 //! let space = pipeline.search_space();
 //!
 //! // FeatureUnion for parallel feature extraction
-//! let feature_union = FeatureUnion::new()
-//!     .add_transformer("pca", PcaTransformer::new(5))
-//!     .add_transformer("poly", PolynomialFeatures::new(2));
+//! let mut feature_union = FeatureUnion::new()
+//!     .add_transformer("scaler", StandardScaler::new())
+//!     .add_transformer("minmax", MinMaxScaler::new());
 //!
 //! // Fit and transform - runs transformers in parallel and concatenates
 //! let combined_features = feature_union.fit_transform(&x_train)?;
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::hpo::{ParameterValue, SearchSpace};
@@ -646,11 +654,22 @@ impl Pipeline {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # fn main() -> ferroml_core::Result<()> {
+    /// # use ferroml_core::pipeline::Pipeline;
+    /// # use ferroml_core::preprocessing::scalers::StandardScaler;
+    /// # use ferroml_core::models::LinearRegression;
+    /// # use ferroml_core::hpo::ParameterValue;
+    /// # use std::collections::HashMap;
+    /// # let mut pipeline = Pipeline::new()
+    /// #     .add_transformer("scaler", StandardScaler::new())
+    /// #     .add_model("model", LinearRegression::new());
     /// let mut params = HashMap::new();
     /// params.insert("scaler__with_mean".to_string(), ParameterValue::Bool(true));
     /// params.insert("model__alpha".to_string(), ParameterValue::Float(0.1));
     /// pipeline.set_params(&params)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn set_params(&mut self, params: &HashMap<String, ParameterValue>) -> Result<()> {
         // Collect step names first to avoid borrow issues
@@ -743,7 +762,7 @@ impl Pipeline {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::pipeline::make_pipeline;
 /// use ferroml_core::preprocessing::scalers::StandardScaler;
 /// use ferroml_core::models::LinearRegression;
@@ -787,18 +806,23 @@ pub fn make_pipeline(
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::pipeline::FeatureUnion;
-/// use ferroml_core::preprocessing::PolynomialFeatures;
-/// use ferroml_core::decomposition::PCA;
+/// use ferroml_core::preprocessing::scalers::{StandardScaler, MinMaxScaler};
+/// use ferroml_core::preprocessing::Transformer;
+/// # use ndarray::Array2;
+/// # let x_train = Array2::from_shape_vec((10, 2), (0..20).map(|i| i as f64).collect()).unwrap();
 ///
 /// // Create a feature union with two transformers
 /// let mut feature_union = FeatureUnion::new()
-///     .add_transformer("poly", PolynomialFeatures::new(2))
-///     .add_transformer("pca", PCA::new(5));
+///     .add_transformer("scaler", StandardScaler::new())
+///     .add_transformer("minmax", MinMaxScaler::new());
 ///
 /// // Fit and transform - runs in parallel
 /// let combined = feature_union.fit_transform(&x_train)?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct FeatureUnion {
     /// Named transformers: (name, transformer) pairs
@@ -1212,12 +1236,13 @@ impl PipelineTransformer for FeatureUnion {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::pipeline::make_feature_union;
+/// use ferroml_core::preprocessing::scalers::{StandardScaler, MinMaxScaler};
 ///
 /// let union = make_feature_union(vec![
-///     ("poly".to_string(), Box::new(PolynomialFeatures::new(2))),
-///     ("pca".to_string(), Box::new(PCA::new(5))),
+///     ("scaler".to_string(), Box::new(StandardScaler::new())),
+///     ("minmax".to_string(), Box::new(MinMaxScaler::new())),
 /// ]);
 /// ```
 pub fn make_feature_union(
@@ -1344,18 +1369,23 @@ impl fmt::Debug for TransformerSpec {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::pipeline::{ColumnTransformer, ColumnSelector, RemainderHandling};
-/// use ferroml_core::preprocessing::scalers::StandardScaler;
-/// use ferroml_core::preprocessing::encoders::OneHotEncoder;
+/// use ferroml_core::preprocessing::scalers::{StandardScaler, MinMaxScaler};
+/// use ferroml_core::preprocessing::Transformer;
+/// # use ndarray::Array2;
+/// # let x = Array2::from_shape_vec((10, 4), (0..40).map(|i| i as f64).collect()).unwrap();
 ///
-/// // Scale columns 0-2 (numeric), one-hot encode column 3 (categorical)
+/// // Scale columns 0-2 (numeric), min-max scale column 3
 /// let mut ct = ColumnTransformer::new()
 ///     .add_transformer("scaler", StandardScaler::new(), ColumnSelector::indices([0, 1, 2]))
-///     .add_transformer("encoder", OneHotEncoder::new(), ColumnSelector::indices([3]))
+///     .add_transformer("minmax", MinMaxScaler::new(), ColumnSelector::indices([3]))
 ///     .with_remainder(RemainderHandling::Drop);
 ///
 /// let x_transformed = ct.fit_transform(&x)?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct ColumnTransformer {
     /// Named transformers with their column specifications
@@ -1869,7 +1899,7 @@ impl PipelineTransformer for ColumnTransformer {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use ferroml_core::pipeline::{make_column_transformer, ColumnSelector};
 /// use ferroml_core::preprocessing::scalers::StandardScaler;
 ///

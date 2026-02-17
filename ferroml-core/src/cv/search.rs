@@ -37,7 +37,28 @@ pub struct SearchResult {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ferroml_core::traits::{Estimator, Predictor, PredictionWithUncertainty};
+/// # use ferroml_core::hpo::SearchSpace;
+/// # use ferroml_core::metrics::{Metric, MetricValue, Direction};
+/// # use ferroml_core::cv::ParameterSettable;
+/// # use ndarray::{Array1, Array2};
+/// # #[derive(Clone)]
+/// # struct MyModel { alpha: f64 }
+/// # struct MyFitted(f64);
+/// # impl Predictor for MyFitted {
+/// #     fn predict(&self, x: &Array2<f64>) -> ferroml_core::Result<Array1<f64>> { Ok(Array1::from_elem(x.nrows(), self.0)) }
+/// #     fn predict_with_uncertainty(&self, x: &Array2<f64>, c: f64) -> ferroml_core::Result<PredictionWithUncertainty> { let p = self.predict(x)?; Ok(PredictionWithUncertainty { predictions: p.clone(), lower: p.clone(), upper: p, confidence_level: c, std_errors: None }) }
+/// # }
+/// # impl Estimator for MyModel { type Fitted = MyFitted; fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> ferroml_core::Result<MyFitted> { Ok(MyFitted(y.mean().unwrap_or(0.0))) } fn search_space(&self) -> SearchSpace { SearchSpace::new() } }
+/// # impl ParameterSettable for MyModel { fn set_param(&mut self, _n: &str, v: f64) -> ferroml_core::Result<()> { self.alpha = v; Ok(()) } fn get_param(&self, _n: &str) -> ferroml_core::Result<f64> { Ok(self.alpha) } }
+/// # struct MseMetric;
+/// # impl Metric for MseMetric { fn name(&self) -> &str { "mse" } fn direction(&self) -> Direction { Direction::Minimize } fn compute(&self, a: &Array1<f64>, b: &Array1<f64>) -> ferroml_core::Result<MetricValue> { let mse = a.iter().zip(b.iter()).map(|(x,y)|(x-y).powi(2)).sum::<f64>()/a.len() as f64; Ok(MetricValue::new("mse", mse, Direction::Minimize)) } }
+/// # let estimator = MyModel { alpha: 1.0 };
+/// # let x = Array2::from_shape_vec((30, 2), (0..60).map(|i| i as f64).collect()).unwrap();
+/// # let y = Array1::from_vec((0..30).map(|i| i as f64).collect());
+/// # let metric = MseMetric;
 /// use ferroml_core::cv::search::GridSearchCV;
 /// use std::collections::HashMap;
 ///
@@ -49,6 +70,8 @@ pub struct SearchResult {
 ///
 /// println!("Best params: {:?}", search.best_params());
 /// println!("Best score: {:.4}", search.best_score().unwrap());
+/// # Ok(())
+/// # }
 /// ```
 pub struct GridSearchCV {
     /// Parameter grid to search

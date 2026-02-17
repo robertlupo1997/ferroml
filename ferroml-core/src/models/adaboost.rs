@@ -34,13 +34,21 @@ use serde::{Deserialize, Serialize};
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::adaboost::AdaBoostClassifier;
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x = Array2::from_shape_vec((6, 2), vec![1.0,2.0,2.0,1.0,3.0,3.0,6.0,7.0,7.0,6.0,8.0,8.0]).unwrap();
+/// # let y = Array1::from_vec(vec![0.0,0.0,0.0,1.0,1.0,1.0]);
 /// use ferroml_core::models::adaboost::AdaBoostClassifier;
 /// use ferroml_core::models::Model;
 ///
 /// let mut clf = AdaBoostClassifier::new(50);
 /// clf.fit(&x, &y)?;
 /// let preds = clf.predict(&x)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdaBoostClassifier {

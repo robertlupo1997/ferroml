@@ -288,9 +288,16 @@ impl Default for GridMethod {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::explainability::partial_dependence;
 /// use ferroml_core::models::RandomForestRegressor;
+/// # use ferroml_core::explainability::GridMethod;
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # let x_train = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64 / 60.0).collect()).unwrap();
+/// # let y_train = Array1::from_vec((0..20).map(|i| i as f64).collect());
+/// # let x_test = x_train.clone();
 ///
 /// let mut model = RandomForestRegressor::new();
 /// model.fit(&x_train, &y_train)?;
@@ -298,6 +305,8 @@ impl Default for GridMethod {
 /// let result = partial_dependence(&model, &x_test, 0, 50, GridMethod::Percentile, false)?;
 /// println!("Grid: {:?}", result.grid_values);
 /// println!("PDP: {:?}", result.pdp_values);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors

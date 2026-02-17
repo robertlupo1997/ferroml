@@ -7,16 +7,23 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::automl::{
 //!     MetaLearningStore, WarmStartConfig, DatasetMetafeatures, MetafeatureConfig,
 //! };
+//! # use ferroml_core::{Task, automl::TrialResult};
+//! # use ndarray::{Array1, Array2};
+//! # let x = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64).collect()).unwrap();
+//! # let y = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
 //!
 //! // Create or load a meta-learning store
 //! let mut store = MetaLearningStore::new();
 //!
 //! // After running AutoML, store the results
-//! store.add_dataset("my_dataset", metafeatures, &trial_results);
+//! # let metafeatures = DatasetMetafeatures::extract(&x, &y, true, None)?;
+//! # let trial_results: Vec<TrialResult> = vec![];
+//! store.add_dataset("my_dataset", metafeatures, Task::Classification, &trial_results, true);
 //!
 //! // For a new dataset, get warm-start configurations
 //! let new_metafeatures = DatasetMetafeatures::extract(&x, &y, true, None)?;
@@ -24,9 +31,11 @@
 //!     .with_k_nearest(3)
 //!     .with_min_similarity(0.5);
 //!
-//! let warm_start = store.get_warm_start_configs(&new_metafeatures, &config)?;
+//! let warm_start = store.get_warm_start_configs(&new_metafeatures, &config, Task::Classification)?;
 //! println!("Found {} initial configurations from {} similar datasets",
 //!          warm_start.configurations.len(), warm_start.similar_datasets.len());
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::automl::{AlgorithmType, DatasetMetafeatures, ParamValue, TrialResult};

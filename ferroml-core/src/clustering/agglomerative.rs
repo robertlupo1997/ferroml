@@ -42,12 +42,15 @@ impl Default for Linkage {
 ///
 /// ## Example
 ///
-/// ```ignore
-/// use ferroml_core::clustering::agglomerative::AgglomerativeClustering;
-/// use ferroml_core::clustering::ClusteringModel;
-///
+/// ```
+/// # use ferroml_core::clustering::agglomerative::AgglomerativeClustering;
+/// # use ferroml_core::clustering::ClusteringModel;
+/// # use ndarray::Array2;
+/// # let x = Array2::from_shape_vec((6, 2), vec![
+/// #     1.0, 2.0, 1.5, 1.8, 1.2, 2.2, 8.0, 8.0, 8.2, 7.8, 7.8, 8.2
+/// # ]).unwrap();
 /// let mut model = AgglomerativeClustering::new(3);
-/// let labels = model.fit_predict(&x)?;
+/// let labels = model.fit_predict(&x).unwrap();
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgglomerativeClustering {

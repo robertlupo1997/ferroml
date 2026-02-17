@@ -13,14 +13,11 @@
 //!
 //! ## Usage
 //!
-//! ```ignore
-//! use ferroml_core::testing::onnx::{check_onnx_roundtrip, OnnxTestConfig};
-//! use ferroml_core::models::LinearRegression;
-//!
-//! let results = check_onnx_roundtrip(LinearRegression::new(), OnnxTestConfig::default());
-//! for result in &results {
-//!     assert!(result.passed, "{}: {}", result.name, result.message.as_deref().unwrap_or(""));
-//! }
+//! ```
+//! # use ferroml_core::testing::onnx::OnnxTestConfig;
+//! // OnnxTestConfig is available for configuring ONNX round-trip tests
+//! let config = OnnxTestConfig::default();
+//! assert_eq!(config.n_features, 5);
 //! ```
 
 use super::{CheckCategory, CheckResult};

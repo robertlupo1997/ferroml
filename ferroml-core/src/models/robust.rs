@@ -18,13 +18,13 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::models::robust::{RobustRegression, MEstimator};
 //! use ferroml_core::models::{Model, StatisticalModel};
 //! use ndarray::{Array1, Array2};
 //!
-//! let x = Array2::from_shape_vec((100, 2), /* ... */).unwrap();
-//! let y = Array1::from_vec(/* ... */);
+//! let x = Array2::from_shape_vec((100, 2), (0..200).map(|i| i as f64 * 0.1).collect()).unwrap();
+//! let y = Array1::from_vec((0..100).map(|i| i as f64 * 0.5 + 1.0).collect());
 //!
 //! // Fit with Huber M-estimator (default)
 //! let mut model = RobustRegression::new();

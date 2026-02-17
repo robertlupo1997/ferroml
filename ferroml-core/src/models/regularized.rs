@@ -63,13 +63,22 @@ use serde::{Deserialize, Serialize};
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::regularized::RidgeRegression;
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x = Array2::from_shape_vec((4, 2), vec![1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0]).unwrap();
+/// # let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
+/// # let x_test = x.clone();
 /// use ferroml_core::models::regularized::RidgeRegression;
 /// use ferroml_core::models::Model;
 ///
 /// let mut ridge = RidgeRegression::new(1.0);
 /// ridge.fit(&x, &y)?;
 /// let predictions = ridge.predict(&x_test)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RidgeRegression {
@@ -429,7 +438,13 @@ impl ProbabilisticModel for RidgeRegression {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::regularized::LassoRegression;
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x = Array2::from_shape_vec((4, 2), vec![1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0]).unwrap();
+/// # let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
 /// use ferroml_core::models::regularized::LassoRegression;
 /// use ferroml_core::models::Model;
 ///
@@ -439,6 +454,8 @@ impl ProbabilisticModel for RidgeRegression {
 /// // Get sparse coefficients
 /// let coef = lasso.coefficients().unwrap();
 /// let n_nonzero = coef.iter().filter(|&&c| c.abs() > 1e-10).count();
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LassoRegression {
@@ -833,13 +850,21 @@ impl StatisticalModel for LassoRegression {
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
+/// # use ferroml_core::models::regularized::ElasticNet;
+/// # use ferroml_core::models::Model;
+/// # use ndarray::{Array1, Array2};
+/// # fn main() -> ferroml_core::Result<()> {
+/// # let x = Array2::from_shape_vec((4, 2), vec![1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0]).unwrap();
+/// # let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
 /// use ferroml_core::models::regularized::ElasticNet;
 /// use ferroml_core::models::Model;
 ///
 /// // alpha=0.1, l1_ratio=0.5 means equal L1 and L2 penalty
 /// let mut elastic = ElasticNet::new(0.1, 0.5);
 /// elastic.fit(&x, &y)?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElasticNet {

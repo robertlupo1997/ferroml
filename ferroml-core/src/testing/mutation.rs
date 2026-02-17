@@ -70,37 +70,26 @@
 //!
 //! ## Good Practices
 //!
-//! ```ignore
-//! // BAD: Only tests happy path
-//! #[test]
-//! fn test_accuracy() {
-//!     let acc = accuracy(&y_true, &y_pred).unwrap();
-//!     assert!(acc >= 0.0);  // Weak assertion - many mutations survive
-//! }
-//!
+//! ```
+//! # use ferroml_core::metrics::accuracy;
+//! # use ndarray::array;
+//! # fn main() -> ferroml_core::Result<()> {
 //! // GOOD: Tests specific values and edge cases
-//! #[test]
-//! fn test_accuracy_perfect() {
-//!     let y = array![1.0, 0.0, 1.0, 1.0];
-//!     let acc = accuracy(&y, &y).unwrap();
-//!     assert_eq!(acc, 1.0);  // Exact match catches more mutations
-//! }
+//! let y = array![1.0, 0.0, 1.0, 1.0];
+//! let acc = accuracy(&y, &y)?;
+//! assert_eq!(acc, 1.0);  // Exact match catches more mutations
 //!
-//! #[test]
-//! fn test_accuracy_zero() {
-//!     let y_true = array![1.0, 1.0, 1.0];
-//!     let y_pred = array![0.0, 0.0, 0.0];
-//!     let acc = accuracy(&y_true, &y_pred).unwrap();
-//!     assert_eq!(acc, 0.0);  // Edge case
-//! }
+//! let y_true = array![1.0, 1.0, 1.0];
+//! let y_pred = array![0.0, 0.0, 0.0];
+//! let acc = accuracy(&y_true, &y_pred)?;
+//! assert_eq!(acc, 0.0);  // Edge case
 //!
-//! #[test]
-//! fn test_accuracy_half() {
-//!     let y_true = array![1.0, 0.0, 1.0, 0.0];
-//!     let y_pred = array![1.0, 1.0, 0.0, 0.0];
-//!     let acc = accuracy(&y_true, &y_pred).unwrap();
-//!     assert!((acc - 0.5).abs() < 1e-10);  // Known expected value
-//! }
+//! let y_true = array![1.0, 0.0, 1.0, 0.0];
+//! let y_pred = array![1.0, 1.0, 0.0, 0.0];
+//! let acc = accuracy(&y_true, &y_pred)?;
+//! assert!((acc - 0.5).abs() < 1e-10);  // Known expected value
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Testing Mathematical Operations
@@ -108,21 +97,18 @@
 //! For functions with mathematical operations, test that changing the operation
 //! would produce wrong results:
 //!
-//! ```ignore
+//! ```
+//! # use ferroml_core::metrics::mse;
+//! # use ndarray::array;
+//! # fn main() -> ferroml_core::Result<()> {
 //! // Test that MSE calculation is correct
-//! #[test]
-//! fn test_mse_calculation() {
-//!     let y_true = array![1.0, 2.0, 3.0];
-//!     let y_pred = array![2.0, 2.0, 2.0];
-//!     // Errors: [1.0, 0.0, -1.0], squared: [1.0, 0.0, 1.0], mean: 2/3
-//!     let mse = mse(&y_true, &y_pred).unwrap();
-//!     assert!((mse - 2.0/3.0).abs() < 1e-10);
-//! }
-//!
-//! // This catches mutations like:
-//! // - (y_true - y_pred) -> (y_true + y_pred)
-//! // - .powi(2) -> .powi(1) or removal
-//! // - mean() -> sum()
+//! let y_true = array![1.0, 2.0, 3.0];
+//! let y_pred = array![2.0, 2.0, 2.0];
+//! // Errors: [1.0, 0.0, -1.0], squared: [1.0, 0.0, 1.0], mean: 2/3
+//! let mse = mse(&y_true, &y_pred)?;
+//! assert!((mse - 2.0/3.0).abs() < 1e-10);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Configuration

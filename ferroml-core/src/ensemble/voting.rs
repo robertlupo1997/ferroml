@@ -14,16 +14,16 @@
 //!
 //! ## Example - VotingClassifier
 //!
-//! ```ignore
-//! use ferroml_core::ensemble::VotingClassifier;
-//! use ferroml_core::models::{LogisticRegression, DecisionTreeClassifier, Model};
-//! use ndarray::{Array1, Array2};
-//!
+//! ```
+//! # use ferroml_core::ensemble::VotingClassifier;
+//! # use ferroml_core::ensemble::voting::VotingClassifierEstimator;
+//! # use ferroml_core::models::{LogisticRegression, DecisionTreeClassifier, Model};
+//! # use ndarray::{Array1, Array2};
 //! let x = Array2::from_shape_vec((100, 4), (0..400).map(|i| i as f64 / 100.0).collect()).unwrap();
 //! let y = Array1::from_iter((0..100).map(|i| if i < 50 { 0.0 } else { 1.0 }));
 //!
 //! let mut voter = VotingClassifier::new(vec![
-//!     ("logistic", Box::new(LogisticRegression::new())),
+//!     ("logistic", Box::new(LogisticRegression::new()) as Box<dyn VotingClassifierEstimator>),
 //!     ("tree", Box::new(DecisionTreeClassifier::new())),
 //! ]).with_soft_voting();
 //!
@@ -33,16 +33,16 @@
 //!
 //! ## Example - VotingRegressor
 //!
-//! ```ignore
-//! use ferroml_core::ensemble::VotingRegressor;
-//! use ferroml_core::models::{LinearRegression, DecisionTreeRegressor, Model};
-//! use ndarray::{Array1, Array2};
-//!
-//! let x = Array2::from_shape_vec((100, 4), (0..400).map(|i| i as f64 / 100.0).collect()).unwrap();
-//! let y = Array1::from_iter((0..100).map(|i| i as f64 * 0.5 + 1.0));
+//! ```
+//! # use ferroml_core::ensemble::VotingRegressor;
+//! # use ferroml_core::ensemble::voting::VotingRegressorEstimator;
+//! # use ferroml_core::models::{LinearRegression, DecisionTreeRegressor, Model};
+//! # use ndarray::{Array1, Array2};
+//! let x = Array2::from_shape_vec((50, 2), (0..100).map(|i| ((i as f64) * 0.37).sin()).collect()).unwrap();
+//! let y = Array1::from_iter((0..50).map(|i| i as f64 * 0.5 + 1.0));
 //!
 //! let mut voter = VotingRegressor::new(vec![
-//!     ("linear", Box::new(LinearRegression::new())),
+//!     ("linear", Box::new(LinearRegression::new()) as Box<dyn VotingRegressorEstimator>),
 //!     ("tree", Box::new(DecisionTreeRegressor::new())),
 //! ]).with_weights(vec![2.0, 1.0]);
 //!

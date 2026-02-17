@@ -23,7 +23,7 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
 //! use ferroml_core::preprocessing::quantile::{QuantileTransformer, OutputDistribution};
 //! use ferroml_core::preprocessing::Transformer;
 //! use ndarray::array;

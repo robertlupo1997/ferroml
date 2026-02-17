@@ -27,8 +27,8 @@
 //!
 //! ## Example
 //!
-//! ```ignore
-//! use ferroml_core::clustering::{KMeans, ClusteringModel};
+//! ```
+//! use ferroml_core::clustering::{KMeans, ClusteringModel, ClusteringStatistics};
 //! use ndarray::Array2;
 //!
 //! let X = Array2::from_shape_vec((6, 2), vec![
@@ -39,7 +39,7 @@
 //! kmeans.fit(&X).unwrap();
 //!
 //! let labels = kmeans.predict(&X).unwrap();
-//! let stability = kmeans.cluster_stability(100).unwrap();
+//! let stability = kmeans.cluster_stability(&X, 100).unwrap();
 //! ```
 
 use crate::Result;

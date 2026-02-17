@@ -10,20 +10,26 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use ferroml_core::datasets::{load_csv, load_parquet, CsvOptions};
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
+//! # use std::io::Write;
+//! # let dir = tempfile::tempdir()?;
+//! # let csv_path = dir.path().join("data.csv");
+//! # let mut f = std::fs::File::create(&csv_path)?;
+//! # writeln!(f, "a,b,target_column\n1,2,0\n3,4,1")?;
+//! # drop(f);
+//! use ferroml_core::datasets::{load_csv, load_csv_with_options, load_parquet, CsvOptions};
 //!
 //! // Load CSV with automatic type inference
-//! let (dataset, info) = load_csv("data.csv", "target_column")?;
+//! let (dataset, info) = load_csv(&csv_path, Some("target_column"))?;
 //!
 //! // Load with custom options
 //! let opts = CsvOptions::new()
-//!     .with_delimiter(b';')
+//!     .with_delimiter(b',')
 //!     .with_has_header(true);
-//! let (dataset, info) = load_csv_with_options("data.csv", "target", opts)?;
-//!
-//! // Load Parquet file
-//! let (dataset, info) = load_parquet("data.parquet", "target")?;
+//! let (dataset, info) = load_csv_with_options(&csv_path, Some("target_column"), opts)?;
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::{FerroError, Result};
@@ -188,11 +194,20 @@ impl ParquetOptions {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use std::io::Write;
+/// # let dir = tempfile::tempdir()?;
+/// # let path = dir.path().join("data.csv");
+/// # let mut f = std::fs::File::create(&path)?;
+/// # writeln!(f, "a,b,target\n1,2,0\n3,4,1")?;
+/// # drop(f);
 /// use ferroml_core::datasets::load_csv;
 ///
-/// let (dataset, info) = load_csv("data.csv", Some("target"))?;
+/// let (dataset, info) = load_csv(&path, Some("target"))?;
 /// println!("Loaded {} samples with {} features", dataset.n_samples(), dataset.n_features());
+/// # Ok(())
+/// # }
 /// ```
 pub fn load_csv<P: AsRef<Path>>(
     path: P,
@@ -277,10 +292,21 @@ pub fn load_csv_with_options<P: AsRef<Path>>(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use std::io::Write;
+/// # use polars::prelude::*;
+/// # let dir = tempfile::tempdir()?;
+/// # let path = dir.path().join("data.parquet");
+/// # let mut df = df! { "a" => &[1.0, 2.0], "b" => &[3.0, 4.0], "target" => &[0.0, 1.0] }.unwrap();
+/// # let mut file = std::fs::File::create(&path)?;
+/// # ParquetWriter::new(&mut file).finish(&mut df).unwrap();
+/// # drop(file);
 /// use ferroml_core::datasets::load_parquet;
 ///
-/// let (dataset, info) = load_parquet("data.parquet", Some("target"))?;
+/// let (dataset, info) = load_parquet(&path, Some("target"))?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn load_parquet<P: AsRef<Path>>(
     path: P,
@@ -568,12 +594,20 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use std::io::Write;
+/// # let dir = tempfile::tempdir()?;
+/// # let path = dir.path().join("data.csv");
+/// # let mut f = std::fs::File::create(&path)?;
+/// # writeln!(f, "a,b,target\n1,2,0\n3,4,1")?;
+/// # drop(f);
 /// use ferroml_core::datasets::load_file;
 ///
 /// // Automatically detects format from extension
-/// let (dataset, info) = load_file("data.csv", Some("target"))?;
-/// let (dataset, info) = load_file("data.parquet", Some("target"))?;
+/// let (dataset, info) = load_file(&path, Some("target"))?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn load_file<P: AsRef<Path>>(
     path: P,

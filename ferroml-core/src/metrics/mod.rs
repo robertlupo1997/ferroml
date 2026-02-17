@@ -74,8 +74,9 @@ pub enum Direction {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use ferroml_core::metrics::{Metric, MetricValue};
+/// ```
+/// use ferroml_core::metrics::{Metric, MetricValue, Direction};
+/// use ndarray::Array1;
 ///
 /// struct Accuracy;
 ///
@@ -83,8 +84,10 @@ pub enum Direction {
 ///     fn name(&self) -> &str { "accuracy" }
 ///     fn direction(&self) -> Direction { Direction::Maximize }
 ///
-///     fn compute(&self, y_true: &Array1<f64>, y_pred: &Array1<f64>) -> Result<MetricValue> {
-///         // Implementation
+///     fn compute(&self, y_true: &Array1<f64>, y_pred: &Array1<f64>) -> ferroml_core::Result<MetricValue> {
+///         let correct = y_true.iter().zip(y_pred.iter())
+///             .filter(|(&t, &p)| (t - p).abs() < 1e-10).count();
+///         Ok(MetricValue::new("accuracy", correct as f64 / y_true.len() as f64, Direction::Maximize))
 ///     }
 /// }
 /// ```

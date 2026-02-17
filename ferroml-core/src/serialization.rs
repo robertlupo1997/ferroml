@@ -20,21 +20,29 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
 //! use ferroml_core::models::linear::LinearRegression;
+//! use ferroml_core::models::Model;
 //! use ferroml_core::serialization::{save_model, load_model, Format};
+//! # use ndarray::{Array1, Array2};
+//! # let dir = tempfile::tempdir()?;
+//! # let x = Array2::from_shape_vec((5, 1), vec![1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
+//! # let y = Array1::from_vec(vec![3.0, 5.0, 7.0, 9.0, 11.0]);
 //!
 //! // Train a model
 //! let mut model = LinearRegression::new();
 //! model.fit(&x, &y)?;
 //!
 //! // Save in different formats
-//! save_model(&model, "model.json", Format::Json)?;
-//! save_model(&model, "model.msgpack", Format::MessagePack)?;
-//! save_model(&model, "model.bin", Format::Bincode)?;
+//! save_model(&model, dir.path().join("model.json"), Format::Json)?;
+//! save_model(&model, dir.path().join("model.msgpack"), Format::MessagePack)?;
+//! save_model(&model, dir.path().join("model.bin"), Format::Bincode)?;
 //!
 //! // Load the model
-//! let loaded: LinearRegression = load_model("model.json", Format::Json)?;
+//! let loaded: LinearRegression = load_model(dir.path().join("model.json"), Format::Json)?;
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::{FerroError, Result};
@@ -347,10 +355,15 @@ impl<T> ModelContainer<T> {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
 /// use ferroml_core::serialization::{save_model, Format};
-///
-/// save_model(&model, "model.json", Format::Json)?;
+/// # use ferroml_core::models::linear::LinearRegression;
+/// # let model = LinearRegression::new();
+/// # let dir = tempfile::tempdir()?;
+/// save_model(&model, dir.path().join("model.json"), Format::Json)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn save_model<T, P>(model: &T, path: P, format: Format) -> Result<()>
 where
@@ -601,11 +614,17 @@ where
 ///
 /// # Example
 ///
-/// ```ignore
-/// use ferroml_core::serialization::{load_model, Format};
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// use ferroml_core::serialization::{save_model, load_model, Format};
 /// use ferroml_core::models::linear::LinearRegression;
+/// # let model = LinearRegression::new();
+/// # let dir = tempfile::tempdir()?;
+/// # save_model(&model, dir.path().join("model.json"), Format::Json)?;
 ///
-/// let model: LinearRegression = load_model("model.json", Format::Json)?;
+/// let model: LinearRegression = load_model(dir.path().join("model.json"), Format::Json)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn load_model<T, P>(path: P, format: Format) -> Result<T>
 where

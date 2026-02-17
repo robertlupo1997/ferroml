@@ -14,14 +14,34 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> ferroml_core::Result<()> {
+//! # use ferroml_core::traits::{Estimator, Predictor, PredictionWithUncertainty};
+//! # use ferroml_core::metrics::{Metric, MetricValue};
+//! # use ndarray::{Array1, Array2};
+//! # use std::collections::HashMap;
+//! # use ferroml_core::hpo::ParameterValue;
+//! use ferroml_core::hpo::Direction;
+//! # #[derive(Clone)]
+//! # struct MyEstimator { alpha: f64 }
+//! # impl MyEstimator { fn new(alpha: f64) -> Self { Self { alpha } } }
+//! # struct MyFitted(f64);
+//! # impl Predictor for MyFitted {
+//! #     fn predict(&self, x: &Array2<f64>) -> ferroml_core::Result<Array1<f64>> { Ok(Array1::from_elem(x.nrows(), self.0)) }
+//! #     fn predict_with_uncertainty(&self, x: &Array2<f64>, c: f64) -> ferroml_core::Result<PredictionWithUncertainty> { let p = self.predict(x)?; Ok(PredictionWithUncertainty { predictions: p.clone(), lower: p.clone(), upper: p, confidence_level: c, std_errors: None }) }
+//! # }
+//! # impl Estimator for MyEstimator { type Fitted = MyFitted; fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> ferroml_core::Result<MyFitted> { Ok(MyFitted(y.mean().unwrap_or(0.0))) } fn search_space(&self) -> ferroml_core::hpo::SearchSpace { ferroml_core::hpo::SearchSpace::new() } }
+//! # struct MseMetric;
+//! # impl Metric for MseMetric { fn name(&self) -> &str { "mse" } fn direction(&self) -> ferroml_core::metrics::Direction { ferroml_core::metrics::Direction::Minimize } fn compute(&self, a: &Array1<f64>, b: &Array1<f64>) -> ferroml_core::Result<MetricValue> { let mse = a.iter().zip(b.iter()).map(|(x,y)|(x-y).powi(2)).sum::<f64>()/a.len() as f64; Ok(MetricValue::new("mse", mse, ferroml_core::metrics::Direction::Minimize)) } }
+//! # let x = Array2::from_shape_vec((30, 2), (0..60).map(|i| i as f64).collect()).unwrap();
+//! # let y = Array1::from_vec((0..30).map(|i| i as f64).collect());
+//! # let metric = MseMetric;
 //! use ferroml_core::cv::{nested_cv_score, KFold, NestedCVConfig};
 //! use ferroml_core::hpo::SearchSpace;
 //!
 //! // Define search space
 //! let search_space = SearchSpace::new()
-//!     .add_float("alpha", 0.001, 10.0, true)  // log scale
-//!     .add_int("max_depth", 1, 10, false);
+//!     .float("alpha", 0.001, 10.0);
 //!
 //! // Factory function to create estimator from hyperparameters
 //! let estimator_factory = |params: &HashMap<String, ParameterValue>| {
@@ -29,9 +49,9 @@
 //!     MyEstimator::new(alpha)
 //! };
 //!
-//! let outer_cv = KFold::new(5);
-//! let inner_cv = KFold::new(3);
-//! let config = NestedCVConfig::default().with_n_trials(50);
+//! let outer_cv = KFold::new(3);
+//! let inner_cv = KFold::new(2);
+//! let config = NestedCVConfig::default().with_n_trials(3).with_random_sampler().with_seed(42);
 //!
 //! let result = nested_cv_score(
 //!     estimator_factory,
@@ -39,11 +59,14 @@
 //!     &outer_cv, &inner_cv,
 //!     &metric,
 //!     &search_space,
+//!     Direction::Minimize,
 //!     &config,
 //!     None,
 //! )?;
 //!
 //! println!("Unbiased score: {}", result.summary());
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::hpo::{Direction, ParameterValue, RandomSampler, Sampler, SearchSpace, TPESampler};
@@ -310,21 +333,44 @@ impl NestedCVResult {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # fn main() -> ferroml_core::Result<()> {
+/// # use ferroml_core::traits::{Estimator, Predictor, PredictionWithUncertainty};
+/// # use ferroml_core::metrics::{Metric, MetricValue};
+/// # use ferroml_core::hpo::{SearchSpace, ParameterValue, Direction};
+/// # use ferroml_core::cv::{nested_cv_score, KFold, NestedCVConfig};
+/// # use ndarray::{Array1, Array2};
+/// # use std::collections::HashMap;
+/// # #[derive(Clone)]
+/// # struct RidgeRegression { alpha: f64 }
+/// # impl RidgeRegression { fn new(alpha: f64) -> Self { Self { alpha } } }
+/// # struct RidgeFitted(f64);
+/// # impl Predictor for RidgeFitted {
+/// #     fn predict(&self, x: &Array2<f64>) -> ferroml_core::Result<Array1<f64>> { Ok(Array1::from_elem(x.nrows(), self.0)) }
+/// #     fn predict_with_uncertainty(&self, x: &Array2<f64>, c: f64) -> ferroml_core::Result<PredictionWithUncertainty> { let p = self.predict(x)?; Ok(PredictionWithUncertainty { predictions: p.clone(), lower: p.clone(), upper: p, confidence_level: c, std_errors: None }) }
+/// # }
+/// # impl Estimator for RidgeRegression { type Fitted = RidgeFitted; fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> ferroml_core::Result<RidgeFitted> { Ok(RidgeFitted(y.mean().unwrap_or(0.0))) } fn search_space(&self) -> SearchSpace { SearchSpace::new() } }
+/// # struct MseMetric;
+/// # impl Metric for MseMetric { fn name(&self) -> &str { "mse" } fn direction(&self) -> ferroml_core::metrics::Direction { ferroml_core::metrics::Direction::Minimize } fn compute(&self, a: &Array1<f64>, b: &Array1<f64>) -> ferroml_core::Result<MetricValue> { let mse = a.iter().zip(b.iter()).map(|(x,y)|(x-y).powi(2)).sum::<f64>()/a.len() as f64; Ok(MetricValue::new("mse", mse, ferroml_core::metrics::Direction::Minimize)) } }
+/// # let x = Array2::from_shape_vec((30, 2), (0..60).map(|i| i as f64).collect()).unwrap();
+/// # let y = Array1::from_vec((0..30).map(|i| i as f64).collect());
+/// # let search_space = SearchSpace::new().float("alpha", 0.01, 1.0);
 /// let result = nested_cv_score(
-///     |params| {
+///     |params: &HashMap<String, ParameterValue>| {
 ///         let alpha = params.get("alpha").and_then(|p| p.as_f64()).unwrap_or(1.0);
 ///         RidgeRegression::new(alpha)
 ///     },
 ///     &x, &y,
-///     &KFold::new(5),
 ///     &KFold::new(3),
+///     &KFold::new(2),
 ///     &MseMetric,
 ///     &search_space,
 ///     Direction::Minimize,
-///     &NestedCVConfig::default(),
+///     &NestedCVConfig::default().with_n_trials(3).with_random_sampler().with_seed(42),
 ///     None,
 /// )?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn nested_cv_score<F, E, M>(
     estimator_factory: F,

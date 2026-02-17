@@ -7,7 +7,10 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! # use ndarray::{Array1, Array2};
+//! # let x = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64).collect()).unwrap();
+//! # let y = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
 //! use ferroml_core::automl::{
 //!     AlgorithmPortfolio, PortfolioPreset, DataCharacteristics,
 //!     TimeBudgetAllocator, TimeBudgetConfig, BanditStrategy,
@@ -42,6 +45,8 @@
 //!     .with_max_models(10)
 //!     .with_selection_iterations(50);
 //! let mut builder = EnsembleBuilder::new(ensemble_config);
+//! # let trials: Vec<TrialResult> = vec![];
+//! # let y_true = y.clone();
 //! let ensemble = builder.build_from_trials(&trials, &y_true).unwrap();
 //! ```
 
