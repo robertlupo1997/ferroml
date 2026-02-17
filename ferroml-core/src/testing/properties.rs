@@ -787,27 +787,23 @@ mod proptest_tests {
         is_classifier: false,
     }
 
-    // Note: Linear model specific property tests are commented out because
-    // LinearRegression doesn't implement LinearModel trait yet.
-    // Uncomment when the trait implementation is added.
-    //
-    // #[test]
-    // fn test_linear_regression_coefficients_dimension() {
-    //     assert!(linear_model_properties::prop_coefficients_dimension(
-    //         LinearRegression::new,
-    //         50,
-    //         5
-    //     ));
-    // }
-    //
-    // #[test]
-    // fn test_linear_regression_predictions_linear() {
-    //     assert!(linear_model_properties::prop_predictions_linear(
-    //         LinearRegression::new,
-    //         50,
-    //         5
-    //     ));
-    // }
+    #[test]
+    fn test_linear_regression_coefficients_dimension() {
+        assert!(linear_model_properties::prop_coefficients_dimension(
+            LinearRegression::new,
+            50,
+            5
+        ));
+    }
+
+    #[test]
+    fn test_linear_regression_predictions_linear() {
+        assert!(linear_model_properties::prop_predictions_linear(
+            LinearRegression::new,
+            50,
+            5
+        ));
+    }
 
     // Test serialization properties
     #[test]

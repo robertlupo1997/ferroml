@@ -59,7 +59,7 @@ use crate::models::{
     GradientBoostingRegressor, HistGradientBoostingClassifier, HistGradientBoostingRegressor,
     KNeighborsClassifier, KNeighborsRegressor, LinearRegression, LinearSVC, LinearSVR,
     LogisticRegression, Model, MultinomialNB, QuantileRegression, RandomForestClassifier,
-    RandomForestRegressor, RidgeRegression, SVC, SVR,
+    RandomForestRegressor, RidgeRegression, RobustRegression, SVC, SVR,
 };
 use crate::{AutoML, FerroError, Metric, Result, Task};
 use ndarray::{Array1, Array2};
@@ -852,15 +852,7 @@ impl AutoML {
             let trial_start = Instant::now();
 
             // Run cross-validation for this algorithm with default hyperparameters
-            let trial_result = self.run_trial(
-                trial_id,
-                algo_config,
-                x,
-                y,
-                &folds,
-                &metric_adapter,
-                maximize,
-            );
+            let trial_result = self.run_trial(trial_id, algo_config, x, y, &folds, &metric_adapter);
 
             let trial_time = trial_start.elapsed().as_secs_f64();
 
@@ -1031,7 +1023,6 @@ impl AutoML {
         y: &Array1<f64>,
         folds: &[CVFold],
         metric: &MetricAdapter,
-        _maximize: bool,
     ) -> Result<TrialResult> {
         let trial_start = Instant::now();
         let mut fold_scores = Vec::with_capacity(folds.len());
@@ -1077,7 +1068,17 @@ impl AutoML {
 
         let training_time = trial_start.elapsed().as_secs_f64();
 
-        Ok(TrialResult::new(
+        // Extract feature importance from model fitted on full data
+        let feature_importances = {
+            let mut model = create_model(algo_config.algorithm)?;
+            if model.fit(x, y).is_ok() {
+                model.feature_importance().map(|a| a.to_vec())
+            } else {
+                None
+            }
+        };
+
+        let mut result = TrialResult::new(
             trial_id,
             algo_config.algorithm,
             mean_score,
@@ -1085,7 +1086,13 @@ impl AutoML {
             fold_scores,
         )
         .with_oof_predictions(oof_predictions)
-        .with_training_time(training_time))
+        .with_training_time(training_time);
+
+        if let Some(importances) = feature_importances {
+            result = result.with_feature_importances(importances);
+        }
+
+        Ok(result)
     }
 }
 
@@ -1145,10 +1152,7 @@ fn create_model(algorithm: AlgorithmType) -> Result<Box<dyn Model>> {
         AlgorithmType::QuantileRegression => Ok(Box::new(QuantileRegression::new(0.5))),
 
         // Not yet implemented
-        AlgorithmType::RobustRegression => Err(FerroError::NotImplemented(format!(
-            "Algorithm {:?} not yet available for AutoML",
-            algorithm
-        ))),
+        AlgorithmType::RobustRegression => Ok(Box::new(RobustRegression::new())),
     }
 }
 
@@ -1261,19 +1265,25 @@ fn compute_aggregated_feature_importance(
         );
 
         if supports_importance {
-            // Create placeholder importance based on score contribution
-            // In a real implementation, this would use actual feature importance
-            // from the model. For now, we use uniform importance scaled by score.
-            let uniform_importance = vec![1.0 / n_features as f64; n_features];
+            // Use actual feature importances if available, fall back to uniform
+            let importances = if let Some(ref fi) = trial.feature_importances {
+                if fi.len() == n_features {
+                    fi.clone()
+                } else {
+                    vec![1.0 / n_features as f64; n_features]
+                }
+            } else {
+                vec![1.0 / n_features as f64; n_features]
+            };
 
             per_model_importance.push(ModelFeatureImportance {
                 trial_id: trial.trial_id,
                 algorithm: trial.algorithm,
                 cv_score: trial.cv_score,
-                importances: uniform_importance.clone(),
+                importances: importances.clone(),
             });
 
-            all_importances.push(uniform_importance);
+            all_importances.push(importances);
 
             // Use normalized score as weight
             let weight = if maximize {

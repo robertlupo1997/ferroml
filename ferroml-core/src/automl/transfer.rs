@@ -41,7 +41,7 @@
 //! );
 //!
 //! // Create a warm-started study
-//! let sampler = WarmStartSampler::new(&warm_start, original_space.clone());
+//! let sampler = WarmStartSampler::new(&warm_start);
 //! let study = Study::new("my_study", transferred.search_space, Direction::Maximize)
 //!     .with_sampler(sampler);
 //! # Ok(())
@@ -725,7 +725,7 @@ pub struct WarmStartSampler {
 
 impl WarmStartSampler {
     /// Create a new warm-start sampler
-    pub fn new(warm_start: &WarmStartResult, _search_space: SearchSpace) -> Self {
+    pub fn new(warm_start: &WarmStartResult) -> Self {
         let warm_configs: Vec<_> = warm_start
             .configurations
             .iter()
@@ -742,7 +742,7 @@ impl WarmStartSampler {
     }
 
     /// Create from prior knowledge directly
-    pub fn from_prior(prior: PriorKnowledge, _search_space: SearchSpace) -> Self {
+    pub fn from_prior(prior: PriorKnowledge) -> Self {
         Self {
             base_seed: None,
             warm_configs: Vec::new(),
@@ -1208,7 +1208,7 @@ mod tests {
             .int("max_depth", 1, 50)
             .float_log("learning_rate", 1e-4, 1.0);
 
-        let sampler = WarmStartSampler::new(&warm_start, search_space.clone()).with_seed(42);
+        let sampler = WarmStartSampler::new(&warm_start).with_seed(42);
 
         // First sample should return first warm-start config
         let sample1 = sampler.sample(&search_space, &[]).unwrap();
@@ -1229,7 +1229,7 @@ mod tests {
                 .int("n_estimators", 10, 500)
                 .float_log("learning_rate", 1e-4, 1.0);
 
-        let sampler = WarmStartSampler::new(&warm_start, search_space.clone())
+        let sampler = WarmStartSampler::new(&warm_start)
             .with_seed(42)
             .with_prior_weight(0.8);
 
@@ -1508,9 +1508,7 @@ mod tests {
     #[test]
     fn test_sampler_remaining_warm_configs() {
         let warm_start = create_test_warm_start();
-        let search_space = SearchSpace::new().int("n_estimators", 10, 500);
-
-        let sampler = WarmStartSampler::new(&warm_start, search_space);
+        let sampler = WarmStartSampler::new(&warm_start);
         assert_eq!(sampler.remaining_warm_configs(), 3);
     }
 }

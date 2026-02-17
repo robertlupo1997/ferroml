@@ -1,5 +1,4 @@
 //! Statistical power analysis
-//! Placeholder for power calculations
 
 use serde::{Deserialize, Serialize};
 

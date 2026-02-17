@@ -795,7 +795,9 @@ mod tests {
             .iter()
             .zip(folds2.iter())
             .all(|(f1, f2)| f1.test_indices == f2.test_indices);
-        // Note: might be same for small datasets, so we don't assert here
+        // With only 6 groups in 3 folds, different seeds may produce identical splits
+        // by chance. We verify the test runs without error; shuffle correctness is
+        // covered by the same-seed-reproducibility test above.
         let _ = all_same;
     }
 

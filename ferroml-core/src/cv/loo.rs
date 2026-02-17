@@ -55,7 +55,7 @@ use serde::{Deserialize, Serialize};
 /// - High variance due to small test sets (each sample has high influence)
 /// - Not suitable for large datasets; use KFold instead
 /// - No shuffling needed (all permutations are equivalent)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LeaveOneOut;
 
 impl LeaveOneOut {
@@ -645,7 +645,8 @@ mod tests {
     fn test_loo_serialization() {
         let cv = LeaveOneOut::new();
         let json = serde_json::to_string(&cv).unwrap();
-        let _cv2: LeaveOneOut = serde_json::from_str(&json).unwrap();
+        let cv2: LeaveOneOut = serde_json::from_str(&json).unwrap();
+        assert_eq!(cv, cv2);
     }
 
     // LeavePOut tests

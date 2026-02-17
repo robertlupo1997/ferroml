@@ -321,7 +321,8 @@ fn check_normality(data: &Array1<f64>, group_name: &str) -> AssumptionTest {
     let k2 = z_kurt.mul_add(z_kurt, z_skew.powi(2));
 
     // Chi-squared with 2 df
-    let p_value = (-k2 / 2.0).exp(); // Simplified
+    // Chi-squared survival function with df=2
+    let p_value = (-k2 / 2.0).exp();
 
     AssumptionTest {
         assumption: format!("Normality ({})", group_name),

@@ -173,8 +173,8 @@ impl Model for AdaBoostClassifier {
             }
 
             // SAMME estimator weight
-            let alpha = self.learning_rate * ((1.0 - weighted_error) / weighted_error).ln()
-                + (n_classes as f64 - 1.0).ln();
+            let alpha = self.learning_rate
+                * (((1.0 - weighted_error) / weighted_error).ln() + (n_classes as f64 - 1.0).ln());
 
             // Update sample weights
             for i in 0..n_samples {

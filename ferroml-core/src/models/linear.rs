@@ -711,6 +711,20 @@ impl StatisticalModel for LinearRegression {
     }
 }
 
+impl super::traits::LinearModel for LinearRegression {
+    fn coefficients(&self) -> Option<&Array1<f64>> {
+        self.coefficients.as_ref()
+    }
+
+    fn intercept(&self) -> Option<f64> {
+        self.intercept
+    }
+
+    fn coefficient_std_errors(&self) -> Option<&Array1<f64>> {
+        self.fitted_data.as_ref().map(|d| &d.coef_std_errors)
+    }
+}
+
 impl ProbabilisticModel for LinearRegression {
     fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         // For regression, return the prediction variance

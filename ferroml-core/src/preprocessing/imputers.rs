@@ -324,10 +324,15 @@ impl SimpleImputer {
                 .or_insert((v, 1));
         }
 
-        // Find the most frequent value
+        // Find the most frequent value; break ties by smallest value (matches scikit-learn)
         counts
             .into_values()
-            .max_by_key(|&(_, count)| count)
+            .max_by(|a, b| {
+                a.1.cmp(&b.1).then_with(|| {
+                    // When counts are equal, prefer the smaller value
+                    b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+                })
+            })
             .map(|(val, _)| val)
     }
 }
@@ -684,13 +689,10 @@ impl KNNImputer {
             return None;
         }
 
-        // Scale by n_features/valid_count to project distance to full feature space
-        // This handles varying missing patterns by estimating what distance would be
-        // if all features were present
-        let n_features = a.len();
+        // Use raw distances from valid features only (no scaling)
         Some(match self.metric {
-            KNNMetric::Euclidean => (sum * n_features as f64 / valid_count as f64).sqrt(),
-            KNNMetric::Manhattan => sum * n_features as f64 / valid_count as f64,
+            KNNMetric::Euclidean => sum.sqrt(),
+            KNNMetric::Manhattan => sum,
         })
     }
 

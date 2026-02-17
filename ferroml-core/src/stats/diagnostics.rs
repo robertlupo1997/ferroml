@@ -94,16 +94,19 @@ impl NormalityTest for ShapiroWilkTest {
         let kurtosis: f64 =
             data.iter().map(|x| ((x - mean) / std).powi(4)).sum::<f64>() / n as f64 - 3.0;
 
-        // Simplified test statistic based on skewness/kurtosis
+        // Test statistic based on skewness/kurtosis (Jarque-Bera variant)
         let z_s = skewness.abs() / (6.0 / n as f64).sqrt();
         let z_k = kurtosis.abs() / (24.0 / n as f64).sqrt();
-        let w = 1.0 / z_k.mul_add(z_k, z_s.mul_add(z_s, 1.0));
+        let k2 = z_s * z_s + z_k * z_k;
 
-        // Approximate p-value
-        let p_value = (-5.0 * (1.0 - w)).exp().min(1.0);
+        // Chi-squared survival function with df=2: p = exp(-k2/2)
+        let p_value = (-k2 / 2.0).exp().min(1.0);
+
+        // W statistic: transform k2 to [0,1] range
+        let w = 1.0 / (1.0 + k2);
 
         Ok(NormalityTestResult {
-            test: "Shapiro-Wilk (approximation)".to_string(),
+            test: "Normality (skewness-kurtosis)".to_string(),
             statistic: w,
             p_value,
             is_normal: p_value > 0.05,
@@ -192,11 +195,16 @@ pub fn diagnose_residuals(residuals: &Array1<f64>) -> Result<ResidualDiagnostics
     let var2 = residuals.slice(ndarray::s![mid..]).var(1.0);
     let f_ratio = var1.max(var2) / var1.min(var2);
 
+    // F-test p-value using regularized incomplete beta function
+    let df1 = (mid as f64) - 1.0;
+    let df2 = ((n - mid) as f64) - 1.0;
+    let f_p_value = f_test_pvalue(f_ratio, df1, df2);
+
     let homoscedasticity = HomoscedasticityResult {
         test: "Goldfeld-Quandt (simplified)".to_string(),
         statistic: f_ratio,
-        p_value: 0.5, // Placeholder
-        is_homoscedastic: f_ratio < 3.0,
+        p_value: f_p_value,
+        is_homoscedastic: f_p_value > 0.05,
     };
 
     Ok(ResidualDiagnostics {
@@ -205,4 +213,103 @@ pub fn diagnose_residuals(residuals: &Array1<f64>) -> Result<ResidualDiagnostics
         autocorrelation,
         outliers,
     })
+}
+
+/// Compute p-value for F-test using regularized incomplete beta function.
+/// P(F > f) = 1 - I_x(df1/2, df2/2) where x = df1*f / (df1*f + df2)
+fn f_test_pvalue(f_stat: f64, df1: f64, df2: f64) -> f64 {
+    if f_stat <= 0.0 || df1 <= 0.0 || df2 <= 0.0 {
+        return 1.0;
+    }
+    let x = df1 * f_stat / (df1 * f_stat + df2);
+    1.0 - regularized_incomplete_beta(df1 / 2.0, df2 / 2.0, x)
+}
+
+/// Regularized incomplete beta function using Lentz's continued fraction
+fn regularized_incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
+    if x <= 0.0 {
+        return 0.0;
+    }
+    if x >= 1.0 {
+        return 1.0;
+    }
+
+    // Use symmetry relation if x > (a+1)/(a+b+2) for better convergence
+    if x > (a + 1.0) / (a + b + 2.0) {
+        return 1.0 - regularized_incomplete_beta(b, a, 1.0 - x);
+    }
+
+    let ln_prefix = a * x.ln() + b * (1.0 - x).ln() - a.ln() - ln_beta(a, b);
+    let prefix = ln_prefix.exp();
+
+    // Lentz's continued fraction
+    let mut c = 1.0;
+    let mut d = 1.0 - (a + b) * x / (a + 1.0);
+    if d.abs() < 1e-30 {
+        d = 1e-30;
+    }
+    d = 1.0 / d;
+    let mut f = d;
+
+    for m in 1..200 {
+        let m = m as f64;
+
+        // Even step
+        let num = m * (b - m) * x / ((a + 2.0 * m - 1.0) * (a + 2.0 * m));
+        d = 1.0 + num * d;
+        if d.abs() < 1e-30 {
+            d = 1e-30;
+        }
+        c = 1.0 + num / c;
+        if c.abs() < 1e-30 {
+            c = 1e-30;
+        }
+        d = 1.0 / d;
+        f *= c * d;
+
+        // Odd step
+        let num = -(a + m) * (a + b + m) * x / ((a + 2.0 * m) * (a + 2.0 * m + 1.0));
+        d = 1.0 + num * d;
+        if d.abs() < 1e-30 {
+            d = 1e-30;
+        }
+        c = 1.0 + num / c;
+        if c.abs() < 1e-30 {
+            c = 1e-30;
+        }
+        d = 1.0 / d;
+        let delta = c * d;
+        f *= delta;
+
+        if (delta - 1.0).abs() < 1e-10 {
+            break;
+        }
+    }
+
+    prefix * f
+}
+
+/// Log of Beta function using Stirling's approximation via ln_gamma
+fn ln_beta(a: f64, b: f64) -> f64 {
+    ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b)
+}
+
+/// Lanczos approximation of ln(Gamma(x))
+fn ln_gamma(x: f64) -> f64 {
+    let coeffs = [
+        76.180_091_729_471_46,
+        -86.505_320_329_416_77,
+        24.014_098_240_830_91,
+        -1.231_739_572_450_155,
+        0.001_208_650_973_866_179,
+        -0.000_005_395_239_384_953,
+    ];
+
+    let tmp = x + 5.5;
+    let tmp = (x + 0.5) * tmp.ln() - tmp;
+    let mut ser = 1.000_000_000_190_015;
+    for (i, &c) in coeffs.iter().enumerate() {
+        ser += c / (x + 1.0 + i as f64);
+    }
+    tmp + (2.506_628_274_631_000_5 * ser / x).ln()
 }

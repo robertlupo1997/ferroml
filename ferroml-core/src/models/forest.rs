@@ -134,6 +134,9 @@ pub struct RandomForestClassifier {
     /// Class weights for handling imbalanced datasets
     pub class_weight: ClassWeight,
 
+    /// Enable warm start to add estimators incrementally
+    pub warm_start: bool,
+
     // Fitted parameters
     estimators: Option<Vec<DecisionTreeClassifier>>,
     classes: Option<Array1<f64>>,
@@ -203,6 +206,7 @@ impl RandomForestClassifier {
             confidence_level: 0.95,
             min_impurity_decrease: 0.0,
             class_weight: ClassWeight::Uniform,
+            warm_start: false,
             estimators: None,
             classes: None,
             n_features: None,
@@ -816,6 +820,9 @@ pub struct RandomForestRegressor {
     /// Minimum impurity decrease for splits
     pub min_impurity_decrease: f64,
 
+    /// Enable warm start to add estimators incrementally
+    pub warm_start: bool,
+
     // Fitted parameters
     estimators: Option<Vec<DecisionTreeRegressor>>,
     n_features: Option<usize>,
@@ -848,6 +855,7 @@ impl RandomForestRegressor {
             random_state: None,
             confidence_level: 0.95,
             min_impurity_decrease: 0.0,
+            warm_start: false,
             estimators: None,
             n_features: None,
             feature_importances: None,
@@ -1311,6 +1319,35 @@ impl Model for RandomForestRegressor {
 
     fn n_features(&self) -> Option<usize> {
         self.n_features
+    }
+}
+
+// =============================================================================
+impl super::traits::WarmStartModel for RandomForestClassifier {
+    fn set_warm_start(&mut self, warm_start: bool) {
+        self.warm_start = warm_start;
+    }
+
+    fn warm_start(&self) -> bool {
+        self.warm_start
+    }
+
+    fn n_estimators_fitted(&self) -> usize {
+        self.estimators.as_ref().map_or(0, |e| e.len())
+    }
+}
+
+impl super::traits::WarmStartModel for RandomForestRegressor {
+    fn set_warm_start(&mut self, warm_start: bool) {
+        self.warm_start = warm_start;
+    }
+
+    fn warm_start(&self) -> bool {
+        self.warm_start
+    }
+
+    fn n_estimators_fitted(&self) -> usize {
+        self.estimators.as_ref().map_or(0, |e| e.len())
     }
 }
 

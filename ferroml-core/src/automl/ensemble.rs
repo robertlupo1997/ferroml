@@ -57,7 +57,8 @@ pub struct TrialResult {
     pub trial_id: usize,
     /// Algorithm type used in this trial
     pub algorithm: AlgorithmType,
-    /// Hyperparameter configuration (serialized)
+    /// Hyperparameter configuration (serialized).
+    /// Reserved for future HPO integration; currently always empty.
     pub params: HashMap<String, ParamValue>,
     /// Cross-validation score (mean across folds)
     pub cv_score: f64,
@@ -75,6 +76,8 @@ pub struct TrialResult {
     pub success: bool,
     /// Error message if the trial failed
     pub error_message: Option<String>,
+    /// Feature importances from the fitted model (if supported)
+    pub feature_importances: Option<Vec<f64>>,
 }
 
 impl TrialResult {
@@ -98,6 +101,7 @@ impl TrialResult {
             training_time_seconds: 0.0,
             success: true,
             error_message: None,
+            feature_importances: None,
         }
     }
 
@@ -115,6 +119,7 @@ impl TrialResult {
             training_time_seconds: 0.0,
             success: false,
             error_message: Some(error.into()),
+            feature_importances: None,
         }
     }
 
@@ -139,6 +144,12 @@ impl TrialResult {
     /// Set training time
     pub fn with_training_time(mut self, seconds: f64) -> Self {
         self.training_time_seconds = seconds;
+        self
+    }
+
+    /// Set feature importances from the fitted model
+    pub fn with_feature_importances(mut self, importances: Vec<f64>) -> Self {
+        self.feature_importances = Some(importances);
         self
     }
 

@@ -1025,8 +1025,10 @@ impl TargetEncoder {
         let mut result = Array2::zeros((n_samples, n_features));
 
         if actual_cv < 2 {
-            // Not enough samples for CV, just use fitted values
-            return self.transform(x);
+            // Not enough samples for out-of-fold protection
+            return Err(FerroError::invalid_input(
+                "TargetEncoder fit_transform requires at least 2 samples for cross-validation",
+            ));
         }
 
         // Create fold assignments

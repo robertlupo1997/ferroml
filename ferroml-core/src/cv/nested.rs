@@ -515,7 +515,11 @@ where
     let y_outer_test = select_elements(y, &outer_fold.test_indices);
 
     // Create sampler with seed based on outer fold index for reproducibility
-    let seed = config.seed.unwrap_or(42) + outer_fold_index as u64;
+    let seed = config
+        .seed
+        .unwrap_or(42)
+        .wrapping_mul(6_364_136_223_846_793_005)
+        .wrapping_add(outer_fold_index as u64);
     let sampler: Box<dyn Sampler> = if config.use_tpe {
         Box::new(TPESampler::new().with_seed(seed))
     } else {

@@ -701,6 +701,10 @@ impl Model for LogisticRegression {
     fn n_features(&self) -> Option<usize> {
         self.n_features
     }
+
+    fn try_predict_proba(&self, x: &Array2<f64>) -> Option<Result<Array2<f64>>> {
+        Some(self.predict_proba(x))
+    }
 }
 
 impl StatisticalModel for LogisticRegression {

@@ -141,21 +141,13 @@ fn mse(values: &[f64]) -> f64 {
     values.iter().map(|&v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64
 }
 
-/// Compute MAE for a set of values
+/// Compute MAE for a set of values (mean absolute deviation from the mean)
 fn mae(values: &[f64]) -> f64 {
     if values.is_empty() {
         return 0.0;
     }
-    let median = {
-        let mut sorted = values.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        if sorted.len() % 2 == 0 {
-            (sorted[sorted.len() / 2 - 1] + sorted[sorted.len() / 2]) / 2.0
-        } else {
-            sorted[sorted.len() / 2]
-        }
-    };
-    values.iter().map(|&v| (v - median).abs()).sum::<f64>() / values.len() as f64
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    values.iter().map(|&v| (v - mean).abs()).sum::<f64>() / values.len() as f64
 }
 
 // =============================================================================

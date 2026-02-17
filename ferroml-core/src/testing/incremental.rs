@@ -8,7 +8,7 @@
 //! - Numerical stability (Welford's algorithm)
 //! - Streaming data simulation
 //!
-//! Note: WarmStartModel trait is defined but not yet implemented on ensemble models.
+//! WarmStartModel trait is implemented on ensemble models (RandomForest, GradientBoosting).
 //! Warm start tests will be added when implementations are available.
 
 #![allow(clippy::float_cmp)]

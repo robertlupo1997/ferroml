@@ -151,10 +151,11 @@ impl CrossValidator for StratifiedKFold {
         // Must iterate in sorted order for determinism
         if self.shuffle {
             let base_seed = self.random_seed.unwrap_or(0);
-            for (class_idx, &class_key) in class_keys.iter().enumerate() {
+            for (_class_idx, &class_key) in class_keys.iter().enumerate() {
                 if let Some(indices) = class_indices.get_mut(&class_key) {
                     // Use different seed for each class to avoid correlations
-                    shuffle_indices(indices, base_seed.wrapping_add(class_idx as u64));
+                    // Use class value (not index) for seed derivation for stability
+                    shuffle_indices(indices, base_seed.wrapping_add(class_key as u64));
                 }
             }
         }

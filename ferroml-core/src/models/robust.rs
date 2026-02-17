@@ -523,6 +523,70 @@ impl RobustRegression {
         (mad * 1.4826).max(1e-10)
     }
 
+    /// Compute Huber Proposal 2 scale estimate.
+    /// Iterative M-estimator of scale: σ² = (1/n) Σ ρ(rᵢ/σ) / E[ρ(Z)] where Z~N(0,1)
+    fn compute_huber_proposal2(residuals: &Array1<f64>, k: f64) -> f64 {
+        let n = residuals.len();
+        if n == 0 {
+            return 1.0;
+        }
+
+        // Initialize with MAD
+        let mut sigma = Self::compute_mad(residuals);
+        if sigma < 1e-10 {
+            return sigma;
+        }
+
+        // E[ρ_huber(Z)] for Z~N(0,1), where ρ(u) = u²/2 if |u|≤k, else k|u|-k²/2
+        // For k=1.345 (default Huber), δ ≈ 0.7102
+        // Pre-computed for common k values; for arbitrary k, use approximation
+        let delta = if (k - 1.345).abs() < 0.01 {
+            0.7102
+        } else {
+            // Approximate: for large k, δ → 0.5; for small k, δ → k²/2
+            // Use numerical integration with 1000-point Gauss-Hermite-like sum
+            let n_pts = 1000;
+            let mut sum = 0.0;
+            for i in 0..n_pts {
+                let u = -6.0 + 12.0 * (i as f64 + 0.5) / n_pts as f64;
+                let phi = (-u * u / 2.0).exp() / (2.0 * std::f64::consts::PI).sqrt();
+                let rho = if u.abs() <= k {
+                    u * u / 2.0
+                } else {
+                    k * u.abs() - k * k / 2.0
+                };
+                sum += rho * phi * 12.0 / n_pts as f64;
+            }
+            sum.max(0.01)
+        };
+
+        for _ in 0..20 {
+            // Compute Σ ρ(rᵢ/σ)
+            let sum_rho: f64 = residuals
+                .iter()
+                .map(|&r| {
+                    let u = r / sigma;
+                    if u.abs() <= k {
+                        u * u / 2.0
+                    } else {
+                        k * u.abs() - k * k / 2.0
+                    }
+                })
+                .sum();
+
+            let sigma_new = (sum_rho / (n as f64 * delta)).sqrt() * sigma;
+            let sigma_new = sigma_new.max(1e-10);
+
+            if (sigma_new - sigma).abs() < 1e-6 * sigma {
+                sigma = sigma_new;
+                break;
+            }
+            sigma = sigma_new;
+        }
+
+        sigma
+    }
+
     /// Initialize with OLS solution
     fn ols_init(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<Array1<f64>> {
         let xtx = x.t().dot(x);
@@ -758,10 +822,7 @@ impl Model for RobustRegression {
             // Update scale estimate
             scale = match self.scale_method {
                 ScaleMethod::MAD => Self::compute_mad(&residuals),
-                ScaleMethod::HuberProposal2 => {
-                    // Iterative scale update (simplified)
-                    Self::compute_mad(&residuals)
-                }
+                ScaleMethod::HuberProposal2 => Self::compute_huber_proposal2(&residuals, k),
             };
 
             // Compute weights

@@ -285,15 +285,19 @@ impl StackingClassifier {
         let final_est = self.fitted_final.as_ref().unwrap();
         let predictions = final_est.predict(&meta_features)?;
 
-        // Convert to probabilities (one-hot encoding of predictions)
-        let mut probas = Array2::zeros((n_samples, n_classes));
-        for (i, &pred) in predictions.iter().enumerate() {
-            if let Some(class_idx) = classes.iter().position(|&c| (c - pred).abs() < 1e-10) {
-                probas[[i, class_idx]] = 1.0;
+        // Try to get real probabilities from the final estimator;
+        // fall back to one-hot encoding of predictions
+        if let Some(result) = final_est.try_predict_proba(&meta_features) {
+            return result;
+        } else {
+            let mut probas = Array2::zeros((n_samples, n_classes));
+            for (i, &pred) in predictions.iter().enumerate() {
+                if let Some(class_idx) = classes.iter().position(|&c| (c - pred).abs() < 1e-10) {
+                    probas[[i, class_idx]] = 1.0;
+                }
             }
+            Ok(probas)
         }
-
-        Ok(probas)
     }
 
     /// Generate meta-features from base estimators

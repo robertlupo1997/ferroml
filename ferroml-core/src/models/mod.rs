@@ -182,6 +182,14 @@ pub trait Model: Send + Sync {
         )))
     }
 
+    /// Predict class probabilities if supported.
+    ///
+    /// Returns `None` by default. Override for classifiers that support
+    /// probability predictions.
+    fn try_predict_proba(&self, _x: &Array2<f64>) -> Option<Result<Array2<f64>>> {
+        None
+    }
+
     /// Get model name for error messages
     fn model_name(&self) -> &str {
         std::any::type_name::<Self>()

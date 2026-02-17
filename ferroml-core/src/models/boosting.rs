@@ -356,6 +356,8 @@ pub struct GradientBoostingRegressor {
     pub alpha: f64,
     /// Random seed
     pub random_state: Option<u64>,
+    /// Enable warm start to add estimators incrementally
+    pub warm_start: bool,
 
     // Fitted parameters
     estimators: Option<Vec<DecisionTreeRegressor>>,
@@ -387,6 +389,7 @@ impl GradientBoostingRegressor {
             early_stopping: None,
             alpha: 0.9,
             random_state: None,
+            warm_start: false,
             estimators: None,
             init_prediction: None,
             n_features: None,
@@ -827,6 +830,8 @@ pub struct GradientBoostingClassifier {
     pub random_state: Option<u64>,
     /// Class weights for handling imbalanced datasets
     pub class_weight: ClassWeight,
+    /// Enable warm start to add estimators incrementally
+    pub warm_start: bool,
 
     // Fitted parameters
     estimators: Option<Vec<Vec<DecisionTreeRegressor>>>, // [n_estimators][n_classes]
@@ -860,6 +865,7 @@ impl GradientBoostingClassifier {
             early_stopping: None,
             random_state: None,
             class_weight: ClassWeight::Uniform,
+            warm_start: false,
             estimators: None,
             init_predictions: None,
             classes: None,
@@ -1405,6 +1411,35 @@ impl GradientBoostingClassifier {
         }
 
         probas
+    }
+}
+
+// =============================================================================
+impl super::traits::WarmStartModel for GradientBoostingRegressor {
+    fn set_warm_start(&mut self, warm_start: bool) {
+        self.warm_start = warm_start;
+    }
+
+    fn warm_start(&self) -> bool {
+        self.warm_start
+    }
+
+    fn n_estimators_fitted(&self) -> usize {
+        self.estimators.as_ref().map_or(0, |e| e.len())
+    }
+}
+
+impl super::traits::WarmStartModel for GradientBoostingClassifier {
+    fn set_warm_start(&mut self, warm_start: bool) {
+        self.warm_start = warm_start;
+    }
+
+    fn warm_start(&self) -> bool {
+        self.warm_start
+    }
+
+    fn n_estimators_fitted(&self) -> usize {
+        self.estimators.as_ref().map_or(0, |e| e.len())
     }
 }
 

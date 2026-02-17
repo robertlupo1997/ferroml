@@ -49,7 +49,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{FerroError, Result};
 
-// Submodules (to be implemented in subsequent tasks)
+// Submodules
 pub mod discretizers;
 pub mod encoders;
 pub mod imputers;

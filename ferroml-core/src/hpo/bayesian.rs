@@ -1165,6 +1165,8 @@ pub struct LBFGSBConfig {
     pub c2: f64,
     /// Maximum line search iterations
     pub max_linesearch: usize,
+    /// Tolerance for convergence (parameter change norm)
+    pub xtol: f64,
 }
 
 impl Default for LBFGSBConfig {
@@ -1178,6 +1180,7 @@ impl Default for LBFGSBConfig {
             c1: 1e-4,
             c2: 0.9,
             max_linesearch: 20,
+            xtol: 1e-8,
         }
     }
 }
@@ -1289,14 +1292,25 @@ impl LBFGSB {
                 rho_history.push(rho);
             }
 
+            // Check parameter-change convergence
+            let x_change: f64 = x_new
+                .iter()
+                .zip(x.iter())
+                .map(|(a, b)| (a - b).powi(2))
+                .sum::<f64>()
+                .sqrt();
+
             x_prev = x;
             g_prev = gx;
             x = x_new;
             fx = fx_new;
             gx = gx_new;
+
+            if x_change < self.config.xtol {
+                break;
+            }
         }
 
-        // Avoid unused variable warnings
         let _ = (x_prev, g_prev);
 
         (x, fx)
@@ -1875,7 +1889,7 @@ impl AcquisitionOptimizer {
                     // Negate for minimization (we want to maximize acquisition)
                     // For LCB, we actually want to minimize, so don't negate
                     match acquisition {
-                        AcquisitionFunction::LCB => (acq_val, acq_grad),
+                        // Negate all acquisition values for L-BFGS minimization
                         _ => (-acq_val, acq_grad.iter().map(|g| -g).collect()),
                     }
                 }
