@@ -1204,6 +1204,22 @@ impl Transformer for TargetEncoder {
     }
 }
 
+// =============================================================================
+// PipelineTransformer Implementation
+// =============================================================================
+
+use crate::pipeline::PipelineTransformer;
+
+impl PipelineTransformer for OneHotEncoder {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "OneHotEncoder"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

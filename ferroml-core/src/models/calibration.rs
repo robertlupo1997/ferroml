@@ -1474,6 +1474,7 @@ use super::hist_boosting::HistGradientBoostingClassifier;
 use super::knn::KNeighborsClassifier;
 use super::logistic::LogisticRegression;
 use super::naive_bayes::{BernoulliNB, GaussianNB, MultinomialNB};
+use super::svm::SVC;
 use super::tree::DecisionTreeClassifier;
 use super::ProbabilisticModel;
 
@@ -1558,6 +1559,16 @@ impl CalibrableClassifier for HistGradientBoostingClassifier {
 }
 
 impl CalibrableClassifier for KNeighborsClassifier {
+    fn predict_proba_for_calibration(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        self.predict_proba(x)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn CalibrableClassifier> {
+        Box::new(self.clone())
+    }
+}
+
+impl CalibrableClassifier for SVC {
     fn predict_proba_for_calibration(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         self.predict_proba(x)
     }

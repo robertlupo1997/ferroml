@@ -1193,6 +1193,22 @@ fn qr_decomposition(a: &Array2<f64>) -> Result<(Array2<f64>, Array2<f64>)> {
     crate::linalg::qr_decomposition(a)
 }
 
+// =============================================================================
+// PipelineTransformer Implementation
+// =============================================================================
+
+use crate::pipeline::PipelineTransformer;
+
+impl PipelineTransformer for PCA {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "PCA"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

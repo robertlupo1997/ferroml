@@ -413,6 +413,22 @@ impl Transformer for PolynomialFeatures {
     }
 }
 
+// =============================================================================
+// PipelineTransformer Implementation
+// =============================================================================
+
+use crate::pipeline::PipelineTransformer;
+
+impl PipelineTransformer for PolynomialFeatures {
+    fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn name(&self) -> &str {
+        "PolynomialFeatures"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
