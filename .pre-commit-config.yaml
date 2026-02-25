@@ -39,7 +39,7 @@ repos:
       - id: cargo-test-quick
         name: cargo test (quick)
         description: Run quick unit tests
-        entry: cargo test --workspace --lib -- --test-threads=4
+        entry: cargo test -p ferroml-core --lib -- --test-threads=4
         language: system
         types: [rust]
         pass_filenames: false
