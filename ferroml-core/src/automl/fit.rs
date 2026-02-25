@@ -51,8 +51,10 @@ use crate::automl::{
     EnsembleConfig, EnsembleResult, ParamValue, TimeBudgetAllocator, TimeBudgetConfig, TrialResult,
 };
 use crate::cv::{CVFold, CrossValidator, StratifiedKFold};
+use crate::metrics::regression::mape;
 use crate::metrics::{
-    accuracy, corrected_resampled_ttest, mse, Direction, Metric as MetricTrait, MetricValue,
+    accuracy, corrected_resampled_ttest, f1_score, log_loss, matthews_corrcoef, mse, roc_auc_score,
+    Average, Direction, Metric as MetricTrait, MetricValue,
 };
 use crate::models::{
     DecisionTreeClassifier, DecisionTreeRegressor, GaussianNB, GradientBoostingClassifier,
@@ -682,6 +684,7 @@ pub struct PairwiseComparison {
 /// Internal metric adapter that implements the CV Metric trait
 struct MetricAdapter {
     metric: Metric,
+    #[allow(dead_code)]
     task: Task,
 }
 
@@ -705,9 +708,13 @@ impl MetricTrait for MetricAdapter {
 
     fn direction(&self) -> Direction {
         match self.metric {
-            Metric::Mse | Metric::Rmse | Metric::Mae | Metric::LogLoss | Metric::Mape => {
-                Direction::Minimize
-            }
+            Metric::Mse
+            | Metric::Rmse
+            | Metric::Mae
+            | Metric::LogLoss
+            | Metric::Mape
+            | Metric::Smape
+            | Metric::Mase => Direction::Minimize,
             _ => Direction::Maximize,
         }
     }
@@ -745,14 +752,53 @@ impl MetricTrait for MetricAdapter {
                     1.0 - ss_res / ss_tot
                 }
             }
-            // For other metrics, fall back to accuracy/MSE for now
-            _ => {
-                if self.task == Task::Classification {
-                    accuracy(y_true, y_pred)?
+            Metric::Mape => mape(y_true, y_pred)?,
+            Metric::Smape => {
+                let n = y_true.len() as f64;
+                y_true
+                    .iter()
+                    .zip(y_pred.iter())
+                    .map(|(t, p)| {
+                        let denom = (t.abs() + p.abs()) / 2.0;
+                        if denom < 1e-15 {
+                            0.0
+                        } else {
+                            (t - p).abs() / denom
+                        }
+                    })
+                    .sum::<f64>()
+                    / n
+                    * 100.0
+            }
+            Metric::Mase => {
+                let n = y_true.len();
+                let mae_pred = y_true
+                    .iter()
+                    .zip(y_pred.iter())
+                    .map(|(t, p)| (t - p).abs())
+                    .sum::<f64>()
+                    / n as f64;
+                let mae_naive = if n > 1 {
+                    y_true
+                        .iter()
+                        .skip(1)
+                        .zip(y_true.iter())
+                        .map(|(t, t_prev)| (t - t_prev).abs())
+                        .sum::<f64>()
+                        / (n - 1) as f64
                 } else {
-                    -mse(y_true, y_pred)? // Negative because we want to maximize
+                    1.0
+                };
+                if mae_naive < 1e-15 {
+                    0.0
+                } else {
+                    mae_pred / mae_naive
                 }
             }
+            Metric::F1 => f1_score(y_true, y_pred, Average::Weighted)?,
+            Metric::LogLoss => log_loss(y_true, y_pred, None)?,
+            Metric::Mcc => matthews_corrcoef(y_true, y_pred)?,
+            Metric::RocAuc => roc_auc_score(y_true, y_pred)?,
         };
 
         Ok(MetricValue::new(self.name(), value, self.direction()))

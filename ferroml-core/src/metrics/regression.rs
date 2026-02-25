@@ -148,8 +148,8 @@ pub fn explained_variance(y_true: &Array1<f64>, y_pred: &Array1<f64>) -> Result<
         .map(|(&t, &p)| t - p)
         .collect();
 
-    let var_true = y_true.var(1.0);
-    let var_residuals = residuals.var(1.0);
+    let var_true = y_true.var(0.0);
+    let var_residuals = residuals.var(0.0);
 
     if var_true == 0.0 {
         if var_residuals == 0.0 {
@@ -214,7 +214,7 @@ pub fn mape(y_true: &Array1<f64>, y_pred: &Array1<f64>) -> Result<f64> {
         .map(|(&t, &p)| ((t - p) / t).abs())
         .sum();
 
-    Ok(sum_ape / n * 100.0) // Return as percentage
+    Ok(sum_ape / n) // Return as fraction (sklearn convention)
 }
 
 // Metric trait implementations

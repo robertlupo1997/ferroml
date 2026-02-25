@@ -854,10 +854,10 @@ mod regression_metrics_tests {
         let y_true = Array1::from_vec(vec![100.0, 200.0, 300.0, 400.0]);
         let y_pred = Array1::from_vec(vec![110.0, 190.0, 330.0, 380.0]);
         // Errors: 10%, 5%, 10%, 5%
-        // MAPE = (10 + 5 + 10 + 5) / 4 = 7.5%
+        // MAPE = (0.10 + 0.05 + 0.10 + 0.05) / 4 = 0.075 (fraction)
 
         let result = mape(&y_true, &y_pred).unwrap();
-        assert!((result - 7.5).abs() < 1e-10);
+        assert!((result - 0.075).abs() < 1e-10);
     }
 
     #[test]

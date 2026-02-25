@@ -1926,7 +1926,23 @@ impl LinearSVC {
             .unwrap_or(1.0)
     }
 
-    /// Fit a binary linear SVC using coordinate descent.
+    /// Fit a binary linear SVC using dual coordinate descent (DCD),
+    /// following the liblinear algorithm for L2-regularized L2-loss / L1-loss SVM.
+    ///
+    /// Reference: Hsieh et al., "A Dual Coordinate Descent Method for Large-scale
+    /// Linear SVM" (ICML 2008).
+    ///
+    /// Solves the primal: min_{w,b} (1/2)||w||^2 + C * sum_i loss(y_i*(w^T x_i + b))
+    ///
+    /// The dual for L2-loss SVM is:
+    ///   min_alpha (1/2) alpha^T Q alpha - e^T alpha
+    ///   s.t. alpha >= 0
+    ///   where Q_ij = y_i y_j x_i^T x_j + delta_ij/(2C)
+    ///
+    /// The dual for L1-loss SVM is:
+    ///   min_alpha (1/2) alpha^T Q alpha - e^T alpha
+    ///   s.t. 0 <= alpha_i <= C
+    ///   where Q_ij = y_i y_j x_i^T x_j
     fn fit_binary(
         &self,
         x: &Array2<f64>,
@@ -1936,93 +1952,126 @@ impl LinearSVC {
         let n_samples = x.nrows();
         let n_features = x.ncols();
 
-        // Initialize weights and intercept
-        let mut w = Array1::zeros(n_features);
-        let mut b = 0.0;
+        // Augmented dimensionality: add an extra feature = 1.0 for the intercept
+        let d = if self.fit_intercept {
+            n_features + 1
+        } else {
+            n_features
+        };
 
-        // Precompute ||x_i||² for each sample
-        let x_norm_sq: Vec<f64> = (0..n_samples)
-            .map(|i| x.row(i).iter().map(|&v| v * v).sum())
-            .collect();
+        // Build augmented feature vectors and precompute norms
+        let mut x_aug: Vec<Vec<f64>> = Vec::with_capacity(n_samples);
+        let mut x_sq_norm: Vec<f64> = Vec::with_capacity(n_samples);
+        for i in 0..n_samples {
+            let mut row = x.row(i).to_vec();
+            if self.fit_intercept {
+                row.push(1.0);
+            }
+            let sq: f64 = row.iter().map(|v| v * v).sum();
+            x_sq_norm.push(sq);
+            x_aug.push(row);
+        }
 
         // Effective C for each sample
-        let c: Array1<f64> = sample_weights.mapv(|sw| self.c * sw);
+        let c_eff: Vec<f64> = sample_weights.iter().map(|&sw| self.c * sw).collect();
 
-        // Coordinate descent
-        for _iter in 0..self.max_iter {
-            let mut max_delta: f64 = 0.0;
+        // Precompute Q_ii (diagonal of the dual Hessian)
+        let q_diag: Vec<f64> = match self.loss {
+            LinearSVCLoss::SquaredHinge => {
+                // Q_ii = ||x_i||^2 + 1/(2*C_i)
+                (0..n_samples)
+                    .map(|i| x_sq_norm[i] + 1.0 / (2.0 * c_eff[i]))
+                    .collect()
+            }
+            LinearSVCLoss::Hinge => {
+                // Q_ii = ||x_i||^2
+                x_sq_norm.clone()
+            }
+        };
 
-            for i in 0..n_samples {
-                // Compute decision value
-                let f_i = dot_product_array(&w, &x.row(i).to_owned()) + b;
-                let margin = y_binary[i] * f_i;
+        // Initialize dual variables and primal weight vector
+        let mut alpha = vec![0.0f64; n_samples];
+        let mut w_aug = vec![0.0f64; d];
 
-                // Compute the optimal step
-                let (delta_w, delta_b) = match self.loss {
-                    LinearSVCLoss::Hinge => {
-                        // Hinge loss: subgradient at margin = 1
-                        if margin < 1.0 {
-                            let scale = c[i] * y_binary[i];
-                            let denom = x_norm_sq[i] + if self.fit_intercept { 1.0 } else { 0.0 };
-                            if denom > 1e-10 {
-                                let step = (1.0 - margin) / denom;
-                                (
-                                    scale * step,
-                                    if self.fit_intercept {
-                                        scale * step
-                                    } else {
-                                        0.0
-                                    },
-                                )
-                            } else {
-                                (0.0, 0.0)
-                            }
-                        } else {
-                            (0.0, 0.0)
-                        }
-                    }
+        // Build a permutation array for shuffling
+        let mut perm: Vec<usize> = (0..n_samples).collect();
+
+        for iter in 0..self.max_iter {
+            let mut max_change = 0.0f64;
+
+            // Deterministic shuffle using a simple hash of the iteration
+            // This approximates random permutation to prevent cycling
+            let seed = (iter as u64)
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1);
+            for i in (1..n_samples).rev() {
+                let j = ((seed.wrapping_mul((i + 1) as u64).wrapping_add(iter as u64))
+                    % (i as u64 + 1)) as usize;
+                perm.swap(i, j);
+            }
+
+            for &i in &perm {
+                if q_diag[i] < 1e-12 {
+                    continue;
+                }
+
+                // Compute w^T x_i
+                let wt_xi: f64 = w_aug
+                    .iter()
+                    .zip(x_aug[i].iter())
+                    .map(|(&wj, &xj)| wj * xj)
+                    .sum();
+
+                // Gradient component: g_i = y_i * w^T x_i + alpha_i/(2*C_i) - 1
+                // (for L2-loss; for L1-loss omit the alpha/(2C) term, which is
+                //  handled differently via the box constraint)
+                let g = match self.loss {
                     LinearSVCLoss::SquaredHinge => {
-                        // Squared hinge loss: gradient is smooth
-                        if margin < 1.0 {
-                            let scale = 2.0 * c[i] * y_binary[i] * (1.0 - margin);
-                            let denom = (2.0 * c[i]).mul_add(
-                                x_norm_sq[i] + if self.fit_intercept { 1.0 } else { 0.0 },
-                                1.0,
-                            );
-                            (
-                                scale / denom,
-                                if self.fit_intercept {
-                                    scale / denom
-                                } else {
-                                    0.0
-                                },
-                            )
-                        } else {
-                            (0.0, 0.0)
-                        }
+                        y_binary[i] * wt_xi + alpha[i] / (2.0 * c_eff[i]) - 1.0
+                    }
+                    LinearSVCLoss::Hinge => y_binary[i] * wt_xi - 1.0,
+                };
+
+                // Newton step: alpha_new = alpha_old - g / Q_ii
+                let alpha_new = match self.loss {
+                    LinearSVCLoss::SquaredHinge => {
+                        // No upper bound for L2-loss dual
+                        (alpha[i] - g / q_diag[i]).max(0.0)
+                    }
+                    LinearSVCLoss::Hinge => {
+                        // Box constraint: 0 <= alpha_i <= C_i
+                        (alpha[i] - g / q_diag[i]).max(0.0).min(c_eff[i])
                     }
                 };
 
-                if delta_w.abs() > 1e-12 {
-                    // Update weights
-                    for j in 0..n_features {
-                        w[j] += delta_w * x[[i, j]];
-                    }
-                    b += delta_b;
-
-                    max_delta = max_delta.max(delta_w.abs());
+                let delta = alpha_new - alpha[i];
+                if delta.abs() < 1e-15 {
+                    continue;
                 }
+
+                alpha[i] = alpha_new;
+
+                // Update primal weights: w += delta * y_i * x_i
+                let scale = delta * y_binary[i];
+                for j in 0..d {
+                    w_aug[j] += scale * x_aug[i][j];
+                }
+
+                max_change = max_change.max(delta.abs());
             }
 
-            // Apply L2 regularization shrinkage
-            let shrink_factor = 1.0 / (1.0 + 1.0 / (self.c * n_samples as f64));
-            w *= shrink_factor;
-
-            // Check convergence
-            if max_delta < self.tol {
+            if max_change < self.tol {
                 break;
             }
         }
+
+        // Extract w and b from augmented weight vector
+        let w = Array1::from_vec(w_aug[..n_features].to_vec());
+        let b = if self.fit_intercept {
+            w_aug[n_features]
+        } else {
+            0.0
+        };
 
         Ok((w, b))
     }

@@ -669,8 +669,15 @@ impl KNNImputer {
 
     /// Compute distance between two samples, using only shared valid features.
     ///
+    /// For Euclidean distance, this implements sklearn's `nan_euclidean_distance`:
+    /// the sum of squared differences over valid pairs is scaled by
+    /// `n_total_features / n_valid_pairs` before taking the square root.
+    /// This accounts for missing features by extrapolating the per-feature
+    /// contribution to the full dimensionality.
+    ///
     /// Returns `None` if there are no shared valid features.
     fn compute_distance(&self, a: &[f64], b: &[f64]) -> Option<f64> {
+        let n_total = a.len();
         let mut sum = 0.0;
         let mut valid_count = 0;
 
@@ -689,10 +696,11 @@ impl KNNImputer {
             return None;
         }
 
-        // Use raw distances from valid features only (no scaling)
+        // Scale by n_features / n_valid to match sklearn's nan_euclidean_distance
+        let scale = n_total as f64 / valid_count as f64;
         Some(match self.metric {
-            KNNMetric::Euclidean => sum.sqrt(),
-            KNNMetric::Manhattan => sum,
+            KNNMetric::Euclidean => (sum * scale).sqrt(),
+            KNNMetric::Manhattan => sum * scale,
         })
     }
 

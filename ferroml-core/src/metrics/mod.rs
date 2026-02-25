@@ -38,7 +38,7 @@ pub use probabilistic::{
     roc_auc_with_ci, AveragePrecisionMetric, BrierScoreMetric, LogLossMetric, PrAucMetric, PrCurve,
     RocAucMetric, RocCurve,
 };
-pub use regression::{explained_variance, mae, mse, r2_score, rmse, RegressionMetrics};
+pub use regression::{explained_variance, mae, mape, mse, r2_score, rmse, RegressionMetrics};
 
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};

@@ -1,0 +1,33 @@
+{
+  "_metadata": {
+    "generated_at": "2026-02-22T21:52:43.239146+00:00",
+    "numpy_version": "2.4.2",
+    "random_state": 42
+  },
+  "description": "Three degenerate array shapes: X_empty (0, 5), y_empty (0,), X_no_features (10, 0).",
+  "X_empty": [],
+  "y_empty": [],
+  "X_no_features": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    []
+  ],
+  "shape_X_empty": [
+    0,
+    5
+  ],
+  "shape_y_empty": [
+    0
+  ],
+  "shape_X_no_features": [
+    10,
+    0
+  ]
+}

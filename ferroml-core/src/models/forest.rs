@@ -666,7 +666,8 @@ impl Model for RandomForestClassifier {
         let class_weight = self.class_weight.clone();
 
         // Helper closure to build a single tree
-        let build_tree = |(indices, &seed): (&Vec<usize>, &u64)| {
+        // Returns None if the bootstrap sample has only one class (can happen with extreme imbalance)
+        let build_tree = |(indices, &seed): (&Vec<usize>, &u64)| -> Option<DecisionTreeClassifier> {
             // Create bootstrap sample
             let n_bootstrap = indices.len();
             let mut x_bootstrap = Array2::zeros((n_bootstrap, n_features));
@@ -688,9 +689,10 @@ impl Model for RandomForestClassifier {
                 .with_class_weight(class_weight.clone())
                 .with_random_state(seed);
 
-            tree.fit(&x_bootstrap, &y_bootstrap)
-                .expect("RandomForestClassifier: failed to fit decision tree on bootstrap sample");
-            tree
+            match tree.fit(&x_bootstrap, &y_bootstrap) {
+                Ok(()) => Some(tree),
+                Err(_) => None, // Skip bootstrap samples with single class
+            }
         };
 
         // Use sequential iteration when n_jobs == 1 for reproducibility
@@ -698,15 +700,21 @@ impl Model for RandomForestClassifier {
             bootstrap_indices
                 .iter()
                 .zip(tree_seeds.iter())
-                .map(build_tree)
+                .filter_map(build_tree)
                 .collect()
         } else {
             bootstrap_indices
                 .par_iter()
                 .zip(tree_seeds.par_iter())
-                .map(build_tree)
+                .filter_map(build_tree)
                 .collect()
         };
+
+        if estimators.is_empty() {
+            return Err(crate::FerroError::InvalidInput(
+                "RandomForestClassifier: all bootstrap samples contained a single class; cannot fit any trees".to_string(),
+            ));
+        }
 
         self.estimators = Some(estimators);
 

@@ -140,9 +140,9 @@ class TestAutoMLBasic:
         automl = AutoML(config)
         result = automl.fit(X, y)
 
-        # Should be able to get predictions
+        # predict requires (x_train, y_train, x_test) to refit best model
         if hasattr(result, 'predict'):
-            preds = result.predict(X)
+            preds = result.predict(X, y, X)
             assert preds.shape == y.shape
 
 
