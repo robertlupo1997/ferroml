@@ -1,0 +1,210 @@
+{
+    "version": "1.0",
+    "timestamp": "2026-02-28T00:00:00Z",
+    "commit": "0160c35",
+    "description": "Initial baseline for FerroML benchmarks. Run `cargo bench -p ferroml-core` to generate updated timings.",
+    "methodology": {
+        "criterion_version": "0.5",
+        "sample_size_default": 100,
+        "sample_size_slow_models": 10,
+        "warmup_time_ms": 3000,
+        "measurement_time_ms": 5000,
+        "note": "Actual timings are stored in target/criterion/ after running benchmarks. This file documents the expected baseline ranges for regression detection."
+    },
+    "benchmarks": {
+        "LinearRegression/fit/100x10": {
+            "expected_range_us": [50, 500],
+            "complexity": "O(n*p^2)"
+        },
+        "LinearRegression/fit/1000x50": {
+            "expected_range_us": [500, 5000],
+            "complexity": "O(n*p^2)"
+        },
+        "LinearRegression/fit/10000x100": {
+            "expected_range_us": [5000, 50000],
+            "complexity": "O(n*p^2)"
+        },
+        "RidgeRegression/fit/1000x50": {
+            "expected_range_us": [500, 5000],
+            "complexity": "O(n*p^2)"
+        },
+        "LassoRegression/fit/1000x50": {
+            "expected_range_us": [1000, 20000],
+            "complexity": "O(n*p*iter)"
+        },
+        "ElasticNet/fit/1000x50": {
+            "expected_range_us": [1000, 20000],
+            "complexity": "O(n*p*iter)"
+        },
+        "DecisionTreeClassifier/fit/1000x50": {
+            "expected_range_us": [500, 10000],
+            "complexity": "O(n*p*log(n))"
+        },
+        "RandomForestClassifier/fit/1000x20": {
+            "expected_range_us": [5000, 100000],
+            "complexity": "O(trees*n*p*log(n))"
+        },
+        "ExtraTreesClassifier/fit/1000x20": {
+            "expected_range_us": [2000, 50000],
+            "complexity": "O(trees*n*p)"
+        },
+        "GradientBoostingClassifier/fit/1000x20": {
+            "expected_range_us": [5000, 100000],
+            "complexity": "O(trees*n*p*log(n))"
+        },
+        "HistGradientBoostingClassifier/fit/1000x20": {
+            "expected_range_us": [2000, 50000],
+            "complexity": "O(trees*n*bins)"
+        },
+        "AdaBoostClassifier/fit_predict/1000x50": {
+            "expected_range_us": [5000, 100000],
+            "complexity": "O(trees*n*p*log(n))"
+        },
+        "SVC/fit_predict/500x20": {
+            "expected_range_us": [5000, 200000],
+            "complexity": "O(n^2*p)"
+        },
+        "LinearSVC/fit_predict/1000x50": {
+            "expected_range_us": [1000, 50000],
+            "complexity": "O(n*p*iter)"
+        },
+        "LinearSVR/fit_predict/1000x50": {
+            "expected_range_us": [1000, 50000],
+            "complexity": "O(n*p*iter)"
+        },
+        "KNeighborsClassifier/fit_predict/1000x50": {
+            "expected_range_us": [1000, 50000],
+            "complexity": "O(n^2*p)"
+        },
+        "NearestCentroid/fit_predict/5000x50": {
+            "expected_range_us": [100, 5000],
+            "complexity": "O(n*p*k)"
+        },
+        "GaussianNB/fit_predict/5000x50": {
+            "expected_range_us": [100, 5000],
+            "complexity": "O(n*p*k)"
+        },
+        "BernoulliNB/fit_predict/5000x50": {
+            "expected_range_us": [100, 5000],
+            "complexity": "O(n*p*k)"
+        },
+        "MultinomialNB/fit_predict/5000x50": {
+            "expected_range_us": [100, 5000],
+            "complexity": "O(n*p*k)"
+        },
+        "LogisticRegression/fit_predict/1000x50": {
+            "expected_range_us": [500, 20000],
+            "complexity": "O(n*p*iter)"
+        },
+        "VotingClassifier/fit_predict/1000x20": {
+            "expected_range_us": [5000, 200000],
+            "complexity": "O(sum(estimator_i))"
+        },
+        "StackingClassifier/fit_predict/500x20": {
+            "expected_range_us": [50000, 2000000],
+            "complexity": "O(cv*sum(estimator_i))"
+        },
+        "BaggingClassifier/fit_predict/1000x20": {
+            "expected_range_us": [5000, 200000],
+            "complexity": "O(n_estimators*base_fit)"
+        },
+        "MLPClassifier/fit_predict/500x20_h64": {
+            "expected_range_us": [10000, 500000],
+            "complexity": "O(iter*n*sum(layer_i*layer_{i+1}))"
+        },
+        "MLPRegressor/fit_predict/500x20_h64": {
+            "expected_range_us": [10000, 500000],
+            "complexity": "O(iter*n*sum(layer_i*layer_{i+1}))"
+        },
+        "DBSCAN/fit/1000x20": {
+            "expected_range_us": [1000, 100000],
+            "complexity": "O(n^2*p)"
+        },
+        "KMeans/fit/5000x50": {
+            "expected_range_us": [5000, 100000],
+            "complexity": "O(n*k*p*iter)"
+        },
+        "StandardScaler/fit_transform/10000x100": {
+            "expected_range_us": [500, 10000],
+            "complexity": "O(n*p)"
+        },
+        "PolynomialFeatures/fit_transform/1000x10_d2": {
+            "expected_range_us": [100, 10000],
+            "complexity": "O(n*C(p+d,d))"
+        },
+        "PCA/fit_transform/5000x100": {
+            "expected_range_us": [10000, 200000],
+            "complexity": "O(min(n,p)*p^2)"
+        },
+        "LargeScale/LinearRegression/fit/100000": {
+            "expected_range_us": [10000, 200000],
+            "complexity": "O(n*p^2)"
+        },
+        "LargeScale/RandomForest/predict/100000": {
+            "expected_range_us": [50000, 1000000],
+            "complexity": "O(n*trees*depth)"
+        },
+        "RidgeCV/fit/1000x50": {
+            "expected_range_us": [5000, 100000],
+            "complexity": "O(cv*n*p^2)"
+        },
+        "LassoCV/fit/1000x50": {
+            "expected_range_us": [10000, 200000],
+            "complexity": "O(cv*alphas*n*p*iter)"
+        },
+        "ElasticNetCV/fit/1000x50": {
+            "expected_range_us": [10000, 500000],
+            "complexity": "O(cv*alphas*l1_ratios*n*p*iter)"
+        },
+        "RobustRegression/fit/1000x50": {
+            "expected_range_us": [5000, 200000],
+            "complexity": "O(n*p*iter)"
+        },
+        "QuantileRegression/fit/1000x50": {
+            "expected_range_us": [5000, 200000],
+            "complexity": "O(n*p*iter)"
+        },
+        "PassiveAggressiveClassifier/fit_predict/5000x100": {
+            "expected_range_us": [1000, 50000],
+            "complexity": "O(n*p*iter)"
+        },
+        "RidgeClassifier/fit_predict/1000x50": {
+            "expected_range_us": [500, 20000],
+            "complexity": "O(n*p^2)"
+        },
+        "CalibratedClassifierCV/fit_predict/500x20": {
+            "expected_range_us": [50000, 2000000],
+            "complexity": "O(cv*base_fit)"
+        },
+        "LDA/fit_transform/5000x100_c10": {
+            "expected_range_us": [5000, 200000],
+            "complexity": "O(n*p^2 + p^3)"
+        },
+        "FactorAnalysis/fit_transform/1000x50": {
+            "expected_range_us": [10000, 500000],
+            "complexity": "O(iter*n*p^2)"
+        },
+        "Scaling_KMeans_Samples/fit/10000": {
+            "expected_range_us": [10000, 500000],
+            "complexity": "O(n*k*p*iter)"
+        },
+        "Scaling_DBSCAN_Samples/fit/2000": {
+            "expected_range_us": [10000, 1000000],
+            "complexity": "O(n^2*p)"
+        },
+        "Scaling_KNN_Samples/fit_predict/5000": {
+            "expected_range_us": [50000, 5000000],
+            "complexity": "O(n^2*p)"
+        },
+        "Scaling_RF_Fit_Samples/fit/5000": {
+            "expected_range_us": [50000, 2000000],
+            "complexity": "O(trees*n*p*log(n))"
+        },
+        "Scaling_HistGB_Predict_Samples/predict/50000": {
+            "expected_range_us": [10000, 500000],
+            "complexity": "O(n*trees*depth)"
+        }
+    },
+    "regression_threshold_percent": 20,
+    "usage": "Compare Criterion output against expected_range_us values. A benchmark is flagged as a regression if it exceeds the upper bound by more than regression_threshold_percent."
+}

@@ -262,6 +262,7 @@ impl KMeans {
         let mut centers = initial_centers;
         let mut labels = Array1::zeros(n_samples);
         let mut prev_inertia = f64::MAX;
+        let mut rng = StdRng::seed_from_u64(self.random_state.unwrap_or(42));
 
         for iter in 0..self.max_iter {
             // Assignment step: assign each point to nearest center
@@ -326,8 +327,10 @@ impl KMeans {
                         new_centers[[k, j]] /= counts[k] as f64;
                     }
                 } else {
-                    // Empty cluster: keep old center
-                    new_centers.row_mut(k).assign(&centers.row(k));
+                    // Empty cluster: re-initialize to a random data point
+                    // (matching sklearn behavior instead of keeping stale center)
+                    let idx = rng.random_range(0..n_samples);
+                    new_centers.row_mut(k).assign(&x.row(idx));
                 }
             }
 
@@ -552,6 +555,15 @@ impl ClusteringModel for KMeans {
             .cluster_centers_
             .as_ref()
             .ok_or_else(|| FerroError::not_fitted("predict"))?;
+
+        // Validate feature count matches training data
+        let n_features = centers.ncols();
+        if x.ncols() != n_features {
+            return Err(FerroError::shape_mismatch(
+                format!("(n_samples, {})", n_features),
+                format!("({}, {})", x.nrows(), x.ncols()),
+            ));
+        }
 
         let n_samples = x.nrows();
         let mut labels = Array1::zeros(n_samples);

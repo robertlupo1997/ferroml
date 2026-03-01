@@ -5,11 +5,15 @@
   "permissions": {
     "allow": [
       "Read(**)",
+      "Edit(**)",
+      "Write(**)",
       "Bash(git diff:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
+      "Bash(cargo *)",
       "Bash(pytest:*)",
       "Bash(python -m *)",
+      "Bash(python:*)",
       "Bash(ruff *)",
       "Bash(go build *)",
       "Bash(go test *)",
@@ -17,7 +21,12 @@
       "Bash(docker-compose *)",
       "Bash(./loop.sh *)",
       "Bash(ls *)",
-      "Bash(mkdir *)"
+      "Bash(mkdir *)",
+      "Bash(pre-commit *)",
+      "Bash(cat *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)"
     ],
     "deny": [
       "Read(./.env)",
@@ -26,10 +35,7 @@
       "Bash(wget:*)"
     ],
     "ask": [
-      "Edit(**)",
-      "Write(**)",
-      "Bash(psql:*)",
-      "Bash(python:*)"
+      "Bash(psql:*)"
     ]
   },
   "enabledPlugins": {

@@ -209,15 +209,17 @@ impl ClusteringModel for AgglomerativeClustering {
                     }
                     Linkage::Ward => {
                         // Lance-Williams formula for Ward:
-                        // d(i∪j, k) = sqrt(((n_i+n_k)*d(i,k)^2 + (n_j+n_k)*d(j,k)^2 - n_k*d(i,j)^2) / (n_i+n_j+n_k))
+                        // d(i∪j, k) = sqrt(((n_i+n_k)*d_ik^2 + (n_j+n_k)*d_jk^2 - n_k*d_ij^2) / (n_i+n_j+n_k))
+                        //
+                        // NOTE: di, dj, dij are already SQUARED distances (Ward stores
+                        // squared Euclidean distances in the distance matrix), so we
+                        // use them directly — NOT di*di which would give d^4.
                         let nk = sizes[k] as f64;
-                        let di = dist[[merge_i, k]]; // squared
-                        let dj = dist[[merge_j, k]]; // squared
-                        let dij = min_dist; // squared (the distance we just merged on)
+                        let di = dist[[merge_i, k]]; // already squared distance
+                        let dj = dist[[merge_j, k]]; // already squared distance
+                        let dij = min_dist; // already squared distance
                         let total = ni + nj + nk;
-                        (((ni + nk) * di * di + (nj + nk) * dj * dj - nk * dij * dij) / total)
-                            .max(0.0)
-                            .sqrt()
+                        (((ni + nk) * di + (nj + nk) * dj - nk * dij) / total).max(0.0)
                     }
                 };
 

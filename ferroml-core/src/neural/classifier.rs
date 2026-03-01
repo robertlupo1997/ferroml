@@ -144,6 +144,17 @@ impl MLPClassifier {
             return Err(FerroError::not_fitted("predict"));
         }
 
+        // Validate input dimensions
+        if let Some(expected) = self.mlp.n_features_in {
+            if x.ncols() != expected {
+                return Err(FerroError::InvalidInput(format!(
+                    "Expected {} features, got {}",
+                    expected,
+                    x.ncols()
+                )));
+            }
+        }
+
         // Clone to allow mutable access for forward pass
         let mut mlp = self.mlp.clone();
         mlp.forward(x, false)
@@ -189,14 +200,15 @@ impl MLPClassifier {
         let n_samples = predictions.nrows() as f64;
         let eps = 1e-15;
 
-        // Clip predictions to avoid log(0)
-        let clipped = predictions.mapv(|p| p.max(eps).min(1.0 - eps));
+        // Clip only for log computation to avoid log(0), NOT the predictions themselves
+        let log_preds = predictions.mapv(|p| p.max(eps).ln());
 
         // Loss: -sum(y * log(p)) / n
-        let loss = -(&clipped.mapv(|p| p.ln()) * targets).sum() / n_samples;
+        let loss = -(log_preds * targets).sum() / n_samples;
 
         // Gradient for softmax + cross-entropy simplifies to: (p - y) / n
-        let grad = (&clipped - targets) / n_samples;
+        // Use the original (unclipped) predictions for the gradient
+        let grad = (predictions - targets) / n_samples;
 
         (loss, grad)
     }
@@ -204,6 +216,18 @@ impl MLPClassifier {
 
 impl NeuralModel for MLPClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        if x.nrows() == 0 {
+            return Err(FerroError::InvalidInput(
+                "Training data must have at least one sample".to_string(),
+            ));
+        }
+        if x.nrows() != y.len() {
+            return Err(FerroError::InvalidInput(format!(
+                "Number of samples in X ({}) does not match y ({})",
+                x.nrows(),
+                y.len()
+            )));
+        }
         let n_features = x.ncols();
 
         // Determine classes

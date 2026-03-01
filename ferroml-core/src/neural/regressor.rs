@@ -142,13 +142,14 @@ impl MLPRegressor {
     /// Mean Squared Error loss function
     fn mse_loss(predictions: &Array2<f64>, targets: &Array2<f64>) -> (f64, Array2<f64>) {
         let n_samples = predictions.nrows() as f64;
+        let n_outputs = predictions.ncols() as f64;
 
-        // MSE = mean((pred - target)^2)
+        // MSE = mean((pred - target)^2) over both samples and outputs
         let diff = predictions - targets;
-        let loss = diff.mapv(|d| d.powi(2)).sum() / n_samples;
+        let loss = diff.mapv(|d| d.powi(2)).sum() / (n_samples * n_outputs);
 
-        // Gradient: 2 * (pred - target) / n
-        let grad = diff.mapv(|d| 2.0 * d) / n_samples;
+        // Gradient: 2 * (pred - target) / (n_samples * n_outputs)
+        let grad = diff.mapv(|d| 2.0 * d) / (n_samples * n_outputs);
 
         (loss, grad)
     }
@@ -176,6 +177,18 @@ impl MLPRegressor {
 
 impl NeuralModel for MLPRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        if x.nrows() == 0 {
+            return Err(FerroError::InvalidInput(
+                "Training data must have at least one sample".to_string(),
+            ));
+        }
+        if x.nrows() != y.len() {
+            return Err(FerroError::InvalidInput(format!(
+                "Number of samples in X ({}) does not match y ({})",
+                x.nrows(),
+                y.len()
+            )));
+        }
         let n_features = x.ncols();
         let n_outputs = 1; // Single output for now
 
@@ -300,6 +313,17 @@ impl NeuralModel for MLPRegressor {
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         if !self.is_fitted() {
             return Err(FerroError::not_fitted("predict"));
+        }
+
+        // Validate input dimensions
+        if let Some(expected) = self.mlp.n_features_in {
+            if x.ncols() != expected {
+                return Err(FerroError::InvalidInput(format!(
+                    "Expected {} features, got {}",
+                    expected,
+                    x.ncols()
+                )));
+            }
         }
 
         let mut mlp = self.mlp.clone();

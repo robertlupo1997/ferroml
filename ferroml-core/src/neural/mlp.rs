@@ -63,6 +63,12 @@ pub struct MLP {
     /// Adam optimizer state
     #[serde(skip)]
     pub adam_state: Option<AdamState>,
+    /// Persistent RNG for dropout masks and shuffling.
+    /// Initialized once during `initialize()` and advances across calls,
+    /// ensuring different dropout masks per forward pass and different
+    /// shuffle orders per epoch.
+    #[serde(skip)]
+    pub rng: Option<StdRng>,
     /// Optional GPU backend for accelerated matrix operations
     #[cfg(feature = "gpu")]
     #[serde(skip)]
@@ -93,6 +99,7 @@ impl Default for MLP {
             history: None,
             sgd_state: None,
             adam_state: None,
+            rng: None,
             #[cfg(feature = "gpu")]
             gpu_backend: None,
         }
@@ -275,6 +282,13 @@ impl MLP {
             }
         }
 
+        // Initialize persistent RNG for dropout and shuffling.
+        // Use a different offset from the weight init seeds to avoid correlation.
+        self.rng = Some(match self.random_state {
+            Some(s) => StdRng::seed_from_u64(s.wrapping_add(1_000_000)),
+            None => StdRng::from_os_rng(),
+        });
+
         Ok(())
     }
 
@@ -289,33 +303,38 @@ impl MLP {
         }
 
         let mut output = x.clone();
-        let mut rng = match self.random_state {
-            Some(s) => StdRng::seed_from_u64(s),
-            None => StdRng::from_os_rng(),
-        };
+
+        // Use the persistent RNG for dropout (advances across calls, giving
+        // different masks each forward pass). Falls back to a fresh OS RNG
+        // only if initialize() was never called.
+        let needs_rng = training && self.regularization.dropout_rate > 0.0;
 
         let n_layers = self.layers.len();
-        for (i, layer) in self.layers.iter_mut().enumerate() {
+        for i in 0..n_layers {
             let is_output_layer = i == n_layers - 1;
 
             // Apply dropout to hidden layers only during training
-            if training && !is_output_layer && self.regularization.dropout_rate > 0.0 {
+            if needs_rng && !is_output_layer {
+                // We need a mutable reference to both the layer and the rng.
+                // Borrow the rng from self first, then the layer.
+                let rng = self.rng.as_mut().expect("RNG should be initialized");
+                let layer = &mut self.layers[i];
                 output = layer.forward_with_dropout(
                     &output,
                     self.regularization.dropout_rate,
                     true,
-                    &mut rng,
+                    rng,
                 )?;
             } else {
                 // Use GPU-accelerated forward when available
                 #[cfg(feature = "gpu")]
                 {
                     if let Some(ref gpu) = self.gpu_backend {
-                        output = layer.forward_gpu(&output, training, gpu.as_ref())?;
+                        output = self.layers[i].forward_gpu(&output, training, gpu.as_ref())?;
                         continue;
                     }
                 }
-                output = layer.forward(&output, training)?;
+                output = self.layers[i].forward(&output, training)?;
             }
         }
 
@@ -325,7 +344,10 @@ impl MLP {
     /// Backward pass through the network
     ///
     /// # Arguments
-    /// * `loss_grad` - Gradient of loss with respect to output
+    /// * `loss_grad` - Gradient of loss with respect to output.
+    ///   For the output layer, this should be the combined loss+activation gradient
+    ///   (e.g., `(p - y) / n` for softmax + cross-entropy, or `2*(p - y) / n` for linear + MSE).
+    ///   The output layer's activation derivative is NOT applied again.
     ///
     /// # Returns
     /// Gradients for each layer (weights, biases)
@@ -338,15 +360,28 @@ impl MLP {
         let mut grad = loss_grad.clone();
 
         // Backpropagate through layers in reverse order
-        for layer in self.layers.iter().rev() {
+        for (rev_idx, layer) in self.layers.iter().rev().enumerate() {
+            let is_output_layer = rev_idx == 0;
+
             #[cfg(feature = "gpu")]
             let (grad_w, grad_b, grad_input) = if let Some(ref gpu) = self.gpu_backend {
                 layer.backward_gpu(&grad, gpu.as_ref())?
+            } else if is_output_layer {
+                // For output layer, the loss gradient already accounts for the
+                // activation derivative (softmax+CE or linear+MSE), so skip it.
+                layer.backward_skip_activation(&grad)?
             } else {
                 layer.backward(&grad)?
             };
             #[cfg(not(feature = "gpu"))]
-            let (grad_w, grad_b, grad_input) = layer.backward(&grad)?;
+            let (grad_w, grad_b, grad_input) = if is_output_layer {
+                // For output layer, the loss gradient already accounts for the
+                // activation derivative (softmax+CE or linear+MSE), so skip it.
+                layer.backward_skip_activation(&grad)?
+            } else {
+                layer.backward(&grad)?
+            };
+
             gradients.push((grad_w, grad_b));
             grad = grad_input;
         }
@@ -436,18 +471,21 @@ impl MLP {
         F: Fn(&Array2<f64>, &Array2<f64>) -> (f64, Array2<f64>),
     {
         let n_samples = x.nrows();
+        if n_samples == 0 {
+            return Err(FerroError::InvalidInput(
+                "Training data must have at least one sample".to_string(),
+            ));
+        }
         let batch_size = self.batch_size.unwrap_or(n_samples).min(n_samples);
         let lr = self.optimizer_config.learning_rate;
 
-        let mut rng = match self.random_state {
-            Some(s) => StdRng::seed_from_u64(s),
-            None => StdRng::from_os_rng(),
-        };
-
-        // Create indices for shuffling
+        // Create indices for shuffling using the persistent RNG
+        // (gives different shuffle order each epoch)
         let mut indices: Vec<usize> = (0..n_samples).collect();
         if self.shuffle {
-            indices.shuffle(&mut rng);
+            if let Some(ref mut rng) = self.rng {
+                indices.shuffle(rng);
+            }
         }
 
         let mut total_loss = 0.0;

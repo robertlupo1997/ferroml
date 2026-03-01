@@ -6,9 +6,12 @@
 //!
 //! - `ferroml.linear` - Linear models (LinearRegression, LogisticRegression, Ridge, Lasso, ElasticNet)
 //! - `ferroml.trees` - Tree models (DecisionTree, RandomForest, GradientBoosting, HistGradientBoosting)
+//! - `ferroml.ensemble` - Ensemble models (ExtraTrees, AdaBoost, SGD, PassiveAggressive)
 //! - `ferroml.neighbors` - Nearest neighbors (KNeighborsClassifier, KNeighborsRegressor)
-//! - `ferroml.clustering` - Clustering algorithms (KMeans, DBSCAN) and metrics
-//! - `ferroml.preprocessing` - Preprocessing transformers (Scalers, Encoders, Imputers)
+//! - `ferroml.clustering` - Clustering algorithms (KMeans, DBSCAN, AgglomerativeClustering) and metrics
+//! - `ferroml.preprocessing` - Preprocessing transformers (Scalers, Encoders, Imputers, Selectors, Power, Quantile)
+//! - `ferroml.decomposition` - Dimensionality reduction (PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis)
+//! - `ferroml.explainability` - Model explainability (TreeSHAP, permutation importance, partial dependence)
 //! - `ferroml.pipeline` - Pipeline, ColumnTransformer, FeatureUnion
 //! - `ferroml.automl` - AutoML (AutoML, AutoMLConfig, AutoMLResult)
 //! - `ferroml.datasets` - Dataset loading (HuggingFace Hub, built-in datasets, synthetic generators)
@@ -38,6 +41,9 @@ mod array_utils;
 mod automl;
 mod clustering;
 mod datasets;
+mod decomposition;
+mod ensemble;
+mod explainability;
 mod linear;
 mod neighbors;
 mod neural;
@@ -50,7 +56,7 @@ pub mod polars_utils;
 mod preprocessing;
 #[cfg(feature = "sparse")]
 pub mod sparse_utils;
-mod trees;
+pub(crate) mod trees;
 
 /// FerroML Python module
 #[pymodule]
@@ -60,10 +66,13 @@ fn ferroml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Register submodules
     linear::register_linear_module(m)?;
     trees::register_trees_module(m)?;
+    ensemble::register_ensemble_module(m)?;
     neighbors::register_neighbors_module(m)?;
     neural::register_neural_module(m)?;
     clustering::register_clustering_module(m)?;
     preprocessing::register_preprocessing_module(m)?;
+    decomposition::register_decomposition_module(m)?;
+    explainability::register_explainability_module(m)?;
     pipeline::register_pipeline_module(m)?;
     automl::register_automl_module(m)?;
     datasets::register_datasets_module(m)?;

@@ -99,10 +99,11 @@ impl Activation {
             Activation::Linear => Array1::ones(x.len()),
             Activation::LeakyReLU => x.mapv(|v| if v > 0.0 { 1.0 } else { 0.01 }),
             Activation::ELU => {
-                // d/dx = 1 if x > 0, else exp(x) = output + 1
+                // d/dx = 1 if x >= 0, else exp(x) = output + 1
+                // Use >= to match the forward pass boundary
                 x.iter()
                     .zip(output.iter())
-                    .map(|(&xi, &oi)| if xi > 0.0 { 1.0 } else { oi + 1.0 })
+                    .map(|(&xi, &oi)| if xi >= 0.0 { 1.0 } else { oi + 1.0 })
                     .collect::<Array1<f64>>()
             }
         }
@@ -120,7 +121,7 @@ impl Activation {
             Activation::ELU => {
                 let mut result = Array2::zeros(x.raw_dim());
                 for ((xi, oi), ri) in x.iter().zip(output.iter()).zip(result.iter_mut()) {
-                    *ri = if *xi > 0.0 { 1.0 } else { oi + 1.0 };
+                    *ri = if *xi >= 0.0 { 1.0 } else { oi + 1.0 };
                 }
                 result
             }

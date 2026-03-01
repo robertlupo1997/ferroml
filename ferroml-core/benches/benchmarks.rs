@@ -53,24 +53,37 @@
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use ferroml_core::clustering::agglomerative::AgglomerativeClustering;
+use ferroml_core::clustering::DBSCAN;
 use ferroml_core::clustering::{ClusteringModel, KMeans};
 use ferroml_core::datasets::{make_classification, make_regression};
+use ferroml_core::decomposition::{FactorAnalysis, LDA};
 use ferroml_core::decomposition::{TruncatedSVD, PCA};
+use ferroml_core::ensemble::{BaggingClassifier, StackingClassifier, VotingClassifier};
 use ferroml_core::models::adaboost::{AdaBoostClassifier, AdaBoostRegressor};
 use ferroml_core::models::boosting::{GradientBoostingClassifier, GradientBoostingRegressor};
+use ferroml_core::models::calibration::{CalibrableClassifier, CalibratedClassifierCV};
+use ferroml_core::models::extra_trees::{ExtraTreesClassifier, ExtraTreesRegressor};
 use ferroml_core::models::forest::{RandomForestClassifier, RandomForestRegressor};
 use ferroml_core::models::hist_boosting::{
     HistGradientBoostingClassifier, HistGradientBoostingRegressor,
 };
+use ferroml_core::models::knn::NearestCentroid;
 use ferroml_core::models::knn::{KNeighborsClassifier, KNeighborsRegressor};
 use ferroml_core::models::linear::LinearRegression;
 use ferroml_core::models::logistic::LogisticRegression;
 use ferroml_core::models::naive_bayes::GaussianNB;
-use ferroml_core::models::regularized::{LassoRegression, RidgeRegression};
-use ferroml_core::models::sgd::{SGDClassifier, SGDRegressor};
-use ferroml_core::models::svm::{LinearSVC, SVC, SVR};
+use ferroml_core::models::naive_bayes::{BernoulliNB, MultinomialNB};
+use ferroml_core::models::quantile::QuantileRegression;
+use ferroml_core::models::regularized::{
+    ElasticNet, ElasticNetCV, LassoCV, LassoRegression, RidgeCV, RidgeClassifier, RidgeRegression,
+};
+use ferroml_core::models::robust::RobustRegression;
+use ferroml_core::models::sgd::{PassiveAggressiveClassifier, SGDClassifier, SGDRegressor};
+use ferroml_core::models::svm::{LinearSVC, LinearSVR, SVC, SVR};
 use ferroml_core::models::tree::{DecisionTreeClassifier, DecisionTreeRegressor};
 use ferroml_core::models::Model;
+use ferroml_core::neural::{Activation, MLPClassifier, MLPRegressor, NeuralModel, Solver};
+use ferroml_core::preprocessing::polynomial::PolynomialFeatures;
 use ferroml_core::preprocessing::scalers::{
     MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler,
 };
@@ -1291,6 +1304,726 @@ fn bench_gaussian_nb_fit_predict(c: &mut Criterion) {
 }
 
 // =============================================================================
+// EXTRA TREES BENCHMARKS
+// =============================================================================
+
+/// Benchmark ExtraTreesClassifier training time
+fn bench_extra_trees_classifier_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ExtraTreesClassifier/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(500, 20), (1000, 20)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = ExtraTreesClassifier::new()
+                        .with_n_estimators(10)
+                        .with_max_depth(Some(10))
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark ExtraTreesRegressor training time
+fn bench_extra_trees_regressor_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ExtraTreesRegressor/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(500, 20), (1000, 20)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = ExtraTreesRegressor::new()
+                        .with_n_estimators(10)
+                        .with_max_depth(Some(10))
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// ELASTICNET BENCHMARKS
+// =============================================================================
+
+/// Benchmark ElasticNet training time
+fn bench_elastic_net_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ElasticNet/fit");
+
+    for (n_samples, n_features) in [(100, 10), (1000, 50), (5000, 50)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = ElasticNet::new(0.1, 0.5);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// LINEAR SVR BENCHMARKS
+// =============================================================================
+
+/// Benchmark LinearSVR training and prediction time
+fn bench_linear_svr_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("LinearSVR/fit_predict");
+    group.sample_size(10);
+    for (n_samples, n_features) in [(500, 20), (1000, 50)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = LinearSVR::new();
+                    model.fit(black_box(*x), black_box(*y)).unwrap();
+                    model.predict(black_box(*x)).unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+// =============================================================================
+// NEAREST CENTROID BENCHMARKS
+// =============================================================================
+
+/// Benchmark NearestCentroid training and prediction time
+fn bench_nearest_centroid_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("NearestCentroid/fit_predict");
+    for (n_samples, n_features) in [(1000, 20), (5000, 50)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 5);
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = NearestCentroid::new();
+                    model.fit(black_box(*x), black_box(*y)).unwrap();
+                    model.predict(black_box(*x)).unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+// =============================================================================
+// BERNOULLI AND MULTINOMIAL NB BENCHMARKS
+// =============================================================================
+
+/// Benchmark BernoulliNB training and prediction time
+fn bench_bernoulli_nb_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("BernoulliNB/fit_predict");
+    for (n_samples, n_features) in [(1000, 20), (5000, 50)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = BernoulliNB::new();
+                    model.fit(black_box(*x), black_box(*y)).unwrap();
+                    model.predict(black_box(*x)).unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+/// Benchmark MultinomialNB training and prediction time
+///
+/// MultinomialNB requires non-negative features, so we use absolute values
+fn bench_multinomial_nb_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("MultinomialNB/fit_predict");
+    for (n_samples, n_features) in [(1000, 20), (5000, 50)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+        // Make features non-negative for MultinomialNB
+        let x = x.mapv(|v| v.abs());
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = MultinomialNB::new();
+                    model.fit(black_box(*x), black_box(*y)).unwrap();
+                    model.predict(black_box(*x)).unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+// =============================================================================
+// ENSEMBLE BENCHMARKS (Voting, Stacking, Bagging)
+// =============================================================================
+
+/// Benchmark VotingClassifier with 3 heterogeneous estimators
+fn bench_voting_classifier_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("VotingClassifier/fit_predict");
+    group.sample_size(10);
+    for (n_samples, n_features) in [(500, 20), (1000, 20)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let estimators: Vec<(
+                        String,
+                        Box<dyn ferroml_core::ensemble::voting::VotingClassifierEstimator>,
+                    )> = vec![
+                        ("lr".to_string(), Box::new(LogisticRegression::new())),
+                        ("gnb".to_string(), Box::new(GaussianNB::new())),
+                        ("dt".to_string(), Box::new(DecisionTreeClassifier::new())),
+                    ];
+                    let mut model = VotingClassifier::new(estimators);
+                    model.fit(black_box(*x), black_box(*y)).unwrap();
+                    model.predict(black_box(*x)).unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+/// Benchmark StackingClassifier with 3 base estimators + LogisticRegression meta
+fn bench_stacking_classifier_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("StackingClassifier/fit_predict");
+    group.sample_size(10);
+    let (x, y) = generate_classification_data(500, 20, 2);
+    group.throughput(Throughput::Elements(500));
+    group.bench_function("500x20", |b| {
+        b.iter(|| {
+            let estimators: Vec<(
+                String,
+                Box<dyn ferroml_core::ensemble::voting::VotingClassifierEstimator>,
+            )> = vec![
+                ("lr".to_string(), Box::new(LogisticRegression::new())),
+                ("gnb".to_string(), Box::new(GaussianNB::new())),
+                ("dt".to_string(), Box::new(DecisionTreeClassifier::new())),
+            ];
+            let mut model = StackingClassifier::new(estimators);
+            model.fit(black_box(&x), black_box(&y)).unwrap();
+            model.predict(black_box(&x)).unwrap()
+        })
+    });
+    group.finish();
+}
+
+/// Benchmark BaggingClassifier with DecisionTree base estimator
+fn bench_bagging_classifier_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("BaggingClassifier/fit_predict");
+    group.sample_size(10);
+    for (n_samples, n_features) in [(500, 20), (1000, 20)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let base: Box<dyn ferroml_core::ensemble::voting::VotingClassifierEstimator> =
+                        Box::new(DecisionTreeClassifier::new());
+                    let mut model = BaggingClassifier::new(base)
+                        .with_n_estimators(10)
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap();
+                    model.predict(black_box(*x)).unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+// =============================================================================
+// MLP (NEURAL NETWORK) BENCHMARKS
+// =============================================================================
+
+/// Benchmark MLPClassifier training and prediction time
+fn bench_mlp_classifier_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("MLPClassifier/fit_predict");
+    group.sample_size(10);
+
+    let (x, y) = generate_classification_data(500, 20, 2);
+    group.throughput(Throughput::Elements(500));
+    group.bench_function("500x20_h64", |b| {
+        b.iter(|| {
+            let mut model = MLPClassifier::new()
+                .hidden_layer_sizes(&[64])
+                .activation(Activation::ReLU)
+                .solver(Solver::Adam)
+                .max_iter(50)
+                .random_state(42);
+            model.fit(black_box(&x), black_box(&y)).unwrap();
+            model.predict(black_box(&x)).unwrap()
+        })
+    });
+    group.finish();
+}
+
+/// Benchmark MLPRegressor training and prediction time
+fn bench_mlp_regressor_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("MLPRegressor/fit_predict");
+    group.sample_size(10);
+
+    let (x, y) = generate_regression_data(500, 20);
+    group.throughput(Throughput::Elements(500));
+    group.bench_function("500x20_h64", |b| {
+        b.iter(|| {
+            let mut model = MLPRegressor::new()
+                .hidden_layer_sizes(&[64])
+                .activation(Activation::ReLU)
+                .solver(Solver::Adam)
+                .max_iter(50)
+                .random_state(42);
+            model.fit(black_box(&x), black_box(&y)).unwrap();
+            model.predict(black_box(&x)).unwrap()
+        })
+    });
+    group.finish();
+}
+
+// =============================================================================
+// DBSCAN BENCHMARKS
+// =============================================================================
+
+/// Benchmark DBSCAN clustering
+fn bench_dbscan_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("DBSCAN/fit");
+    group.sample_size(10);
+    for (n_samples, n_features) in [(500, 20), (1000, 20), (2000, 20)] {
+        let (x, _) = generate_regression_data(n_samples, n_features);
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &x,
+            |b, x| {
+                b.iter(|| {
+                    let mut model = DBSCAN::new(0.5, 5);
+                    model.fit(black_box(x)).unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+// =============================================================================
+// POLYNOMIAL FEATURES BENCHMARKS
+// =============================================================================
+
+/// Benchmark PolynomialFeatures fit_transform time
+fn bench_polynomial_features(c: &mut Criterion) {
+    let mut group = c.benchmark_group("PolynomialFeatures/fit_transform");
+
+    // PolynomialFeatures expands combinatorially, so use smaller feature counts
+    for (n_samples, n_features, degree) in [(1000, 10, 2), (1000, 10, 3), (5000, 5, 2)] {
+        let (x, _) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new(
+                "config",
+                format!("{}x{}_d{}", n_samples, n_features, degree),
+            ),
+            &x,
+            |b, x| {
+                b.iter(|| {
+                    let mut poly = PolynomialFeatures::new(degree);
+                    poly.fit_transform(black_box(x)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// PCA AS TRANSFORMER BENCHMARKS
+// =============================================================================
+
+/// Benchmark PCA used as a pure transformer (separate fit + transform)
+fn bench_pca_transform_only(c: &mut Criterion) {
+    let mut group = c.benchmark_group("PCA/transform_only");
+
+    for (n_samples, n_features) in [(1000, 50), (5000, 100)] {
+        let (x, _) = generate_regression_data(n_samples, n_features);
+
+        // Pre-fit PCA
+        let mut pca = PCA::new().with_n_components(10);
+        pca.fit(&x).unwrap();
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &x,
+            |b, x| b.iter(|| pca.transform(black_box(x)).unwrap()),
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// CV-VARIANT LINEAR MODEL BENCHMARKS
+// =============================================================================
+
+/// Benchmark RidgeCV (cross-validated alpha selection)
+fn bench_ridge_cv_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("RidgeCV/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(500, 20), (1000, 50)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = RidgeCV::new(vec![0.01, 0.1, 1.0, 10.0], 3);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark LassoCV (cross-validated alpha selection)
+fn bench_lasso_cv_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("LassoCV/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(500, 20), (1000, 50)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = LassoCV::new(5, 3);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark ElasticNetCV (cross-validated alpha + l1_ratio selection)
+fn bench_elastic_net_cv_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ElasticNetCV/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(500, 20), (1000, 50)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = ElasticNetCV::new(5, vec![0.1, 0.5, 0.9], 3);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// ROBUST AND QUANTILE REGRESSION BENCHMARKS
+// =============================================================================
+
+/// Benchmark RobustRegression (Huber M-estimator) training time
+fn bench_robust_regression_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("RobustRegression/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(500, 20), (1000, 50)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = RobustRegression::new();
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark QuantileRegression training time (median regression, quantile=0.5)
+fn bench_quantile_regression_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("QuantileRegression/fit");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(500, 20), (1000, 50)] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = QuantileRegression::new(0.5);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// PASSIVE AGGRESSIVE AND RIDGE CLASSIFIER BENCHMARKS
+// =============================================================================
+
+/// Benchmark PassiveAggressiveClassifier training and prediction time
+fn bench_passive_aggressive_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("PassiveAggressiveClassifier/fit_predict");
+
+    for (n_samples, n_features) in [(1000, 50), (5000, 100)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = PassiveAggressiveClassifier::new(1.0);
+                    model.fit(black_box(*x), black_box(*y)).unwrap();
+                    model.predict(black_box(*x)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark RidgeClassifier training and prediction time
+fn bench_ridge_classifier_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("RidgeClassifier/fit_predict");
+
+    for (n_samples, n_features) in [(500, 20), (1000, 50)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, 2);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = RidgeClassifier::new(1.0);
+                    model.fit(black_box(*x), black_box(*y)).unwrap();
+                    model.predict(black_box(*x)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// CALIBRATED CLASSIFIER CV BENCHMARKS
+// =============================================================================
+
+/// Benchmark CalibratedClassifierCV with LogisticRegression base estimator
+fn bench_calibrated_classifier_cv_fit_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("CalibratedClassifierCV/fit_predict");
+    group.sample_size(10);
+
+    let (x, y) = generate_classification_data(500, 20, 2);
+    group.throughput(Throughput::Elements(500));
+    group.bench_function("500x20_lr_sigmoid", |b| {
+        b.iter(|| {
+            let base: Box<dyn CalibrableClassifier> = Box::new(LogisticRegression::new());
+            let mut model = CalibratedClassifierCV::new(base);
+            model.fit(black_box(&x), black_box(&y)).unwrap();
+            model.predict(black_box(&x)).unwrap()
+        })
+    });
+
+    group.finish();
+}
+
+// =============================================================================
+// LDA AND FACTOR ANALYSIS BENCHMARKS
+// =============================================================================
+
+/// Benchmark LDA (Linear Discriminant Analysis) fit_transform time
+///
+/// LDA is supervised dimensionality reduction, so it needs both X and y.
+fn bench_lda_fit_transform(c: &mut Criterion) {
+    let mut group = c.benchmark_group("LDA/fit_transform");
+    group.sample_size(10);
+
+    for (n_samples, n_features, n_classes) in [(1000, 50, 5), (5000, 100, 10)] {
+        let (x, y) = generate_classification_data(n_samples, n_features, n_classes);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new(
+                "samples",
+                format!("{}x{}_c{}", n_samples, n_features, n_classes),
+            ),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut lda = LDA::new().with_n_components(n_classes - 1);
+                    lda.fit_transform(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark FactorAnalysis fit_transform time
+fn bench_factor_analysis_fit_transform(c: &mut Criterion) {
+    let mut group = c.benchmark_group("FactorAnalysis/fit_transform");
+    group.sample_size(10);
+
+    for (n_samples, n_features) in [(500, 20), (1000, 50)] {
+        let (x, _) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("samples", format!("{}x{}", n_samples, n_features)),
+            &x,
+            |b, x| {
+                b.iter(|| {
+                    let mut fa = FactorAnalysis::new().with_n_factors(5);
+                    fa.fit(black_box(x)).unwrap();
+                    fa.transform(black_box(x)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// LARGE-SCALE BENCHMARKS (100K+ samples)
+// =============================================================================
+
+/// Benchmark LinearRegression on large datasets (100K+ samples)
+///
+/// Verifies O(n*p^2) scaling and establishes baseline for large-scale perf.
+fn bench_large_scale_linear_regression(c: &mut Criterion) {
+    let mut group = c.benchmark_group("LargeScale/LinearRegression");
+    group.sample_size(10);
+
+    for n_samples in [10000, 50000, 100000] {
+        let n_features = 20;
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(
+            BenchmarkId::new("fit", n_samples),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = LinearRegression::new();
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark RandomForest prediction on large datasets (100K+ samples)
+///
+/// Tests prediction throughput which should be close to O(n * trees * depth).
+fn bench_large_scale_random_forest_predict(c: &mut Criterion) {
+    let mut group = c.benchmark_group("LargeScale/RandomForest/predict");
+    group.sample_size(10);
+
+    let n_features = 20;
+    let (x_train, y_train) = generate_classification_data(2000, n_features, 2);
+
+    let mut model = RandomForestClassifier::new()
+        .with_n_estimators(50)
+        .with_max_depth(Some(10))
+        .with_random_state(42);
+    model.fit(&x_train, &y_train).unwrap();
+
+    for n_samples in [10000, 50000, 100000] {
+        let (x_test, _) = generate_classification_data(n_samples, n_features, 2);
+
+        group.throughput(Throughput::Elements(n_samples as u64));
+        group.bench_with_input(BenchmarkId::new("samples", n_samples), &x_test, |b, x| {
+            b.iter(|| model.predict(black_box(x)).unwrap())
+        });
+    }
+
+    group.finish();
+}
+
+// =============================================================================
 // BENCHMARK GROUPS
 // =============================================================================
 
@@ -1387,7 +2120,77 @@ criterion_group!(
     bench_truncated_svd_fit_transform,
 );
 
-criterion_group!(naive_bayes_benches, bench_gaussian_nb_fit_predict,);
+criterion_group!(
+    naive_bayes_benches,
+    bench_gaussian_nb_fit_predict,
+    bench_bernoulli_nb_fit_predict,
+    bench_multinomial_nb_fit_predict,
+);
+
+criterion_group!(
+    extra_trees_benches,
+    bench_extra_trees_classifier_fit,
+    bench_extra_trees_regressor_fit,
+);
+
+criterion_group!(elastic_net_benches, bench_elastic_net_fit,);
+
+criterion_group!(svm_extended_benches, bench_linear_svr_fit_predict,);
+
+criterion_group!(knn_extended_benches, bench_nearest_centroid_fit_predict,);
+
+criterion_group!(
+    ensemble_benches,
+    bench_voting_classifier_fit_predict,
+    bench_stacking_classifier_fit_predict,
+    bench_bagging_classifier_fit_predict,
+);
+
+criterion_group!(
+    neural_benches,
+    bench_mlp_classifier_fit_predict,
+    bench_mlp_regressor_fit_predict,
+);
+
+criterion_group!(dbscan_benches, bench_dbscan_fit,);
+
+criterion_group!(
+    preprocessing_extended,
+    bench_polynomial_features,
+    bench_pca_transform_only,
+);
+
+criterion_group!(
+    large_scale_benches,
+    bench_large_scale_linear_regression,
+    bench_large_scale_random_forest_predict,
+);
+
+criterion_group!(
+    cv_linear_benches,
+    bench_ridge_cv_fit,
+    bench_lasso_cv_fit,
+    bench_elastic_net_cv_fit,
+);
+
+criterion_group!(
+    robust_quantile_benches,
+    bench_robust_regression_fit,
+    bench_quantile_regression_fit,
+);
+
+criterion_group!(
+    additional_classifier_benches,
+    bench_passive_aggressive_fit_predict,
+    bench_ridge_classifier_fit_predict,
+    bench_calibrated_classifier_cv_fit_predict,
+);
+
+criterion_group!(
+    decomposition_extended_benches,
+    bench_lda_fit_transform,
+    bench_factor_analysis_fit_transform,
+);
 
 criterion_main!(
     linear_models,
@@ -1403,5 +2206,18 @@ criterion_main!(
     adaboost_models,
     clustering_benches,
     decomposition_benches,
-    naive_bayes_benches
+    naive_bayes_benches,
+    extra_trees_benches,
+    elastic_net_benches,
+    svm_extended_benches,
+    knn_extended_benches,
+    ensemble_benches,
+    neural_benches,
+    dbscan_benches,
+    preprocessing_extended,
+    large_scale_benches,
+    cv_linear_benches,
+    robust_quantile_benches,
+    additional_classifier_benches,
+    decomposition_extended_benches
 );

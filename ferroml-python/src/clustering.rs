@@ -16,7 +16,9 @@
 use crate::array_utils::to_owned_array_2d;
 use crate::pickle::{getstate, setstate};
 use ferroml_core::clustering::metrics;
-use ferroml_core::clustering::{ClusteringModel, ClusteringStatistics, KMeans, DBSCAN};
+use ferroml_core::clustering::{
+    AgglomerativeClustering, ClusteringModel, ClusteringStatistics, KMeans, DBSCAN,
+};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -634,6 +636,108 @@ impl PyDBSCAN {
 }
 
 // =============================================================================
+// AgglomerativeClustering
+// =============================================================================
+
+/// Agglomerative (hierarchical) Clustering.
+///
+/// Recursively merges the pair of clusters that minimally increases a
+/// given linkage distance.
+///
+/// Parameters
+/// ----------
+/// n_clusters : int, optional (default=2)
+///     Number of clusters to find.
+/// linkage : str, optional (default="ward")
+///     Linkage criterion: "ward", "complete", "average", "single".
+///
+/// Attributes
+/// ----------
+/// labels_ : ndarray of shape (n_samples,)
+///     Cluster labels for each sample.
+#[pyclass(name = "AgglomerativeClustering", module = "ferroml.clustering")]
+pub struct PyAgglomerativeClustering {
+    inner: AgglomerativeClustering,
+}
+
+#[pymethods]
+impl PyAgglomerativeClustering {
+    #[new]
+    #[pyo3(signature = (n_clusters=2, linkage="ward"))]
+    fn new(n_clusters: usize, linkage: &str) -> PyResult<Self> {
+        use ferroml_core::clustering::Linkage;
+
+        let link = match linkage {
+            "ward" => Linkage::Ward,
+            "complete" => Linkage::Complete,
+            "average" => Linkage::Average,
+            "single" => Linkage::Single,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown linkage: '{}'. Use 'ward', 'complete', 'average', or 'single'.",
+                    linkage
+                )));
+            }
+        };
+
+        Ok(Self {
+            inner: AgglomerativeClustering::new(n_clusters).with_linkage(link),
+        })
+    }
+
+    /// Fit the model to the data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Fit the model and return cluster labels.
+    fn fit_predict<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        let x_arr = to_owned_array_2d(x);
+        self.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let labels = self
+            .inner
+            .labels()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))?;
+        Ok(labels.clone().into_pyarray(py))
+    }
+
+    /// Get cluster labels.
+    #[getter]
+    fn labels_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        let labels = self.inner.labels().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(labels.clone().into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "AgglomerativeClustering()".to_string()
+    }
+}
+
+// =============================================================================
 // Clustering Metrics Functions
 // =============================================================================
 
@@ -859,6 +963,7 @@ pub fn register_clustering_module(parent_module: &Bound<'_, PyModule>) -> PyResu
     // Add classes
     clustering_module.add_class::<PyKMeans>()?;
     clustering_module.add_class::<PyDBSCAN>()?;
+    clustering_module.add_class::<PyAgglomerativeClustering>()?;
 
     // Add metric functions
     clustering_module.add_function(wrap_pyfunction!(py_silhouette_score, &clustering_module)?)?;

@@ -217,6 +217,31 @@ impl Layer {
         &self,
         grad_output: &Array2<f64>,
     ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
+        self.backward_impl(grad_output, false)
+    }
+
+    /// Backward pass that skips the activation derivative.
+    ///
+    /// Used for the output layer when the loss gradient already incorporates
+    /// the activation derivative (e.g., softmax + cross-entropy, linear + MSE).
+    pub fn backward_skip_activation(
+        &self,
+        grad_output: &Array2<f64>,
+    ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
+        self.backward_impl(grad_output, true)
+    }
+
+    /// Internal backward pass implementation.
+    ///
+    /// # Arguments
+    /// * `grad_output` - Gradient from the next layer
+    /// * `skip_activation_deriv` - If true, the activation derivative is not applied
+    ///   (used for the output layer when loss gradient already accounts for it)
+    fn backward_impl(
+        &self,
+        grad_output: &Array2<f64>,
+        skip_activation_deriv: bool,
+    ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
         let z = self
             .last_z
             .as_ref()
@@ -236,11 +261,17 @@ impl Layer {
             None => grad_output.clone(),
         };
 
-        // Compute activation derivative
-        let activation_deriv = self.activation.derivative_2d(z, output);
-
-        // Delta = grad_output * activation'(z)
-        let delta = &grad_output * &activation_deriv;
+        // For the output layer with combined loss+activation gradient
+        // (e.g., softmax+CE, linear+MSE), the loss gradient already
+        // accounts for the activation — don't apply derivative again.
+        let delta = if skip_activation_deriv {
+            grad_output
+        } else {
+            // Compute activation derivative
+            let activation_deriv = self.activation.derivative_2d(z, output);
+            // Delta = grad_output * activation'(z)
+            &grad_output * &activation_deriv
+        };
 
         // Gradient for weights: X^T @ delta
         let grad_weights = input.t().dot(&delta);

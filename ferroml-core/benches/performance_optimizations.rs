@@ -15,9 +15,13 @@
 //! - `cargo bench -p ferroml-core --bench performance_optimizations --features simd`
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use ferroml_core::clustering::{ClusteringModel, KMeans, DBSCAN};
 use ferroml_core::datasets::{make_classification, make_regression};
 use ferroml_core::models::forest::{RandomForestClassifier, RandomForestRegressor};
-use ferroml_core::models::hist_boosting::HistGradientBoostingRegressor;
+use ferroml_core::models::hist_boosting::{
+    HistGradientBoostingClassifier, HistGradientBoostingRegressor,
+};
+use ferroml_core::models::knn::KNeighborsClassifier;
 use ferroml_core::models::tree::DecisionTreeRegressor;
 use ferroml_core::models::Model;
 use ndarray::{Array1, Array2};
@@ -243,6 +247,199 @@ fn bench_simd_vector_operations(c: &mut Criterion) {
     group.finish();
 }
 
+// =============================================================================
+// Parallel Speedup Verification: RandomForest Training
+// =============================================================================
+
+/// Benchmark RandomForest training at different scales to verify parallel speedup
+///
+/// This benchmark measures how RandomForest training time scales with dataset size.
+/// With parallel histogram building and parallel tree construction, we expect
+/// near-linear scaling on multi-core machines.
+fn bench_random_forest_parallel_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Parallel_RF_Scaling");
+    group.sample_size(10);
+
+    let n_features = 20;
+    for n_samples in [500, 1000, 2000, 5000] {
+        let (x, y) = generate_classification_data(n_samples, n_features);
+
+        group.bench_with_input(
+            BenchmarkId::new("fit", n_samples),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = RandomForestClassifier::new()
+                        .with_n_estimators(50)
+                        .with_max_depth(Some(8))
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// =============================================================================
+// Scaling Benchmarks: Verify computational complexity
+// =============================================================================
+
+/// Benchmark KMeans clustering scaling with sample count
+///
+/// KMeans has O(n * k * p * iter) complexity, so timing should scale linearly with n.
+fn bench_kmeans_sample_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Scaling_KMeans_Samples");
+    group.sample_size(10);
+
+    let n_features = 20;
+    for n_samples in [500, 1000, 2000, 5000, 10000] {
+        let (x, _) = generate_regression_data(n_samples, n_features);
+
+        group.bench_with_input(BenchmarkId::new("fit", n_samples), &x, |b, x| {
+            b.iter(|| {
+                let mut model = KMeans::new(5).random_state(42);
+                model.fit(black_box(x)).unwrap()
+            })
+        });
+    }
+
+    group.finish();
+}
+
+/// Benchmark DBSCAN clustering scaling with sample count
+///
+/// DBSCAN has O(n^2 * p) complexity in the worst case (brute-force range queries).
+/// Timing should scale quadratically with n.
+fn bench_dbscan_sample_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Scaling_DBSCAN_Samples");
+    group.sample_size(10);
+
+    let n_features = 20;
+    for n_samples in [200, 500, 1000, 2000] {
+        let (x, _) = generate_regression_data(n_samples, n_features);
+
+        group.bench_with_input(BenchmarkId::new("fit", n_samples), &x, |b, x| {
+            b.iter(|| {
+                let mut model = DBSCAN::new(0.5, 5);
+                model.fit(black_box(x)).unwrap()
+            })
+        });
+    }
+
+    group.finish();
+}
+
+/// Benchmark KNN classification scaling with sample count
+///
+/// KNN fit+predict has O(n^2 * p) complexity (brute-force).
+fn bench_knn_sample_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Scaling_KNN_Samples");
+    group.sample_size(10);
+
+    let n_features = 20;
+    for n_samples in [200, 500, 1000, 2000, 5000] {
+        let (x, y) = generate_classification_data(n_samples, n_features);
+
+        group.bench_with_input(
+            BenchmarkId::new("fit_predict", n_samples),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = KNeighborsClassifier::new(5);
+                    model.fit(black_box(*x), black_box(*y)).unwrap();
+                    model.predict(black_box(*x)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark RandomForest fit scaling with sample count
+///
+/// RandomForest has O(trees * n * p * log(n)) complexity.
+fn bench_random_forest_fit_sample_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Scaling_RF_Fit_Samples");
+    group.sample_size(10);
+
+    let n_features = 20;
+    for n_samples in [500, 1000, 2000, 5000] {
+        let (x, y) = generate_regression_data(n_samples, n_features);
+
+        group.bench_with_input(
+            BenchmarkId::new("fit", n_samples),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = RandomForestRegressor::new()
+                        .with_n_estimators(20)
+                        .with_max_depth(Some(8))
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark HistGradientBoosting predict scaling with sample count
+///
+/// Prediction is O(n * trees * depth), should scale linearly with n.
+fn bench_hist_gb_predict_sample_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Scaling_HistGB_Predict_Samples");
+    group.sample_size(10);
+
+    let n_features = 20;
+    let (x_train, y_train) = generate_classification_data(2000, n_features);
+
+    let mut model = HistGradientBoostingClassifier::new()
+        .with_max_iter(50)
+        .with_max_depth(Some(5))
+        .with_random_state(42);
+    model.fit(&x_train, &y_train).unwrap();
+
+    for n_samples in [1000, 5000, 10000, 50000] {
+        let (x_test, _) = generate_classification_data(n_samples, n_features);
+
+        group.bench_with_input(BenchmarkId::new("predict", n_samples), &x_test, |b, x| {
+            b.iter(|| model.predict(black_box(x)).unwrap())
+        });
+    }
+
+    group.finish();
+}
+
+/// Benchmark HistGradientBoosting at large scale to verify parallel histogram speedup
+fn bench_hist_gb_large_scale(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Parallel_HistGB_LargeScale");
+    group.sample_size(10);
+
+    for n_samples in [5000, 10000, 20000] {
+        let (x, y) = generate_regression_data(n_samples, 20);
+
+        group.bench_with_input(
+            BenchmarkId::new("fit", n_samples),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = HistGradientBoostingRegressor::new()
+                        .with_max_iter(20)
+                        .with_max_depth(Some(5))
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
 #[cfg(feature = "simd")]
 criterion_group!(
     benches,
@@ -253,6 +450,8 @@ criterion_group!(
     bench_random_forest_prediction_batch_size,
     bench_decision_tree_prediction_scaling,
     bench_simd_vector_operations,
+    bench_random_forest_parallel_scaling,
+    bench_hist_gb_large_scale,
 );
 
 #[cfg(not(feature = "simd"))]
@@ -264,6 +463,17 @@ criterion_group!(
     bench_random_forest_classifier_prediction,
     bench_random_forest_prediction_batch_size,
     bench_decision_tree_prediction_scaling,
+    bench_random_forest_parallel_scaling,
+    bench_hist_gb_large_scale,
 );
 
-criterion_main!(benches);
+criterion_group!(
+    scaling_benches,
+    bench_kmeans_sample_scaling,
+    bench_dbscan_sample_scaling,
+    bench_knn_sample_scaling,
+    bench_random_forest_fit_sample_scaling,
+    bench_hist_gb_predict_sample_scaling,
+);
+
+criterion_main!(benches, scaling_benches);

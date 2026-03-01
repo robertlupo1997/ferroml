@@ -2,8 +2,11 @@
 //!
 //! This module provides Python wrappers for:
 //! - Scalers: StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler
-//! - Encoders: OneHotEncoder, OrdinalEncoder, LabelEncoder
-//! - Imputers: SimpleImputer
+//! - Encoders: OneHotEncoder, OrdinalEncoder, LabelEncoder, TargetEncoder
+//! - Imputers: SimpleImputer, KNNImputer
+//! - Transformers: PowerTransformer, QuantileTransformer, PolynomialFeatures, KBinsDiscretizer
+//! - Feature Selection: VarianceThreshold, SelectKBest, SelectFromModel
+//! - Resampling: SMOTE, ADASYN, RandomUnderSampler, RandomOverSampler
 //!
 //! ## Zero-Copy Semantics
 //!
@@ -17,9 +20,14 @@
 use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::preprocessing::{
-    encoders::{LabelEncoder, OneHotEncoder, OrdinalEncoder},
-    imputers::{ImputeStrategy, SimpleImputer},
+    discretizers::KBinsDiscretizer,
+    encoders::{LabelEncoder, OneHotEncoder, OrdinalEncoder, TargetEncoder},
+    imputers::{ImputeStrategy, KNNImputer, SimpleImputer},
+    polynomial::PolynomialFeatures,
+    power::PowerTransformer,
+    quantile::QuantileTransformer,
     scalers::{MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler},
+    selection::{SelectKBest, VarianceThreshold},
     Transformer, UnknownCategoryHandling,
 };
 use ndarray::Array1;
@@ -1227,6 +1235,1273 @@ impl PySimpleImputer {
 }
 
 // =============================================================================
+// PowerTransformer
+// =============================================================================
+
+/// Apply a power transformation to make data more Gaussian-like.
+///
+/// Supports Box-Cox (positive data only) and Yeo-Johnson (any data) methods.
+///
+/// Parameters
+/// ----------
+/// method : str, optional (default="yeo-johnson")
+///     Power transform method: "yeo-johnson" or "box-cox".
+/// standardize : bool, optional (default=True)
+///     Whether to standardize the transformed output.
+#[pyclass(name = "PowerTransformer", module = "ferroml.preprocessing")]
+pub struct PyPowerTransformer {
+    inner: PowerTransformer,
+}
+
+#[pymethods]
+impl PyPowerTransformer {
+    #[new]
+    #[pyo3(signature = (method="yeo-johnson"))]
+    fn new(method: &str) -> PyResult<Self> {
+        use ferroml_core::preprocessing::power::PowerMethod;
+
+        let pm = match method {
+            "yeo-johnson" => PowerMethod::YeoJohnson,
+            "box-cox" => PowerMethod::BoxCox,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown method: '{}'. Use 'yeo-johnson' or 'box-cox'.",
+                    method
+                )));
+            }
+        };
+        Ok(Self {
+            inner: PowerTransformer::new(pm),
+        })
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn inverse_transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .inverse_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "PowerTransformer()".to_string()
+    }
+}
+
+// =============================================================================
+// QuantileTransformer
+// =============================================================================
+
+/// Transform features using quantile information.
+///
+/// Maps the data to a uniform or normal distribution.
+///
+/// Parameters
+/// ----------
+/// output_distribution : str, optional (default="uniform")
+///     Target distribution: "uniform" or "normal".
+/// n_quantiles : int, optional (default=1000)
+///     Number of quantiles to compute.
+#[pyclass(name = "QuantileTransformer", module = "ferroml.preprocessing")]
+pub struct PyQuantileTransformer {
+    inner: QuantileTransformer,
+}
+
+#[pymethods]
+impl PyQuantileTransformer {
+    #[new]
+    #[pyo3(signature = (output_distribution="uniform", n_quantiles=1000))]
+    fn new(output_distribution: &str, n_quantiles: usize) -> PyResult<Self> {
+        use ferroml_core::preprocessing::quantile::OutputDistribution;
+
+        let dist = match output_distribution {
+            "uniform" => OutputDistribution::Uniform,
+            "normal" => OutputDistribution::Normal,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown distribution: '{}'. Use 'uniform' or 'normal'.",
+                    output_distribution
+                )));
+            }
+        };
+        Ok(Self {
+            inner: QuantileTransformer::new(dist).with_n_quantiles(n_quantiles),
+        })
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn inverse_transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .inverse_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "QuantileTransformer()".to_string()
+    }
+}
+
+// =============================================================================
+// PolynomialFeatures
+// =============================================================================
+
+/// Generate polynomial and interaction features.
+///
+/// Parameters
+/// ----------
+/// degree : int, optional (default=2)
+///     Maximum degree of polynomial features.
+/// interaction_only : bool, optional (default=False)
+///     If True, only interaction features (not powers) are produced.
+/// include_bias : bool, optional (default=True)
+///     If True, include a bias column of ones.
+#[pyclass(name = "PolynomialFeatures", module = "ferroml.preprocessing")]
+pub struct PyPolynomialFeatures {
+    inner: PolynomialFeatures,
+}
+
+#[pymethods]
+impl PyPolynomialFeatures {
+    #[new]
+    #[pyo3(signature = (degree=2))]
+    fn new(degree: usize) -> Self {
+        let pf = PolynomialFeatures::new(degree);
+        Self { inner: pf }
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        format!("PolynomialFeatures(degree={})", self.inner.degree())
+    }
+}
+
+// =============================================================================
+// KBinsDiscretizer
+// =============================================================================
+
+/// Bin continuous data into intervals.
+///
+/// Parameters
+/// ----------
+/// n_bins : int, optional (default=5)
+///     Number of bins.
+/// strategy : str, optional (default="quantile")
+///     Strategy: "uniform", "quantile", or "kmeans".
+/// encode : str, optional (default="ordinal")
+///     Output encoding: "ordinal" or "onehot".
+#[pyclass(name = "KBinsDiscretizer", module = "ferroml.preprocessing")]
+pub struct PyKBinsDiscretizer {
+    inner: KBinsDiscretizer,
+}
+
+#[pymethods]
+impl PyKBinsDiscretizer {
+    #[new]
+    #[pyo3(signature = (n_bins=5, strategy="quantile", encode="ordinal"))]
+    fn new(n_bins: usize, strategy: &str, encode: &str) -> PyResult<Self> {
+        use ferroml_core::preprocessing::discretizers::{BinEncoding, BinningStrategy};
+
+        let strat = match strategy {
+            "uniform" => BinningStrategy::Uniform,
+            "quantile" => BinningStrategy::Quantile,
+            "kmeans" => BinningStrategy::KMeans,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown strategy: '{}'. Use 'uniform', 'quantile', or 'kmeans'.",
+                    strategy
+                )));
+            }
+        };
+
+        let enc = match encode {
+            "ordinal" => BinEncoding::Ordinal,
+            "onehot" => BinEncoding::OneHot,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown encoding: '{}'. Use 'ordinal' or 'onehot'.",
+                    encode
+                )));
+            }
+        };
+
+        Ok(Self {
+            inner: KBinsDiscretizer::new()
+                .with_n_bins(n_bins)
+                .with_strategy(strat)
+                .with_encode(enc),
+        })
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        format!("KBinsDiscretizer(n_bins={})", self.inner.n_bins())
+    }
+}
+
+// =============================================================================
+// VarianceThreshold
+// =============================================================================
+
+/// Feature selector that removes low-variance features.
+///
+/// Parameters
+/// ----------
+/// threshold : float, optional (default=0.0)
+///     Features with variance below this value are removed.
+#[pyclass(name = "VarianceThreshold", module = "ferroml.preprocessing")]
+pub struct PyVarianceThreshold {
+    inner: VarianceThreshold,
+}
+
+#[pymethods]
+impl PyVarianceThreshold {
+    #[new]
+    #[pyo3(signature = (threshold=0.0))]
+    fn new(threshold: f64) -> Self {
+        Self {
+            inner: VarianceThreshold::new(threshold),
+        }
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "VarianceThreshold()".to_string()
+    }
+}
+
+// =============================================================================
+// SelectKBest
+// =============================================================================
+
+/// Select the K highest scoring features.
+///
+/// Parameters
+/// ----------
+/// score_func : str, optional (default="f_classif")
+///     Scoring function: "f_classif", "f_regression", "chi2".
+/// k : int, optional (default=10)
+///     Number of features to select.
+#[pyclass(name = "SelectKBest", module = "ferroml.preprocessing")]
+pub struct PySelectKBest {
+    inner: SelectKBest,
+}
+
+#[pymethods]
+impl PySelectKBest {
+    #[new]
+    #[pyo3(signature = (score_func="f_classif", k=10))]
+    fn new(score_func: &str, k: usize) -> PyResult<Self> {
+        use ferroml_core::preprocessing::selection::ScoreFunction;
+
+        let sf = match score_func {
+            "f_classif" => ScoreFunction::FClassif,
+            "f_regression" => ScoreFunction::FRegression,
+            "chi2" => ScoreFunction::Chi2,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown score_func: '{}'. Use 'f_classif', 'f_regression', or 'chi2'.",
+                    score_func
+                )));
+            }
+        };
+        Ok(Self {
+            inner: SelectKBest::new(sf, k),
+        })
+    }
+
+    /// Fit SelectKBest with target variable (required).
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        slf.inner
+            .fit_with_target(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    #[getter]
+    fn scores_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let feature_scores = self
+            .inner
+            .scores()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))?;
+        Ok(feature_scores.scores.clone().into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "SelectKBest()".to_string()
+    }
+}
+
+// =============================================================================
+// KNNImputer
+// =============================================================================
+
+/// Impute missing values using K-Nearest Neighbors.
+///
+/// Each missing feature is imputed using values from the k nearest
+/// neighbors that have non-missing values for that feature.
+///
+/// Parameters
+/// ----------
+/// n_neighbors : int, optional (default=5)
+///     Number of nearest neighbors to use.
+/// weights : str, optional (default="uniform")
+///     Weight function: "uniform" or "distance".
+#[pyclass(name = "KNNImputer", module = "ferroml.preprocessing")]
+pub struct PyKNNImputer {
+    inner: KNNImputer,
+}
+
+#[pymethods]
+impl PyKNNImputer {
+    #[new]
+    #[pyo3(signature = (n_neighbors=5, weights="uniform"))]
+    fn new(n_neighbors: usize, weights: &str) -> PyResult<Self> {
+        use ferroml_core::preprocessing::imputers::KNNWeights;
+
+        let w = match weights {
+            "uniform" => KNNWeights::Uniform,
+            "distance" => KNNWeights::Distance,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown weights: '{}'. Use 'uniform' or 'distance'.",
+                    weights
+                )));
+            }
+        };
+        Ok(Self {
+            inner: KNNImputer::new(n_neighbors).with_weights(w),
+        })
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "KNNImputer()".to_string()
+    }
+}
+
+// =============================================================================
+// TargetEncoder
+// =============================================================================
+
+/// Encode categorical features using target statistics.
+///
+/// Each category is encoded by the mean of the target variable for that
+/// category, with smoothing to reduce overfitting.
+///
+/// Parameters
+/// ----------
+/// smooth : float, optional (default=1.0)
+///     Smoothing parameter. Higher values pull rare category encodings
+///     toward the global mean.
+/// cv : int, optional (default=5)
+///     Number of CV folds for internal cross-validation.
+#[pyclass(name = "TargetEncoder", module = "ferroml.preprocessing")]
+pub struct PyTargetEncoder {
+    inner: TargetEncoder,
+}
+
+#[pymethods]
+impl PyTargetEncoder {
+    #[new]
+    #[pyo3(signature = (smooth=1.0, cv=5))]
+    fn new(smooth: f64, cv: usize) -> Self {
+        Self {
+            inner: TargetEncoder::new().with_smooth(smooth).with_cv(cv),
+        }
+    }
+
+    /// Fit TargetEncoder with target variable (required).
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        slf.inner
+            .fit_with_target(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "TargetEncoder()".to_string()
+    }
+}
+
+// =============================================================================
+// SelectFromModel
+// =============================================================================
+
+/// Select features based on importance weights from a fitted model.
+///
+/// Selects features whose importance is above a threshold, determined
+/// by a fitted model's feature_importances_ or coef_ attribute.
+///
+/// Parameters
+/// ----------
+/// importances : ndarray of shape (n_features,)
+///     Feature importances from a fitted model.
+/// threshold : str or float, optional (default="mean")
+///     The threshold value to use: "mean", "median", or a float value.
+/// max_features : int, optional
+///     Maximum number of features to select.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import SelectFromModel
+/// >>> import numpy as np
+/// >>> importances = np.array([0.1, 0.5, 0.3, 0.05, 0.8])
+/// >>> selector = SelectFromModel(importances, threshold="mean")
+/// >>> selector.fit(X)
+/// >>> X_selected = selector.transform(X)
+#[pyclass(name = "SelectFromModel", module = "ferroml.preprocessing")]
+pub struct PySelectFromModel {
+    inner: ferroml_core::preprocessing::selection::SelectFromModel,
+}
+
+#[pymethods]
+impl PySelectFromModel {
+    #[new]
+    #[pyo3(signature = (importances, threshold="mean", max_features=None))]
+    fn new(
+        importances: PyReadonlyArray1<'_, f64>,
+        threshold: &str,
+        max_features: Option<usize>,
+    ) -> PyResult<Self> {
+        use ferroml_core::preprocessing::selection::ImportanceThreshold;
+
+        let imp_arr = importances.as_array().to_owned();
+        let thresh = match threshold {
+            "mean" => ImportanceThreshold::Mean,
+            "median" => ImportanceThreshold::Median,
+            other => {
+                let val: f64 = other.parse().map_err(|_| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Unknown threshold: '{}'. Use 'mean', 'median', or a float value.",
+                        other
+                    ))
+                })?;
+                ImportanceThreshold::Value(val)
+            }
+        };
+
+        let mut sfm = ferroml_core::preprocessing::selection::SelectFromModel::new(imp_arr, thresh);
+        if let Some(max) = max_features {
+            sfm = sfm.with_max_features(max);
+        }
+        Ok(Self { inner: sfm })
+    }
+
+    /// Fit the selector to the data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Transform data by selecting features.
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Fit and transform in one step.
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Get the boolean support mask indicating which features are selected.
+    fn get_support(&self) -> PyResult<Vec<bool>> {
+        let support = self
+            .inner
+            .get_support()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))?;
+        Ok(support.clone())
+    }
+
+    fn __repr__(&self) -> String {
+        "SelectFromModel()".to_string()
+    }
+}
+
+// =============================================================================
+// SMOTE (Synthetic Minority Oversampling Technique)
+// =============================================================================
+
+/// SMOTE: Synthetic Minority Over-sampling Technique.
+///
+/// Generates synthetic samples for minority classes by interpolating between
+/// existing minority samples and their k-nearest neighbors.
+///
+/// Parameters
+/// ----------
+/// k_neighbors : int, optional (default=5)
+///     Number of nearest neighbors to use for generating synthetic samples.
+/// sampling_strategy : str, optional (default="auto")
+///     Strategy: "auto" balances all classes to majority, or a float ratio.
+/// random_state : int, optional
+///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import SMOTE
+/// >>> import numpy as np
+/// >>> X = np.random.randn(100, 5)
+/// >>> y = np.array([0]*90 + [1]*10)  # imbalanced
+/// >>> smote = SMOTE(k_neighbors=5, random_state=42)
+/// >>> X_res, y_res = smote.fit_resample(X, y)
+#[pyclass(name = "SMOTE", module = "ferroml.preprocessing")]
+pub struct PySMOTE {
+    inner: ferroml_core::preprocessing::sampling::SMOTE,
+}
+
+#[pymethods]
+impl PySMOTE {
+    #[new]
+    #[pyo3(signature = (k_neighbors=5, sampling_strategy="auto", random_state=None))]
+    fn new(
+        k_neighbors: usize,
+        sampling_strategy: &str,
+        random_state: Option<u64>,
+    ) -> PyResult<Self> {
+        let mut smote =
+            ferroml_core::preprocessing::sampling::SMOTE::new().with_k_neighbors(k_neighbors);
+
+        smote = apply_sampling_strategy(smote, sampling_strategy)?;
+
+        if let Some(seed) = random_state {
+            smote = smote.with_random_state(seed);
+        }
+        Ok(Self { inner: smote })
+    }
+
+    /// Fit to the data and generate synthetic samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : ndarray of shape (n_samples, n_features)
+    ///     Feature matrix.
+    /// y : ndarray of shape (n_samples,)
+    ///     Target class labels.
+    ///
+    /// Returns
+    /// -------
+    /// tuple of (X_resampled, y_resampled)
+    ///     X_resampled : ndarray of shape (n_new_samples, n_features)
+    ///     y_resampled : ndarray of shape (n_new_samples,)
+    #[allow(clippy::type_complexity)]
+    fn fit_resample<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray1<f64>>)> {
+        use ferroml_core::preprocessing::sampling::Resampler;
+
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        let (x_res, y_res) = self
+            .inner
+            .fit_resample(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok((x_res.into_pyarray(py), y_res.into_pyarray(py)))
+    }
+
+    fn __repr__(&self) -> String {
+        "SMOTE()".to_string()
+    }
+}
+
+// =============================================================================
+// ADASYN (Adaptive Synthetic Sampling)
+// =============================================================================
+
+/// ADASYN: Adaptive Synthetic Sampling.
+///
+/// Similar to SMOTE but generates more synthetic samples near the decision
+/// boundary where the classifier has difficulty, focusing on harder-to-learn
+/// minority samples.
+///
+/// Parameters
+/// ----------
+/// k_neighbors : int, optional (default=5)
+///     Number of nearest neighbors for density estimation.
+/// n_neighbors : int, optional (default=5)
+///     Number of nearest neighbors for synthetic sample generation.
+/// sampling_strategy : str, optional (default="auto")
+///     Strategy: "auto" balances all classes to majority.
+/// random_state : int, optional
+///     Random seed.
+#[pyclass(name = "ADASYN", module = "ferroml.preprocessing")]
+pub struct PyADASYN {
+    inner: ferroml_core::preprocessing::sampling::ADASYN,
+}
+
+#[pymethods]
+impl PyADASYN {
+    #[new]
+    #[pyo3(signature = (k_neighbors=5, n_neighbors=5, sampling_strategy="auto", random_state=None))]
+    fn new(
+        k_neighbors: usize,
+        n_neighbors: usize,
+        sampling_strategy: &str,
+        random_state: Option<u64>,
+    ) -> PyResult<Self> {
+        let mut adasyn = ferroml_core::preprocessing::sampling::ADASYN::new()
+            .with_k_neighbors(k_neighbors)
+            .with_n_neighbors(n_neighbors);
+
+        adasyn = apply_sampling_strategy_adasyn(adasyn, sampling_strategy)?;
+
+        if let Some(seed) = random_state {
+            adasyn = adasyn.with_random_state(seed);
+        }
+        Ok(Self { inner: adasyn })
+    }
+
+    /// Fit to the data and generate synthetic samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : ndarray of shape (n_samples, n_features)
+    ///     Feature matrix.
+    /// y : ndarray of shape (n_samples,)
+    ///     Target class labels.
+    ///
+    /// Returns
+    /// -------
+    /// tuple of (X_resampled, y_resampled)
+    #[allow(clippy::type_complexity)]
+    fn fit_resample<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray1<f64>>)> {
+        use ferroml_core::preprocessing::sampling::Resampler;
+
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        let (x_res, y_res) = self
+            .inner
+            .fit_resample(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok((x_res.into_pyarray(py), y_res.into_pyarray(py)))
+    }
+
+    fn __repr__(&self) -> String {
+        "ADASYN()".to_string()
+    }
+}
+
+// =============================================================================
+// RandomUnderSampler
+// =============================================================================
+
+/// Random Under-Sampling.
+///
+/// Reduces the majority class by randomly removing samples.
+///
+/// Parameters
+/// ----------
+/// sampling_strategy : str, optional (default="auto")
+///     Strategy: "auto" balances all classes.
+/// replacement : bool, optional (default=False)
+///     Whether to sample with replacement.
+/// random_state : int, optional
+///     Random seed.
+#[pyclass(name = "RandomUnderSampler", module = "ferroml.preprocessing")]
+pub struct PyRandomUnderSampler {
+    inner: ferroml_core::preprocessing::sampling::RandomUnderSampler,
+}
+
+#[pymethods]
+impl PyRandomUnderSampler {
+    #[new]
+    #[pyo3(signature = (sampling_strategy="auto", replacement=false, random_state=None))]
+    fn new(
+        sampling_strategy: &str,
+        replacement: bool,
+        random_state: Option<u64>,
+    ) -> PyResult<Self> {
+        let mut sampler = ferroml_core::preprocessing::sampling::RandomUnderSampler::new()
+            .with_replacement(replacement);
+
+        sampler = apply_sampling_strategy_undersampler(sampler, sampling_strategy)?;
+
+        if let Some(seed) = random_state {
+            sampler = sampler.with_random_state(seed);
+        }
+        Ok(Self { inner: sampler })
+    }
+
+    /// Fit to the data and undersample.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : ndarray of shape (n_samples, n_features)
+    ///     Feature matrix.
+    /// y : ndarray of shape (n_samples,)
+    ///     Target class labels.
+    ///
+    /// Returns
+    /// -------
+    /// tuple of (X_resampled, y_resampled)
+    #[allow(clippy::type_complexity)]
+    fn fit_resample<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray1<f64>>)> {
+        use ferroml_core::preprocessing::sampling::Resampler;
+
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        let (x_res, y_res) = self
+            .inner
+            .fit_resample(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok((x_res.into_pyarray(py), y_res.into_pyarray(py)))
+    }
+
+    fn __repr__(&self) -> String {
+        "RandomUnderSampler()".to_string()
+    }
+}
+
+// =============================================================================
+// RandomOverSampler
+// =============================================================================
+
+/// Random Over-Sampling.
+///
+/// Increases the minority class by randomly duplicating samples.
+///
+/// Parameters
+/// ----------
+/// sampling_strategy : str, optional (default="auto")
+///     Strategy: "auto" balances all classes to majority.
+/// shrinkage : float, optional
+///     If provided, adds slight noise to duplicated samples using a smoothed
+///     bootstrap approach.
+/// random_state : int, optional
+///     Random seed.
+#[pyclass(name = "RandomOverSampler", module = "ferroml.preprocessing")]
+pub struct PyRandomOverSampler {
+    inner: ferroml_core::preprocessing::sampling::RandomOverSampler,
+}
+
+#[pymethods]
+impl PyRandomOverSampler {
+    #[new]
+    #[pyo3(signature = (sampling_strategy="auto", shrinkage=None, random_state=None))]
+    fn new(
+        sampling_strategy: &str,
+        shrinkage: Option<f64>,
+        random_state: Option<u64>,
+    ) -> PyResult<Self> {
+        let mut sampler = ferroml_core::preprocessing::sampling::RandomOverSampler::new();
+
+        sampler = apply_sampling_strategy_oversampler(sampler, sampling_strategy)?;
+
+        if let Some(s) = shrinkage {
+            sampler = sampler.with_shrinkage(s);
+        }
+        if let Some(seed) = random_state {
+            sampler = sampler.with_random_state(seed);
+        }
+        Ok(Self { inner: sampler })
+    }
+
+    /// Fit to the data and oversample.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : ndarray of shape (n_samples, n_features)
+    ///     Feature matrix.
+    /// y : ndarray of shape (n_samples,)
+    ///     Target class labels.
+    ///
+    /// Returns
+    /// -------
+    /// tuple of (X_resampled, y_resampled)
+    #[allow(clippy::type_complexity)]
+    fn fit_resample<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray1<f64>>)> {
+        use ferroml_core::preprocessing::sampling::Resampler;
+
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        let (x_res, y_res) = self
+            .inner
+            .fit_resample(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok((x_res.into_pyarray(py), y_res.into_pyarray(py)))
+    }
+
+    fn __repr__(&self) -> String {
+        "RandomOverSampler()".to_string()
+    }
+}
+
+// =============================================================================
+// Sampling strategy helpers
+// =============================================================================
+
+fn apply_sampling_strategy(
+    mut smote: ferroml_core::preprocessing::sampling::SMOTE,
+    strategy: &str,
+) -> PyResult<ferroml_core::preprocessing::sampling::SMOTE> {
+    use ferroml_core::preprocessing::sampling::SamplingStrategy;
+    match strategy {
+        "auto" => {
+            smote = smote.with_sampling_strategy(SamplingStrategy::Auto);
+        }
+        other => {
+            if let Ok(ratio) = other.parse::<f64>() {
+                smote = smote.with_sampling_strategy(SamplingStrategy::Ratio(ratio));
+            } else {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown sampling_strategy: '{}'. Use 'auto' or a float ratio.",
+                    other
+                )));
+            }
+        }
+    }
+    Ok(smote)
+}
+
+fn apply_sampling_strategy_adasyn(
+    mut adasyn: ferroml_core::preprocessing::sampling::ADASYN,
+    strategy: &str,
+) -> PyResult<ferroml_core::preprocessing::sampling::ADASYN> {
+    use ferroml_core::preprocessing::sampling::SamplingStrategy;
+    match strategy {
+        "auto" => {
+            adasyn = adasyn.with_sampling_strategy(SamplingStrategy::Auto);
+        }
+        other => {
+            if let Ok(ratio) = other.parse::<f64>() {
+                adasyn = adasyn.with_sampling_strategy(SamplingStrategy::Ratio(ratio));
+            } else {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown sampling_strategy: '{}'. Use 'auto' or a float ratio.",
+                    other
+                )));
+            }
+        }
+    }
+    Ok(adasyn)
+}
+
+fn apply_sampling_strategy_undersampler(
+    mut sampler: ferroml_core::preprocessing::sampling::RandomUnderSampler,
+    strategy: &str,
+) -> PyResult<ferroml_core::preprocessing::sampling::RandomUnderSampler> {
+    use ferroml_core::preprocessing::sampling::SamplingStrategy;
+    match strategy {
+        "auto" => {
+            sampler = sampler.with_sampling_strategy(SamplingStrategy::Auto);
+        }
+        other => {
+            if let Ok(ratio) = other.parse::<f64>() {
+                sampler = sampler.with_sampling_strategy(SamplingStrategy::Ratio(ratio));
+            } else {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown sampling_strategy: '{}'. Use 'auto' or a float ratio.",
+                    other
+                )));
+            }
+        }
+    }
+    Ok(sampler)
+}
+
+fn apply_sampling_strategy_oversampler(
+    mut sampler: ferroml_core::preprocessing::sampling::RandomOverSampler,
+    strategy: &str,
+) -> PyResult<ferroml_core::preprocessing::sampling::RandomOverSampler> {
+    use ferroml_core::preprocessing::sampling::SamplingStrategy;
+    match strategy {
+        "auto" => {
+            sampler = sampler.with_sampling_strategy(SamplingStrategy::Auto);
+        }
+        other => {
+            if let Ok(ratio) = other.parse::<f64>() {
+                sampler = sampler.with_sampling_strategy(SamplingStrategy::Ratio(ratio));
+            } else {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown sampling_strategy: '{}'. Use 'auto' or a float ratio.",
+                    other
+                )));
+            }
+        }
+    }
+    Ok(sampler)
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -1247,6 +2522,29 @@ pub fn register_preprocessing_module(parent_module: &Bound<'_, PyModule>) -> PyR
 
     // Imputers
     preprocessing_module.add_class::<PySimpleImputer>()?;
+    preprocessing_module.add_class::<PyKNNImputer>()?;
+
+    // Transformers
+    preprocessing_module.add_class::<PyPowerTransformer>()?;
+    preprocessing_module.add_class::<PyQuantileTransformer>()?;
+    preprocessing_module.add_class::<PyPolynomialFeatures>()?;
+    preprocessing_module.add_class::<PyKBinsDiscretizer>()?;
+
+    // Feature selectors
+    preprocessing_module.add_class::<PyVarianceThreshold>()?;
+    preprocessing_module.add_class::<PySelectKBest>()?;
+
+    // Encoders (additional)
+    preprocessing_module.add_class::<PyTargetEncoder>()?;
+
+    // Feature selector (model-based)
+    preprocessing_module.add_class::<PySelectFromModel>()?;
+
+    // Resampling (imbalanced data)
+    preprocessing_module.add_class::<PySMOTE>()?;
+    preprocessing_module.add_class::<PyADASYN>()?;
+    preprocessing_module.add_class::<PyRandomUnderSampler>()?;
+    preprocessing_module.add_class::<PyRandomOverSampler>()?;
 
     parent_module.add_submodule(&preprocessing_module)?;
 

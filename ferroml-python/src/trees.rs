@@ -73,6 +73,13 @@ pub struct PyDecisionTreeClassifier {
     inner: DecisionTreeClassifier,
 }
 
+impl PyDecisionTreeClassifier {
+    /// Get a reference to the inner model (for use by other Python binding modules).
+    pub fn inner_ref(&self) -> &DecisionTreeClassifier {
+        &self.inner
+    }
+}
+
 #[pymethods]
 impl PyDecisionTreeClassifier {
     /// Create a new DecisionTreeClassifier.
@@ -239,6 +246,12 @@ pub struct PyDecisionTreeRegressor {
     inner: DecisionTreeRegressor,
 }
 
+impl PyDecisionTreeRegressor {
+    pub fn inner_ref(&self) -> &DecisionTreeRegressor {
+        &self.inner
+    }
+}
+
 #[pymethods]
 impl PyDecisionTreeRegressor {
     #[new]
@@ -400,6 +413,12 @@ impl PyDecisionTreeRegressor {
 #[pyclass(name = "RandomForestClassifier", module = "ferroml.trees")]
 pub struct PyRandomForestClassifier {
     inner: RandomForestClassifier,
+}
+
+impl PyRandomForestClassifier {
+    pub fn inner_ref(&self) -> &RandomForestClassifier {
+        &self.inner
+    }
 }
 
 #[pymethods]
@@ -585,6 +604,12 @@ pub struct PyRandomForestRegressor {
     inner: RandomForestRegressor,
 }
 
+impl PyRandomForestRegressor {
+    pub fn inner_ref(&self) -> &RandomForestRegressor {
+        &self.inner
+    }
+}
+
 #[pymethods]
 impl PyRandomForestRegressor {
     #[new]
@@ -748,6 +773,12 @@ pub struct PyGradientBoostingClassifier {
     inner: GradientBoostingClassifier,
 }
 
+impl PyGradientBoostingClassifier {
+    pub fn inner_ref(&self) -> &GradientBoostingClassifier {
+        &self.inner
+    }
+}
+
 #[pymethods]
 impl PyGradientBoostingClassifier {
     #[new]
@@ -896,6 +927,12 @@ impl PyGradientBoostingClassifier {
 #[pyclass(name = "GradientBoostingRegressor", module = "ferroml.trees")]
 pub struct PyGradientBoostingRegressor {
     inner: GradientBoostingRegressor,
+}
+
+impl PyGradientBoostingRegressor {
+    pub fn inner_ref(&self) -> &GradientBoostingRegressor {
+        &self.inner
+    }
 }
 
 #[pymethods]

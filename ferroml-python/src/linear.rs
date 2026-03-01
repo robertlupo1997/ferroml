@@ -89,6 +89,13 @@ pub struct PyLinearRegression {
     inner: LinearRegression,
 }
 
+impl PyLinearRegression {
+    /// Get a reference to the inner model (for use by other Python binding modules).
+    pub fn inner_ref(&self) -> &LinearRegression {
+        &self.inner
+    }
+}
+
 #[pymethods]
 impl PyLinearRegression {
     /// Create a new LinearRegression model.
@@ -699,6 +706,12 @@ pub struct PyLogisticRegression {
     inner: LogisticRegression,
 }
 
+impl PyLogisticRegression {
+    pub fn inner_ref(&self) -> &LogisticRegression {
+        &self.inner
+    }
+}
+
 #[pymethods]
 impl PyLogisticRegression {
     /// Create a new LogisticRegression model.
@@ -1144,6 +1157,12 @@ pub struct PyRidgeRegression {
     inner: RidgeRegression,
 }
 
+impl PyRidgeRegression {
+    pub fn inner_ref(&self) -> &RidgeRegression {
+        &self.inner
+    }
+}
+
 #[pymethods]
 impl PyRidgeRegression {
     /// Create a new RidgeRegression model.
@@ -1403,6 +1422,12 @@ impl PyRidgeRegression {
 #[pyclass(name = "LassoRegression", module = "ferroml.linear")]
 pub struct PyLassoRegression {
     inner: LassoRegression,
+}
+
+impl PyLassoRegression {
+    pub fn inner_ref(&self) -> &LassoRegression {
+        &self.inner
+    }
 }
 
 #[pymethods]
@@ -1667,6 +1692,12 @@ impl PyLassoRegression {
 #[pyclass(name = "ElasticNet", module = "ferroml.linear")]
 pub struct PyElasticNet {
     inner: ElasticNet,
+}
+
+impl PyElasticNet {
+    pub fn inner_ref(&self) -> &ElasticNet {
+        &self.inner
+    }
 }
 
 #[pymethods]
