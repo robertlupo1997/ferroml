@@ -8,6 +8,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+#### Plans A-E: Hardening & Correctness (2026-03-01)
+
+**Plan A — Clustering Hardening:**
+- 102 correctness tests for KMeans, DBSCAN, AgglomerativeClustering
+- Tests cover all linkage methods (Ward, complete, average, single), clustering metrics (silhouette, ARI, NMI, CH, DB, Hopkins, Dunn), edge cases, and diagnostics
+
+**Plan B — Neural Network Hardening:**
+- 49 correctness tests for MLPClassifier, MLPRegressor
+- Tests cover training convergence, activation functions, multi-class/multi-output, diagnostics, and edge cases
+
+**Plan C — Performance Benchmarks:**
+- 15 new Criterion benchmark functions (86+ total)
+- Added benchmarks for RidgeCV, LassoCV, ElasticNetCV, RobustRegression, QuantileRegression, PassiveAggressive, RidgeClassifier, CalibratedClassifierCV, LDA, FactorAnalysis, and 5 scaling benchmarks
+- Created `baseline.json` for regression detection
+
+**Plan D — Python Bindings Completion:**
+- Decomposition module: PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis
+- Ensemble module: ExtraTrees, AdaBoost, SGD, PassiveAggressive
+- Explainability module: TreeSHAP, permutation importance (10 model types), PDP, 2D PDP, ICE, H-statistic
+- Preprocessing additions: SelectFromModel, SMOTE, ADASYN, RandomUnderSampler, RandomOverSampler
+- AgglomerativeClustering bindings
+- Overall Python binding coverage: 35% → 85%
+
+**Plan E — Preprocessing Correctness Tests:**
+- 101 correctness tests covering all transformers, scalers, encoders, imputers, and resamplers
+
+### Fixed
+
+#### Plans A-B: Bug Fixes (2026-03-01)
+
+**Clustering (3 bugs):**
+- Ward linkage Lance-Williams formula: was squaring already-squared distances (d^4 → d^2)
+- Empty cluster handling: now re-initializes to random data point instead of keeping stale center
+- KMeans predict() validation: now returns ShapeMismatch error instead of panicking
+
+**Neural Networks (7 bugs):**
+- Double gradient application: output layer was applying activation derivative on top of loss gradient
+- Softmax derivative: was returning sigmoid derivative — now bypassed for output layer
+- Multi-output MSE: now divides by n_samples × n_outputs (was missing n_outputs)
+- Cross-entropy clipping: now only clips for log(), gradient uses unclipped predictions
+- ELU derivative boundary: changed `>` to `>=` at x=0
+- RNG reseeding: MLP now has persistent RNG field instead of recreating every forward pass
+- Empty input validation: added n_samples==0 checks in fit/predict
+
 #### Plan 6: Advanced Features (2026-02-11)
 - Bootstrap BCa confidence intervals — bias-corrected and accelerated CIs via jackknife acceleration (`compute_bca()`)
 - Probit activation — standard normal CDF transform for inference operators (`PostTransform::Probit`)

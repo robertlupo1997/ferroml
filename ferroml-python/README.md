@@ -34,12 +34,31 @@ result = automl.fit(X_train, y_train)
 print(result.summary())
 ```
 
+## Available Modules
+
+| Module | Models / Features |
+|--------|-------------------|
+| `linear` | LinearRegression, Ridge, Lasso, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, QuantileRegression, RobustRegression, SGDClassifier, SGDRegressor, PassiveAggressiveClassifier |
+| `trees` | DecisionTreeClassifier, DecisionTreeRegressor, ExtraTreesClassifier, ExtraTreesRegressor |
+| `ensemble` | RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor, AdaBoostClassifier, AdaBoostRegressor |
+| `neighbors` | KNeighborsClassifier, KNeighborsRegressor |
+| `clustering` | KMeans, DBSCAN, AgglomerativeClustering |
+| `preprocessing` | StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler, OneHotEncoder, OrdinalEncoder, LabelEncoder, TargetEncoder, SimpleImputer, KNNImputer, PolynomialFeatures, PowerTransformer, QuantileTransformer, VarianceThreshold, SelectKBest, Normalizer, Binarizer, KBinsDiscretizer, FunctionTransformer, SelectFromModel, SMOTE, ADASYN, RandomUnderSampler, RandomOverSampler |
+| `decomposition` | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis |
+| `explainability` | TreeSHAP, permutation importance (10 model types), PDP, 2D PDP, ICE, H-statistic |
+| `pipeline` | Pipeline with step chaining |
+| `automl` | AutoML with statistical model comparison |
+| `datasets` | Iris, Diabetes, Wine, synthetic generators |
+
 ## Features
 
 - **Statistical Rigor**: Confidence intervals, effect sizes, and assumption tests
 - **Linear Models**: Full diagnostics (R-style summary, VIF, residual analysis)
-- **Tree Models**: RandomForest, GradientBoosting, HistGradientBoosting
-- **Preprocessing**: Scalers, encoders, imputers
+- **Tree Models**: RandomForest, GradientBoosting, HistGradientBoosting, ExtraTrees, AdaBoost
+- **Clustering**: KMeans, DBSCAN, AgglomerativeClustering with full metrics
+- **Neural Networks**: MLPClassifier, MLPRegressor with training diagnostics
+- **Preprocessing**: 24+ transformers including SMOTE/ADASYN resampling
+- **Explainability**: TreeSHAP, permutation importance, PDP, ICE, H-statistic
 - **AutoML**: Automatic model selection with statistical significance testing
 
 ## License

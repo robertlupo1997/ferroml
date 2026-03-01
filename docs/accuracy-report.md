@@ -28,21 +28,21 @@ Comparison of FerroML against scikit-learn across models and preprocessing trans
 |-------|---------|--------|-------------|--------|
 | LogisticRegression | Iris (binary subset) | Accuracy | 0.8333 | **PASS** |
 | RandomForestClassifier | iris | Accuracy | 0.7333 | **PASS** |
-| RandomForestRegressor | diabetes | R² | 0.4270 | **PASS** |
+| RandomForestRegressor | diabetes | Rï¿½ | 0.4270 | **PASS** |
 | GradientBoostingClassifier | iris | Accuracy | 0.7333 | **PASS** |
-| GradientBoostingRegressor | diabetes | R² | 0.3944 | **PASS** |
+| GradientBoostingRegressor | diabetes | Rï¿½ | 0.3944 | **PASS** |
 | KNeighborsClassifier | iris | Accuracy | 0.8000 | **PASS** |
-| KNeighborsRegressor | diabetes | R² | 0.4273 | **PASS** |
+| KNeighborsRegressor | diabetes | Rï¿½ | 0.4273 | **PASS** |
 | GaussianNB | iris | Accuracy | 0.9333 | **PASS** |
 | MultinomialNB | iris_nonneg | Accuracy | 0.0000 | **PASS** |
 | BernoulliNB | iris | Accuracy | 0.0000 | **PASS** |
 | SVC | iris_scaled | Accuracy | 0.8000 | **PASS** |
-| SVR | diabetes_scaled | R² | 0.1630 | **PASS** |
-| ElasticNet | diabetes | R² | 0.1013 | **PASS** |
-| RidgeCV | diabetes | R² | 0.5450 | **PASS** |
-| LassoCV | diabetes | R² | 0.5443 | **PASS** |
+| SVR | diabetes_scaled | Rï¿½ | 0.1630 | **PASS** |
+| ElasticNet | diabetes | Rï¿½ | 0.1013 | **PASS** |
+| RidgeCV | diabetes | Rï¿½ | 0.5450 | **PASS** |
+| LassoCV | diabetes | Rï¿½ | 0.5443 | **PASS** |
 | AdaBoostClassifier | iris | Accuracy | 0.7333 | **PASS** |
-| AdaBoostRegressor | diabetes | R² | 0.4683 | **PASS** |
+| AdaBoostRegressor | diabetes | Rï¿½ | 0.4683 | **PASS** |
 
 ## Preprocessing Accuracy
 
@@ -64,12 +64,26 @@ Comparison of FerroML against scikit-learn across models and preprocessing trans
 | RobustScaler | **PASS** |
 | MaxAbsScaler | **PASS** |
 
+## Correctness Tests (Plans A, B, E)
+
+In addition to sklearn fixture comparisons, FerroML has 252 dedicated correctness tests:
+
+| Test Suite | Tests | Coverage |
+|------------|-------|----------|
+| Clustering correctness | 102 | KMeans, DBSCAN, AgglomerativeClustering, all metrics, edge cases |
+| Neural network correctness | 49 | MLPClassifier, MLPRegressor, activations, diagnostics |
+| Preprocessing correctness | 101 | All transformers, scalers, encoders, imputers, resamplers |
+
 ## Test Infrastructure
 
 | Metric | Value |
 |--------|-------|
-| Unit tests | 2471+ passing |
+| Total tests | 2,949 passing, 0 failing, 7 ignored |
+| Lib tests | 2,471 passing |
 | Sklearn correctness tests | 58 passing |
+| Correctness integration tests | 252 passing |
+| Other integration tests | 168 passing |
+| Benchmarks | 86+ Criterion functions |
 | Clippy | Clean (0 warnings) |
 
 ## Reproducing Results
