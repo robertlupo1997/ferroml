@@ -2,6 +2,8 @@
 //!
 //! This module provides Python wrappers for:
 //! - **TreeSHAP**: Exact SHAP values via `TreeExplainer` (DT, RF, GB models)
+//! - **KernelSHAP**: Model-agnostic approximate SHAP values via `KernelExplainer`
+//!   (RF, DT, GB, Linear, Logistic, ExtraTrees -- 10 model types)
 //! - **Permutation Importance**: Model-agnostic feature importance with CI
 //!   (RF, DT, GB, Linear, Logistic, ExtraTrees -- 10 model types)
 //! - **Partial Dependence (PDP)**: 1D and 2D marginal effect visualization
@@ -21,7 +23,8 @@ use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
 use ferroml_core::explainability::{
     h_statistic, h_statistic_matrix, individual_conditional_expectation, partial_dependence,
     partial_dependence_2d, permutation_importance, GridMethod, HStatisticConfig, ICEConfig,
-    PDPResult, PermutationImportanceResult, TreeExplainer,
+    KernelExplainer, KernelSHAPConfig, PDPResult, PermutationImportanceResult, SHAPBatchResult,
+    TreeExplainer,
 };
 use ferroml_core::metrics::{accuracy, mae, mse, r2_score};
 use ferroml_core::models::Model;
@@ -1092,6 +1095,240 @@ fn py_h_statistic_matrix_rf_reg<'py>(
 }
 
 // =============================================================================
+// KernelSHAP (model-agnostic SHAP values)
+// =============================================================================
+
+/// Internal helper to run KernelSHAP on any model and return a batch result.
+///
+/// Creates a KernelExplainer within the function scope so the lifetime of the
+/// model borrow is bounded by the call. Always uses explain_batch for uniformity.
+fn run_kernel_shap<M: Model>(
+    model: &M,
+    background: &ndarray::Array2<f64>,
+    x: &ndarray::Array2<f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> Result<SHAPBatchResult, ferroml_core::FerroError> {
+    let mut config = KernelSHAPConfig::new();
+    if let Some(n) = n_samples {
+        config = config.with_n_samples(n);
+    }
+    if let Some(seed) = random_state {
+        config = config.with_random_state(seed);
+    }
+    let explainer = KernelExplainer::new(model, background, config)?;
+    explainer.explain_batch(x)
+}
+
+fn kernel_shap_batch_result_to_dict(py: Python<'_>, result: SHAPBatchResult) -> PyResult<PyObject> {
+    let dict = PyDict::new(py);
+    dict.set_item("base_value", result.base_value)?;
+    dict.set_item("shap_values", result.shap_values.into_pyarray(py))?;
+    dict.set_item("feature_values", result.feature_values.into_pyarray(py))?;
+    Ok(dict.into())
+}
+
+/// Compute KernelSHAP values for a RandomForestRegressor.
+///
+/// KernelSHAP is a model-agnostic method for computing approximate Shapley values.
+/// It uses weighted linear regression over feature coalitions.
+///
+/// Parameters
+/// ----------
+/// model : RandomForestRegressor
+///     Fitted model.
+/// background : ndarray of shape (n_background, n_features)
+///     Background dataset for computing expected values.
+/// x : ndarray of shape (n_samples, n_features)
+///     Samples to explain.
+/// n_samples : int, optional
+///     Number of coalition samples for approximation. Default: 2*n_features + 2048.
+/// random_state : int, optional
+///     Random seed for reproducibility.
+///
+/// Returns
+/// -------
+/// dict with keys: 'base_value', 'shap_values', 'feature_values'
+#[pyfunction]
+#[pyo3(name = "kernel_shap_rf_reg", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_rf_reg<'py>(
+    py: Python<'py>,
+    model: &crate::trees::PyRandomForestRegressor,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+/// Compute KernelSHAP values for a RandomForestClassifier.
+#[pyfunction]
+#[pyo3(name = "kernel_shap_rf_clf", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_rf_clf<'py>(
+    py: Python<'py>,
+    model: &crate::trees::PyRandomForestClassifier,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+/// Compute KernelSHAP values for a DecisionTreeRegressor.
+#[pyfunction]
+#[pyo3(name = "kernel_shap_dt_reg", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_dt_reg<'py>(
+    py: Python<'py>,
+    model: &crate::trees::PyDecisionTreeRegressor,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+/// Compute KernelSHAP values for a DecisionTreeClassifier.
+#[pyfunction]
+#[pyo3(name = "kernel_shap_dt_clf", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_dt_clf<'py>(
+    py: Python<'py>,
+    model: &crate::trees::PyDecisionTreeClassifier,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+/// Compute KernelSHAP values for a GradientBoostingRegressor.
+#[pyfunction]
+#[pyo3(name = "kernel_shap_gb_reg", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_gb_reg<'py>(
+    py: Python<'py>,
+    model: &crate::trees::PyGradientBoostingRegressor,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+/// Compute KernelSHAP values for a GradientBoostingClassifier.
+#[pyfunction]
+#[pyo3(name = "kernel_shap_gb_clf", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_gb_clf<'py>(
+    py: Python<'py>,
+    model: &crate::trees::PyGradientBoostingClassifier,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+/// Compute KernelSHAP values for a LinearRegression.
+#[pyfunction]
+#[pyo3(name = "kernel_shap_linear", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_linear<'py>(
+    py: Python<'py>,
+    model: &crate::linear::PyLinearRegression,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+/// Compute KernelSHAP values for a LogisticRegression.
+#[pyfunction]
+#[pyo3(name = "kernel_shap_logistic", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_logistic<'py>(
+    py: Python<'py>,
+    model: &crate::linear::PyLogisticRegression,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+/// Compute KernelSHAP values for an ExtraTreesClassifier.
+#[pyfunction]
+#[pyo3(name = "kernel_shap_et_clf", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_et_clf<'py>(
+    py: Python<'py>,
+    model: &crate::ensemble::PyExtraTreesClassifier,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+/// Compute KernelSHAP values for an ExtraTreesRegressor.
+#[pyfunction]
+#[pyo3(name = "kernel_shap_et_reg", signature = (model, background, x, n_samples=None, random_state=None))]
+fn py_kernel_shap_et_reg<'py>(
+    py: Python<'py>,
+    model: &crate::ensemble::PyExtraTreesRegressor,
+    background: PyReadonlyArray2<'py, f64>,
+    x: PyReadonlyArray2<'py, f64>,
+    n_samples: Option<usize>,
+    random_state: Option<u64>,
+) -> PyResult<PyObject> {
+    let bg_arr = to_owned_array_2d(background);
+    let x_arr = to_owned_array_2d(x);
+    let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    kernel_shap_batch_result_to_dict(py, result)
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -1137,6 +1374,18 @@ pub fn register_explainability_module(parent_module: &Bound<'_, PyModule>) -> Py
     m.add_function(wrap_pyfunction!(py_h_statistic_rf_reg, &m)?)?;
     m.add_function(wrap_pyfunction!(py_h_statistic_gb_reg, &m)?)?;
     m.add_function(wrap_pyfunction!(py_h_statistic_matrix_rf_reg, &m)?)?;
+
+    // KernelSHAP (model-agnostic SHAP values)
+    m.add_function(wrap_pyfunction!(py_kernel_shap_rf_reg, &m)?)?;
+    m.add_function(wrap_pyfunction!(py_kernel_shap_rf_clf, &m)?)?;
+    m.add_function(wrap_pyfunction!(py_kernel_shap_dt_reg, &m)?)?;
+    m.add_function(wrap_pyfunction!(py_kernel_shap_dt_clf, &m)?)?;
+    m.add_function(wrap_pyfunction!(py_kernel_shap_gb_reg, &m)?)?;
+    m.add_function(wrap_pyfunction!(py_kernel_shap_gb_clf, &m)?)?;
+    m.add_function(wrap_pyfunction!(py_kernel_shap_linear, &m)?)?;
+    m.add_function(wrap_pyfunction!(py_kernel_shap_logistic, &m)?)?;
+    m.add_function(wrap_pyfunction!(py_kernel_shap_et_clf, &m)?)?;
+    m.add_function(wrap_pyfunction!(py_kernel_shap_et_reg, &m)?)?;
 
     parent_module.add_submodule(&m)?;
 

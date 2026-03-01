@@ -9,6 +9,9 @@ KMeans
     K-Means clustering with kmeans++ initialization
 DBSCAN
     Density-based spatial clustering with noise detection
+AgglomerativeClustering
+    Hierarchical agglomerative clustering with Ward, complete, average,
+    and single linkage strategies
 
 Functions
 ---------
@@ -53,6 +56,7 @@ from ferroml import ferroml as _native
 # Classes
 KMeans = _native.clustering.KMeans
 DBSCAN = _native.clustering.DBSCAN
+AgglomerativeClustering = _native.clustering.AgglomerativeClustering
 
 # Metric functions
 silhouette_score = _native.clustering.silhouette_score
@@ -67,6 +71,7 @@ __all__ = [
     # Classes
     "KMeans",
     "DBSCAN",
+    "AgglomerativeClustering",
     # Metrics
     "silhouette_score",
     "silhouette_samples",
