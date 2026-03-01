@@ -6,6 +6,7 @@
 //! - SGDClassifier, SGDRegressor
 //! - PassiveAggressiveClassifier
 //! - BaggingClassifier (via factory pattern)
+//! - BaggingRegressor (via factory pattern)
 //!
 //! ## Zero-Copy Semantics
 //!
@@ -17,12 +18,14 @@ use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::ensemble::bagging::MaxFeatures as BaggingMaxFeatures;
 use ferroml_core::ensemble::voting::VotingClassifierEstimator;
-use ferroml_core::ensemble::{BaggingClassifier, MaxSamples};
+use ferroml_core::ensemble::{BaggingClassifier, BaggingRegressor, MaxSamples};
 use ferroml_core::models::{
-    AdaBoostClassifier, AdaBoostRegressor, DecisionTreeClassifier, ExtraTreesClassifier,
-    ExtraTreesRegressor, GaussianNB, GradientBoostingClassifier, HistGradientBoostingClassifier,
-    KNeighborsClassifier, LogisticRegression, Model, PassiveAggressiveClassifier,
-    RandomForestClassifier, SGDClassifier, SGDRegressor, SVC,
+    AdaBoostClassifier, AdaBoostRegressor, DecisionTreeClassifier, DecisionTreeRegressor,
+    ExtraTreesClassifier, ExtraTreesRegressor, GaussianNB, GradientBoostingClassifier,
+    GradientBoostingRegressor, HistGradientBoostingClassifier, HistGradientBoostingRegressor,
+    KNeighborsClassifier, KNeighborsRegressor, LinearRegression, LogisticRegression, Model,
+    PassiveAggressiveClassifier, RandomForestClassifier, RandomForestRegressor, RidgeRegression,
+    SGDClassifier, SGDRegressor, SVC, SVR,
 };
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -1195,7 +1198,7 @@ impl PyBaggingClassifier {
         warm_start: bool,
         c: f64,
     ) -> Self {
-        let base = SVC::new().with_c(c);
+        let base = SVC::new().with_c(c).with_probability(true);
         let inner = build_bagging_classifier(
             Box::new(base),
             n_estimators,
@@ -1473,6 +1476,755 @@ impl PyBaggingClassifier {
     }
 }
 
+// =============================================================================
+// BaggingRegressor
+// =============================================================================
+
+/// Bootstrap Aggregating (Bagging) regressor.
+///
+/// Uses the factory pattern to create instances with specific base regressors.
+/// Since the base estimator uses a trait object (`Box<dyn Model>`), instances
+/// cannot be constructed with `__init__`. Instead, use one of the static
+/// factory methods:
+///
+/// - ``BaggingRegressor.with_decision_tree(...)``
+/// - ``BaggingRegressor.with_random_forest(...)``
+/// - ``BaggingRegressor.with_linear_regression(...)``
+/// - ``BaggingRegressor.with_ridge_regression(...)``
+/// - ``BaggingRegressor.with_extra_trees(...)``
+/// - ``BaggingRegressor.with_gradient_boosting(...)``
+/// - ``BaggingRegressor.with_hist_gradient_boosting(...)``
+/// - ``BaggingRegressor.with_svr(...)``
+/// - ``BaggingRegressor.with_knn(...)``
+///
+/// Example
+/// -------
+/// >>> from ferroml.ensemble import BaggingRegressor
+/// >>> import numpy as np
+/// >>> X_train = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y_train = np.array([1.0, 2.0, 3.0, 4.0])
+/// >>> model = BaggingRegressor.with_decision_tree(n_estimators=10, max_depth=5)
+/// >>> model.fit(X_train, y_train)
+/// >>> predictions = model.predict(X_train)
+/// >>> print(f"OOB R² score: {model.oob_score_}")
+#[pyclass(name = "BaggingRegressor", module = "ferroml.ensemble")]
+pub struct PyBaggingRegressor {
+    inner: BaggingRegressor,
+    /// Store n_estimators for __repr__ (field is private in core)
+    n_estimators_cfg: usize,
+    /// Description of the base estimator type for __repr__
+    base_estimator_name: String,
+}
+
+#[pymethods]
+impl PyBaggingRegressor {
+    /// Create a BaggingRegressor with a DecisionTreeRegressor base estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=10)
+    ///     Number of base estimators.
+    /// max_samples : float, optional (default=1.0)
+    ///     Fraction of samples per estimator.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per estimator.
+    /// bootstrap : bool, optional (default=True)
+    ///     Sample with replacement.
+    /// oob_score : bool, optional (default=False)
+    ///     Compute out-of-bag R² score.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// warm_start : bool, optional (default=False)
+    ///     Keep existing estimators on refit.
+    /// max_depth : int, optional
+    ///     Maximum depth of each decision tree.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples to split a node in each tree.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples at a leaf node in each tree.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_estimators=10,
+        max_samples=1.0,
+        max_features=1.0,
+        bootstrap=true,
+        oob_score=false,
+        random_state=None,
+        warm_start=false,
+        max_depth=None,
+        min_samples_split=2,
+        min_samples_leaf=1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn with_decision_tree(
+        n_estimators: usize,
+        max_samples: f64,
+        max_features: f64,
+        bootstrap: bool,
+        oob_score: bool,
+        random_state: Option<u64>,
+        warm_start: bool,
+        max_depth: Option<usize>,
+        min_samples_split: usize,
+        min_samples_leaf: usize,
+    ) -> Self {
+        let base = DecisionTreeRegressor::new()
+            .with_max_depth(max_depth)
+            .with_min_samples_split(min_samples_split)
+            .with_min_samples_leaf(min_samples_leaf);
+        let inner = build_bagging_regressor(
+            Box::new(base),
+            n_estimators,
+            max_samples,
+            max_features,
+            bootstrap,
+            oob_score,
+            random_state,
+            warm_start,
+        );
+        Self {
+            inner,
+            n_estimators_cfg: n_estimators,
+            base_estimator_name: "DecisionTreeRegressor".to_string(),
+        }
+    }
+
+    /// Create a BaggingRegressor with a RandomForestRegressor base estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=10)
+    ///     Number of bagging estimators.
+    /// max_samples : float, optional (default=1.0)
+    ///     Fraction of samples per estimator.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per estimator.
+    /// bootstrap : bool, optional (default=True)
+    ///     Sample with replacement.
+    /// oob_score : bool, optional (default=False)
+    ///     Compute out-of-bag R² score.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// warm_start : bool, optional (default=False)
+    ///     Keep existing estimators on refit.
+    /// rf_n_estimators : int, optional (default=100)
+    ///     Number of trees in each random forest base estimator.
+    /// max_depth : int, optional
+    ///     Maximum depth of trees in each random forest.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_estimators=10,
+        max_samples=1.0,
+        max_features=1.0,
+        bootstrap=true,
+        oob_score=false,
+        random_state=None,
+        warm_start=false,
+        rf_n_estimators=100,
+        max_depth=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn with_random_forest(
+        n_estimators: usize,
+        max_samples: f64,
+        max_features: f64,
+        bootstrap: bool,
+        oob_score: bool,
+        random_state: Option<u64>,
+        warm_start: bool,
+        rf_n_estimators: usize,
+        max_depth: Option<usize>,
+    ) -> Self {
+        let base = RandomForestRegressor::new()
+            .with_n_estimators(rf_n_estimators)
+            .with_max_depth(max_depth);
+        let inner = build_bagging_regressor(
+            Box::new(base),
+            n_estimators,
+            max_samples,
+            max_features,
+            bootstrap,
+            oob_score,
+            random_state,
+            warm_start,
+        );
+        Self {
+            inner,
+            n_estimators_cfg: n_estimators,
+            base_estimator_name: "RandomForestRegressor".to_string(),
+        }
+    }
+
+    /// Create a BaggingRegressor with a LinearRegression base estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=10)
+    ///     Number of base estimators.
+    /// max_samples : float, optional (default=1.0)
+    ///     Fraction of samples per estimator.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per estimator.
+    /// bootstrap : bool, optional (default=True)
+    ///     Sample with replacement.
+    /// oob_score : bool, optional (default=False)
+    ///     Compute out-of-bag R² score.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// warm_start : bool, optional (default=False)
+    ///     Keep existing estimators on refit.
+    /// fit_intercept : bool, optional (default=True)
+    ///     Whether to fit an intercept term.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_estimators=10,
+        max_samples=1.0,
+        max_features=1.0,
+        bootstrap=true,
+        oob_score=false,
+        random_state=None,
+        warm_start=false,
+        fit_intercept=true,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn with_linear_regression(
+        n_estimators: usize,
+        max_samples: f64,
+        max_features: f64,
+        bootstrap: bool,
+        oob_score: bool,
+        random_state: Option<u64>,
+        warm_start: bool,
+        fit_intercept: bool,
+    ) -> Self {
+        let base = LinearRegression::new().with_fit_intercept(fit_intercept);
+        let inner = build_bagging_regressor(
+            Box::new(base),
+            n_estimators,
+            max_samples,
+            max_features,
+            bootstrap,
+            oob_score,
+            random_state,
+            warm_start,
+        );
+        Self {
+            inner,
+            n_estimators_cfg: n_estimators,
+            base_estimator_name: "LinearRegression".to_string(),
+        }
+    }
+
+    /// Create a BaggingRegressor with a RidgeRegression base estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=10)
+    ///     Number of base estimators.
+    /// max_samples : float, optional (default=1.0)
+    ///     Fraction of samples per estimator.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per estimator.
+    /// bootstrap : bool, optional (default=True)
+    ///     Sample with replacement.
+    /// oob_score : bool, optional (default=False)
+    ///     Compute out-of-bag R² score.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// warm_start : bool, optional (default=False)
+    ///     Keep existing estimators on refit.
+    /// alpha : float, optional (default=1.0)
+    ///     Regularization strength for Ridge.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_estimators=10,
+        max_samples=1.0,
+        max_features=1.0,
+        bootstrap=true,
+        oob_score=false,
+        random_state=None,
+        warm_start=false,
+        alpha=1.0,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn with_ridge_regression(
+        n_estimators: usize,
+        max_samples: f64,
+        max_features: f64,
+        bootstrap: bool,
+        oob_score: bool,
+        random_state: Option<u64>,
+        warm_start: bool,
+        alpha: f64,
+    ) -> Self {
+        let base = RidgeRegression::new(alpha);
+        let inner = build_bagging_regressor(
+            Box::new(base),
+            n_estimators,
+            max_samples,
+            max_features,
+            bootstrap,
+            oob_score,
+            random_state,
+            warm_start,
+        );
+        Self {
+            inner,
+            n_estimators_cfg: n_estimators,
+            base_estimator_name: "RidgeRegression".to_string(),
+        }
+    }
+
+    /// Create a BaggingRegressor with an ExtraTreesRegressor base estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=10)
+    ///     Number of bagging estimators.
+    /// max_samples : float, optional (default=1.0)
+    ///     Fraction of samples per estimator.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per estimator.
+    /// bootstrap : bool, optional (default=True)
+    ///     Sample with replacement.
+    /// oob_score : bool, optional (default=False)
+    ///     Compute out-of-bag R² score.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// warm_start : bool, optional (default=False)
+    ///     Keep existing estimators on refit.
+    /// et_n_estimators : int, optional (default=100)
+    ///     Number of trees in each extra trees base estimator.
+    /// max_depth : int, optional
+    ///     Maximum depth of trees in each extra trees estimator.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_estimators=10,
+        max_samples=1.0,
+        max_features=1.0,
+        bootstrap=true,
+        oob_score=false,
+        random_state=None,
+        warm_start=false,
+        et_n_estimators=100,
+        max_depth=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn with_extra_trees(
+        n_estimators: usize,
+        max_samples: f64,
+        max_features: f64,
+        bootstrap: bool,
+        oob_score: bool,
+        random_state: Option<u64>,
+        warm_start: bool,
+        et_n_estimators: usize,
+        max_depth: Option<usize>,
+    ) -> Self {
+        let base = ExtraTreesRegressor::new()
+            .with_n_estimators(et_n_estimators)
+            .with_max_depth(max_depth);
+        let inner = build_bagging_regressor(
+            Box::new(base),
+            n_estimators,
+            max_samples,
+            max_features,
+            bootstrap,
+            oob_score,
+            random_state,
+            warm_start,
+        );
+        Self {
+            inner,
+            n_estimators_cfg: n_estimators,
+            base_estimator_name: "ExtraTreesRegressor".to_string(),
+        }
+    }
+
+    /// Create a BaggingRegressor with a GradientBoostingRegressor base estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=10)
+    ///     Number of bagging estimators.
+    /// max_samples : float, optional (default=1.0)
+    ///     Fraction of samples per estimator.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per estimator.
+    /// bootstrap : bool, optional (default=True)
+    ///     Sample with replacement.
+    /// oob_score : bool, optional (default=False)
+    ///     Compute out-of-bag R² score.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// warm_start : bool, optional (default=False)
+    ///     Keep existing estimators on refit.
+    /// gb_n_estimators : int, optional (default=100)
+    ///     Number of boosting stages in each gradient boosting base estimator.
+    /// learning_rate : float, optional (default=0.1)
+    ///     Learning rate for gradient boosting.
+    /// max_depth : int, optional (default=3)
+    ///     Maximum depth of trees in gradient boosting.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_estimators=10,
+        max_samples=1.0,
+        max_features=1.0,
+        bootstrap=true,
+        oob_score=false,
+        random_state=None,
+        warm_start=false,
+        gb_n_estimators=100,
+        learning_rate=0.1,
+        max_depth=3,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn with_gradient_boosting(
+        n_estimators: usize,
+        max_samples: f64,
+        max_features: f64,
+        bootstrap: bool,
+        oob_score: bool,
+        random_state: Option<u64>,
+        warm_start: bool,
+        gb_n_estimators: usize,
+        learning_rate: f64,
+        max_depth: usize,
+    ) -> Self {
+        let base = GradientBoostingRegressor::new()
+            .with_n_estimators(gb_n_estimators)
+            .with_learning_rate(learning_rate)
+            .with_max_depth(Some(max_depth));
+        let inner = build_bagging_regressor(
+            Box::new(base),
+            n_estimators,
+            max_samples,
+            max_features,
+            bootstrap,
+            oob_score,
+            random_state,
+            warm_start,
+        );
+        Self {
+            inner,
+            n_estimators_cfg: n_estimators,
+            base_estimator_name: "GradientBoostingRegressor".to_string(),
+        }
+    }
+
+    /// Create a BaggingRegressor with a HistGradientBoostingRegressor base estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=10)
+    ///     Number of bagging estimators.
+    /// max_samples : float, optional (default=1.0)
+    ///     Fraction of samples per estimator.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per estimator.
+    /// bootstrap : bool, optional (default=True)
+    ///     Sample with replacement.
+    /// oob_score : bool, optional (default=False)
+    ///     Compute out-of-bag R² score.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// warm_start : bool, optional (default=False)
+    ///     Keep existing estimators on refit.
+    /// hgb_max_iter : int, optional (default=100)
+    ///     Maximum number of boosting iterations in each hist gradient boosting base estimator.
+    /// learning_rate : float, optional (default=0.1)
+    ///     Learning rate for hist gradient boosting.
+    /// max_depth : int, optional
+    ///     Maximum depth of trees in hist gradient boosting.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_estimators=10,
+        max_samples=1.0,
+        max_features=1.0,
+        bootstrap=true,
+        oob_score=false,
+        random_state=None,
+        warm_start=false,
+        hgb_max_iter=100,
+        learning_rate=0.1,
+        max_depth=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn with_hist_gradient_boosting(
+        n_estimators: usize,
+        max_samples: f64,
+        max_features: f64,
+        bootstrap: bool,
+        oob_score: bool,
+        random_state: Option<u64>,
+        warm_start: bool,
+        hgb_max_iter: usize,
+        learning_rate: f64,
+        max_depth: Option<usize>,
+    ) -> Self {
+        let base = HistGradientBoostingRegressor::new()
+            .with_max_iter(hgb_max_iter)
+            .with_learning_rate(learning_rate)
+            .with_max_depth(max_depth);
+        let inner = build_bagging_regressor(
+            Box::new(base),
+            n_estimators,
+            max_samples,
+            max_features,
+            bootstrap,
+            oob_score,
+            random_state,
+            warm_start,
+        );
+        Self {
+            inner,
+            n_estimators_cfg: n_estimators,
+            base_estimator_name: "HistGradientBoostingRegressor".to_string(),
+        }
+    }
+
+    /// Create a BaggingRegressor with an SVR base estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=10)
+    ///     Number of base estimators.
+    /// max_samples : float, optional (default=1.0)
+    ///     Fraction of samples per estimator.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per estimator.
+    /// bootstrap : bool, optional (default=True)
+    ///     Sample with replacement.
+    /// oob_score : bool, optional (default=False)
+    ///     Compute out-of-bag R² score.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// warm_start : bool, optional (default=False)
+    ///     Keep existing estimators on refit.
+    /// c : float, optional (default=1.0)
+    ///     Regularization parameter for SVR.
+    /// epsilon : float, optional (default=0.1)
+    ///     Epsilon parameter (tube width) for SVR.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_estimators=10,
+        max_samples=1.0,
+        max_features=1.0,
+        bootstrap=true,
+        oob_score=false,
+        random_state=None,
+        warm_start=false,
+        c=1.0,
+        epsilon=0.1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn with_svr(
+        n_estimators: usize,
+        max_samples: f64,
+        max_features: f64,
+        bootstrap: bool,
+        oob_score: bool,
+        random_state: Option<u64>,
+        warm_start: bool,
+        c: f64,
+        epsilon: f64,
+    ) -> Self {
+        let base = SVR::new().with_c(c).with_epsilon(epsilon);
+        let inner = build_bagging_regressor(
+            Box::new(base),
+            n_estimators,
+            max_samples,
+            max_features,
+            bootstrap,
+            oob_score,
+            random_state,
+            warm_start,
+        );
+        Self {
+            inner,
+            n_estimators_cfg: n_estimators,
+            base_estimator_name: "SVR".to_string(),
+        }
+    }
+
+    /// Create a BaggingRegressor with a KNeighborsRegressor base estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=10)
+    ///     Number of base estimators.
+    /// max_samples : float, optional (default=1.0)
+    ///     Fraction of samples per estimator.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per estimator.
+    /// bootstrap : bool, optional (default=True)
+    ///     Sample with replacement.
+    /// oob_score : bool, optional (default=False)
+    ///     Compute out-of-bag R² score.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// warm_start : bool, optional (default=False)
+    ///     Keep existing estimators on refit.
+    /// n_neighbors : int, optional (default=5)
+    ///     Number of neighbors for KNN.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_estimators=10,
+        max_samples=1.0,
+        max_features=1.0,
+        bootstrap=true,
+        oob_score=false,
+        random_state=None,
+        warm_start=false,
+        n_neighbors=5,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn with_knn(
+        n_estimators: usize,
+        max_samples: f64,
+        max_features: f64,
+        bootstrap: bool,
+        oob_score: bool,
+        random_state: Option<u64>,
+        warm_start: bool,
+        n_neighbors: usize,
+    ) -> Self {
+        let base = KNeighborsRegressor::new(n_neighbors);
+        let inner = build_bagging_regressor(
+            Box::new(base),
+            n_estimators,
+            max_samples,
+            max_features,
+            bootstrap,
+            oob_score,
+            random_state,
+            warm_start,
+        );
+        Self {
+            inner,
+            n_estimators_cfg: n_estimators,
+            base_estimator_name: "KNeighborsRegressor".to_string(),
+        }
+    }
+
+    /// Fit the bagging regressor on training data.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Training feature matrix.
+    /// y : numpy.ndarray of shape (n_samples,)
+    ///     Target values.
+    ///
+    /// Returns
+    /// -------
+    /// self
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict target values for samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Feature matrix.
+    ///
+    /// Returns
+    /// -------
+    /// numpy.ndarray of shape (n_samples,)
+    ///     Predicted target values.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Out-of-bag R² score (only available if ``oob_score=True``).
+    ///
+    /// Returns
+    /// -------
+    /// float or None
+    ///     OOB R² score, or None if not computed.
+    #[getter]
+    fn oob_score_(&self) -> Option<f64> {
+        self.inner.oob_score()
+    }
+
+    /// Number of fitted estimators.
+    ///
+    /// Returns
+    /// -------
+    /// int
+    ///     Number of estimators that have been fitted.
+    #[getter]
+    fn n_estimators_(&self) -> usize {
+        self.inner.n_fitted_estimators()
+    }
+
+    /// Feature importances (averaged across estimators).
+    ///
+    /// Returns
+    /// -------
+    /// numpy.ndarray of shape (n_features,) or None
+    ///     Normalized feature importances, or raises if not fitted.
+    #[getter]
+    fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let imp = self
+            .inner
+            .feature_importance()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))?;
+        Ok(imp.into_pyarray(py))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "BaggingRegressor(base_estimator={}, n_estimators={})",
+            self.base_estimator_name, self.n_estimators_cfg
+        )
+    }
+}
+
+/// Helper to build a BaggingRegressor with common parameters.
+fn build_bagging_regressor(
+    base_estimator: Box<dyn Model>,
+    n_estimators: usize,
+    max_samples: f64,
+    max_features: f64,
+    bootstrap: bool,
+    oob_score: bool,
+    random_state: Option<u64>,
+    warm_start: bool,
+) -> BaggingRegressor {
+    let mut reg = BaggingRegressor::new(base_estimator)
+        .with_n_estimators(n_estimators)
+        .with_max_samples(MaxSamples::Fraction(max_samples))
+        .with_max_features(BaggingMaxFeatures::Fraction(max_features))
+        .with_bootstrap(bootstrap)
+        .with_oob_score(oob_score)
+        .with_warm_start(warm_start);
+    if let Some(seed) = random_state {
+        reg = reg.with_random_state(seed);
+    }
+    reg
+}
+
 /// Helper to build a BaggingClassifier with common parameters.
 fn build_bagging_classifier(
     base_estimator: Box<dyn VotingClassifierEstimator>,
@@ -1513,6 +2265,7 @@ pub fn register_ensemble_module(parent_module: &Bound<'_, PyModule>) -> PyResult
     m.add_class::<PySGDRegressor>()?;
     m.add_class::<PyPassiveAggressiveClassifier>()?;
     m.add_class::<PyBaggingClassifier>()?;
+    m.add_class::<PyBaggingRegressor>()?;
 
     parent_module.add_submodule(&m)?;
 

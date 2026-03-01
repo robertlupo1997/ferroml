@@ -17,8 +17,14 @@
 //!
 //! See `crate::array_utils` for detailed documentation.
 
-use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{array1_usize_into_pyarray_i64, to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
+use ferroml_core::models::regularized::{LassoRegression, RidgeRegression};
+use ferroml_core::models::{
+    DecisionTreeClassifier, DecisionTreeRegressor, ExtraTreesClassifier, ExtraTreesRegressor,
+    GradientBoostingClassifier, GradientBoostingRegressor, LinearRegression, LogisticRegression,
+    Model, RandomForestClassifier, RandomForestRegressor, SVR,
+};
 use ferroml_core::preprocessing::{
     discretizers::KBinsDiscretizer,
     encoders::{LabelEncoder, OneHotEncoder, OrdinalEncoder, TargetEncoder},
@@ -27,7 +33,7 @@ use ferroml_core::preprocessing::{
     power::PowerTransformer,
     quantile::QuantileTransformer,
     scalers::{MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler},
-    selection::{SelectKBest, VarianceThreshold},
+    selection::{ClosureEstimator, RecursiveFeatureElimination, SelectKBest, VarianceThreshold},
     Transformer, UnknownCategoryHandling,
 };
 use ndarray::Array1;
@@ -2502,6 +2508,757 @@ fn apply_sampling_strategy_oversampler(
 }
 
 // =============================================================================
+// RecursiveFeatureElimination (RFE) — factory pattern
+// =============================================================================
+
+/// Recursive Feature Elimination (RFE).
+///
+/// Selects features by recursively fitting an estimator, ranking features
+/// by importance, and eliminating the least important features at each step.
+///
+/// RFE cannot be constructed directly because the underlying Rust trait object
+/// (`dyn FeatureImportanceEstimator`) cannot cross the PyO3 boundary. Instead,
+/// use one of the factory staticmethods to specify the estimator type:
+///
+/// - ``RecursiveFeatureElimination.with_linear_regression(...)``
+/// - ``RecursiveFeatureElimination.with_ridge(...)``
+/// - ``RecursiveFeatureElimination.with_lasso(...)``
+/// - ``RecursiveFeatureElimination.with_logistic_regression(...)``
+/// - ``RecursiveFeatureElimination.with_decision_tree_classifier(...)``
+/// - ``RecursiveFeatureElimination.with_decision_tree_regressor(...)``
+/// - ``RecursiveFeatureElimination.with_random_forest_classifier(...)``
+/// - ``RecursiveFeatureElimination.with_random_forest_regressor(...)``
+/// - ``RecursiveFeatureElimination.with_gradient_boosting_classifier(...)``
+/// - ``RecursiveFeatureElimination.with_gradient_boosting_regressor(...)``
+/// - ``RecursiveFeatureElimination.with_extra_trees_classifier(...)``
+/// - ``RecursiveFeatureElimination.with_extra_trees_regressor(...)``
+/// - ``RecursiveFeatureElimination.with_svr(...)``
+///
+/// Parameters (common to all factories)
+/// -------------------------------------
+/// n_features_to_select : int, optional
+///     Number of features to select. If None, selects half of features.
+/// step : int, optional (default=1)
+///     Number of features to remove at each iteration.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import RecursiveFeatureElimination
+/// >>> import numpy as np
+/// >>> X = np.random.randn(100, 10)
+/// >>> y = X[:, 0] * 2 + X[:, 3] * 5 + np.random.randn(100) * 0.1
+/// >>> rfe = RecursiveFeatureElimination.with_linear_regression(n_features_to_select=3)
+/// >>> rfe.fit(X, y)
+/// >>> print(rfe.selected_indices_)
+/// >>> X_selected = rfe.transform(X)
+#[pyclass(name = "RecursiveFeatureElimination", module = "ferroml.preprocessing")]
+pub struct PyRFE {
+    inner: RecursiveFeatureElimination,
+    estimator_name: String,
+    n_features_to_select_cfg: Option<usize>,
+    step_cfg: usize,
+}
+
+/// Build an RFE instance from a boxed FeatureImportanceEstimator.
+fn build_rfe(
+    estimator: Box<dyn ferroml_core::preprocessing::selection::FeatureImportanceEstimator>,
+    estimator_name: String,
+    n_features_to_select: Option<usize>,
+    step: usize,
+) -> PyRFE {
+    let mut rfe = RecursiveFeatureElimination::new(estimator);
+    if let Some(n) = n_features_to_select {
+        rfe = rfe.with_n_features_to_select(n);
+    }
+    rfe = rfe.with_step(step);
+    PyRFE {
+        inner: rfe,
+        estimator_name,
+        n_features_to_select_cfg: n_features_to_select,
+        step_cfg: step,
+    }
+}
+
+#[pymethods]
+impl PyRFE {
+    // =========================================================================
+    // Factory staticmethods — one per concrete estimator type
+    // =========================================================================
+
+    /// Create RFE with a LinearRegression estimator.
+    ///
+    /// Uses absolute standardized coefficients as feature importances.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// fit_intercept : bool, optional (default=True)
+    ///     Whether to fit an intercept.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, fit_intercept=true))]
+    fn with_linear_regression(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        fit_intercept: bool,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = LinearRegression::new().with_fit_intercept(fit_intercept);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "LinearRegression failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "LinearRegression".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with a RidgeRegression estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// alpha : float, optional (default=1.0)
+    ///     Regularization strength.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, alpha=1.0))]
+    fn with_ridge(n_features_to_select: Option<usize>, step: usize, alpha: f64) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = RidgeRegression::new(alpha);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "RidgeRegression failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "RidgeRegression".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with a LassoRegression estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// alpha : float, optional (default=1.0)
+    ///     Regularization strength.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, alpha=1.0))]
+    fn with_lasso(n_features_to_select: Option<usize>, step: usize, alpha: f64) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = LassoRegression::new(alpha);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "LassoRegression failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "LassoRegression".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with a LogisticRegression estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// max_iter : int, optional (default=100)
+    ///     Maximum iterations for convergence.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, max_iter=100))]
+    fn with_logistic_regression(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        max_iter: usize,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = LogisticRegression::new().with_max_iter(max_iter);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "LogisticRegression failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "LogisticRegression".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with a DecisionTreeClassifier estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// max_depth : int, optional
+    ///     Maximum tree depth.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples to split an internal node.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples at a leaf node.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, max_depth=None, min_samples_split=2, min_samples_leaf=1))]
+    fn with_decision_tree_classifier(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        max_depth: Option<usize>,
+        min_samples_split: usize,
+        min_samples_leaf: usize,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = DecisionTreeClassifier::new()
+                    .with_max_depth(max_depth)
+                    .with_min_samples_split(min_samples_split)
+                    .with_min_samples_leaf(min_samples_leaf);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "DecisionTreeClassifier failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "DecisionTreeClassifier".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with a DecisionTreeRegressor estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// max_depth : int, optional
+    ///     Maximum tree depth.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples to split an internal node.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples at a leaf node.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, max_depth=None, min_samples_split=2, min_samples_leaf=1))]
+    fn with_decision_tree_regressor(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        max_depth: Option<usize>,
+        min_samples_split: usize,
+        min_samples_leaf: usize,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = DecisionTreeRegressor::new()
+                    .with_max_depth(max_depth)
+                    .with_min_samples_split(min_samples_split)
+                    .with_min_samples_leaf(min_samples_leaf);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "DecisionTreeRegressor failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "DecisionTreeRegressor".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with a RandomForestClassifier estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// n_estimators : int, optional (default=100)
+    ///     Number of trees in the forest.
+    /// max_depth : int, optional
+    ///     Maximum tree depth.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, n_estimators=100, max_depth=None))]
+    fn with_random_forest_classifier(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        n_estimators: usize,
+        max_depth: Option<usize>,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = RandomForestClassifier::new()
+                    .with_n_estimators(n_estimators)
+                    .with_max_depth(max_depth);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "RandomForestClassifier failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "RandomForestClassifier".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with a RandomForestRegressor estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// n_estimators : int, optional (default=100)
+    ///     Number of trees in the forest.
+    /// max_depth : int, optional
+    ///     Maximum tree depth.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, n_estimators=100, max_depth=None))]
+    fn with_random_forest_regressor(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        n_estimators: usize,
+        max_depth: Option<usize>,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = RandomForestRegressor::new()
+                    .with_n_estimators(n_estimators)
+                    .with_max_depth(max_depth);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "RandomForestRegressor failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "RandomForestRegressor".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with a GradientBoostingClassifier estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// n_estimators : int, optional (default=100)
+    ///     Number of boosting stages.
+    /// max_depth : int, optional (default=3)
+    ///     Maximum depth of individual trees.
+    /// learning_rate : float, optional (default=0.1)
+    ///     Shrinkage factor applied to each tree.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, n_estimators=100, max_depth=Some(3), learning_rate=0.1))]
+    fn with_gradient_boosting_classifier(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        n_estimators: usize,
+        max_depth: Option<usize>,
+        learning_rate: f64,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = GradientBoostingClassifier::new()
+                    .with_n_estimators(n_estimators)
+                    .with_max_depth(max_depth)
+                    .with_learning_rate(learning_rate);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "GradientBoostingClassifier failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "GradientBoostingClassifier".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with a GradientBoostingRegressor estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// n_estimators : int, optional (default=100)
+    ///     Number of boosting stages.
+    /// max_depth : int, optional (default=3)
+    ///     Maximum depth of individual trees.
+    /// learning_rate : float, optional (default=0.1)
+    ///     Shrinkage factor applied to each tree.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, n_estimators=100, max_depth=Some(3), learning_rate=0.1))]
+    fn with_gradient_boosting_regressor(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        n_estimators: usize,
+        max_depth: Option<usize>,
+        learning_rate: f64,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = GradientBoostingRegressor::new()
+                    .with_n_estimators(n_estimators)
+                    .with_max_depth(max_depth)
+                    .with_learning_rate(learning_rate);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "GradientBoostingRegressor failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "GradientBoostingRegressor".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with an ExtraTreesClassifier estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// n_estimators : int, optional (default=100)
+    ///     Number of trees in the ensemble.
+    /// max_depth : int, optional
+    ///     Maximum tree depth.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, n_estimators=100, max_depth=None))]
+    fn with_extra_trees_classifier(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        n_estimators: usize,
+        max_depth: Option<usize>,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = ExtraTreesClassifier::new()
+                    .with_n_estimators(n_estimators)
+                    .with_max_depth(max_depth);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "ExtraTreesClassifier failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "ExtraTreesClassifier".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with an ExtraTreesRegressor estimator.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// n_estimators : int, optional (default=100)
+    ///     Number of trees in the ensemble.
+    /// max_depth : int, optional
+    ///     Maximum tree depth.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, n_estimators=100, max_depth=None))]
+    fn with_extra_trees_regressor(
+        n_features_to_select: Option<usize>,
+        step: usize,
+        n_estimators: usize,
+        max_depth: Option<usize>,
+    ) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = ExtraTreesRegressor::new()
+                    .with_n_estimators(n_estimators)
+                    .with_max_depth(max_depth);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "ExtraTreesRegressor failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "ExtraTreesRegressor".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    /// Create RFE with an SVR (Support Vector Regressor) estimator.
+    ///
+    /// Uses linear kernel by default; absolute weights used as importances.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_features_to_select : int, optional
+    ///     Number of features to select. If None, selects half.
+    /// step : int, optional (default=1)
+    ///     Number of features to remove per iteration.
+    /// c : float, optional (default=1.0)
+    ///     Regularization parameter.
+    /// epsilon : float, optional (default=0.1)
+    ///     Epsilon in the epsilon-SVR model.
+    #[staticmethod]
+    #[pyo3(signature = (n_features_to_select=None, step=1, c=1.0, epsilon=0.1))]
+    fn with_svr(n_features_to_select: Option<usize>, step: usize, c: f64, epsilon: f64) -> Self {
+        let estimator =
+            ClosureEstimator::new(move |x: &ndarray::Array2<f64>, y: &ndarray::Array1<f64>| {
+                let mut model = SVR::new().with_c(c).with_epsilon(epsilon);
+                model.fit(x, y)?;
+                model.feature_importance().ok_or_else(|| {
+                    ferroml_core::FerroError::invalid_input(
+                        "SVR failed to produce feature importances",
+                    )
+                })
+            });
+        build_rfe(
+            Box::new(estimator),
+            "SVR".to_string(),
+            n_features_to_select,
+            step,
+        )
+    }
+
+    // =========================================================================
+    // Fitting and transforming
+    // =========================================================================
+
+    /// Fit the RFE selector on training data.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Training feature matrix.
+    /// y : array-like of shape (n_samples,)
+    ///     Target values.
+    ///
+    /// Returns
+    /// -------
+    /// self : RecursiveFeatureElimination
+    ///     Fitted selector.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        slf.inner
+            .fit_with_target(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Transform data by selecting only the chosen features.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Data to transform.
+    ///
+    /// Returns
+    /// -------
+    /// X_new : ndarray of shape (n_samples, n_selected_features)
+    ///     Data with only the selected features.
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Fit the selector and transform the data in one step.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Training feature matrix.
+    /// y : array-like of shape (n_samples,)
+    ///     Target values.
+    ///
+    /// Returns
+    /// -------
+    /// X_new : ndarray of shape (n_samples, n_selected_features)
+    ///     Data with only the selected features.
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .fit_with_target(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    // =========================================================================
+    // Accessor properties
+    // =========================================================================
+
+    /// Feature rankings. 1 = selected, higher values = eliminated earlier.
+    ///
+    /// Returns
+    /// -------
+    /// ranking : ndarray of shape (n_features,)
+    ///     Integer ranking for each original feature.
+    #[getter]
+    fn ranking_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        let ranking = self.inner.ranking().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("RFE not fitted. Call fit() first.")
+        })?;
+        Ok(array1_usize_into_pyarray_i64(py, ranking.clone()))
+    }
+
+    /// Boolean mask of selected features.
+    ///
+    /// Returns
+    /// -------
+    /// support : list of bool
+    ///     True for features that are selected, False otherwise.
+    #[getter]
+    fn support_(&self) -> PyResult<Vec<bool>> {
+        self.inner.get_support().map(|s| s.to_vec()).ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("RFE not fitted. Call fit() first.")
+        })
+    }
+
+    /// Indices of selected features (sorted).
+    ///
+    /// Returns
+    /// -------
+    /// indices : list of int
+    ///     Sorted indices of selected features.
+    #[getter]
+    fn selected_indices_(&self) -> PyResult<Vec<usize>> {
+        self.inner
+            .selected_indices()
+            .map(|s| s.to_vec())
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>("RFE not fitted. Call fit() first.")
+            })
+    }
+
+    /// Number of elimination iterations performed.
+    ///
+    /// Returns
+    /// -------
+    /// n_iterations : int
+    ///     Number of RFE iterations.
+    #[getter]
+    fn n_iterations_(&self) -> PyResult<usize> {
+        self.inner.n_iterations().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("RFE not fitted. Call fit() first.")
+        })
+    }
+
+    /// Configured number of features to select.
+    ///
+    /// Returns
+    /// -------
+    /// n_features_to_select : int or None
+    ///     The configured value, or None if using the default (half).
+    #[getter]
+    fn n_features_to_select_(&self) -> Option<usize> {
+        self.n_features_to_select_cfg
+    }
+
+    fn __repr__(&self) -> String {
+        let nf = match self.n_features_to_select_cfg {
+            Some(n) => format!("{}", n),
+            None => "None".to_string(),
+        };
+        format!(
+            "RecursiveFeatureElimination(estimator={}, n_features_to_select={}, step={})",
+            self.estimator_name, nf, self.step_cfg
+        )
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -2545,6 +3302,9 @@ pub fn register_preprocessing_module(parent_module: &Bound<'_, PyModule>) -> PyR
     preprocessing_module.add_class::<PyADASYN>()?;
     preprocessing_module.add_class::<PyRandomUnderSampler>()?;
     preprocessing_module.add_class::<PyRandomOverSampler>()?;
+
+    // Recursive Feature Elimination (factory pattern)
+    preprocessing_module.add_class::<PyRFE>()?;
 
     parent_module.add_submodule(&preprocessing_module)?;
 

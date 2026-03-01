@@ -22,10 +22,12 @@ PassiveAggressiveClassifier
     Online passive-aggressive algorithm for classification
 BaggingClassifier
     Bootstrap aggregating classifier with factory constructors for base estimators
+BaggingRegressor
+    Bootstrap aggregating regressor with factory constructors for base estimators
 
 Example
 -------
->>> from ferroml.ensemble import ExtraTreesClassifier, SGDClassifier, BaggingClassifier
+>>> from ferroml.ensemble import ExtraTreesClassifier, SGDClassifier, BaggingClassifier, BaggingRegressor
 >>> import numpy as np
 >>>
 >>> model = ExtraTreesClassifier(n_estimators=100, random_state=42)
@@ -49,6 +51,7 @@ SGDClassifier = _native.ensemble.SGDClassifier
 SGDRegressor = _native.ensemble.SGDRegressor
 PassiveAggressiveClassifier = _native.ensemble.PassiveAggressiveClassifier
 BaggingClassifier = _native.ensemble.BaggingClassifier
+BaggingRegressor = _native.ensemble.BaggingRegressor
 
 __all__ = [
     "ExtraTreesClassifier",
@@ -59,4 +62,5 @@ __all__ = [
     "SGDRegressor",
     "PassiveAggressiveClassifier",
     "BaggingClassifier",
+    "BaggingRegressor",
 ]

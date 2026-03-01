@@ -50,6 +50,7 @@ OneHotEncoder = _native.preprocessing.OneHotEncoder
 OrdinalEncoder = _native.preprocessing.OrdinalEncoder
 LabelEncoder = _native.preprocessing.LabelEncoder
 SimpleImputer = _native.preprocessing.SimpleImputer
+RecursiveFeatureElimination = _native.preprocessing.RecursiveFeatureElimination
 
 __all__ = [
     "StandardScaler",
@@ -60,4 +61,5 @@ __all__ = [
     "OrdinalEncoder",
     "LabelEncoder",
     "SimpleImputer",
+    "RecursiveFeatureElimination",
 ]
