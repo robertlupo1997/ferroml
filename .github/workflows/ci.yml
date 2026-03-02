@@ -115,8 +115,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-test-
 
+      - name: Free disk space
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h /
+
       - name: Run tests
-        run: cargo test -p ferroml-core --all-features
+        run: cargo test -p ferroml-core --all-features --release
 
   # Python binding tests
   python-test:
@@ -160,19 +167,39 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.python-version }}-pip-
 
-      - name: Install maturin
-        run: pip install maturin
-
-      - name: Install test dependencies
-        run: pip install pytest pytest-cov numpy
+      - name: Create virtualenv and install dependencies
+        working-directory: ferroml-python
+        shell: bash
+        run: |
+          python -m venv .venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+          pip install maturin pytest pytest-cov numpy
 
       - name: Build and install ferroml
         working-directory: ferroml-python
-        run: maturin develop --release
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+          maturin develop --release
 
       - name: Run Python tests
         working-directory: ferroml-python
-        run: pytest tests/ -v --tb=short
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+          pytest tests/ -v --tb=short
 
   # Code coverage with threshold enforcement
   coverage:
@@ -202,9 +229,15 @@ jobs:
         run: |
           cargo install cargo-tarpaulin || true
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h /
+
       - name: Run coverage
         run: |
-          cargo tarpaulin -p ferroml-core --all-features \
+          cargo tarpaulin -p ferroml-core \
             --out xml --out html \
             --output-dir coverage \
             --timeout 600 \
@@ -603,8 +636,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-msrv-1.75.0-
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h /
+
       - name: Check MSRV compatibility
-        run: cargo check -p ferroml-core --all-features
+        run: cargo check -p ferroml-core
 
       - name: Run tests on MSRV
-        run: cargo test -p ferroml-core --all-features
+        run: cargo test -p ferroml-core --release
