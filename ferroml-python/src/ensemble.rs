@@ -439,6 +439,24 @@ impl PyAdaBoostRegressor {
 }
 
 // =============================================================================
+// Shared penalty parser for SGD models
+// =============================================================================
+
+fn parse_penalty(penalty: &str) -> PyResult<ferroml_core::models::sgd::Penalty> {
+    use ferroml_core::models::sgd::Penalty;
+    match penalty {
+        "none" => Ok(Penalty::None),
+        "l1" => Ok(Penalty::L1),
+        "l2" => Ok(Penalty::L2),
+        "elasticnet" => Ok(Penalty::ElasticNet),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown penalty: '{}'. Use 'none', 'l1', 'l2', or 'elasticnet'.",
+            penalty
+        ))),
+    }
+}
+
+// =============================================================================
 // SGDClassifier
 // =============================================================================
 
@@ -483,7 +501,7 @@ impl PySGDClassifier {
         tol: f64,
         random_state: Option<u64>,
     ) -> PyResult<Self> {
-        use ferroml_core::models::sgd::{Penalty, SGDClassifierLoss};
+        use ferroml_core::models::sgd::SGDClassifierLoss;
 
         let loss_enum = match loss {
             "hinge" => SGDClassifierLoss::Hinge,
@@ -497,18 +515,7 @@ impl PySGDClassifier {
             }
         };
 
-        let penalty_enum = match penalty {
-            "none" => Penalty::None,
-            "l1" => Penalty::L1,
-            "l2" => Penalty::L2,
-            "elasticnet" => Penalty::ElasticNet,
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Unknown penalty: '{}'. Use 'none', 'l1', 'l2', or 'elasticnet'.",
-                    penalty
-                )));
-            }
-        };
+        let penalty_enum = parse_penalty(penalty)?;
 
         let mut clf = SGDClassifier::new();
         clf.loss = loss_enum;
@@ -605,7 +612,7 @@ impl PySGDRegressor {
         tol: f64,
         random_state: Option<u64>,
     ) -> PyResult<Self> {
-        use ferroml_core::models::sgd::{Penalty, SGDRegressorLoss};
+        use ferroml_core::models::sgd::SGDRegressorLoss;
 
         let loss_enum = match loss {
             "squared_error" => SGDRegressorLoss::SquaredError,
@@ -619,18 +626,7 @@ impl PySGDRegressor {
             }
         };
 
-        let penalty_enum = match penalty {
-            "none" => Penalty::None,
-            "l1" => Penalty::L1,
-            "l2" => Penalty::L2,
-            "elasticnet" => Penalty::ElasticNet,
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Unknown penalty: '{}'. Use 'none', 'l1', 'l2', or 'elasticnet'.",
-                    penalty
-                )));
-            }
-        };
+        let penalty_enum = parse_penalty(penalty)?;
 
         let mut reg = SGDRegressor::new()
             .with_loss(loss_enum)
@@ -839,7 +835,7 @@ pub struct PyBaggingClassifier {
     /// Store n_estimators for __repr__ (field is private in core)
     n_estimators_cfg: usize,
     /// Description of the base estimator type for __repr__
-    base_estimator_name: String,
+    base_estimator_name: &'static str,
 }
 
 #[pymethods]
@@ -911,7 +907,7 @@ impl PyBaggingClassifier {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "DecisionTreeClassifier".to_string(),
+            base_estimator_name: "DecisionTreeClassifier",
         }
     }
 
@@ -977,7 +973,7 @@ impl PyBaggingClassifier {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "RandomForestClassifier".to_string(),
+            base_estimator_name: "RandomForestClassifier",
         }
     }
 
@@ -1037,7 +1033,7 @@ impl PyBaggingClassifier {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "LogisticRegression".to_string(),
+            base_estimator_name: "LogisticRegression",
         }
     }
 
@@ -1092,7 +1088,7 @@ impl PyBaggingClassifier {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "GaussianNB".to_string(),
+            base_estimator_name: "GaussianNB",
         }
     }
 
@@ -1152,7 +1148,7 @@ impl PyBaggingClassifier {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "KNeighborsClassifier".to_string(),
+            base_estimator_name: "KNeighborsClassifier",
         }
     }
 
@@ -1212,7 +1208,7 @@ impl PyBaggingClassifier {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "SVC".to_string(),
+            base_estimator_name: "SVC",
         }
     }
 
@@ -1283,7 +1279,7 @@ impl PyBaggingClassifier {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "GradientBoostingClassifier".to_string(),
+            base_estimator_name: "GradientBoostingClassifier",
         }
     }
 
@@ -1354,7 +1350,7 @@ impl PyBaggingClassifier {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "HistGradientBoostingClassifier".to_string(),
+            base_estimator_name: "HistGradientBoostingClassifier",
         }
     }
 
@@ -1461,10 +1457,9 @@ impl PyBaggingClassifier {
     ///     Normalized feature importances, or raises if not fitted.
     #[getter]
     fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let imp = self
-            .inner
-            .feature_importance()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))?;
+        let imp = self.inner.feature_importance().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
         Ok(imp.into_pyarray(py))
     }
 
@@ -1513,7 +1508,7 @@ pub struct PyBaggingRegressor {
     /// Store n_estimators for __repr__ (field is private in core)
     n_estimators_cfg: usize,
     /// Description of the base estimator type for __repr__
-    base_estimator_name: String,
+    base_estimator_name: &'static str,
 }
 
 #[pymethods]
@@ -1585,7 +1580,7 @@ impl PyBaggingRegressor {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "DecisionTreeRegressor".to_string(),
+            base_estimator_name: "DecisionTreeRegressor",
         }
     }
 
@@ -1651,7 +1646,7 @@ impl PyBaggingRegressor {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "RandomForestRegressor".to_string(),
+            base_estimator_name: "RandomForestRegressor",
         }
     }
 
@@ -1711,7 +1706,7 @@ impl PyBaggingRegressor {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "LinearRegression".to_string(),
+            base_estimator_name: "LinearRegression",
         }
     }
 
@@ -1771,7 +1766,7 @@ impl PyBaggingRegressor {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "RidgeRegression".to_string(),
+            base_estimator_name: "RidgeRegression",
         }
     }
 
@@ -1837,7 +1832,7 @@ impl PyBaggingRegressor {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "ExtraTreesRegressor".to_string(),
+            base_estimator_name: "ExtraTreesRegressor",
         }
     }
 
@@ -1908,7 +1903,7 @@ impl PyBaggingRegressor {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "GradientBoostingRegressor".to_string(),
+            base_estimator_name: "GradientBoostingRegressor",
         }
     }
 
@@ -1979,7 +1974,7 @@ impl PyBaggingRegressor {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "HistGradientBoostingRegressor".to_string(),
+            base_estimator_name: "HistGradientBoostingRegressor",
         }
     }
 
@@ -2043,7 +2038,7 @@ impl PyBaggingRegressor {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "SVR".to_string(),
+            base_estimator_name: "SVR",
         }
     }
 
@@ -2103,7 +2098,7 @@ impl PyBaggingRegressor {
         Self {
             inner,
             n_estimators_cfg: n_estimators,
-            base_estimator_name: "KNeighborsRegressor".to_string(),
+            base_estimator_name: "KNeighborsRegressor",
         }
     }
 
@@ -2186,10 +2181,9 @@ impl PyBaggingRegressor {
     ///     Normalized feature importances, or raises if not fitted.
     #[getter]
     fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let imp = self
-            .inner
-            .feature_importance()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))?;
+        let imp = self.inner.feature_importance().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
         Ok(imp.into_pyarray(py))
     }
 

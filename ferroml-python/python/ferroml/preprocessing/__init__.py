@@ -49,7 +49,20 @@ MaxAbsScaler = _native.preprocessing.MaxAbsScaler
 OneHotEncoder = _native.preprocessing.OneHotEncoder
 OrdinalEncoder = _native.preprocessing.OrdinalEncoder
 LabelEncoder = _native.preprocessing.LabelEncoder
+TargetEncoder = _native.preprocessing.TargetEncoder
 SimpleImputer = _native.preprocessing.SimpleImputer
+KNNImputer = _native.preprocessing.KNNImputer
+PowerTransformer = _native.preprocessing.PowerTransformer
+QuantileTransformer = _native.preprocessing.QuantileTransformer
+PolynomialFeatures = _native.preprocessing.PolynomialFeatures
+KBinsDiscretizer = _native.preprocessing.KBinsDiscretizer
+VarianceThreshold = _native.preprocessing.VarianceThreshold
+SelectKBest = _native.preprocessing.SelectKBest
+SelectFromModel = _native.preprocessing.SelectFromModel
+SMOTE = _native.preprocessing.SMOTE
+ADASYN = _native.preprocessing.ADASYN
+RandomUnderSampler = _native.preprocessing.RandomUnderSampler
+RandomOverSampler = _native.preprocessing.RandomOverSampler
 RecursiveFeatureElimination = _native.preprocessing.RecursiveFeatureElimination
 
 __all__ = [
@@ -60,6 +73,19 @@ __all__ = [
     "OneHotEncoder",
     "OrdinalEncoder",
     "LabelEncoder",
+    "TargetEncoder",
     "SimpleImputer",
+    "KNNImputer",
+    "PowerTransformer",
+    "QuantileTransformer",
+    "PolynomialFeatures",
+    "KBinsDiscretizer",
+    "VarianceThreshold",
+    "SelectKBest",
+    "SelectFromModel",
+    "SMOTE",
+    "ADASYN",
+    "RandomUnderSampler",
+    "RandomOverSampler",
     "RecursiveFeatureElimination",
 ]

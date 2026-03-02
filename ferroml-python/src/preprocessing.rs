@@ -697,16 +697,7 @@ impl PyOneHotEncoder {
     #[new]
     #[pyo3(signature = (handle_unknown="error", drop=None))]
     fn new(handle_unknown: &str, drop: Option<&str>) -> PyResult<Self> {
-        let unknown_handling = match handle_unknown {
-            "error" => UnknownCategoryHandling::Error,
-            "ignore" => UnknownCategoryHandling::Ignore,
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Unknown handle_unknown value: {}. Use 'error' or 'ignore'",
-                    handle_unknown
-                )));
-            }
-        };
+        let unknown_handling = parse_handle_unknown(handle_unknown)?;
 
         let drop_strategy = match drop {
             None => ferroml_core::preprocessing::encoders::DropStrategy::None,
@@ -850,16 +841,7 @@ impl PyOrdinalEncoder {
     #[new]
     #[pyo3(signature = (handle_unknown="error"))]
     fn new(handle_unknown: &str) -> PyResult<Self> {
-        let unknown_handling = match handle_unknown {
-            "error" => UnknownCategoryHandling::Error,
-            "ignore" => UnknownCategoryHandling::Ignore,
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Unknown handle_unknown value: {}. Use 'error' or 'ignore'",
-                    handle_unknown
-                )));
-            }
-        };
+        let unknown_handling = parse_handle_unknown(handle_unknown)?;
 
         let inner = OrdinalEncoder::new().with_handle_unknown(unknown_handling);
         Ok(Self { inner })
@@ -2129,7 +2111,7 @@ impl PySMOTE {
         let mut smote =
             ferroml_core::preprocessing::sampling::SMOTE::new().with_k_neighbors(k_neighbors);
 
-        smote = apply_sampling_strategy(smote, sampling_strategy)?;
+        smote = smote.with_sampling_strategy(parse_sampling_strategy(sampling_strategy)?);
 
         if let Some(seed) = random_state {
             smote = smote.with_random_state(seed);
@@ -2213,7 +2195,7 @@ impl PyADASYN {
             .with_k_neighbors(k_neighbors)
             .with_n_neighbors(n_neighbors);
 
-        adasyn = apply_sampling_strategy_adasyn(adasyn, sampling_strategy)?;
+        adasyn = adasyn.with_sampling_strategy(parse_sampling_strategy(sampling_strategy)?);
 
         if let Some(seed) = random_state {
             adasyn = adasyn.with_random_state(seed);
@@ -2289,7 +2271,7 @@ impl PyRandomUnderSampler {
         let mut sampler = ferroml_core::preprocessing::sampling::RandomUnderSampler::new()
             .with_replacement(replacement);
 
-        sampler = apply_sampling_strategy_undersampler(sampler, sampling_strategy)?;
+        sampler = sampler.with_sampling_strategy(parse_sampling_strategy(sampling_strategy)?);
 
         if let Some(seed) = random_state {
             sampler = sampler.with_random_state(seed);
@@ -2365,7 +2347,7 @@ impl PyRandomOverSampler {
     ) -> PyResult<Self> {
         let mut sampler = ferroml_core::preprocessing::sampling::RandomOverSampler::new();
 
-        sampler = apply_sampling_strategy_oversampler(sampler, sampling_strategy)?;
+        sampler = sampler.with_sampling_strategy(parse_sampling_strategy(sampling_strategy)?);
 
         if let Some(s) = shrinkage {
             sampler = sampler.with_shrinkage(s);
@@ -2412,99 +2394,36 @@ impl PyRandomOverSampler {
 }
 
 // =============================================================================
-// Sampling strategy helpers
+// Shared parsing helpers
 // =============================================================================
 
-fn apply_sampling_strategy(
-    mut smote: ferroml_core::preprocessing::sampling::SMOTE,
-    strategy: &str,
-) -> PyResult<ferroml_core::preprocessing::sampling::SMOTE> {
-    use ferroml_core::preprocessing::sampling::SamplingStrategy;
-    match strategy {
-        "auto" => {
-            smote = smote.with_sampling_strategy(SamplingStrategy::Auto);
-        }
-        other => {
-            if let Ok(ratio) = other.parse::<f64>() {
-                smote = smote.with_sampling_strategy(SamplingStrategy::Ratio(ratio));
-            } else {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Unknown sampling_strategy: '{}'. Use 'auto' or a float ratio.",
-                    other
-                )));
-            }
-        }
+fn parse_handle_unknown(handle_unknown: &str) -> PyResult<UnknownCategoryHandling> {
+    match handle_unknown {
+        "error" => Ok(UnknownCategoryHandling::Error),
+        "ignore" => Ok(UnknownCategoryHandling::Ignore),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown handle_unknown value: '{}'. Use 'error' or 'ignore'",
+            handle_unknown
+        ))),
     }
-    Ok(smote)
 }
 
-fn apply_sampling_strategy_adasyn(
-    mut adasyn: ferroml_core::preprocessing::sampling::ADASYN,
+fn parse_sampling_strategy(
     strategy: &str,
-) -> PyResult<ferroml_core::preprocessing::sampling::ADASYN> {
+) -> PyResult<ferroml_core::preprocessing::sampling::SamplingStrategy> {
     use ferroml_core::preprocessing::sampling::SamplingStrategy;
     match strategy {
-        "auto" => {
-            adasyn = adasyn.with_sampling_strategy(SamplingStrategy::Auto);
-        }
-        other => {
-            if let Ok(ratio) = other.parse::<f64>() {
-                adasyn = adasyn.with_sampling_strategy(SamplingStrategy::Ratio(ratio));
-            } else {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+        "auto" => Ok(SamplingStrategy::Auto),
+        other => other
+            .parse::<f64>()
+            .map(SamplingStrategy::Ratio)
+            .map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
                     "Unknown sampling_strategy: '{}'. Use 'auto' or a float ratio.",
                     other
-                )));
-            }
-        }
+                ))
+            }),
     }
-    Ok(adasyn)
-}
-
-fn apply_sampling_strategy_undersampler(
-    mut sampler: ferroml_core::preprocessing::sampling::RandomUnderSampler,
-    strategy: &str,
-) -> PyResult<ferroml_core::preprocessing::sampling::RandomUnderSampler> {
-    use ferroml_core::preprocessing::sampling::SamplingStrategy;
-    match strategy {
-        "auto" => {
-            sampler = sampler.with_sampling_strategy(SamplingStrategy::Auto);
-        }
-        other => {
-            if let Ok(ratio) = other.parse::<f64>() {
-                sampler = sampler.with_sampling_strategy(SamplingStrategy::Ratio(ratio));
-            } else {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Unknown sampling_strategy: '{}'. Use 'auto' or a float ratio.",
-                    other
-                )));
-            }
-        }
-    }
-    Ok(sampler)
-}
-
-fn apply_sampling_strategy_oversampler(
-    mut sampler: ferroml_core::preprocessing::sampling::RandomOverSampler,
-    strategy: &str,
-) -> PyResult<ferroml_core::preprocessing::sampling::RandomOverSampler> {
-    use ferroml_core::preprocessing::sampling::SamplingStrategy;
-    match strategy {
-        "auto" => {
-            sampler = sampler.with_sampling_strategy(SamplingStrategy::Auto);
-        }
-        other => {
-            if let Ok(ratio) = other.parse::<f64>() {
-                sampler = sampler.with_sampling_strategy(SamplingStrategy::Ratio(ratio));
-            } else {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Unknown sampling_strategy: '{}'. Use 'auto' or a float ratio.",
-                    other
-                )));
-            }
-        }
-    }
-    Ok(sampler)
 }
 
 // =============================================================================
@@ -2554,7 +2473,7 @@ fn apply_sampling_strategy_oversampler(
 #[pyclass(name = "RecursiveFeatureElimination", module = "ferroml.preprocessing")]
 pub struct PyRFE {
     inner: RecursiveFeatureElimination,
-    estimator_name: String,
+    estimator_name: &'static str,
     n_features_to_select_cfg: Option<usize>,
     step_cfg: usize,
 }
@@ -2562,7 +2481,7 @@ pub struct PyRFE {
 /// Build an RFE instance from a boxed FeatureImportanceEstimator.
 fn build_rfe(
     estimator: Box<dyn ferroml_core::preprocessing::selection::FeatureImportanceEstimator>,
-    estimator_name: String,
+    estimator_name: &'static str,
     n_features_to_select: Option<usize>,
     step: usize,
 ) -> PyRFE {
@@ -2616,7 +2535,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "LinearRegression".to_string(),
+            "LinearRegression",
             n_features_to_select,
             step,
         )
@@ -2647,7 +2566,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "RidgeRegression".to_string(),
+            "RidgeRegression",
             n_features_to_select,
             step,
         )
@@ -2678,7 +2597,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "LassoRegression".to_string(),
+            "LassoRegression",
             n_features_to_select,
             step,
         )
@@ -2713,7 +2632,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "LogisticRegression".to_string(),
+            "LogisticRegression",
             n_features_to_select,
             step,
         )
@@ -2757,7 +2676,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "DecisionTreeClassifier".to_string(),
+            "DecisionTreeClassifier",
             n_features_to_select,
             step,
         )
@@ -2801,7 +2720,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "DecisionTreeRegressor".to_string(),
+            "DecisionTreeRegressor",
             n_features_to_select,
             step,
         )
@@ -2841,7 +2760,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "RandomForestClassifier".to_string(),
+            "RandomForestClassifier",
             n_features_to_select,
             step,
         )
@@ -2881,7 +2800,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "RandomForestRegressor".to_string(),
+            "RandomForestRegressor",
             n_features_to_select,
             step,
         )
@@ -2925,7 +2844,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "GradientBoostingClassifier".to_string(),
+            "GradientBoostingClassifier",
             n_features_to_select,
             step,
         )
@@ -2969,7 +2888,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "GradientBoostingRegressor".to_string(),
+            "GradientBoostingRegressor",
             n_features_to_select,
             step,
         )
@@ -3009,7 +2928,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "ExtraTreesClassifier".to_string(),
+            "ExtraTreesClassifier",
             n_features_to_select,
             step,
         )
@@ -3049,7 +2968,7 @@ impl PyRFE {
             });
         build_rfe(
             Box::new(estimator),
-            "ExtraTreesRegressor".to_string(),
+            "ExtraTreesRegressor",
             n_features_to_select,
             step,
         )
@@ -3082,12 +3001,7 @@ impl PyRFE {
                     )
                 })
             });
-        build_rfe(
-            Box::new(estimator),
-            "SVR".to_string(),
-            n_features_to_select,
-            step,
-        )
+        build_rfe(Box::new(estimator), "SVR", n_features_to_select, step)
     }
 
     // =========================================================================
