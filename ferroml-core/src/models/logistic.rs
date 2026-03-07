@@ -422,14 +422,8 @@ impl LogisticRegression {
             .map(|d| d.deviance_residuals.clone())
     }
 
-    /// Get feature name for index
     fn get_feature_name(&self, idx: usize) -> String {
-        if let Some(ref names) = self.feature_names {
-            if idx < names.len() {
-                return names[idx].clone();
-            }
-        }
-        format!("x{}", idx + 1)
+        super::get_feature_name(&self.feature_names, idx)
     }
 
     /// Fit using IRLS (Iteratively Reweighted Least Squares)
@@ -948,16 +942,7 @@ impl OddsRatioInfo {
 // Helper Functions
 // =============================================================================
 
-/// Sigmoid function: 1 / (1 + exp(-x))
-fn sigmoid(x: f64) -> f64 {
-    if x >= 0.0 {
-        let ex = (-x).exp();
-        1.0 / (1.0 + ex)
-    } else {
-        let ex = x.exp();
-        ex / (1.0 + ex)
-    }
-}
+use super::sigmoid;
 
 /// Compute log-likelihood for logistic regression (unweighted variant kept for reference)
 fn _compute_log_likelihood(y: &Array1<f64>, mu: &Array1<f64>) -> f64 {

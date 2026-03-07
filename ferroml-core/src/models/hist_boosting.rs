@@ -1434,17 +1434,11 @@ impl HistGradientBoostingClassifier {
 
     /// Compute log loss for validation
     fn compute_log_loss(&self, y: &Array1<f64>, probas: &Array2<f64>) -> f64 {
-        let n = y.len() as f64;
-        let classes = self.classes.as_ref().expect("classes set during fit");
-
-        let mut loss = 0.0;
-        for (i, &yi) in y.iter().enumerate() {
-            if let Some(class_idx) = classes.iter().position(|&c| (c - yi).abs() < 1e-10) {
-                let p = probas[[i, class_idx]].max(1e-15).min(1.0 - 1e-15);
-                loss -= p.ln();
-            }
-        }
-        loss / n
+        super::compute_log_loss(
+            y,
+            probas,
+            self.classes.as_ref().expect("classes set during fit"),
+        )
     }
 
     /// Compute feature importances from all trees
@@ -1477,14 +1471,7 @@ impl HistGradientBoostingClassifier {
 }
 
 /// Sigmoid function
-fn sigmoid(x: f64) -> f64 {
-    if x >= 0.0 {
-        1.0 / (1.0 + (-x).exp())
-    } else {
-        let exp_x = x.exp();
-        exp_x / (1.0 + exp_x)
-    }
-}
+use super::sigmoid;
 
 impl Model for HistGradientBoostingClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
@@ -1500,9 +1487,7 @@ impl Model for HistGradientBoostingClassifier {
         }
 
         // Find unique classes
-        let mut classes: Vec<f64> = y.iter().copied().collect();
-        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        classes.dedup();
+        let classes = super::get_unique_classes(y);
 
         if classes.len() < 2 {
             return Err(FerroError::invalid_input(
@@ -1511,7 +1496,7 @@ impl Model for HistGradientBoostingClassifier {
         }
 
         let n_classes = classes.len();
-        self.classes = Some(Array1::from_vec(classes.clone()));
+        self.classes = Some(classes.clone());
         self.n_classes = Some(n_classes);
 
         let mut rng = match self.random_state {
@@ -1794,30 +1779,8 @@ impl Model for HistGradientBoostingClassifier {
 }
 
 impl HistGradientBoostingClassifier {
-    /// Convert raw predictions to probabilities
     fn raw_to_proba(&self, raw: &Array2<f64>) -> Array2<f64> {
-        let n_samples = raw.nrows();
-        let n_classes = self.n_classes.expect("model must be fitted");
-        let mut probas = Array2::zeros((n_samples, n_classes));
-
-        if n_classes == 2 {
-            for i in 0..n_samples {
-                let p = sigmoid(raw[[i, 0]]);
-                probas[[i, 0]] = 1.0 - p;
-                probas[[i, 1]] = p;
-            }
-        } else {
-            for i in 0..n_samples {
-                let row = raw.row(i);
-                let max_val = row.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                let exp_sum: f64 = row.iter().map(|&v| (v - max_val).exp()).sum();
-                for j in 0..n_classes {
-                    probas[[i, j]] = (raw[[i, j]] - max_val).exp() / exp_sum;
-                }
-            }
-        }
-
-        probas
+        super::raw_to_proba(raw, self.n_classes.expect("model must be fitted"))
     }
 }
 

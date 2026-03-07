@@ -952,9 +952,7 @@ impl Model for KNeighborsClassifier {
         }
 
         // Extract unique classes
-        let mut classes_vec: Vec<f64> = y.iter().copied().collect();
-        classes_vec.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-        classes_vec.dedup();
+        let classes_vec = super::get_unique_classes(y);
 
         let n_samples = x.nrows();
         let n_features = x.ncols();
@@ -981,7 +979,7 @@ impl Model for KNeighborsClassifier {
         // Store training data
         self.x_train = Some(x.clone());
         self.y_train = Some(y.clone());
-        self.classes = Some(Array1::from_vec(classes_vec));
+        self.classes = Some(classes_vec);
         self.n_features = Some(n_features);
 
         Ok(())

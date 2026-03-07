@@ -23,6 +23,39 @@ use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+fn parse_knn_weights(weights: &str) -> PyResult<KNNWeights> {
+    match weights.to_lowercase().as_str() {
+        "uniform" => Ok(KNNWeights::Uniform),
+        "distance" => Ok(KNNWeights::Distance),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "weights must be 'uniform' or 'distance'",
+        )),
+    }
+}
+
+fn parse_distance_metric(metric: &str, p: f64) -> PyResult<DistanceMetric> {
+    match metric.to_lowercase().as_str() {
+        "euclidean" | "l2" => Ok(DistanceMetric::Euclidean),
+        "manhattan" | "l1" | "cityblock" => Ok(DistanceMetric::Manhattan),
+        "minkowski" => Ok(DistanceMetric::Minkowski(p)),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "metric must be 'euclidean', 'manhattan', or 'minkowski'",
+        )),
+    }
+}
+
+fn parse_knn_algorithm(algorithm: &str) -> PyResult<KNNAlgorithm> {
+    match algorithm.to_lowercase().as_str() {
+        "auto" => Ok(KNNAlgorithm::Auto),
+        "kd_tree" | "kdtree" => Ok(KNNAlgorithm::KDTree),
+        "ball_tree" | "balltree" => Ok(KNNAlgorithm::BallTree),
+        "brute" | "brute_force" => Ok(KNNAlgorithm::BruteForce),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "algorithm must be 'auto', 'kd_tree', 'ball_tree', or 'brute'",
+        )),
+    }
+}
+
 // =============================================================================
 // KNeighborsClassifier
 // =============================================================================
@@ -82,38 +115,9 @@ impl PyKNeighborsClassifier {
         p: f64,
         leaf_size: usize,
     ) -> PyResult<Self> {
-        let weights_enum = match weights.to_lowercase().as_str() {
-            "uniform" => KNNWeights::Uniform,
-            "distance" => KNNWeights::Distance,
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "weights must be 'uniform' or 'distance'",
-                ))
-            }
-        };
-
-        let metric_enum = match metric.to_lowercase().as_str() {
-            "euclidean" | "l2" => DistanceMetric::Euclidean,
-            "manhattan" | "l1" | "cityblock" => DistanceMetric::Manhattan,
-            "minkowski" => DistanceMetric::Minkowski(p),
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "metric must be 'euclidean', 'manhattan', or 'minkowski'",
-                ))
-            }
-        };
-
-        let algorithm_enum = match algorithm.to_lowercase().as_str() {
-            "auto" => KNNAlgorithm::Auto,
-            "kd_tree" | "kdtree" => KNNAlgorithm::KDTree,
-            "ball_tree" | "balltree" => KNNAlgorithm::BallTree,
-            "brute" | "brute_force" => KNNAlgorithm::BruteForce,
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "algorithm must be 'auto', 'kd_tree', 'ball_tree', or 'brute'",
-                ))
-            }
-        };
+        let weights_enum = parse_knn_weights(weights)?;
+        let metric_enum = parse_distance_metric(metric, p)?;
+        let algorithm_enum = parse_knn_algorithm(algorithm)?;
 
         let inner = KNeighborsClassifier::new(n_neighbors)
             .with_weights(weights_enum)
@@ -304,38 +308,9 @@ impl PyKNeighborsRegressor {
         p: f64,
         leaf_size: usize,
     ) -> PyResult<Self> {
-        let weights_enum = match weights.to_lowercase().as_str() {
-            "uniform" => KNNWeights::Uniform,
-            "distance" => KNNWeights::Distance,
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "weights must be 'uniform' or 'distance'",
-                ))
-            }
-        };
-
-        let metric_enum = match metric.to_lowercase().as_str() {
-            "euclidean" | "l2" => DistanceMetric::Euclidean,
-            "manhattan" | "l1" | "cityblock" => DistanceMetric::Manhattan,
-            "minkowski" => DistanceMetric::Minkowski(p),
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "metric must be 'euclidean', 'manhattan', or 'minkowski'",
-                ))
-            }
-        };
-
-        let algorithm_enum = match algorithm.to_lowercase().as_str() {
-            "auto" => KNNAlgorithm::Auto,
-            "kd_tree" | "kdtree" => KNNAlgorithm::KDTree,
-            "ball_tree" | "balltree" => KNNAlgorithm::BallTree,
-            "brute" | "brute_force" => KNNAlgorithm::BruteForce,
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "algorithm must be 'auto', 'kd_tree', 'ball_tree', or 'brute'",
-                ))
-            }
-        };
+        let weights_enum = parse_knn_weights(weights)?;
+        let metric_enum = parse_distance_metric(metric, p)?;
+        let algorithm_enum = parse_knn_algorithm(algorithm)?;
 
         let inner = KNeighborsRegressor::new(n_neighbors)
             .with_weights(weights_enum)

@@ -515,7 +515,7 @@ impl PyFactorAnalysis {
         if let Some(seed) = random_state {
             fa = fa.with_random_state(seed);
         }
-        Self { inner: fa }.into_ok()
+        Ok(Self { inner: fa })
     }
 
     /// Fit the model to the data.
@@ -571,14 +571,6 @@ impl PyFactorAnalysis {
         "FactorAnalysis()".to_string()
     }
 }
-
-// Helper trait to convert Self into PyResult<Self>
-trait IntoOk: Sized {
-    fn into_ok(self) -> PyResult<Self> {
-        Ok(self)
-    }
-}
-impl IntoOk for PyFactorAnalysis {}
 
 // =============================================================================
 // Module registration

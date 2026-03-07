@@ -43,6 +43,7 @@ mod clustering;
 mod datasets;
 mod decomposition;
 mod ensemble;
+pub(crate) mod errors;
 mod explainability;
 mod linear;
 mod neighbors;

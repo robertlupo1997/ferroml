@@ -522,14 +522,8 @@ impl QuantileRegression {
         Ok((bootstrap_coefs, std_errors))
     }
 
-    /// Get feature name for index
     fn get_feature_name(&self, idx: usize) -> String {
-        if let Some(ref names) = self.feature_names {
-            if idx < names.len() {
-                return names[idx].clone();
-            }
-        }
-        format!("x{}", idx + 1)
+        super::get_feature_name(&self.feature_names, idx)
     }
 }
 

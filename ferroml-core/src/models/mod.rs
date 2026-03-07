@@ -1116,6 +1116,60 @@ pub fn get_feature_name(feature_names: &Option<Vec<String>>, idx: usize) -> Stri
     format!("x{}", idx + 1)
 }
 
+/// Numerically stable sigmoid: 1 / (1 + exp(-x)).
+///
+/// Uses two-branch formulation to avoid overflow for large negative inputs.
+#[inline]
+pub fn sigmoid(x: f64) -> f64 {
+    if x >= 0.0 {
+        1.0 / (1.0 + (-x).exp())
+    } else {
+        let exp_x = x.exp();
+        exp_x / (1.0 + exp_x)
+    }
+}
+
+/// Convert raw boosting predictions to probabilities.
+///
+/// For binary classification (n_classes == 2): applies sigmoid to column 0.
+/// For multiclass: applies softmax row-wise with numerical stability.
+pub fn raw_to_proba(raw: &Array2<f64>, n_classes: usize) -> Array2<f64> {
+    let n_samples = raw.nrows();
+    let mut probas = Array2::zeros((n_samples, n_classes));
+
+    if n_classes == 2 {
+        for i in 0..n_samples {
+            let p = sigmoid(raw[[i, 0]]);
+            probas[[i, 0]] = 1.0 - p;
+            probas[[i, 1]] = p;
+        }
+    } else {
+        for i in 0..n_samples {
+            let row = raw.row(i);
+            let max_val = row.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let exp_sum: f64 = row.iter().map(|&v| (v - max_val).exp()).sum();
+            for j in 0..n_classes {
+                probas[[i, j]] = (raw[[i, j]] - max_val).exp() / exp_sum;
+            }
+        }
+    }
+
+    probas
+}
+
+/// Compute log loss (cross-entropy) given true labels, predicted probabilities, and class labels.
+pub fn compute_log_loss(y: &Array1<f64>, probas: &Array2<f64>, classes: &Array1<f64>) -> f64 {
+    let n = y.len() as f64;
+    let mut loss = 0.0;
+    for (i, &yi) in y.iter().enumerate() {
+        if let Some(class_idx) = classes.iter().position(|&c| (c - yi).abs() < 1e-10) {
+            let p = probas[[i, class_idx]].max(1e-15).min(1.0 - 1e-15);
+            loss -= p.ln();
+        }
+    }
+    loss / n
+}
+
 /// Compute the median of a pre-sorted slice.
 ///
 /// Returns 0.0 if the slice is empty. The caller must ensure the slice is sorted.

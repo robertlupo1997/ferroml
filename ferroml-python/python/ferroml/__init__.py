@@ -52,6 +52,11 @@ from ferroml import clustering
 from ferroml import preprocessing
 from ferroml import pipeline
 from ferroml import automl
+from ferroml import datasets
+from ferroml import decomposition
+from ferroml import ensemble
+from ferroml import explainability
+from ferroml import neural
 
 __all__ = [
     "__version__",
@@ -62,4 +67,9 @@ __all__ = [
     "preprocessing",
     "pipeline",
     "automl",
+    "datasets",
+    "decomposition",
+    "ensemble",
+    "explainability",
+    "neural",
 ]

@@ -1184,9 +1184,7 @@ impl Model for SVC {
         validate_fit_input(x, y)?;
 
         // Extract unique classes
-        let mut classes_vec: Vec<f64> = y.iter().copied().collect();
-        classes_vec.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-        classes_vec.dedup();
+        let classes_vec = super::get_unique_classes(y);
 
         if classes_vec.len() < 2 {
             return Err(FerroError::invalid_input(
@@ -1194,7 +1192,7 @@ impl Model for SVC {
             ));
         }
 
-        self.classes = Some(Array1::from_vec(classes_vec));
+        self.classes = Some(classes_vec);
         self.n_features = Some(x.ncols());
 
         // Compute class weights
@@ -2094,9 +2092,7 @@ impl Model for LinearSVC {
         validate_fit_input(x, y)?;
 
         // Extract unique classes
-        let mut classes_vec: Vec<f64> = y.iter().copied().collect();
-        classes_vec.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-        classes_vec.dedup();
+        let classes_vec = super::get_unique_classes(y);
 
         if classes_vec.len() < 2 {
             return Err(FerroError::invalid_input(
@@ -2104,7 +2100,7 @@ impl Model for LinearSVC {
             ));
         }
 
-        self.classes = Some(Array1::from_vec(classes_vec.clone()));
+        self.classes = Some(classes_vec.clone());
         self.n_features = Some(x.ncols());
 
         // Compute class weights

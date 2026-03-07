@@ -493,9 +493,7 @@ impl Model for GaussianNB {
         validate_fit_input(x, y)?;
 
         // Find unique classes
-        let mut classes: Vec<f64> = y.iter().copied().collect();
-        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        classes.dedup();
+        let classes = super::get_unique_classes(y);
 
         if classes.len() < 2 {
             return Err(FerroError::invalid_input(
@@ -514,7 +512,7 @@ impl Model for GaussianNB {
         self.epsilon = None;
 
         // Use partial_fit to do the actual work
-        self.partial_fit(x, y, Some(classes))
+        self.partial_fit(x, y, Some(classes.to_vec()))
     }
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
@@ -1031,9 +1029,7 @@ impl Model for MultinomialNB {
         }
 
         // Find unique classes
-        let mut classes: Vec<f64> = y.iter().copied().collect();
-        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        classes.dedup();
+        let classes = super::get_unique_classes(y);
 
         if classes.len() < 2 {
             return Err(FerroError::invalid_input(
@@ -1050,7 +1046,7 @@ impl Model for MultinomialNB {
         self.n_features = None;
 
         // Use partial_fit to do the actual work
-        self.partial_fit(x, y, Some(classes))
+        self.partial_fit(x, y, Some(classes.to_vec()))
     }
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
@@ -1536,9 +1532,7 @@ impl Model for BernoulliNB {
         validate_fit_input(x, y)?;
 
         // Find unique classes
-        let mut classes: Vec<f64> = y.iter().copied().collect();
-        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        classes.dedup();
+        let classes = super::get_unique_classes(y);
 
         if classes.len() < 2 {
             return Err(FerroError::invalid_input(
@@ -1556,7 +1550,7 @@ impl Model for BernoulliNB {
         self.n_features = None;
 
         // Use partial_fit to do the actual work
-        self.partial_fit(x, y, Some(classes))
+        self.partial_fit(x, y, Some(classes.to_vec()))
     }
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {

@@ -167,14 +167,8 @@ impl RidgeRegression {
         Some(1.0 - data.rss / data.tss)
     }
 
-    /// Get feature name for index
     fn get_feature_name(&self, idx: usize) -> String {
-        if let Some(ref names) = self.feature_names {
-            if idx < names.len() {
-                return names[idx].clone();
-            }
-        }
-        format!("x{}", idx + 1)
+        super::get_feature_name(&self.feature_names, idx)
     }
 }
 
@@ -566,14 +560,8 @@ impl LassoRegression {
         Some(1.0 - data.rss / data.tss)
     }
 
-    /// Get feature name for index
     fn get_feature_name(&self, idx: usize) -> String {
-        if let Some(ref names) = self.feature_names {
-            if idx < names.len() {
-                return names[idx].clone();
-            }
-        }
-        format!("x{}", idx + 1)
+        super::get_feature_name(&self.feature_names, idx)
     }
 }
 
@@ -979,14 +967,8 @@ impl ElasticNet {
         Some(1.0 - data.rss / data.tss)
     }
 
-    /// Get feature name for index
     fn get_feature_name(&self, idx: usize) -> String {
-        if let Some(ref names) = self.feature_names {
-            if idx < names.len() {
-                return names[idx].clone();
-            }
-        }
-        format!("x{}", idx + 1)
+        super::get_feature_name(&self.feature_names, idx)
     }
 }
 

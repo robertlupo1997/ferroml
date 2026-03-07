@@ -532,15 +532,7 @@ impl GradientBoostingRegressor {
 
     /// Sample indices for stochastic gradient boosting
     fn sample_indices(&self, n_samples: usize, rng: &mut StdRng) -> Vec<usize> {
-        if self.subsample >= 1.0 {
-            (0..n_samples).collect()
-        } else {
-            let n_subsample = (n_samples as f64 * self.subsample).ceil() as usize;
-            let mut indices: Vec<usize> = (0..n_samples).collect();
-            indices.shuffle(rng);
-            indices.truncate(n_subsample);
-            indices
-        }
+        sample_subsample_indices(self.subsample, n_samples, rng)
     }
 
     /// Compute feature importances from all trees
@@ -1044,15 +1036,7 @@ impl GradientBoostingClassifier {
 
     /// Sample indices for stochastic gradient boosting
     fn sample_indices(&self, n_samples: usize, rng: &mut StdRng) -> Vec<usize> {
-        if self.subsample >= 1.0 {
-            (0..n_samples).collect()
-        } else {
-            let n_subsample = (n_samples as f64 * self.subsample).ceil() as usize;
-            let mut indices: Vec<usize> = (0..n_samples).collect();
-            indices.shuffle(rng);
-            indices.truncate(n_subsample);
-            indices
-        }
+        sample_subsample_indices(self.subsample, n_samples, rng)
     }
 
     /// Compute feature importances from all trees
@@ -1081,27 +1065,22 @@ impl GradientBoostingClassifier {
 
     /// Compute log-loss for validation
     fn compute_log_loss(&self, y: &Array1<f64>, probas: &Array2<f64>) -> f64 {
-        let n = y.len() as f64;
-        let classes = self.classes.as_ref().unwrap();
-
-        let mut loss = 0.0;
-        for (i, &yi) in y.iter().enumerate() {
-            if let Some(class_idx) = classes.iter().position(|&c| (c - yi).abs() < 1e-10) {
-                let p = probas[[i, class_idx]].max(1e-15).min(1.0 - 1e-15);
-                loss -= p.ln();
-            }
-        }
-        loss / n
+        super::compute_log_loss(y, probas, self.classes.as_ref().unwrap())
     }
 }
 
 /// Sigmoid function
-fn sigmoid(x: f64) -> f64 {
-    if x >= 0.0 {
-        1.0 / (1.0 + (-x).exp())
+use super::sigmoid;
+
+fn sample_subsample_indices(subsample: f64, n_samples: usize, rng: &mut StdRng) -> Vec<usize> {
+    if subsample >= 1.0 {
+        (0..n_samples).collect()
     } else {
-        let exp_x = x.exp();
-        exp_x / (1.0 + exp_x)
+        let n_subsample = (n_samples as f64 * subsample).ceil() as usize;
+        let mut indices: Vec<usize> = (0..n_samples).collect();
+        indices.shuffle(rng);
+        indices.truncate(n_subsample);
+        indices
     }
 }
 
@@ -1114,9 +1093,7 @@ impl Model for GradientBoostingClassifier {
         self.n_features = Some(n_features);
 
         // Find unique classes
-        let mut classes: Vec<f64> = y.iter().copied().collect();
-        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        classes.dedup();
+        let classes = super::get_unique_classes(y);
 
         if classes.len() < 2 {
             return Err(FerroError::invalid_input(
@@ -1125,7 +1102,7 @@ impl Model for GradientBoostingClassifier {
         }
 
         let n_classes = classes.len();
-        self.classes = Some(Array1::from_vec(classes.clone()));
+        self.classes = Some(classes.clone());
         self.n_classes = Some(n_classes);
 
         let mut rng = match self.random_state {
@@ -1387,30 +1364,8 @@ impl Model for GradientBoostingClassifier {
 }
 
 impl GradientBoostingClassifier {
-    /// Convert raw predictions to probabilities
     fn raw_to_proba(&self, raw: &Array2<f64>) -> Array2<f64> {
-        let n_samples = raw.nrows();
-        let n_classes = self.n_classes.unwrap();
-        let mut probas = Array2::zeros((n_samples, n_classes));
-
-        if n_classes == 2 {
-            for i in 0..n_samples {
-                let p = sigmoid(raw[[i, 0]]);
-                probas[[i, 0]] = 1.0 - p;
-                probas[[i, 1]] = p;
-            }
-        } else {
-            for i in 0..n_samples {
-                let row = raw.row(i);
-                let max_val = row.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                let exp_sum: f64 = row.iter().map(|&v| (v - max_val).exp()).sum();
-                for j in 0..n_classes {
-                    probas[[i, j]] = (raw[[i, j]] - max_val).exp() / exp_sum;
-                }
-            }
-        }
-
-        probas
+        super::raw_to_proba(raw, self.n_classes.unwrap())
     }
 }
 

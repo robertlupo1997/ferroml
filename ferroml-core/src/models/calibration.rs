@@ -201,11 +201,6 @@ impl SigmoidCalibrator {
     pub fn parameters(&self) -> Option<(f64, f64)> {
         self.a.zip(self.b)
     }
-
-    /// Sigmoid function
-    fn sigmoid(x: f64) -> f64 {
-        1.0 / (1.0 + (-x).exp())
-    }
 }
 
 impl Calibrator for SigmoidCalibrator {
@@ -251,7 +246,7 @@ impl Calibrator for SigmoidCalibrator {
         for _ in 0..self.max_iter {
             // Compute probabilities: p = sigmoid(a * f + b)
             let z: Array1<f64> = y_prob.mapv(|f| a.mul_add(f, b));
-            let p: Array1<f64> = z.mapv(Self::sigmoid);
+            let p: Array1<f64> = z.mapv(super::sigmoid);
 
             // Compute gradient
             let diff = &p - &targets;
@@ -291,7 +286,7 @@ impl Calibrator for SigmoidCalibrator {
             .ok_or_else(|| FerroError::not_fitted("SigmoidCalibrator.transform"))?;
 
         // Apply calibration: P_calibrated = sigmoid(a * f + b)
-        let calibrated = y_prob.mapv(|f| Self::sigmoid(a.mul_add(f, b)));
+        let calibrated = y_prob.mapv(|f| super::sigmoid(a.mul_add(f, b)));
         Ok(calibrated)
     }
 

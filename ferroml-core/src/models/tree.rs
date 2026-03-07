@@ -348,6 +348,35 @@ impl TreeStructure {
     }
 }
 
+fn compute_tree_feature_importances(tree: &TreeStructure) -> Array1<f64> {
+    let n_features = tree.n_features;
+    let mut importances = vec![0.0; n_features];
+    let total_samples = tree
+        .nodes
+        .first()
+        .map(|n| n.weighted_n_samples)
+        .unwrap_or(1.0);
+
+    for node in &tree.nodes {
+        if !node.is_leaf {
+            let feature_idx = node
+                .feature_index
+                .expect("internal node must have feature_index");
+            importances[feature_idx] +=
+                node.impurity_decrease * (node.weighted_n_samples / total_samples);
+        }
+    }
+
+    let total: f64 = importances.iter().sum();
+    if total > 0.0 {
+        for imp in &mut importances {
+            *imp /= total;
+        }
+    }
+
+    Array1::from_vec(importances)
+}
+
 // =============================================================================
 // Decision Tree Classifier
 // =============================================================================
@@ -959,34 +988,7 @@ impl DecisionTreeClassifier {
     /// Compute feature importances from the tree
     fn compute_feature_importances(&mut self) {
         if let Some(ref tree) = self.tree {
-            let n_features = tree.n_features;
-            let mut importances = vec![0.0; n_features];
-            let total_samples = tree
-                .nodes
-                .first()
-                .map(|n| n.weighted_n_samples)
-                .unwrap_or(1.0);
-
-            for node in &tree.nodes {
-                if !node.is_leaf {
-                    let feature_idx = node
-                        .feature_index
-                        .expect("internal node must have feature_index");
-                    // Weighted impurity decrease
-                    importances[feature_idx] +=
-                        node.impurity_decrease * (node.weighted_n_samples / total_samples);
-                }
-            }
-
-            // Normalize to sum to 1
-            let total: f64 = importances.iter().sum();
-            if total > 0.0 {
-                for imp in &mut importances {
-                    *imp /= total;
-                }
-            }
-
-            self.feature_importances = Some(Array1::from_vec(importances));
+            self.feature_importances = Some(compute_tree_feature_importances(tree));
         }
     }
 

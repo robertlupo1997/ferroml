@@ -611,9 +611,7 @@ impl Model for RandomForestClassifier {
         let n_features = x.ncols();
 
         // Find unique classes
-        let mut classes: Vec<f64> = y.iter().copied().collect();
-        classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        classes.dedup();
+        let classes = super::get_unique_classes(y);
 
         if classes.len() < 2 {
             return Err(FerroError::invalid_input(
@@ -621,7 +619,7 @@ impl Model for RandomForestClassifier {
             ));
         }
 
-        self.classes = Some(Array1::from_vec(classes));
+        self.classes = Some(classes);
         self.n_features = Some(n_features);
 
         // Compute max_features
