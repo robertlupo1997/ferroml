@@ -16,6 +16,7 @@ pub mod confidence;
 pub mod diagnostics;
 pub mod effect_size;
 pub mod hypothesis;
+pub mod math;
 pub mod multiple_testing;
 pub mod power;
 

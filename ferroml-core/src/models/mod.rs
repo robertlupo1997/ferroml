@@ -1104,6 +1104,32 @@ fn truncate_string(s: &str, max_len: usize) -> String {
     }
 }
 
+/// Get a feature name by index, falling back to "x{idx+1}" if no names are provided.
+///
+/// Shared helper for models that report coefficient/feature names in summaries.
+pub fn get_feature_name(feature_names: &Option<Vec<String>>, idx: usize) -> String {
+    if let Some(ref names) = feature_names {
+        if idx < names.len() {
+            return names[idx].clone();
+        }
+    }
+    format!("x{}", idx + 1)
+}
+
+/// Compute the median of a pre-sorted slice.
+///
+/// Returns 0.0 if the slice is empty. The caller must ensure the slice is sorted.
+pub fn sorted_median(sorted: &[f64]) -> f64 {
+    let n = sorted.len();
+    if n == 0 {
+        0.0
+    } else if n % 2 == 0 {
+        (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
+    } else {
+        sorted[n / 2]
+    }
+}
+
 /// Validate that the model is fitted before operations that require it
 pub fn check_is_fitted<T>(fitted_data: &Option<T>, operation: &str) -> Result<()> {
     if fitted_data.is_none() {

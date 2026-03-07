@@ -74,6 +74,52 @@ use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// =============================================================================
+// Shared resampler helpers
+// =============================================================================
+
+/// Validate inputs common to all resamplers.
+fn validate_resampler_input(x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+    let n_samples = x.nrows();
+    if n_samples == 0 {
+        return Err(FerroError::invalid_input("Input array cannot be empty"));
+    }
+    if n_samples != y.len() {
+        return Err(FerroError::shape_mismatch(
+            format!("({},)", n_samples),
+            format!("({},)", y.len()),
+        ));
+    }
+    Ok(())
+}
+
+/// Count samples per class and collect their indices.
+fn count_classes(y: &Array1<f64>) -> (HashMap<i64, usize>, HashMap<i64, Vec<usize>>) {
+    let mut class_counts: HashMap<i64, usize> = HashMap::new();
+    let mut class_indices: HashMap<i64, Vec<usize>> = HashMap::new();
+    for (i, &label) in y.iter().enumerate() {
+        let label_int = label.round() as i64;
+        *class_counts.entry(label_int).or_insert(0) += 1;
+        class_indices.entry(label_int).or_default().push(i);
+    }
+    (class_counts, class_indices)
+}
+
+/// Assemble collected row vectors and labels into output arrays.
+fn assemble_resampled(
+    all_x: Vec<Array1<f64>>,
+    all_y: Vec<f64>,
+    n_features: usize,
+) -> (Array2<f64>, Array1<f64>) {
+    let n_total = all_x.len();
+    let mut x_resampled = Array2::zeros((n_total, n_features));
+    for (i, row) in all_x.iter().enumerate() {
+        x_resampled.row_mut(i).assign(row);
+    }
+    let y_resampled = Array1::from_vec(all_y);
+    (x_resampled, y_resampled)
+}
+
 /// Trait for resampling techniques that handle class imbalance.
 ///
 /// Resamplers modify the dataset by either:
@@ -593,29 +639,10 @@ impl Resampler for BorderlineSMOTE {
         x: &Array2<f64>,
         y: &Array1<f64>,
     ) -> Result<(Array2<f64>, Array1<f64>)> {
-        let n_samples = x.nrows();
+        validate_resampler_input(x, y)?;
         let n_features = x.ncols();
 
-        if n_samples == 0 {
-            return Err(FerroError::invalid_input("Input array cannot be empty"));
-        }
-
-        if n_samples != y.len() {
-            return Err(FerroError::shape_mismatch(
-                format!("({},)", n_samples),
-                format!("({},)", y.len()),
-            ));
-        }
-
-        // Count samples per class
-        let mut class_counts: HashMap<i64, usize> = HashMap::new();
-        let mut class_indices: HashMap<i64, Vec<usize>> = HashMap::new();
-
-        for (i, &label) in y.iter().enumerate() {
-            let label_int = label.round() as i64;
-            *class_counts.entry(label_int).or_insert(0) += 1;
-            class_indices.entry(label_int).or_default().push(i);
-        }
+        let (class_counts, class_indices) = count_classes(y);
 
         if class_counts.len() < 2 {
             return Err(FerroError::invalid_input(
@@ -623,23 +650,18 @@ impl Resampler for BorderlineSMOTE {
             ));
         }
 
-        // Compute target counts
         let target_counts = self.smote.compute_target_counts(&class_counts)?;
 
-        // Initialize RNG
         let mut rng = match self.smote.random_state {
             Some(seed) => StdRng::seed_from_u64(seed),
             None => StdRng::from_os_rng(),
         };
 
-        // Collect all samples
         let mut all_x: Vec<Array1<f64>> = x.rows().into_iter().map(|r| r.to_owned()).collect();
         let mut all_y: Vec<f64> = y.to_vec();
 
-        // Find majority class
         let majority_class = *class_counts.iter().max_by_key(|(_, &v)| v).unwrap().0;
 
-        // Generate synthetic samples for each minority class
         for (&class_label, &current_count) in &class_counts {
             if class_label == majority_class {
                 continue;
@@ -662,37 +684,22 @@ impl Resampler for BorderlineSMOTE {
                 )));
             }
 
-            // Classify samples
             let (_noise, danger, _safe) = self.classify_samples(x, y, class_label, indices);
 
-            // Only use danger (borderline) samples for generation
             if danger.is_empty() {
-                // Fall back to all samples if no borderline samples found
                 continue;
             }
 
-            // Build array of danger samples for k-NN
             let danger_samples: Array2<f64> =
                 Array2::from_shape_fn((danger.len(), n_features), |(i, j)| x[[danger[i], j]]);
 
-            let _effective_k = self.smote.k_neighbors.min(danger.len() - 1).max(1);
-
-            // Generate synthetic samples from borderline samples
             for _ in 0..n_to_generate {
-                // Randomly select a borderline sample
                 let sample_local_idx = rng.random_range(0..danger.len());
 
-                // Find neighbors (depending on kind)
-                let neighbors = if self.kind == 1 {
-                    // Borderline-1: Only minority neighbors
-                    self.smote
-                        .find_k_neighbors(sample_local_idx, &danger_samples)
-                } else {
-                    // Borderline-2: Can use any neighbor
-                    // For simplicity, we still use minority neighbors
-                    self.smote
-                        .find_k_neighbors(sample_local_idx, &danger_samples)
-                };
+                // Both Borderline-1 and Borderline-2 use minority neighbors
+                let neighbors = self
+                    .smote
+                    .find_k_neighbors(sample_local_idx, &danger_samples);
 
                 if neighbors.is_empty() {
                     continue;
@@ -711,16 +718,7 @@ impl Resampler for BorderlineSMOTE {
             }
         }
 
-        // Build output arrays
-        let n_total = all_x.len();
-        let mut x_resampled = Array2::zeros((n_total, n_features));
-        for (i, row) in all_x.iter().enumerate() {
-            x_resampled.row_mut(i).assign(row);
-        }
-
-        let y_resampled = Array1::from_vec(all_y);
-
-        Ok((x_resampled, y_resampled))
+        Ok(assemble_resampled(all_x, all_y, n_features))
     }
 
     fn strategy_description(&self) -> String {

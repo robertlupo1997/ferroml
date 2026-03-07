@@ -333,116 +333,15 @@ fn check_normality(data: &Array1<f64>, group_name: &str) -> AssumptionTest {
     }
 }
 
-/// Standard normal CDF
+// Delegate to shared math module to avoid duplicating numerical algorithms
+use super::math;
+
 fn normal_cdf(x: f64) -> f64 {
-    0.5 * (1.0 + erf(x / std::f64::consts::SQRT_2))
+    math::normal_cdf(x)
 }
 
-/// Error function
-fn erf(x: f64) -> f64 {
-    let a1 = 0.254829592;
-    let a2 = -0.284496736;
-    let a3 = 1.421413741;
-    let a4 = -1.453152027;
-    let a5 = 1.061405429;
-    let p = 0.3275911;
-
-    let sign = if x < 0.0 { -1.0 } else { 1.0 };
-    let x = x.abs();
-    let t = 1.0 / (1.0 + p * x);
-    let y = ((a5 * t + a4).mul_add(t, a3).mul_add(t, a2).mul_add(t, a1) * t)
-        .mul_add(-(-x * x).exp(), 1.0);
-    sign * y
-}
-
-/// Student's t CDF
 fn t_cdf(t: f64, df: f64) -> f64 {
-    let x = df / t.mul_add(t, df);
-    0.5f64.mul_add((1.0 - incomplete_beta(df / 2.0, 0.5, x)).copysign(t), 0.5)
-}
-
-/// Regularized incomplete beta function (Lentz's continued fraction)
-fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
-    if x <= 0.0 {
-        return 0.0;
-    }
-    if x >= 1.0 {
-        return 1.0;
-    }
-    let bt = b
-        .mul_add(
-            (1.0 - x).ln(),
-            a.mul_add(x.ln(), gamma_ln(a + b) - gamma_ln(a) - gamma_ln(b)),
-        )
-        .exp();
-    if x < (a + 1.0) / (a + b + 2.0) {
-        bt * beta_cf(a, b, x) / a
-    } else {
-        1.0 - bt * beta_cf(b, a, 1.0 - x) / b
-    }
-}
-
-fn beta_cf(a: f64, b: f64, x: f64) -> f64 {
-    let fpmin = 1e-30;
-    let qab = a + b;
-    let qap = a + 1.0;
-    let qam = a - 1.0;
-    let mut c = 1.0;
-    let mut d = 1.0 - qab * x / qap;
-    if d.abs() < fpmin {
-        d = fpmin;
-    }
-    d = 1.0 / d;
-    let mut h = d;
-    for m in 1..=200 {
-        let m = m as f64;
-        let m2 = 2.0 * m;
-        let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
-        d = 1.0 + aa * d;
-        if d.abs() < fpmin {
-            d = fpmin;
-        }
-        c = 1.0 + aa / c;
-        if c.abs() < fpmin {
-            c = fpmin;
-        }
-        d = 1.0 / d;
-        h *= d * c;
-        let aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
-        d = 1.0 + aa * d;
-        if d.abs() < fpmin {
-            d = fpmin;
-        }
-        c = 1.0 + aa / c;
-        if c.abs() < fpmin {
-            c = fpmin;
-        }
-        d = 1.0 / d;
-        let del = d * c;
-        h *= del;
-        if (del - 1.0).abs() < 3e-12 {
-            break;
-        }
-    }
-    h
-}
-
-/// Log gamma function
-fn gamma_ln(x: f64) -> f64 {
-    let coeffs = [
-        76.18009172947146,
-        -86.50532032941677,
-        24.01409824083091,
-        -1.231739572450155,
-        0.1208650973866179e-2,
-        -0.5395239384953e-5,
-    ];
-    let tmp = (x + 0.5).mul_add(-(x + 5.5).ln(), x + 5.5);
-    let mut ser = 1.000000000190015;
-    for (i, &c) in coeffs.iter().enumerate() {
-        ser += c / (x + i as f64 + 1.0);
-    }
-    -tmp + (2.5066282746310005 * ser / x).ln()
+    math::t_cdf(t, df)
 }
 
 #[cfg(test)]

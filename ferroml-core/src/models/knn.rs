@@ -585,10 +585,10 @@ impl BallTree {
         let mut max_dist_sq = 0.0_f64;
 
         for &idx in indices {
-            let point: Vec<f64> = data.row(idx).to_vec();
+            let row = data.row(idx);
             let dist_sq: f64 = center
                 .iter()
-                .zip(point.iter())
+                .zip(row.iter())
                 .map(|(c, p)| (c - p).powi(2))
                 .sum();
             max_dist_sq = max_dist_sq.max(dist_sq);
@@ -603,9 +603,18 @@ impl BallTree {
         let mut best_dim = 0;
 
         for d in 0..n_dims {
-            let values: Vec<f64> = indices.iter().map(|&idx| data[[idx, d]]).collect();
-            let min_val = values.iter().copied().fold(f64::INFINITY, f64::min);
-            let max_val = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            // Compute min/max directly without intermediate Vec allocation
+            let mut min_val = f64::INFINITY;
+            let mut max_val = f64::NEG_INFINITY;
+            for &idx in indices {
+                let v = data[[idx, d]];
+                if v < min_val {
+                    min_val = v;
+                }
+                if v > max_val {
+                    max_val = v;
+                }
+            }
             let spread = max_val - min_val;
 
             if spread > max_spread {
@@ -649,10 +658,11 @@ impl BallTree {
         }
 
         if node.is_leaf {
-            // Check all points in leaf
+            // Check all points in leaf using slice access
             for &idx in &node.point_indices {
-                let point: Vec<f64> = self.data.row(idx).to_vec();
-                let dist = metric.compute(query, &point);
+                let row = self.data.row(idx);
+                let point = row.as_slice().unwrap_or(&[]);
+                let dist = metric.compute(query, point);
 
                 if heap.len() < k {
                     heap.push(NeighborCandidate { idx, dist });

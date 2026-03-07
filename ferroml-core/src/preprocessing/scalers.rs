@@ -193,18 +193,19 @@ impl Transformer for StandardScaler {
 
         let mut result = x.clone();
 
-        // Center the data
-        if self.with_mean {
-            result = result - mean;
-        }
+        // Center and scale in a single column-wise pass (avoids temporary from `result - mean`)
+        for j in 0..result.ncols() {
+            let m = if self.with_mean { mean[j] } else { 0.0 };
+            let s = std[j];
+            let do_scale = self.with_std && s > 1e-10;
 
-        // Scale by standard deviation
-        if self.with_std {
-            for (j, &s) in std.iter().enumerate() {
-                if s > 1e-10 {
-                    result.column_mut(j).iter_mut().for_each(|v| *v /= s);
+            if self.with_mean || do_scale {
+                for v in result.column_mut(j).iter_mut() {
+                    *v -= m;
+                    if do_scale {
+                        *v /= s;
+                    }
                 }
-                // Constant features are left unchanged (division by near-zero would be unstable)
             }
         }
 
@@ -220,18 +221,20 @@ impl Transformer for StandardScaler {
 
         let mut result = x.clone();
 
-        // Inverse scale by standard deviation
-        if self.with_std {
-            for (j, &s) in std.iter().enumerate() {
-                if s > 1e-10 {
-                    result.column_mut(j).iter_mut().for_each(|v| *v *= s);
+        // Inverse scale and uncenter in a single column-wise pass
+        for j in 0..result.ncols() {
+            let s = std[j];
+            let do_scale = self.with_std && s > 1e-10;
+            let m = if self.with_mean { mean[j] } else { 0.0 };
+
+            if do_scale || self.with_mean {
+                for v in result.column_mut(j).iter_mut() {
+                    if do_scale {
+                        *v *= s;
+                    }
+                    *v += m;
                 }
             }
-        }
-
-        // Add back the mean
-        if self.with_mean {
-            result = result + mean;
         }
 
         Ok(result)

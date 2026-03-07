@@ -68,6 +68,66 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 // =============================================================================
+// Shared bootstrap helpers
+// =============================================================================
+
+/// Generate bootstrap sample indices and OOB indices.
+///
+/// Shared by `BaggingClassifier` and `BaggingRegressor`.
+fn generate_bootstrap_indices(
+    n_samples: usize,
+    n_draw: usize,
+    bootstrap: bool,
+    rng: &mut StdRng,
+) -> (Vec<usize>, Vec<usize>) {
+    if bootstrap {
+        let indices: Vec<usize> = (0..n_draw)
+            .map(|_| rng.random_range(0..n_samples))
+            .collect();
+
+        let mut in_bag = vec![false; n_samples];
+        for &idx in &indices {
+            in_bag[idx] = true;
+        }
+
+        let oob_indices: Vec<usize> = (0..n_samples).filter(|&i| !in_bag[i]).collect();
+        (indices, oob_indices)
+    } else {
+        let mut all_indices: Vec<usize> = (0..n_samples).collect();
+        all_indices.shuffle(rng);
+        let indices: Vec<usize> = all_indices.into_iter().take(n_draw).collect();
+
+        let in_bag: std::collections::HashSet<usize> = indices.iter().copied().collect();
+        let oob_indices: Vec<usize> = (0..n_samples).filter(|i| !in_bag.contains(i)).collect();
+        (indices, oob_indices)
+    }
+}
+
+/// Generate feature indices for subsampling.
+///
+/// Shared by `BaggingClassifier` and `BaggingRegressor`.
+fn generate_feature_indices(
+    n_features: usize,
+    n_select: usize,
+    bootstrap_features: bool,
+    rng: &mut StdRng,
+) -> Vec<usize> {
+    if n_select >= n_features {
+        return (0..n_features).collect();
+    }
+
+    if bootstrap_features {
+        (0..n_select)
+            .map(|_| rng.random_range(0..n_features))
+            .collect()
+    } else {
+        let mut all_indices: Vec<usize> = (0..n_features).collect();
+        all_indices.shuffle(rng);
+        all_indices.into_iter().take(n_select).collect()
+    }
+}
+
+// =============================================================================
 // Max Features Strategy
 // =============================================================================
 
@@ -364,64 +424,6 @@ impl BaggingClassifier {
         Array1::from_vec(classes)
     }
 
-    /// Generate bootstrap sample indices and OOB indices
-    fn generate_bootstrap_indices(
-        n_samples: usize,
-        n_draw: usize,
-        bootstrap: bool,
-        rng: &mut StdRng,
-    ) -> (Vec<usize>, Vec<usize>) {
-        if bootstrap {
-            // Sample with replacement
-            let indices: Vec<usize> = (0..n_draw)
-                .map(|_| rng.random_range(0..n_samples))
-                .collect();
-
-            // Track which samples are in-bag
-            let mut in_bag = vec![false; n_samples];
-            for &idx in &indices {
-                in_bag[idx] = true;
-            }
-
-            let oob_indices: Vec<usize> = (0..n_samples).filter(|&i| !in_bag[i]).collect();
-            (indices, oob_indices)
-        } else {
-            // Sample without replacement
-            let mut all_indices: Vec<usize> = (0..n_samples).collect();
-            all_indices.shuffle(rng);
-            let indices: Vec<usize> = all_indices.into_iter().take(n_draw).collect();
-
-            // Track which samples are in-bag
-            let in_bag: std::collections::HashSet<usize> = indices.iter().copied().collect();
-            let oob_indices: Vec<usize> = (0..n_samples).filter(|i| !in_bag.contains(i)).collect();
-            (indices, oob_indices)
-        }
-    }
-
-    /// Generate feature indices
-    fn generate_feature_indices(
-        n_features: usize,
-        n_select: usize,
-        bootstrap_features: bool,
-        rng: &mut StdRng,
-    ) -> Vec<usize> {
-        if n_select >= n_features {
-            return (0..n_features).collect();
-        }
-
-        if bootstrap_features {
-            // Sample with replacement
-            (0..n_select)
-                .map(|_| rng.random_range(0..n_features))
-                .collect()
-        } else {
-            // Sample without replacement
-            let mut all_indices: Vec<usize> = (0..n_features).collect();
-            all_indices.shuffle(rng);
-            all_indices.into_iter().take(n_select).collect()
-        }
-    }
-
     /// Compute OOB score after fitting
     fn compute_oob_score(
         &mut self,
@@ -549,8 +551,8 @@ impl Model for BaggingClassifier {
             for &seed in &seeds {
                 let mut rng = StdRng::seed_from_u64(seed);
                 let (samples, oob) =
-                    Self::generate_bootstrap_indices(n_samples, n_draw, self.bootstrap, &mut rng);
-                let features = Self::generate_feature_indices(
+                    generate_bootstrap_indices(n_samples, n_draw, self.bootstrap, &mut rng);
+                let features = generate_feature_indices(
                     n_features,
                     n_feature_draw,
                     self.bootstrap_features,
@@ -912,62 +914,6 @@ impl BaggingRegressor {
             .collect()
     }
 
-    /// Generate bootstrap sample indices and OOB indices
-    fn generate_bootstrap_indices(
-        n_samples: usize,
-        n_draw: usize,
-        bootstrap: bool,
-        rng: &mut StdRng,
-    ) -> (Vec<usize>, Vec<usize>) {
-        if bootstrap {
-            // Sample with replacement
-            let indices: Vec<usize> = (0..n_draw)
-                .map(|_| rng.random_range(0..n_samples))
-                .collect();
-
-            // Track which samples are in-bag
-            let mut in_bag = vec![false; n_samples];
-            for &idx in &indices {
-                in_bag[idx] = true;
-            }
-
-            let oob_indices: Vec<usize> = (0..n_samples).filter(|&i| !in_bag[i]).collect();
-            (indices, oob_indices)
-        } else {
-            // Sample without replacement
-            let mut all_indices: Vec<usize> = (0..n_samples).collect();
-            all_indices.shuffle(rng);
-            let indices: Vec<usize> = all_indices.into_iter().take(n_draw).collect();
-
-            // Track which samples are in-bag
-            let in_bag: std::collections::HashSet<usize> = indices.iter().copied().collect();
-            let oob_indices: Vec<usize> = (0..n_samples).filter(|i| !in_bag.contains(i)).collect();
-            (indices, oob_indices)
-        }
-    }
-
-    /// Generate feature indices
-    fn generate_feature_indices(
-        n_features: usize,
-        n_select: usize,
-        bootstrap_features: bool,
-        rng: &mut StdRng,
-    ) -> Vec<usize> {
-        if n_select >= n_features {
-            return (0..n_features).collect();
-        }
-
-        if bootstrap_features {
-            (0..n_select)
-                .map(|_| rng.random_range(0..n_features))
-                .collect()
-        } else {
-            let mut all_indices: Vec<usize> = (0..n_features).collect();
-            all_indices.shuffle(rng);
-            all_indices.into_iter().take(n_select).collect()
-        }
-    }
-
     /// Compute OOB score (R²) after fitting
     fn compute_oob_score(
         &mut self,
@@ -1091,8 +1037,8 @@ impl Model for BaggingRegressor {
             for &seed in &seeds {
                 let mut rng = StdRng::seed_from_u64(seed);
                 let (samples, oob) =
-                    Self::generate_bootstrap_indices(n_samples, n_draw, self.bootstrap, &mut rng);
-                let features = Self::generate_feature_indices(
+                    generate_bootstrap_indices(n_samples, n_draw, self.bootstrap, &mut rng);
+                let features = generate_feature_indices(
                     n_features,
                     n_feature_draw,
                     self.bootstrap_features,
