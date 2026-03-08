@@ -13,14 +13,20 @@ Comparison of FerroML against scikit-learn across models and preprocessing trans
 | Tree-based | 1e-6 | Deterministic splits |
 | Probabilistic outputs | 1e-6 | Softmax stability |
 | Ensemble (RF, GB, AdaBoost) | 5% | RNG implementation differences |
+| EM-based (GMM) | 1e-4 | Iterative convergence, initialization-dependent |
+| Anomaly detection (IF, LOF) | 5% | Randomized partitioning / density estimation |
+| Non-linear embedding (t-SNE) | N/A | Stochastic; validated via structure preservation metrics |
+| Non-parametric (Isotonic, QDA) | 1e-6 | Deterministic (PAVA) or closed-form per-class |
 
 ## Summary
 
 | Category | Tested | Status |
 |----------|--------|--------|
-| Models | 17 | All passing |
-| Preprocessing | 15 | All passing |
-| **Total** | **32** | **All passing** |
+| Models (sklearn comparison) | 17 | All passing |
+| Preprocessing (sklearn comparison) | 15 | All passing |
+| New models (unit-tested) | 6 | All passing |
+| Regression baselines | 20 | All passing |
+| **Total** | **58** | **All passing** |
 
 ## Model Accuracy (sklearn comparison)
 
@@ -64,27 +70,69 @@ Comparison of FerroML against scikit-learn across models and preprocessing trans
 | RobustScaler | **PASS** |
 | MaxAbsScaler | **PASS** |
 
-## Correctness Tests (Plans A, B, E)
+## New Model Accuracy (v0.1.0, unit-tested)
 
-In addition to sklearn fixture comparisons, FerroML has 252 dedicated correctness tests:
+| Model | Tests | Coverage |
+|-------|-------|----------|
+| GaussianMixture (GMM) | 29 | 4 covariance types (Full/Tied/Diagonal/Spherical), EM convergence, BIC/AIC, predict_proba, sample |
+| t-SNE | 28 | 3 distance metrics, PCA/random init, perplexity sweep, early exaggeration |
+| IsolationForest | 30 | Anomaly scoring, contamination tuning, predict inlier/outlier, reproducibility |
+| LocalOutlierFactor (LOF) | 28 | k-neighbor density, contamination, score_samples, edge cases |
+| QuadraticDiscriminantAnalysis (QDA) | 24 | Per-class covariance, regularization, predict_proba, multiclass |
+| IsotonicRegression | 22 | PAVA algorithm, monotonicity, increasing/decreasing, interpolation |
+
+## Regression Baselines (20 models)
+
+Performance floor tests on deterministic synthetic data to catch unintended regressions:
+
+| Model | Task | Metric | Minimum Threshold |
+|-------|------|--------|-------------------|
+| LinearRegression | Regression | R^2 | 0.95 |
+| RidgeRegression | Regression | R^2 | 0.94 |
+| LassoRegression | Regression | R^2 | 0.90 |
+| ElasticNet | Regression | R^2 | 0.88 |
+| DecisionTreeRegressor | Regression | R^2 | 0.85 |
+| RandomForestRegressor | Regression | R^2 | 0.90 |
+| GradientBoostingRegressor | Regression | R^2 | 0.90 |
+| KNeighborsRegressor | Regression | R^2 | 0.80 |
+| ExtraTreesRegressor | Regression | R^2 | 0.90 |
+| HistGradientBoostingRegressor | Regression | R^2 | 0.85 |
+| LogisticRegression | Classification | Accuracy | 0.90 |
+| DecisionTreeClassifier | Classification | Accuracy | 0.95 |
+| RandomForestClassifier | Classification | Accuracy | 0.95 |
+| GradientBoostingClassifier | Classification | Accuracy | 0.90 |
+| KNeighborsClassifier | Classification | Accuracy | 0.90 |
+| GaussianNB | Classification | Accuracy | 0.85 |
+| ExtraTreesClassifier | Classification | Accuracy | 0.95 |
+| AdaBoostClassifier | Classification | Accuracy | 0.90 |
+| SGDClassifier | Classification | Accuracy | 0.80 |
+| LinearSVC | Classification | Accuracy | 0.85 |
+
+## Correctness Tests (Plans A, B, E, H-L)
+
+In addition to sklearn fixture comparisons, FerroML has dedicated correctness tests across integration and unit test suites:
 
 | Test Suite | Tests | Coverage |
 |------------|-------|----------|
 | Clustering correctness | 102 | KMeans, DBSCAN, AgglomerativeClustering, all metrics, edge cases |
 | Neural network correctness | 49 | MLPClassifier, MLPRegressor, activations, diagnostics |
 | Preprocessing correctness | 101 | All transformers, scalers, encoders, imputers, resamplers |
+| Explainability correctness | 20 | TreeSHAP, KernelSHAP, permutation importance, PDP/ICE |
+| Regression baselines | 21 | 20 models with minimum performance thresholds |
+| New models (GMM, t-SNE, IF, LOF, QDA, Isotonic) | 161 | Full algorithm coverage (see table above) |
+| Advanced testing modules | 139 | Multioutput (25), CV advanced (42), categorical (41), metrics custom (31) |
 
 ## Test Infrastructure
 
 | Metric | Value |
 |--------|-------|
-| Total tests | 2,949 passing, 0 failing, 7 ignored |
-| Lib tests | 2,471 passing |
+| Total Rust tests | ~3,400 passing, 0 failing, 6 ignored |
+| Lib tests (src/) | ~2,930 passing |
+| Integration tests (tests/) | ~480 passing |
 | Sklearn correctness tests | 58 passing |
-| Correctness integration tests | 252 passing |
-| Other integration tests | 168 passing |
+| Python tests | ~1,100 passing, 18 skipped |
+| Python test files | 28 |
 | Benchmarks | 86+ Criterion functions |
-| Clippy | Clean (0 warnings) |
 
 ## Reproducing Results
 

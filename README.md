@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/ferroml-core.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-2949%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-4503%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v0.1.0 Feature-Complete** — 37+ ML algorithms, 2,949 tests passing, validated against sklearn with 252 correctness tests. See [Project Status](#project-status) for details.
+> **Status: v0.1.0 Feature-Complete** — 50+ ML algorithms, 4,503 tests passing (3,411 Rust + 1,092 Python), validated against sklearn with 252 correctness tests. See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -142,13 +142,13 @@ print(f"95% CI: [{best.ci_lower:.4f}, {best.ci_upper:.4f}]")
 | Module | Description |
 |--------|-------------|
 | `stats` | Hypothesis testing, confidence intervals, effect sizes, multiple testing correction |
-| `models` | Linear, logistic, ridge, lasso, elastic net, decision trees, random forests, gradient boosting, SVM, KNN, naive bayes, extra trees, AdaBoost, SGD |
+| `models` | Linear, logistic, ridge, lasso, elastic net, decision trees, random forests, gradient boosting, SVM (kernel + linear), KNN, naive bayes (Gaussian/Multinomial/Bernoulli), extra trees, AdaBoost, SGD, QDA, isotonic regression, isolation forest, LOF |
 | `ensemble` | Bagging, stacking, voting classifiers with diversity-weighted selection |
 | `hpo` | Bayesian optimization, Hyperband, ASHA, random/grid search |
 | `preprocessing` | Imputation, one-hot/target encoding, standard/robust scaling, feature selection, SMOTE/ADASYN resampling |
-| `clustering` | KMeans (k-means++), DBSCAN, AgglomerativeClustering (Ward/complete/average/single) |
+| `clustering` | KMeans (k-means++), DBSCAN, AgglomerativeClustering (Ward/complete/average/single), GaussianMixture (EM, 4 covariance types) |
 | `neural` | MLPClassifier, MLPRegressor with training diagnostics, MC Dropout uncertainty |
-| `decomposition` | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis |
+| `decomposition` | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis, t-SNE |
 | `pipeline` | DAG-based pipeline execution with caching and parallel processing |
 | `cv` | K-Fold, Stratified K-Fold, Group K-Fold, Time Series Split, Nested CV |
 | `automl` | Automated model selection with statistical model comparison |
@@ -217,28 +217,32 @@ at your option.
 
 ### Current State (v0.1.0)
 
-FerroML is **feature-complete for v0.1.0**, hardened through 11 plans of correctness and quality work:
+FerroML is **feature-complete for v0.1.0**, hardened through 12 plans (A-L) of correctness and quality work:
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 2,949 passing, 0 failing, 7 ignored (slow) |
+| **Tests** | 4,503 passing (3,411 Rust + 1,092 Python), 0 failing, 6 ignored (slow) |
 | **Correctness Tests** | 252 (clustering: 102, neural: 49, preprocessing: 101) |
 | **Sklearn Match** | 58 comparisons passing (32 models + preprocessing) |
-| **Clippy** | Clean (0 warnings) |
-| **Python Bindings** | ~85% coverage (22 models, 21 preprocessors, 5 decomposition, 27 explainability) |
+| **Python Test Files** | 28 end-to-end test files |
+| **Python Bindings** | ~99% coverage (50+ models, 21 preprocessors, 6 decomposition, 37 explainability) |
 | **Benchmarks** | 86+ Criterion benchmarks with regression baseline |
 
 ### What's Implemented
 
-- **Linear Models**: LinearRegression, LogisticRegression, Ridge, Lasso, ElasticNet, Quantile, Robust
-- **Trees & Ensembles**: DecisionTree, RandomForest, GradientBoosting, HistGradientBoosting
-- **Instance-Based**: KNN with KD-Tree/Ball-Tree acceleration
-- **SVM**: SVC, SVR, LinearSVC, LinearSVR
-- **Probabilistic**: Gaussian/Multinomial/Bernoulli Naive Bayes
-- **Clustering**: KMeans (k-means++), DBSCAN, AgglomerativeClustering (4 linkage methods)
+- **Linear Models**: LinearRegression, LogisticRegression, Ridge, Lasso, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier, Quantile, Robust, Perceptron, SGD
+- **Trees & Ensembles**: DecisionTree, RandomForest, ExtraTrees, GradientBoosting, HistGradientBoosting, AdaBoost, Bagging, Stacking, Voting
+- **Instance-Based**: KNN (classifier + regressor) with KD-Tree/Ball-Tree acceleration, NearestCentroid
+- **SVM**: SVC, SVR (kernel), LinearSVC, LinearSVR
+- **Probabilistic**: Gaussian/Multinomial/Bernoulli Naive Bayes, QuadraticDiscriminantAnalysis (QDA)
+- **Anomaly Detection**: IsolationForest, LocalOutlierFactor (LOF)
+- **Clustering**: KMeans (k-means++), DBSCAN, AgglomerativeClustering (4 linkage methods), GaussianMixture (EM, 4 covariance types, BIC/AIC)
+- **Calibration**: TemperatureScaling, Sigmoid (Platt), Isotonic
+- **Regression**: IsotonicRegression (monotonic constraints)
 - **Neural Networks**: MLPClassifier, MLPRegressor with training diagnostics, MC Dropout
-- **Preprocessing**: 23+ transformers (scalers, encoders, imputers, SMOTE variants)
-- **Explainability**: TreeSHAP (Lundberg 2018), KernelSHAP, PDP, ICE, H-statistic
+- **Decomposition**: PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis, t-SNE
+- **Preprocessing**: 23+ transformers (scalers, encoders, imputers, SMOTE variants, RFE)
+- **Explainability**: TreeSHAP (Lundberg 2018), KernelSHAP (10 typed variants), PDP, ICE, H-statistic
 - **HPO**: TPE, Hyperband, ASHA, BOHB, Bayesian optimization
 
 ### Accuracy Validation

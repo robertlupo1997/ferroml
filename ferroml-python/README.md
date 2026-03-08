@@ -38,16 +38,17 @@ print(result.summary())
 
 | Module | Models / Features |
 |--------|-------------------|
-| `linear` | LinearRegression, LogisticRegression, RidgeRegression, LassoRegression, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier, QuantileRegression, RobustRegression, Perceptron |
+| `linear` | LinearRegression, LogisticRegression, RidgeRegression, LassoRegression, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier, QuantileRegression, RobustRegression, Perceptron, IsotonicRegression |
 | `trees` | DecisionTreeClassifier, DecisionTreeRegressor |
 | `ensemble` | RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor, HistGradientBoostingClassifier, HistGradientBoostingRegressor, ExtraTreesClassifier, ExtraTreesRegressor, AdaBoostClassifier, AdaBoostRegressor, SGDClassifier, SGDRegressor, PassiveAggressiveClassifier, BaggingClassifier, BaggingRegressor |
 | `naive_bayes` | GaussianNB, MultinomialNB, BernoulliNB |
-| `svm` | LinearSVC, LinearSVR |
+| `svm` | LinearSVC, LinearSVR, SVC, SVR |
 | `neighbors` | KNeighborsClassifier, KNeighborsRegressor, NearestCentroid |
 | `neural` | MLPClassifier, MLPRegressor |
-| `clustering` | KMeans, DBSCAN, AgglomerativeClustering |
+| `clustering` | KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture, + 7 metrics |
+| `anomaly` | IsolationForest, LocalOutlierFactor |
 | `preprocessing` | StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler, OneHotEncoder, OrdinalEncoder, LabelEncoder, TargetEncoder, SimpleImputer, KNNImputer, PolynomialFeatures, PowerTransformer, QuantileTransformer, VarianceThreshold, SelectKBest, SelectFromModel, RecursiveFeatureElimination, KBinsDiscretizer, SMOTE, BorderlineSMOTE, ADASYN, RandomUnderSampler |
-| `decomposition` | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis |
+| `decomposition` | PCA, IncrementalPCA, TruncatedSVD, LDA, QuadraticDiscriminantAnalysis, FactorAnalysis, TSNE |
 | `explainability` | TreeSHAP, KernelSHAP, permutation importance, PDP, 2D PDP, ICE, H-statistic |
 | `calibration` | TemperatureScalingCalibrator |
 | `pipeline` | Pipeline, ColumnTransformer, FeatureUnion |
@@ -59,11 +60,15 @@ print(result.summary())
 - **Statistical Rigor**: Confidence intervals, effect sizes, and assumption tests
 - **Linear Models**: Full diagnostics (R-style summary, VIF, residual analysis)
 - **Tree Models**: RandomForest, GradientBoosting, HistGradientBoosting, ExtraTrees, AdaBoost
-- **Clustering**: KMeans, DBSCAN, AgglomerativeClustering with full metrics
+- **Clustering**: KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture with full metrics
+- **Anomaly Detection**: IsolationForest, LocalOutlierFactor
 - **Neural Networks**: MLPClassifier, MLPRegressor with training diagnostics
-- **Preprocessing**: 24+ transformers including SMOTE/ADASYN resampling
-- **Explainability**: TreeSHAP, permutation importance, PDP, ICE, H-statistic
+- **SVMs**: Linear and kernel-based SVC/SVR with multiple kernel options
+- **Dimensionality Reduction**: PCA, t-SNE, TruncatedSVD, LDA, QDA, FactorAnalysis
+- **Preprocessing**: 22+ transformers including SMOTE/ADASYN resampling
+- **Explainability**: TreeSHAP, KernelSHAP, permutation importance, PDP, ICE, H-statistic
 - **AutoML**: Automatic model selection with statistical significance testing
+- **1,092 Python tests** across 28 test files
 
 ## License
 

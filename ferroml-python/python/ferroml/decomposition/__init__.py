@@ -19,9 +19,15 @@ TruncatedSVD
 LDA
     Linear Discriminant Analysis; finds the projection that maximises
     class separability while minimising within-class scatter.
+QuadraticDiscriminantAnalysis
+    Quadratic Discriminant Analysis; fits a Gaussian density to each
+    class with per-class covariance matrices.
 FactorAnalysis
     Probabilistic factor analysis that models observed variables as
     linear combinations of latent factors plus Gaussian noise.
+TSNE
+    t-distributed Stochastic Neighbor Embedding for non-linear
+    dimensionality reduction and visualization of high-dimensional data.
 
 Example
 -------

@@ -8,6 +8,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+#### Plans F-L: v0.1.0 Completion (2026-03-02 — 2026-03-08)
+
+**Plan F — CI Fixes & Tests (2026-03-02):**
+- Fixed Python virtualenv detection in CI (`maturin develop` failures across 9 jobs)
+- Fixed Rust linker OOM / disk exhaustion on CI runners
+- Updated `bytes` crate to fix RUSTSEC-2026-0007 security advisory
+- Fixed `cargo deny check advisories` and license compliance jobs
+- Fixed GitHub Pages docs deployment step
+- Added 120 Python tests for BaggingRegressor and RFE
+
+**Plan G — Python Bindings for 14 Models + CI Hardening (2026-03-07):**
+- Naive Bayes bindings: GaussianNB, MultinomialNB, BernoulliNB (30 Python tests)
+- Regularized CV bindings: RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier (36 Python tests)
+- Specialized model bindings: RobustRegression, QuantileRegression, Perceptron, NearestCentroid (27 Python tests)
+- LinearSVC, LinearSVR, TemperatureScalingCalibrator bindings (22 Python tests)
+- CI hardening: strict clippy (`-D warnings`), removed `|| true` patterns, strict pytest
+- README synced with actual Python exports
+
+**Plan H — Gaussian Mixture Models (2026-03-07):**
+- `GaussianMixture` implementing `ClusteringModel` trait with full EM algorithm
+- 4 covariance types: Full, Tied, Diagonal, Spherical
+- BIC/AIC for model selection, `predict_proba()` for soft clustering, `sample()` for generation
+- Cholesky decomposition and triangular solvers added to `linalg.rs`
+- 29 Rust tests + 30 Python tests
+
+**Plan I — Anomaly Detection (2026-03-07):**
+- `IsolationForest` with random isolation trees, anomaly scoring, contamination threshold
+- `LocalOutlierFactor` with k-nearest neighbor density estimation
+- New `OutlierDetector` trait for shared anomaly detection interface
+- Python bindings for both models + anomaly module
+- 58 Rust tests + 30 Python tests
+
+**Plan J — t-SNE (2026-03-07):**
+- `TSNE` implementing `Transformer` trait for nonlinear dimensionality reduction
+- Exact O(N^2) algorithm with gradient descent and momentum
+- 3 distance metrics (Euclidean, Manhattan, Cosine), PCA/random initialization
+- Configurable perplexity, learning rate, early exaggeration
+- 28 Rust tests + 19 Python tests
+
+**Plan K — QDA + IsotonicRegression (2026-03-07):**
+- `QuadraticDiscriminantAnalysis` with per-class covariance matrices, regularization
+- `IsotonicRegression` wrapping PAVA algorithm (generalized beyond [0,1] clipping)
+- Python bindings + tests for both
+- 43 Rust tests + 24 Python tests
+
+**Plan L — Testing Phases 23-28 (2026-03-08):**
+- 6 new test modules: multioutput, cv_advanced, ensemble_advanced, categorical, incremental, metrics_custom
+- 218 Rust tests covering multi-output prediction, advanced CV (learning_curve, validation_curve), ensemble stacking, categorical features (HistGradientBoosting, ColumnTransformer), warm start / incremental learning, custom metrics
+
+**Final Completion (2026-03-08):**
+- Phases 29-32: Fairness testing, drift detection, regression baselines, mutation testing
+- GPU backend tests (67 tests) for wgpu acceleration
+- Kernel SVM Python bindings (SVC/SVR)
+- Code deduplication: shared math/helper modules, deduplicated PyO3 bindings
+- `cargo fmt --all` and clippy clean across all new files
+
+### Fixed
+
+- RidgeCV NaN panic: `partial_cmp().unwrap()` on NaN cv_scores (Plan G)
+- Class extraction epsilon bug in model deduplication (post-Plan L)
+
 #### Plans A-E: Hardening & Correctness (2026-03-01)
 
 **Plan A — Clustering Hardening:**

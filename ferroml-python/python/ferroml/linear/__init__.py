@@ -16,6 +16,22 @@ LassoRegression
     L1 regularized regression with sparse solutions
 ElasticNet
     Combined L1/L2 regularization
+RidgeCV
+    Ridge regression with built-in cross-validated alpha selection
+LassoCV
+    Lasso regression with built-in cross-validated alpha selection
+ElasticNetCV
+    Elastic net with built-in cross-validated alpha/l1_ratio selection
+RidgeClassifier
+    Ridge regression adapted for classification
+RobustRegression
+    Regression robust to outliers (Huber loss)
+QuantileRegression
+    Regression for estimating conditional quantiles
+Perceptron
+    Single-layer perceptron for linear classification
+IsotonicRegression
+    Non-parametric monotonic regression
 
 Example
 -------

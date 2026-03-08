@@ -230,7 +230,7 @@ let x_encoded = encoder.fit_transform(&x_categorical)?;
 
 ## Choosing a Model
 
-FerroML implements 37+ algorithms. Here's a quick guide:
+FerroML implements 45+ algorithms. Here's a quick guide:
 
 | Task | Model | When to Use |
 |------|-------|-------------|
@@ -243,6 +243,59 @@ FerroML implements 37+ algorithms. Here's a quick guide:
 | Classification | `KNeighborsClassifier` | Small data, no training needed |
 | Clustering | `KMeans` | Known number of clusters |
 | Clustering | `DBSCAN` | Unknown clusters, arbitrary shapes |
+| Clustering | `GaussianMixture` | Soft clustering, overlapping clusters |
+| Anomaly Detection | `IsolationForest` | Unsupervised outlier detection |
+| Anomaly Detection | `LocalOutlierFactor` | Density-based outlier detection |
+| Classification | `LinearSVC` / `SVC` | Maximum-margin classifier (linear or kernel) |
+| Classification | `GaussianNB` | Fast probabilistic baseline |
+| Dimensionality Reduction | `TSNE` | Visualization of high-dimensional data |
+
+## Anomaly Detection
+
+FerroML includes two anomaly detectors that follow sklearn's sign conventions (+1 for inliers, -1 for outliers).
+
+```rust
+use ferroml_core::models::isolation_forest::IsolationForest;
+use ferroml_core::models::OutlierDetector;
+
+// IsolationForest isolates anomalies via random recursive partitioning
+let mut iforest = IsolationForest::new()
+    .with_n_estimators(100)
+    .with_random_state(Some(42));
+
+iforest.fit_outlier_detector(&x_train)?;
+
+// predict returns +1 (inlier) or -1 (outlier)
+let labels = iforest.predict_outliers(&x_test)?;
+
+// score_samples returns anomaly scores (lower = more anomalous)
+let scores = iforest.score_samples(&x_test)?;
+```
+
+## Soft Clustering with GaussianMixture
+
+When you need probabilistic cluster assignments or overlapping clusters, use `GaussianMixture`:
+
+```rust
+use ferroml_core::clustering::{GaussianMixture, CovarianceType, ClusteringModel};
+
+let mut gmm = GaussianMixture::new(3)
+    .covariance_type(CovarianceType::Full)
+    .random_state(42);
+
+gmm.fit(&x)?;
+
+// Hard cluster assignments
+let labels = gmm.predict(&x)?;
+
+// Soft assignments: probability of each cluster
+let proba = gmm.predict_proba(&x)?;
+
+// Model selection with BIC/AIC
+let bic = gmm.bic(&x)?;
+let aic = gmm.aic(&x)?;
+println!("BIC: {:.2}, AIC: {:.2}", bic, aic);
+```
 
 ## Next Steps
 

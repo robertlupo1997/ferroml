@@ -11,15 +11,17 @@ This guide provides conceptual explanations of FerroML's features and design phi
 3. [Core Concepts](#core-concepts)
 4. [Statistical Foundations](#statistical-foundations)
 5. [Models](#models)
-6. [Preprocessing](#preprocessing)
-7. [Cross-Validation](#cross-validation)
-8. [Hyperparameter Optimization](#hyperparameter-optimization)
-9. [Pipelines](#pipelines)
-10. [Ensembles](#ensembles)
-11. [Explainability](#explainability)
-12. [AutoML](#automl)
-13. [Deployment](#deployment)
-14. [Best Practices](#best-practices)
+6. [Dimensionality Reduction](#dimensionality-reduction)
+7. [Clustering](#clustering)
+8. [Preprocessing](#preprocessing)
+9. [Cross-Validation](#cross-validation)
+10. [Hyperparameter Optimization](#hyperparameter-optimization)
+11. [Pipelines](#pipelines)
+12. [Ensembles](#ensembles)
+13. [Explainability](#explainability)
+14. [AutoML](#automl)
+15. [Deployment](#deployment)
+16. [Best Practices](#best-practices)
 
 ---
 
@@ -285,6 +287,11 @@ Binary and multiclass classification with:
 
 Each supports cross-validated hyperparameter selection (RidgeCV, LassoCV, ElasticNetCV).
 
+**Additional Linear Models**:
+- **RidgeClassifier**: Ridge regression applied to classification (thresholding the regression output)
+- **Perceptron**: Single-layer linear classifier with online learning
+- **QuantileRegression**: Predicts conditional quantiles instead of the mean
+
 **Robust Regression**: When assumptions fail
 
 - **Huber**: Downweights outliers smoothly
@@ -367,6 +374,124 @@ All support incremental learning via `partial_fit()`.
 - Distance metrics: Euclidean, Manhattan, Minkowski
 - Weighting: Uniform or distance-based
 - Spatial indexing: KD-Tree, Ball Tree
+
+**NearestCentroid**: Classifies by nearest class centroid (Rocchio classifier).
+
+### Discriminant Analysis
+
+**QuadraticDiscriminantAnalysis (QDA)**: Quadratic classification boundaries
+
+Unlike LDA (which assumes shared covariance), QDA estimates a separate covariance matrix per class, producing quadratic decision boundaries:
+- Per-class mean and covariance estimation
+- Regularization parameter to handle ill-conditioned covariance matrices
+- `predict_proba()` for calibrated posterior probabilities
+- Handles cases where classes have very different covariance structures
+
+### Isotonic Regression
+
+**IsotonicRegression**: Non-parametric monotonic regression
+
+Fits a non-decreasing (or non-increasing) step function using the pool adjacent violators algorithm (PAVA):
+- Guarantees monotonicity of predictions
+- No parametric assumptions on the functional form
+- Commonly used for probability calibration
+- Supports both increasing and decreasing constraints
+
+### Anomaly Detection
+
+**IsolationForest**: Tree-based anomaly detection
+
+Isolates anomalies by random recursive partitioning. Anomalies require fewer splits to isolate:
+- Configurable contamination parameter (expected proportion of outliers)
+- `predict()` returns +1 (inlier) or -1 (outlier)
+- `score_samples()` returns anomaly scores (lower = more anomalous)
+- Random seed support for reproducibility
+
+**LocalOutlierFactor (LOF)**: Density-based anomaly detection
+
+Compares local density of a point to its neighbors. Points with substantially lower density are outliers:
+- Configurable number of neighbors (k)
+- Configurable contamination parameter
+- `predict()` returns +1 (inlier) or -1 (outlier)
+- `score_samples()` returns negative LOF scores
+
+Both anomaly detectors implement the `OutlierDetector` trait:
+- `fit(X)`: Learn the data distribution
+- `predict(X)`: Classify as inlier (+1) or outlier (-1)
+- `score_samples(X)`: Continuous anomaly scores
+
+### Probability Calibration
+
+**TemperatureScalingCalibrator**: Post-hoc probability calibration
+
+Learns a single temperature parameter to calibrate model probabilities via Platt scaling.
+
+---
+
+## Dimensionality Reduction
+
+### PCA (Principal Component Analysis)
+
+Linear dimensionality reduction via singular value decomposition:
+- Explained variance ratio for component selection
+- `inverse_transform()` for reconstruction
+- Efficient for high-dimensional data
+
+### t-SNE (t-Distributed Stochastic Neighbor Embedding)
+
+Non-linear dimensionality reduction for visualization:
+- Exact O(N^2) algorithm
+- Distance metrics: Euclidean, Manhattan, Cosine
+- Initialization: PCA-based or random
+- Configurable perplexity (controls local/global structure balance)
+- Learning rate and momentum scheduling
+- Early exaggeration for better global structure
+
+```python
+from ferroml.decomposition import TSNE
+
+tsne = TSNE(n_components=2, perplexity=30.0, learning_rate=200.0, n_iter=1000)
+embedding = tsne.fit_transform(X)
+# embedding is (n_samples, 2) — ready for scatter plots
+```
+
+t-SNE is best used for visualization (2D or 3D). For feature extraction or preprocessing, prefer PCA.
+
+---
+
+## Clustering
+
+### Algorithms
+
+**KMeans**: Centroid-based clustering with k-means++ initialization and elbow method.
+
+**DBSCAN**: Density-based clustering that discovers arbitrary-shaped clusters and identifies noise points.
+
+**AgglomerativeClustering**: Hierarchical clustering with Ward, complete, single, and average linkage.
+
+**GaussianMixture (GMM)**: Probabilistic soft clustering via Expectation-Maximization
+
+Models data as a mixture of Gaussian distributions:
+- Four covariance types: Full, Tied, Diagonal, Spherical
+- EM algorithm with convergence detection
+- Model selection via BIC (Bayesian Information Criterion) and AIC
+- `predict_proba()` for soft cluster assignments
+- `sample()` for generating new data from the learned distribution
+- Configurable number of components, convergence tolerance, and max iterations
+
+```python
+from ferroml.clustering import GaussianMixture
+
+gmm = GaussianMixture(n_components=3, covariance_type="full", max_iter=100)
+gmm.fit(X)
+labels = gmm.predict(X)        # Hard assignments
+probs = gmm.predict_proba(X)   # Soft assignments
+bic = gmm.bic(X)               # Model selection criterion
+```
+
+### Clustering Metrics
+
+Silhouette score, Davies-Bouldin index, Calinski-Harabasz index, adjusted Rand index, adjusted mutual information, V-measure, Fowlkes-Mallows index.
 
 ---
 

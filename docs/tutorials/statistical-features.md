@@ -417,6 +417,48 @@ let bootstrap = Bootstrap::new(1000).with_seed(42);
 // ... custom bootstrap on model performance metrics
 ```
 
+## Discriminant Analysis: LDA and QDA
+
+FerroML provides both Linear Discriminant Analysis (LDA) and Quadratic Discriminant Analysis (QDA). LDA assumes all classes share the same covariance matrix, producing linear decision boundaries. QDA fits per-class covariance matrices, yielding quadratic boundaries that are more flexible when class distributions differ:
+
+```rust
+use ferroml_core::models::QuadraticDiscriminantAnalysis;
+use ferroml_core::models::Model;
+
+let mut qda = QuadraticDiscriminantAnalysis::new();
+qda.fit(&x_train, &y_train)?;
+let predictions = qda.predict(&x_test)?;
+
+// QDA supports regularization to handle near-singular covariances
+let mut qda_reg = QuadraticDiscriminantAnalysis::new()
+    .with_reg_param(0.1);
+```
+
+Use LDA when classes have similar spread; use QDA when they do not.
+
+## Probabilistic Classifiers: Naive Bayes
+
+Naive Bayes classifiers are fast probabilistic models useful as baselines and for high-dimensional data. FerroML provides three variants matching different feature distributions:
+
+- `GaussianNB` -- continuous features (assumes Gaussian per-class distributions)
+- `MultinomialNB` -- count or frequency features (e.g., text bag-of-words)
+- `BernoulliNB` -- binary or boolean features
+
+All three implement `predict_proba()` for calibrated probability estimates.
+
+## Calibration with Isotonic Regression
+
+`IsotonicRegression` fits a non-decreasing piecewise-linear function, commonly used for probability calibration after a classifier's `predict_proba()` output. It makes no parametric assumptions, unlike Platt scaling (logistic):
+
+```rust
+use ferroml_core::models::isotonic::IsotonicRegression;
+use ferroml_core::models::Model;
+
+let mut iso = IsotonicRegression::new();
+iso.fit(&raw_probas_2d, &y_binary)?;
+let calibrated = iso.predict(&new_probas_2d)?;
+```
+
 ## Next Steps
 
 - [Explainability Tutorial](explainability.md) — TreeSHAP, KernelSHAP, partial dependence

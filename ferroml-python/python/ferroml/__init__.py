@@ -10,15 +10,33 @@ Submodules
 linear
     Linear models with full statistical diagnostics (R-style output)
 trees
-    Tree-based models including RandomForest, GradientBoosting, and HistGradientBoosting
+    Decision tree classifiers and regressors
+ensemble
+    Ensemble methods (RandomForest, GradientBoosting, AdaBoost, Bagging, etc.)
 neighbors
-    K-Nearest Neighbors for classification and regression
+    K-Nearest Neighbors for classification, regression, and nearest centroid
 clustering
-    Clustering algorithms (KMeans, DBSCAN) with statistical extensions
+    Clustering algorithms (KMeans, DBSCAN, Agglomerative, GaussianMixture) with metrics
+anomaly
+    Anomaly detection (IsolationForest, LocalOutlierFactor)
+naive_bayes
+    Naive Bayes classifiers (Gaussian, Multinomial, Bernoulli)
+svm
+    Support Vector Machines (LinearSVC, LinearSVR, SVC, SVR)
+neural
+    Multi-layer perceptron classifiers and regressors
 preprocessing
-    Data preprocessing transformers (scalers, encoders, imputers)
+    Data preprocessing transformers (scalers, encoders, imputers, samplers)
+decomposition
+    Dimensionality reduction (PCA, t-SNE, TruncatedSVD, LDA, QDA, FactorAnalysis)
+explainability
+    Model explanations (TreeSHAP, KernelSHAP, PDP, ICE, permutation importance)
+calibration
+    Post-hoc probability calibration (TemperatureScaling)
 pipeline
     Pipeline construction (Pipeline, ColumnTransformer, FeatureUnion)
+datasets
+    Built-in datasets (Iris, Diabetes, Wine) and synthetic generators
 automl
     Automated Machine Learning with statistical testing
 
@@ -79,4 +97,5 @@ __all__ = [
     "neural",
     "svm",
     "calibration",
+    "anomaly",
 ]

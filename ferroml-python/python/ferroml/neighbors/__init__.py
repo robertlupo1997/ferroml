@@ -10,6 +10,8 @@ KNeighborsClassifier
     K-Nearest Neighbors classifier with majority voting
 KNeighborsRegressor
     K-Nearest Neighbors regressor with weighted averaging
+NearestCentroid
+    Nearest centroid (Rocchio) classifier
 
 Example
 -------
