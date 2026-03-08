@@ -15,7 +15,10 @@
 
 use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
-use ferroml_core::decomposition::{FactorAnalysis, IncrementalPCA, TruncatedSVD, LDA, PCA};
+use ferroml_core::decomposition::{
+    FactorAnalysis, IncrementalPCA, LearningRate, TruncatedSVD, TsneInit, TsneMetric, LDA, PCA,
+    TSNE,
+};
 use ferroml_core::preprocessing::Transformer;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -573,10 +576,330 @@ impl PyFactorAnalysis {
 }
 
 // =============================================================================
+// TSNE
+// =============================================================================
+
+/// t-distributed Stochastic Neighbor Embedding (t-SNE).
+///
+/// Nonlinear dimensionality reduction for visualization. Maps high-dimensional
+/// data to 2D or 3D while preserving local neighborhood structure.
+///
+/// Parameters
+/// ----------
+/// n_components : int, optional (default=2)
+///     Number of output dimensions.
+/// perplexity : float, optional (default=30.0)
+///     Effective number of neighbors. Typical range: 5-50.
+/// learning_rate : float or str, optional (default="auto")
+///     Step size for gradient descent. "auto" = max(N/early_exaggeration/4, 50).
+/// max_iter : int, optional (default=1000)
+///     Maximum number of gradient descent iterations.
+/// early_exaggeration : float, optional (default=12.0)
+///     Factor to multiply P by for first 250 iterations.
+/// min_grad_norm : float, optional (default=1e-7)
+///     Convergence threshold on gradient norm.
+/// metric : str, optional (default="euclidean")
+///     Distance metric: "euclidean", "manhattan", or "cosine".
+/// init : str, optional (default="pca")
+///     Initialization: "pca" or "random".
+/// random_state : int, optional
+///     Seed for reproducibility.
+///
+/// Attributes
+/// ----------
+/// embedding_ : ndarray of shape (n_samples, n_components)
+///     The low-dimensional embedding after fitting.
+/// kl_divergence_ : float
+///     Final KL divergence between P and Q.
+/// n_iter_ : int
+///     Number of iterations actually run.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.decomposition import TSNE
+/// >>> import numpy as np
+/// >>> X = np.random.randn(100, 50)
+/// >>> tsne = TSNE(n_components=2, perplexity=30.0, random_state=42)
+/// >>> X_embedded = tsne.fit_transform(X)
+/// >>> X_embedded.shape
+/// (100, 2)
+#[pyclass(name = "TSNE", module = "ferroml.decomposition")]
+pub struct PyTSNE {
+    inner: TSNE,
+}
+
+#[pymethods]
+impl PyTSNE {
+    #[new]
+    #[pyo3(signature = (
+        n_components=2,
+        perplexity=30.0,
+        learning_rate=None,
+        max_iter=1000,
+        early_exaggeration=12.0,
+        min_grad_norm=1e-7,
+        metric="euclidean",
+        init="pca",
+        random_state=None,
+    ))]
+    fn new(
+        n_components: usize,
+        perplexity: f64,
+        learning_rate: Option<f64>,
+        max_iter: usize,
+        early_exaggeration: f64,
+        min_grad_norm: f64,
+        metric: &str,
+        init: &str,
+        random_state: Option<u64>,
+    ) -> PyResult<Self> {
+        let tsne_metric = match metric {
+            "euclidean" => TsneMetric::Euclidean,
+            "manhattan" => TsneMetric::Manhattan,
+            "cosine" => TsneMetric::Cosine,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown metric '{}'. Expected 'euclidean', 'manhattan', or 'cosine'.",
+                    metric
+                )));
+            }
+        };
+
+        let tsne_init = match init {
+            "pca" => TsneInit::Pca,
+            "random" => TsneInit::Random,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown init '{}'. Expected 'pca' or 'random'.",
+                    init
+                )));
+            }
+        };
+
+        let lr = match learning_rate {
+            Some(val) => LearningRate::Fixed(val),
+            None => LearningRate::Auto,
+        };
+
+        let mut tsne = TSNE::new()
+            .with_n_components(n_components)
+            .with_perplexity(perplexity)
+            .with_learning_rate(lr)
+            .with_max_iter(max_iter)
+            .with_early_exaggeration(early_exaggeration)
+            .with_min_grad_norm(min_grad_norm)
+            .with_metric(tsne_metric)
+            .with_init(tsne_init);
+
+        if let Some(seed) = random_state {
+            tsne = tsne.with_random_state(seed);
+        }
+
+        Ok(Self { inner: tsne })
+    }
+
+    /// Fit the t-SNE model to the data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Return the stored embedding (t-SNE is transductive).
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Fit and transform in one step (main entry point for t-SNE).
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Get the embedding after fitting.
+    #[getter]
+    fn embedding_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let embedding = self
+            .inner
+            .embedding()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))?;
+        Ok(embedding.clone().into_pyarray(py))
+    }
+
+    /// Get the final KL divergence.
+    #[getter]
+    fn kl_divergence_(&self) -> PyResult<f64> {
+        self.inner
+            .kl_divergence()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))
+    }
+
+    /// Get the number of iterations run.
+    #[getter]
+    fn n_iter_(&self) -> PyResult<usize> {
+        self.inner
+            .n_iter_final()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "TSNE()".to_string()
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
-/// Register the decomposition submodule.
+// Register the decomposition submodule — see register_decomposition_module below.
+
+// =============================================================================
+// QuadraticDiscriminantAnalysis (QDA)
+// =============================================================================
+
+/// Quadratic Discriminant Analysis.
+///
+/// Fits per-class covariance matrices for quadratic decision boundaries.
+/// Unlike LDA which assumes shared covariance, QDA allows each class its own
+/// covariance structure.
+///
+/// Parameters
+/// ----------
+/// reg_param : float, optional (default=0.0)
+///     Regularization: Sigma_k = (1 - reg_param) * Sigma_k + reg_param * I
+/// priors : list of float, optional
+///     Class priors (must sum to 1). If None, estimated from data.
+/// store_covariance : bool, optional (default=False)
+///     Whether to store full covariance matrices.
+/// tol : float, optional (default=1e-4)
+///     Tolerance for eigenvalue truncation.
+#[pyclass(
+    name = "QuadraticDiscriminantAnalysis",
+    module = "ferroml.decomposition"
+)]
+pub struct PyQDA {
+    inner: ferroml_core::models::QuadraticDiscriminantAnalysis,
+}
+
+#[pymethods]
+impl PyQDA {
+    #[new]
+    #[pyo3(signature = (reg_param=0.0, priors=None, store_covariance=false, tol=1e-4))]
+    fn new(reg_param: f64, priors: Option<Vec<f64>>, store_covariance: bool, tol: f64) -> Self {
+        let mut qda = ferroml_core::models::QuadraticDiscriminantAnalysis::new()
+            .with_reg_param(reg_param)
+            .with_store_covariance(store_covariance)
+            .with_tol(tol);
+        if let Some(p) = priors {
+            qda = qda.with_priors(p);
+        }
+        Self { inner: qda }
+    }
+
+    /// Fit the QDA model.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = crate::array_utils::py_array_to_f64_1d(py, y)?;
+        use ferroml_core::models::Model;
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict class labels.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        use ferroml_core::models::Model;
+        let preds = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(preds.into_pyarray(py))
+    }
+
+    /// Predict class probabilities.
+    fn predict_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let proba = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(proba.into_pyarray(py))
+    }
+
+    /// Compute decision function values.
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let scores = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(scores.into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "QuadraticDiscriminantAnalysis()".to_string()
+    }
+}
+
 pub fn register_decomposition_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(parent_module.py(), "decomposition")?;
 
@@ -584,7 +907,9 @@ pub fn register_decomposition_module(parent_module: &Bound<'_, PyModule>) -> PyR
     m.add_class::<PyIncrementalPCA>()?;
     m.add_class::<PyTruncatedSVD>()?;
     m.add_class::<PyLDA>()?;
+    m.add_class::<PyQDA>()?;
     m.add_class::<PyFactorAnalysis>()?;
+    m.add_class::<PyTSNE>()?;
 
     parent_module.add_submodule(&m)?;
 

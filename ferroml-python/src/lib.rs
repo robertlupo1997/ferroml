@@ -37,8 +37,10 @@
 
 use pyo3::prelude::*;
 
+mod anomaly;
 mod array_utils;
 mod automl;
+mod calibration;
 mod clustering;
 mod datasets;
 mod decomposition;
@@ -46,6 +48,7 @@ mod ensemble;
 pub(crate) mod errors;
 mod explainability;
 mod linear;
+mod naive_bayes;
 mod neighbors;
 mod neural;
 #[cfg(feature = "pandas")]
@@ -57,6 +60,7 @@ pub mod polars_utils;
 mod preprocessing;
 #[cfg(feature = "sparse")]
 pub mod sparse_utils;
+mod svm;
 pub(crate) mod trees;
 
 /// FerroML Python module
@@ -69,6 +73,7 @@ fn ferroml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     trees::register_trees_module(m)?;
     ensemble::register_ensemble_module(m)?;
     neighbors::register_neighbors_module(m)?;
+    naive_bayes::register_naive_bayes_module(m)?;
     neural::register_neural_module(m)?;
     clustering::register_clustering_module(m)?;
     preprocessing::register_preprocessing_module(m)?;
@@ -77,6 +82,9 @@ fn ferroml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pipeline::register_pipeline_module(m)?;
     automl::register_automl_module(m)?;
     datasets::register_datasets_module(m)?;
+    svm::register_svm_module(m)?;
+    calibration::register_calibration_module(m)?;
+    anomaly::register_anomaly_module(m)?;
 
     Ok(())
 }

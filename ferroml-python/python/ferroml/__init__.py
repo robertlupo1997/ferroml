@@ -56,7 +56,11 @@ from ferroml import datasets
 from ferroml import decomposition
 from ferroml import ensemble
 from ferroml import explainability
+from ferroml import naive_bayes
 from ferroml import neural
+from ferroml import svm
+from ferroml import calibration
+from ferroml import anomaly
 
 __all__ = [
     "__version__",
@@ -71,5 +75,8 @@ __all__ = [
     "decomposition",
     "ensemble",
     "explainability",
+    "naive_bayes",
     "neural",
+    "svm",
+    "calibration",
 ]

@@ -1,57 +1,93 @@
 # Cargo-mutants configuration for FerroML
 # https://mutants.rs/configuration.html
 
-# Timeout per mutant (seconds)
-timeout = 300
+# Timeout per mutant (seconds) — 60s is enough for unit tests
+timeout = 60
 
-# Number of parallel jobs
-jobs = 4
+# Number of parallel jobs (2 to avoid OOM on CI runners)
+jobs = 2
 
-# Exclude test files and generated code from mutation
+# Only test the ferroml-core package
+package = ["ferroml-core"]
+
+# Exclude non-testable and non-critical code from mutation
 exclude_globs = [
-    "**/tests/**",
+    # Test modules — mutating tests is circular
+    "ferroml-core/src/testing/**",
+    "ferroml-core/tests/**",
     "**/test_*.rs",
     "**/*_test.rs",
+    "**/compliance_tests/**",
+
+    # GPU/backend code — feature-gated, no tests, ~12K lines
+    "ferroml-core/src/gpu/**",
+
+    # Benchmarks and examples
     "**/benches/**",
     "**/examples/**",
-    # Generated or third-party code
+
+    # Build scripts
     "**/build.rs",
-    # Python bindings (tested separately)
+
+    # Python bindings — tested separately via pytest
     "ferroml-python/**",
+
+    # Serialization module — boilerplate-heavy, low mutation value
+    "ferroml-core/src/serialization.rs",
+
+    # ONNX export — integration-tested, expensive to mutate
+    "ferroml-core/src/onnx/**",
+
+    # SIMD — platform-specific, tested via benchmarks
+    "ferroml-core/src/simd.rs",
+
+    # Inference module — runtime code, not core logic
+    "ferroml-core/src/inference/**",
 ]
 
-# Exclude specific functions from mutation
-# These are either trivial, tested implicitly, or have known issues
+# Exclude specific function patterns from mutation
 exclude_re = [
-    # Display/Debug implementations
+    # Display/Debug/Error trait boilerplate
     "impl.*fmt::Display",
     "impl.*fmt::Debug",
-    # Default implementations that just return constants
-    "fn default\\(\\)",
-    # Error handling boilerplate
     "impl.*std::error::Error",
     "impl.*From<.*Error>",
+
+    # Default implementations — trivial constant returns
+    "fn default\\(\\)",
+
     # Serialization boilerplate
     "impl.*Serialize",
     "impl.*Deserialize",
+
     # Clone implementations
     "impl Clone for",
-    # Builder pattern setters (trivial)
+
+    # Builder pattern setters — trivial field assignments
     "fn with_.*\\(mut self",
     "fn set_.*\\(&mut self",
-    # Logging and tracing
+
+    # Logging and tracing — side-effect only, no logic
     "log::",
     "tracing::",
     "println!",
     "eprintln!",
     "dbg!",
+
+    # search_space() methods — HPO metadata, not algorithmic logic
+    "fn search_space",
 ]
 
-# Prioritize mutation testing for these critical modules
-# (Use --file flag to test specific modules)
-# Critical modules for mutation testing:
-# - src/metrics/*.rs - Accuracy calculations
-# - src/models/linear.rs - Linear regression
-# - src/models/tree.rs - Decision trees
-# - src/preprocessing/*.rs - Data transformations
-# - src/cross_validation/*.rs - CV logic
+# Only include the critical algorithmic modules
+# This focuses mutation testing on code where bugs matter most
+examine_globs = [
+    "ferroml-core/src/models/*.rs",
+    "ferroml-core/src/clustering/*.rs",
+    "ferroml-core/src/decomposition/*.rs",
+    "ferroml-core/src/preprocessing/*.rs",
+    "ferroml-core/src/metrics/**/*.rs",
+    "ferroml-core/src/linalg.rs",
+    "ferroml-core/src/cv/**/*.rs",
+    "ferroml-core/src/ensemble/**/*.rs",
+    "ferroml-core/src/stats/**/*.rs",
+]

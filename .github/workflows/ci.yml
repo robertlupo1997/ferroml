@@ -12,7 +12,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # RUSTFLAGS: -D warnings  # Disabled - too strict for initial release
+  RUSTFLAGS: -D warnings
 
 jobs:
   # Check compilation
@@ -69,7 +69,7 @@ jobs:
             ${{ runner.os }}-cargo-clippy-
 
       - name: Run clippy
-        run: cargo clippy -p ferroml-core --all-features || true
+        run: cargo clippy -p ferroml-core --all-features -- -D warnings
 
   # Formatting check
   fmt:
@@ -227,7 +227,7 @@ jobs:
 
       - name: Install cargo-tarpaulin
         run: |
-          cargo install cargo-tarpaulin || true
+          cargo install cargo-tarpaulin --locked
 
       - name: Free disk space
         run: |

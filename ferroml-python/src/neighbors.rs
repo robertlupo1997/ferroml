@@ -17,6 +17,7 @@ use crate::array_utils::{py_array_to_f64_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::models::knn::{
     DistanceMetric, KNNAlgorithm, KNNWeights, KNeighborsClassifier, KNeighborsRegressor,
+    NearestCentroid,
 };
 use ferroml_core::models::{Model, ProbabilisticModel};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2};
@@ -410,6 +411,104 @@ impl PyKNeighborsRegressor {
 }
 
 // =============================================================================
+// NearestCentroid
+// =============================================================================
+
+/// Nearest Centroid classifier.
+///
+/// Classification based on the nearest class centroid. Each class is
+/// represented by its centroid, and samples are assigned to the class
+/// with the nearest centroid.
+///
+/// Parameters
+/// ----------
+/// metric : str, optional (default="euclidean")
+///     Distance metric. Options: "euclidean", "manhattan", "minkowski".
+/// shrink_threshold : float or None, optional (default=None)
+///     Threshold for shrinking centroids. If provided, feature values
+///     are shrunk towards the overall centroid.
+///
+/// Attributes
+/// ----------
+/// centroids_ : ndarray of shape (n_classes, n_features)
+///     Centroid of each class.
+/// classes_ : ndarray of shape (n_classes,)
+///     Unique class labels.
+#[pyclass(name = "NearestCentroid", module = "ferroml.neighbors")]
+pub struct PyNearestCentroid {
+    inner: NearestCentroid,
+}
+
+#[pymethods]
+impl PyNearestCentroid {
+    #[new]
+    #[pyo3(signature = (metric="euclidean", shrink_threshold=None))]
+    fn new(metric: &str, shrink_threshold: Option<f64>) -> PyResult<Self> {
+        let metric_enum = parse_distance_metric(metric, 2.0)?;
+        let mut nc = NearestCentroid::new().with_metric(metric_enum);
+        if let Some(t) = shrink_threshold {
+            nc = nc.with_shrink_threshold(t);
+        }
+        Ok(Self { inner: nc })
+    }
+
+    /// Fit the model to training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Predict class labels.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let predictions = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
+    /// Get the class centroids.
+    #[getter]
+    fn centroids_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let centroids = self.inner.centroids().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(centroids.clone().into_pyarray(py))
+    }
+
+    /// Get the unique class labels.
+    #[getter]
+    fn classes_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let classes = self.inner.classes().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(classes.clone().into_pyarray(py))
+    }
+
+    fn __repr__(&self) -> String {
+        format!("NearestCentroid(metric={:?})", self.inner.metric)
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -419,6 +518,7 @@ pub fn register_neighbors_module(parent_module: &Bound<'_, PyModule>) -> PyResul
 
     neighbors_module.add_class::<PyKNeighborsClassifier>()?;
     neighbors_module.add_class::<PyKNeighborsRegressor>()?;
+    neighbors_module.add_class::<PyNearestCentroid>()?;
 
     parent_module.add_submodule(&neighbors_module)?;
 

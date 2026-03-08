@@ -43,11 +43,15 @@ IncrementalPCA = _native.decomposition.IncrementalPCA
 TruncatedSVD = _native.decomposition.TruncatedSVD
 LDA = _native.decomposition.LDA
 FactorAnalysis = _native.decomposition.FactorAnalysis
+TSNE = _native.decomposition.TSNE
+QuadraticDiscriminantAnalysis = _native.decomposition.QuadraticDiscriminantAnalysis
 
 __all__ = [
     "PCA",
     "IncrementalPCA",
     "TruncatedSVD",
     "LDA",
+    "QuadraticDiscriminantAnalysis",
     "FactorAnalysis",
+    "TSNE",
 ]

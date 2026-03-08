@@ -1,0 +1,166 @@
+{
+  "version": "0.2.0",
+  "description": "Regression test baselines for FerroML models. Each entry specifies a model, the synthetic dataset parameters used, the metric to evaluate, and the minimum acceptable value.",
+  "baselines": [
+    {
+      "name": "LinearRegression",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.95,
+      "notes": "Closed-form OLS on low-noise linear data should achieve very high R²."
+    },
+    {
+      "name": "RidgeRegression",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.94,
+      "notes": "Ridge with small alpha on clean data should be close to OLS."
+    },
+    {
+      "name": "LassoRegression",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.90,
+      "notes": "Lasso shrinks some coefficients; slightly lower R² than OLS."
+    },
+    {
+      "name": "ElasticNet",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.88,
+      "notes": "ElasticNet combines L1+L2; performance between Ridge and Lasso."
+    },
+    {
+      "name": "DecisionTreeRegressor",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.85,
+      "notes": "Decision tree on training data should fit well even with noise."
+    },
+    {
+      "name": "RandomForestRegressor",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.90,
+      "notes": "Random forest should generalize better than single tree."
+    },
+    {
+      "name": "GradientBoostingRegressor",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.90,
+      "notes": "Gradient boosting on clean regression data."
+    },
+    {
+      "name": "KNeighborsRegressor",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.80,
+      "notes": "KNN regression with k=5 on moderately noisy data."
+    },
+    {
+      "name": "ExtraTreesRegressor",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.90,
+      "notes": "Extra trees should perform similarly to random forest."
+    },
+    {
+      "name": "HistGradientBoostingRegressor",
+      "task": "regression",
+      "dataset": { "type": "regression", "n_samples": 200, "n_features": 5, "noise": 0.5, "seed": 42 },
+      "metric": "r2",
+      "min_value": 0.85,
+      "notes": "Histogram-based gradient boosting on regression data."
+    },
+    {
+      "name": "LogisticRegression",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.90,
+      "notes": "Logistic regression on well-separated binary data."
+    },
+    {
+      "name": "DecisionTreeClassifier",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.95,
+      "notes": "Decision tree should perfectly or near-perfectly fit training data."
+    },
+    {
+      "name": "RandomForestClassifier",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.95,
+      "notes": "Random forest on well-separated clusters."
+    },
+    {
+      "name": "GradientBoostingClassifier",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.90,
+      "notes": "Gradient boosting classifier on binary data."
+    },
+    {
+      "name": "KNeighborsClassifier",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.90,
+      "notes": "KNN with k=5 on well-separated clusters."
+    },
+    {
+      "name": "GaussianNB",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.85,
+      "notes": "Gaussian Naive Bayes on synthetic data with feature independence."
+    },
+    {
+      "name": "ExtraTreesClassifier",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.95,
+      "notes": "Extra trees classifier on well-separated data."
+    },
+    {
+      "name": "AdaBoostClassifier",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.90,
+      "notes": "AdaBoost with 50 estimators on binary classification."
+    },
+    {
+      "name": "SGDClassifier",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.80,
+      "notes": "SGD classifier — linear model, may underperform on harder boundaries."
+    },
+    {
+      "name": "LinearSVC",
+      "task": "classification",
+      "dataset": { "type": "classification", "n_samples": 200, "n_features": 5, "n_classes": 2, "seed": 42 },
+      "metric": "accuracy",
+      "min_value": 0.85,
+      "notes": "Linear SVM classifier on well-separated data."
+    }
+  ]
+}

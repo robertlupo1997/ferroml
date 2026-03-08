@@ -158,6 +158,125 @@ pub fn invert_upper_triangular(r: &Array2<f64>) -> Result<Array2<f64>> {
 }
 
 // =============================================================================
+// Cholesky Decomposition
+// =============================================================================
+
+/// Cholesky decomposition: compute lower triangular `L` such that `A = L * L^T`.
+///
+/// The input matrix must be symmetric positive definite. A small diagonal
+/// regularization (`reg`) can be added to improve numerical stability.
+///
+/// # Arguments
+/// * `a` - Symmetric positive-definite matrix of shape `(n, n)`
+/// * `reg` - Diagonal regularization (added to diagonal before decomposition)
+///
+/// # Returns
+/// Lower triangular matrix `L` of shape `(n, n)`
+pub fn cholesky(a: &Array2<f64>, reg: f64) -> Result<Array2<f64>> {
+    let (n, m) = a.dim();
+    if n != m {
+        return Err(FerroError::shape_mismatch(
+            format!("({0}, {0})", n),
+            format!("({}, {})", n, m),
+        ));
+    }
+
+    let mut l: Array2<f64> = Array2::zeros((n, n));
+
+    for i in 0..n {
+        for j in 0..=i {
+            let mut sum: f64 = 0.0;
+
+            if j == i {
+                for k in 0..j {
+                    sum = l[[j, k]].mul_add(l[[j, k]], sum);
+                }
+                let val = a[[i, i]] + reg - sum;
+                if val <= 0.0 {
+                    return Err(FerroError::numerical(
+                        "Matrix not positive definite for Cholesky decomposition. \
+                         Try increasing reg_covar.",
+                    ));
+                }
+                l[[i, j]] = val.sqrt();
+            } else {
+                for k in 0..j {
+                    sum = l[[i, k]].mul_add(l[[j, k]], sum);
+                }
+                if l[[j, j]].abs() < 1e-15 {
+                    return Err(FerroError::numerical(
+                        "Near-zero diagonal in Cholesky decomposition",
+                    ));
+                }
+                l[[i, j]] = (a[[i, j]] - sum) / l[[j, j]];
+            }
+        }
+    }
+
+    Ok(l)
+}
+
+/// Compute log-determinant from a Cholesky factor L.
+///
+/// Since `det(A) = det(L)^2` and `det(L) = prod(diag(L))`,
+/// `log(det(A)) = 2 * sum(log(diag(L)))`.
+pub fn log_determinant_from_cholesky(l: &Array2<f64>) -> f64 {
+    let n = l.nrows();
+    let mut log_det = 0.0;
+    for i in 0..n {
+        log_det += l[[i, i]].ln();
+    }
+    2.0 * log_det
+}
+
+/// Solve `L * X = B` where `L` is lower triangular (forward substitution).
+///
+/// Solves column-by-column for multiple right-hand sides.
+pub fn solve_lower_triangular(l: &Array2<f64>, b: &Array2<f64>) -> Result<Array2<f64>> {
+    let n = l.nrows();
+    let ncols = b.ncols();
+    let mut x = Array2::zeros((n, ncols));
+
+    for col in 0..ncols {
+        for i in 0..n {
+            if l[[i, i]].abs() < 1e-15 {
+                return Err(FerroError::numerical(
+                    "Near-zero diagonal in forward substitution",
+                ));
+            }
+            let mut sum = b[[i, col]];
+            for j in 0..i {
+                sum -= l[[i, j]] * x[[j, col]];
+            }
+            x[[i, col]] = sum / l[[i, i]];
+        }
+    }
+
+    Ok(x)
+}
+
+/// Solve `L * x = b` where `L` is lower triangular (single right-hand side).
+pub fn solve_lower_triangular_vec(l: &Array2<f64>, b: &Array1<f64>) -> Result<Array1<f64>> {
+    let n = l.nrows();
+    let mut x = Array1::zeros(n);
+
+    for i in 0..n {
+        if l[[i, i]].abs() < 1e-15 {
+            return Err(FerroError::numerical(
+                "Near-zero diagonal in forward substitution",
+            ));
+        }
+        let mut sum = b[i];
+        for j in 0..i {
+            sum -= l[[i, j]] * x[j];
+        }
+        x[i] = sum / l[[i, i]];
+    }
+
+    Ok(x)
+}
+
+// =============================================================================
 // Distance Computations (with optional SIMD)
 // =============================================================================
 
@@ -250,6 +369,99 @@ mod tests {
         // 2x[0] + 1*2 = 5 => x[0] = 1.5
         assert_abs_diff_eq!(x[0], 1.5, epsilon = 1e-10);
         assert_abs_diff_eq!(x[1], 2.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_cholesky_2x2() {
+        let a = Array2::from_shape_vec((2, 2), vec![4.0, 2.0, 2.0, 3.0]).unwrap();
+        let l = cholesky(&a, 0.0).unwrap();
+
+        // Verify L * L^T = A
+        let reconstructed = l.dot(&l.t());
+        for i in 0..2 {
+            for j in 0..2 {
+                assert_abs_diff_eq!(reconstructed[[i, j]], a[[i, j]], epsilon = 1e-10);
+            }
+        }
+
+        // L should be lower triangular
+        assert_abs_diff_eq!(l[[0, 1]], 0.0, epsilon = 1e-14);
+    }
+
+    #[test]
+    fn test_cholesky_3x3() {
+        // SPD matrix: A = [[4, 12, -16], [12, 37, -43], [-16, -43, 98]]
+        let a = Array2::from_shape_vec(
+            (3, 3),
+            vec![4.0, 12.0, -16.0, 12.0, 37.0, -43.0, -16.0, -43.0, 98.0],
+        )
+        .unwrap();
+        let l = cholesky(&a, 0.0).unwrap();
+        let reconstructed = l.dot(&l.t());
+        for i in 0..3 {
+            for j in 0..3 {
+                assert_abs_diff_eq!(reconstructed[[i, j]], a[[i, j]], epsilon = 1e-10);
+            }
+        }
+    }
+
+    #[test]
+    fn test_cholesky_with_regularization() {
+        // Nearly singular matrix — regularization saves it
+        let a = Array2::from_shape_vec((2, 2), vec![1.0, 0.9999, 0.9999, 1.0]).unwrap();
+        assert!(cholesky(&a, 0.0).is_ok());
+        let l = cholesky(&a, 1e-6).unwrap();
+        let reconstructed = l.dot(&l.t());
+        // Should be close to A + reg*I
+        assert_abs_diff_eq!(reconstructed[[0, 0]], 1.0 + 1e-6, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_cholesky_non_spd_fails() {
+        // Not positive definite
+        let a = Array2::from_shape_vec((2, 2), vec![-1.0, 0.0, 0.0, 1.0]).unwrap();
+        assert!(cholesky(&a, 0.0).is_err());
+    }
+
+    #[test]
+    fn test_log_determinant_from_cholesky() {
+        let a = Array2::from_shape_vec((2, 2), vec![4.0, 2.0, 2.0, 3.0]).unwrap();
+        let l = cholesky(&a, 0.0).unwrap();
+        let log_det = log_determinant_from_cholesky(&l);
+        // det(A) = 4*3 - 2*2 = 8, log(8) ≈ 2.0794
+        assert_abs_diff_eq!(log_det, 8.0_f64.ln(), epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_solve_lower_triangular_identity() {
+        let l = Array2::from_shape_vec((2, 2), vec![1.0, 0.0, 0.0, 1.0]).unwrap();
+        let b = Array2::from_shape_vec((2, 2), vec![3.0, 4.0, 5.0, 6.0]).unwrap();
+        let x = solve_lower_triangular(&l, &b).unwrap();
+        for i in 0..2 {
+            for j in 0..2 {
+                assert_abs_diff_eq!(x[[i, j]], b[[i, j]], epsilon = 1e-14);
+            }
+        }
+    }
+
+    #[test]
+    fn test_solve_lower_triangular_simple() {
+        let l = Array2::from_shape_vec((2, 2), vec![2.0, 0.0, 1.0, 3.0]).unwrap();
+        let b = Array2::from_shape_vec((2, 1), vec![4.0, 7.0]).unwrap();
+        let x = solve_lower_triangular(&l, &b).unwrap();
+        // 2*x0 = 4 => x0 = 2
+        // 1*2 + 3*x1 = 7 => x1 = 5/3
+        assert_abs_diff_eq!(x[[0, 0]], 2.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(x[[1, 0]], 5.0 / 3.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_solve_lower_triangular_vec_simple() {
+        let l = Array2::from_shape_vec((2, 2), vec![2.0, 0.0, 1.0, 3.0]).unwrap();
+        let b = Array1::from_vec(vec![4.0, 7.0]);
+        let x = solve_lower_triangular_vec(&l, &b).unwrap();
+        assert_abs_diff_eq!(x[0], 2.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(x[1], 5.0 / 3.0, epsilon = 1e-10);
     }
 
     #[test]

@@ -594,7 +594,10 @@ fn test_kfold_without_shuffle_is_deterministic() {
 // MODEL INTEGRATION TESTS (using mock estimator)
 // ============================================================================
 
-use crate::cv::{cross_val_score, CVConfig};
+use crate::cv::{
+    cross_val_score, learning_curve, validation_curve, CVConfig, LearningCurveConfig,
+    ParameterSettable, ValidationCurveConfig,
+};
 use crate::hpo::SearchSpace;
 use crate::metrics::{Direction, MetricValue};
 use crate::traits::{Estimator, PredictionWithUncertainty, Predictor};
@@ -931,4 +934,316 @@ fn test_timeseries_consecutive_indices() {
             );
         }
     }
+}
+
+// ============================================================================
+// LEARNING CURVE TESTS
+// ============================================================================
+
+#[test]
+fn test_learning_curve_returns_correct_number_of_sizes() {
+    let n_samples = 60;
+    let n_features = 3;
+
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| (i + j) as f64 * 0.1);
+    let y = Array1::from_shape_fn(n_samples, |i| i as f64 + 0.5);
+
+    let train_sizes = vec![0.2, 0.4, 0.6, 0.8, 1.0];
+    let model = MockMeanEstimator;
+    let metric = MockMseMetric;
+
+    let result = learning_curve(
+        &model,
+        &x,
+        &y,
+        &KFold::new(3),
+        &metric,
+        &train_sizes,
+        LearningCurveConfig::default(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        result.train_sizes.len(),
+        train_sizes.len(),
+        "Should return one entry per requested train size"
+    );
+    assert_eq!(
+        result.train_scores_summary.len(),
+        train_sizes.len(),
+        "Should have summary for each train size"
+    );
+    assert_eq!(
+        result.test_scores_summary.len(),
+        train_sizes.len(),
+        "Should have test summary for each train size"
+    );
+    assert_eq!(result.n_samples, n_samples);
+}
+
+#[test]
+fn test_learning_curve_train_sizes_increase_monotonically() {
+    let n_samples = 80;
+    let n_features = 2;
+
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| (i * j) as f64 * 0.01);
+    let y = Array1::from_shape_fn(n_samples, |i| (i % 5) as f64);
+
+    let train_sizes = vec![0.1, 0.3, 0.5, 0.7, 1.0];
+    let model = MockMeanEstimator;
+    let metric = MockMseMetric;
+
+    let result = learning_curve(
+        &model,
+        &x,
+        &y,
+        &KFold::new(5),
+        &metric,
+        &train_sizes,
+        LearningCurveConfig::default(),
+    )
+    .unwrap();
+
+    for i in 1..result.train_sizes.len() {
+        assert!(
+            result.train_sizes[i] >= result.train_sizes[i - 1],
+            "Train sizes should be monotonically non-decreasing: {} < {}",
+            result.train_sizes[i],
+            result.train_sizes[i - 1]
+        );
+    }
+}
+
+#[test]
+fn test_learning_curve_scores_are_finite() {
+    let n_samples = 50;
+    let n_features = 2;
+
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| (i + j) as f64);
+    let y = Array1::from_shape_fn(n_samples, |i| i as f64);
+
+    let train_sizes = vec![0.3, 0.6, 1.0];
+    let model = MockMeanEstimator;
+    let metric = MockMseMetric;
+
+    let result = learning_curve(
+        &model,
+        &x,
+        &y,
+        &KFold::new(3),
+        &metric,
+        &train_sizes,
+        LearningCurveConfig::default(),
+    )
+    .unwrap();
+
+    for summary in &result.train_scores_summary {
+        assert!(
+            summary.mean.is_finite(),
+            "Train score mean should be finite"
+        );
+        assert!(summary.std.is_finite(), "Train score std should be finite");
+        assert!(summary.std >= 0.0, "Std dev should be non-negative");
+    }
+
+    for summary in &result.test_scores_summary {
+        assert!(summary.mean.is_finite(), "Test score mean should be finite");
+        assert!(summary.std.is_finite(), "Test score std should be finite");
+        assert!(
+            summary.ci_lower <= summary.ci_upper,
+            "CI lower {} should not exceed CI upper {}",
+            summary.ci_lower,
+            summary.ci_upper
+        );
+    }
+}
+
+// ============================================================================
+// VALIDATION CURVE TESTS
+// ============================================================================
+
+/// Mock estimator that supports ParameterSettable for validation_curve tests.
+/// The "scale" parameter multiplies the predicted mean.
+#[derive(Clone)]
+struct MockScalableEstimator {
+    scale: f64,
+}
+
+struct MockScalablePredictor {
+    mean: f64,
+    scale: f64,
+}
+
+impl Predictor for MockScalablePredictor {
+    fn predict(&self, x: &Array2<f64>) -> crate::Result<Array1<f64>> {
+        Ok(Array1::from_elem(x.nrows(), self.mean * self.scale))
+    }
+
+    fn predict_with_uncertainty(
+        &self,
+        x: &Array2<f64>,
+        confidence: f64,
+    ) -> crate::Result<PredictionWithUncertainty> {
+        let n = x.nrows();
+        let pred = self.mean * self.scale;
+        Ok(PredictionWithUncertainty {
+            predictions: Array1::from_elem(n, pred),
+            lower: Array1::from_elem(n, pred - 0.1),
+            upper: Array1::from_elem(n, pred + 0.1),
+            confidence_level: confidence,
+            std_errors: None,
+        })
+    }
+}
+
+impl Estimator for MockScalableEstimator {
+    type Fitted = MockScalablePredictor;
+
+    fn fit(&self, _x: &Array2<f64>, y: &Array1<f64>) -> crate::Result<Self::Fitted> {
+        let mean = y.iter().sum::<f64>() / y.len() as f64;
+        Ok(MockScalablePredictor {
+            mean,
+            scale: self.scale,
+        })
+    }
+
+    fn search_space(&self) -> SearchSpace {
+        SearchSpace::new()
+    }
+}
+
+impl ParameterSettable for MockScalableEstimator {
+    fn set_param(&mut self, name: &str, value: f64) -> crate::Result<()> {
+        match name {
+            "scale" => {
+                self.scale = value;
+                Ok(())
+            }
+            _ => Err(crate::FerroError::invalid_input(format!(
+                "Unknown parameter: {}",
+                name
+            ))),
+        }
+    }
+
+    fn get_param(&self, name: &str) -> crate::Result<f64> {
+        match name {
+            "scale" => Ok(self.scale),
+            _ => Err(crate::FerroError::invalid_input(format!(
+                "Unknown parameter: {}",
+                name
+            ))),
+        }
+    }
+}
+
+#[test]
+fn test_validation_curve_evaluates_all_param_values() {
+    let n_samples = 50;
+    let n_features = 2;
+
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| (i + j) as f64);
+    let y = Array1::from_shape_fn(n_samples, |i| i as f64 + 1.0);
+
+    let param_values = vec![0.5, 1.0, 1.5, 2.0];
+    let model = MockScalableEstimator { scale: 1.0 };
+    let metric = MockMseMetric;
+
+    let result = validation_curve(
+        &model,
+        &x,
+        &y,
+        &KFold::new(3),
+        &metric,
+        "scale",
+        &param_values,
+        ValidationCurveConfig::default(),
+    )
+    .unwrap();
+
+    assert_eq!(result.param_name, "scale");
+    assert_eq!(result.param_values, param_values);
+    assert_eq!(result.train_scores_summary.len(), param_values.len());
+    assert_eq!(result.test_scores_summary.len(), param_values.len());
+}
+
+#[test]
+fn test_validation_curve_scores_are_finite() {
+    let n_samples = 40;
+    let n_features = 2;
+
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| (i * (j + 1)) as f64 * 0.1);
+    let y = Array1::from_shape_fn(n_samples, |i| (i % 3) as f64);
+
+    let param_values = vec![0.1, 0.5, 1.0, 2.0, 5.0];
+    let model = MockScalableEstimator { scale: 1.0 };
+    let metric = MockMseMetric;
+
+    let result = validation_curve(
+        &model,
+        &x,
+        &y,
+        &KFold::new(3),
+        &metric,
+        "scale",
+        &param_values,
+        ValidationCurveConfig::default(),
+    )
+    .unwrap();
+
+    for (i, summary) in result.test_scores_summary.iter().enumerate() {
+        assert!(
+            summary.mean.is_finite(),
+            "Test score mean at param index {} should be finite",
+            i
+        );
+        assert!(summary.std >= 0.0, "Std dev should be non-negative");
+        assert!(
+            summary.ci_lower <= summary.ci_upper,
+            "CI lower should not exceed CI upper at param index {}",
+            i
+        );
+    }
+
+    for (i, summary) in result.train_scores_summary.iter().enumerate() {
+        assert!(
+            summary.mean.is_finite(),
+            "Train score mean at param index {} should be finite",
+            i
+        );
+    }
+}
+
+#[test]
+fn test_validation_curve_best_param_value() {
+    let n_samples = 60;
+    let n_features = 2;
+
+    // Target mean is ~30, so scale=1.0 should give lowest MSE
+    let x = Array2::from_shape_fn((n_samples, n_features), |(i, j)| (i + j) as f64);
+    let y = Array1::from_shape_fn(n_samples, |i| i as f64);
+
+    let param_values = vec![0.01, 0.5, 1.0, 2.0, 10.0];
+    let model = MockScalableEstimator { scale: 1.0 };
+    let metric = MockMseMetric;
+
+    let result = validation_curve(
+        &model,
+        &x,
+        &y,
+        &KFold::new(3),
+        &metric,
+        "scale",
+        &param_values,
+        ValidationCurveConfig::default(),
+    )
+    .unwrap();
+
+    // MSE is minimized, so best_param_value(false) finds minimum
+    let best = result.best_param_value(false);
+    assert!(best.is_some(), "Should find a best parameter value");
+    assert!(
+        param_values.contains(&best.unwrap()),
+        "Best param should be one of the tested values"
+    );
 }

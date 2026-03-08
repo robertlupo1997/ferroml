@@ -84,8 +84,10 @@ mod factor_analysis;
 mod lda;
 mod pca;
 mod truncated_svd;
+mod tsne;
 
 pub use factor_analysis::{FaSvdMethod, FactorAnalysis, Rotation};
 pub use lda::{LdaSolver, LDA};
 pub use pca::{IncrementalPCA, SvdSolver, PCA};
 pub use truncated_svd::{TruncatedSVD, TruncatedSvdAlgorithm};
+pub use tsne::{LearningRate, TsneInit, TsneMetric, TSNE};

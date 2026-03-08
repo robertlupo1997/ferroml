@@ -29,8 +29,10 @@ from ferroml import ferroml as _native
 
 KNeighborsClassifier = _native.neighbors.KNeighborsClassifier
 KNeighborsRegressor = _native.neighbors.KNeighborsRegressor
+NearestCentroid = _native.neighbors.NearestCentroid
 
 __all__ = [
     "KNeighborsClassifier",
     "KNeighborsRegressor",
+    "NearestCentroid",
 ]

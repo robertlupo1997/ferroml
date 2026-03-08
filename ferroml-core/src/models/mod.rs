@@ -37,10 +37,14 @@ pub mod calibration;
 pub mod extra_trees;
 pub mod forest;
 pub mod hist_boosting;
+pub mod isolation_forest;
+pub mod isotonic;
 pub mod knn;
 pub mod linear;
+pub mod lof;
 pub mod logistic;
 pub mod naive_bayes;
+pub mod qda;
 pub mod quantile;
 pub mod regularized;
 pub mod robust;
@@ -71,13 +75,17 @@ pub use hist_boosting::{
     HistGradientBoostingRegressor, HistLoss, HistRegressionLoss, HistTree, HistTreeNode,
     MonotonicConstraint,
 };
+pub use isolation_forest::{Contamination, IsolationForest, MaxSamples as IFMaxSamples};
+pub use isotonic::{Increasing, IsotonicRegression, OutOfBounds};
 pub use knn::{
     BallTree, DistanceMetric, KDTree, KNNAlgorithm, KNNWeights, KNeighborsClassifier,
     KNeighborsRegressor, NearestCentroid,
 };
 pub use linear::LinearRegression;
+pub use lof::LocalOutlierFactor;
 pub use logistic::{LogisticRegression, OddsRatioInfo};
 pub use naive_bayes::{BernoulliNB, GaussianNB, MultinomialNB};
+pub use qda::QuadraticDiscriminantAnalysis;
 pub use quantile::{MultiQuantileResults, QuantileRegression};
 pub use regularized::{
     elastic_net_path, lasso_path, ElasticNet, ElasticNetCV, LassoCV, LassoRegression,

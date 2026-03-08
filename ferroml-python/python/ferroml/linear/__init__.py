@@ -38,6 +38,14 @@ LogisticRegression = _native.linear.LogisticRegression
 RidgeRegression = _native.linear.RidgeRegression
 LassoRegression = _native.linear.LassoRegression
 ElasticNet = _native.linear.ElasticNet
+RobustRegression = _native.linear.RobustRegression
+QuantileRegression = _native.linear.QuantileRegression
+Perceptron = _native.linear.Perceptron
+RidgeCV = _native.linear.RidgeCV
+LassoCV = _native.linear.LassoCV
+ElasticNetCV = _native.linear.ElasticNetCV
+RidgeClassifier = _native.linear.RidgeClassifier
+IsotonicRegression = _native.linear.IsotonicRegression
 
 __all__ = [
     "LinearRegression",
@@ -45,4 +53,12 @@ __all__ = [
     "RidgeRegression",
     "LassoRegression",
     "ElasticNet",
+    "RobustRegression",
+    "QuantileRegression",
+    "Perceptron",
+    "RidgeCV",
+    "LassoCV",
+    "ElasticNetCV",
+    "RidgeClassifier",
+    "IsotonicRegression",
 ]

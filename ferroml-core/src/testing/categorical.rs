@@ -679,4 +679,564 @@ mod tests {
         assert_eq!(encoder.n_features_in(), Some(2));
         assert_eq!(encoder.n_features_out(), Some(2));
     }
+
+    // ========== HistGradientBoosting Native Categorical Tests ==========
+
+    #[test]
+    fn test_hist_boosting_classifier_categorical_fits_and_predicts() {
+        use crate::models::hist_boosting::HistGradientBoostingClassifier;
+        use crate::models::Model;
+
+        // Feature 0: categorical (3 categories), Feature 1: continuous
+        let x = Array2::from_shape_vec(
+            (20, 2),
+            vec![
+                0.0, 1.0, 0.0, 1.5, 0.0, 0.8, 0.0, 1.2, 0.0, 1.1, 1.0, 3.0, 1.0, 3.5, 1.0, 2.8,
+                1.0, 3.2, 1.0, 3.1, 2.0, 5.0, 2.0, 5.5, 2.0, 4.8, 2.0, 5.2, 2.0, 5.1, 0.0, 1.3,
+                1.0, 2.9, 2.0, 5.3, 0.0, 0.9, 1.0, 3.3,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0,
+            1.0, 0.0, 1.0,
+        ]);
+
+        let mut clf = HistGradientBoostingClassifier::new()
+            .with_max_iter(50)
+            .with_learning_rate(0.1)
+            .with_categorical_features(vec![0])
+            .with_random_state(42);
+
+        clf.fit(&x, &y).unwrap();
+        assert!(clf.is_fitted());
+
+        let predictions = clf.predict(&x).unwrap();
+        assert_eq!(predictions.len(), 20);
+
+        // All predictions should be valid class labels
+        for p in predictions.iter() {
+            assert!(*p == 0.0 || *p == 1.0, "Invalid prediction: {}", p);
+        }
+    }
+
+    #[test]
+    fn test_hist_boosting_regressor_categorical_fits_and_predicts() {
+        use crate::models::hist_boosting::HistGradientBoostingRegressor;
+        use crate::models::Model;
+
+        // Feature 0: categorical (3 categories), Feature 1: continuous
+        // Target depends on category: cat 0 -> ~10, cat 1 -> ~20, cat 2 -> ~30
+        let x = Array2::from_shape_vec(
+            (12, 2),
+            vec![
+                0.0, 1.0, 0.0, 1.1, 0.0, 0.9, 0.0, 1.2, 1.0, 2.0, 1.0, 2.1, 1.0, 1.9, 1.0, 2.2,
+                2.0, 3.0, 2.0, 3.1, 2.0, 2.9, 2.0, 3.2,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            10.0, 10.5, 9.5, 11.0, 20.0, 20.5, 19.5, 21.0, 30.0, 30.5, 29.5, 31.0,
+        ]);
+
+        let mut reg = HistGradientBoostingRegressor::new()
+            .with_max_iter(100)
+            .with_learning_rate(0.1)
+            .with_min_samples_leaf(2)
+            .with_categorical_features(vec![0])
+            .with_random_state(42);
+
+        reg.fit(&x, &y).unwrap();
+        assert!(reg.is_fitted());
+
+        let predictions = reg.predict(&x).unwrap();
+        assert_eq!(predictions.len(), 12);
+
+        // RMSE should be reasonable (< 10.0 given clear category-target relationship)
+        let mse: f64 = predictions
+            .iter()
+            .zip(y.iter())
+            .map(|(p, t)| (p - t).powi(2))
+            .sum::<f64>()
+            / 12.0;
+        let rmse = mse.sqrt();
+        assert!(rmse < 10.0, "RMSE was {}", rmse);
+    }
+
+    #[test]
+    fn test_hist_boosting_classifier_categorical_reasonable_accuracy() {
+        use crate::models::hist_boosting::HistGradientBoostingClassifier;
+        use crate::models::Model;
+
+        // Data where the categorical feature is the primary signal
+        // Category 0 -> class 0, Category 1 -> class 1
+        let x = Array2::from_shape_vec(
+            (24, 2),
+            vec![
+                0.0, 0.5, 0.0, 0.6, 0.0, 0.4, 0.0, 0.7, 0.0, 0.3, 0.0, 0.55, 0.0, 0.45, 0.0, 0.65,
+                0.0, 0.35, 0.0, 0.52, 0.0, 0.48, 0.0, 0.58, 1.0, 0.5, 1.0, 0.6, 1.0, 0.4, 1.0, 0.7,
+                1.0, 0.3, 1.0, 0.55, 1.0, 0.45, 1.0, 0.65, 1.0, 0.35, 1.0, 0.52, 1.0, 0.48, 1.0,
+                0.58,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+        ]);
+
+        let mut clf = HistGradientBoostingClassifier::new()
+            .with_max_iter(50)
+            .with_learning_rate(0.1)
+            .with_min_samples_leaf(2)
+            .with_categorical_features(vec![0])
+            .with_random_state(42);
+
+        clf.fit(&x, &y).unwrap();
+        let predictions = clf.predict(&x).unwrap();
+
+        let accuracy: f64 = predictions
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (**p - **t).abs() < 0.5)
+            .count() as f64
+            / y.len() as f64;
+
+        // With a perfectly separable categorical feature, accuracy should be high
+        assert!(
+            accuracy >= 0.75,
+            "Expected high accuracy with categorical signal, got {}",
+            accuracy
+        );
+    }
+
+    #[test]
+    fn test_hist_boosting_with_vs_without_categorical_declaration() {
+        use crate::models::hist_boosting::HistGradientBoostingRegressor;
+        use crate::models::Model;
+
+        // Data where category strongly determines target
+        let x = Array2::from_shape_vec(
+            (12, 2),
+            vec![
+                0.0, 1.0, 0.0, 1.1, 0.0, 0.9, 0.0, 1.2, 1.0, 2.0, 1.0, 2.1, 1.0, 1.9, 1.0, 2.2,
+                2.0, 3.0, 2.0, 3.1, 2.0, 2.9, 2.0, 3.2,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            10.0, 10.5, 9.5, 11.0, 20.0, 20.5, 19.5, 21.0, 30.0, 30.5, 29.5, 31.0,
+        ]);
+
+        // With categorical declaration
+        let mut reg_cat = HistGradientBoostingRegressor::new()
+            .with_max_iter(100)
+            .with_learning_rate(0.1)
+            .with_min_samples_leaf(2)
+            .with_categorical_features(vec![0])
+            .with_random_state(42);
+        reg_cat.fit(&x, &y).unwrap();
+        let pred_cat = reg_cat.predict(&x).unwrap();
+
+        // Without categorical declaration
+        let mut reg_no_cat = HistGradientBoostingRegressor::new()
+            .with_max_iter(100)
+            .with_learning_rate(0.1)
+            .with_min_samples_leaf(2)
+            .with_categorical_features(vec![])
+            .with_random_state(42);
+        reg_no_cat.fit(&x, &y).unwrap();
+        let pred_no_cat = reg_no_cat.predict(&x).unwrap();
+
+        // Both should produce reasonable predictions (they learn the same data)
+        // but they may differ in approach
+        let mse_cat: f64 = pred_cat
+            .iter()
+            .zip(y.iter())
+            .map(|(p, t)| (p - t).powi(2))
+            .sum::<f64>()
+            / y.len() as f64;
+        let mse_no_cat: f64 = pred_no_cat
+            .iter()
+            .zip(y.iter())
+            .map(|(p, t)| (p - t).powi(2))
+            .sum::<f64>()
+            / y.len() as f64;
+
+        // Both should fit reasonably
+        assert!(
+            mse_cat.sqrt() < 10.0,
+            "Categorical RMSE too high: {}",
+            mse_cat.sqrt()
+        );
+        assert!(
+            mse_no_cat.sqrt() < 10.0,
+            "Non-categorical RMSE too high: {}",
+            mse_no_cat.sqrt()
+        );
+    }
+
+    // ========== ColumnTransformer with Different Encoders ==========
+
+    #[test]
+    fn test_column_transformer_onehot_and_standard_scaler() {
+        use crate::pipeline::{ColumnSelector, ColumnTransformer, RemainderHandling};
+        use crate::preprocessing::scalers::StandardScaler;
+
+        // 4 features: col 0 = categorical, cols 1-3 = numeric
+        let x = array![
+            [0.0, 10.0, 100.0, 1000.0],
+            [1.0, 20.0, 200.0, 2000.0],
+            [2.0, 30.0, 300.0, 3000.0],
+            [0.0, 40.0, 400.0, 4000.0],
+            [1.0, 50.0, 500.0, 5000.0],
+        ];
+
+        let mut ct = ColumnTransformer::new()
+            .add_transformer(
+                "encoder",
+                OneHotEncoder::new(),
+                ColumnSelector::indices([0]),
+            )
+            .add_transformer(
+                "scaler",
+                StandardScaler::new(),
+                ColumnSelector::indices([1, 2, 3]),
+            )
+            .with_remainder(RemainderHandling::Drop);
+
+        let transformed = ct.fit_transform(&x).unwrap();
+
+        // OneHot on col 0 with 3 categories -> 3 cols, StandardScaler on 3 cols -> 3 cols
+        // Total: 6 columns
+        assert_eq!(transformed.ncols(), 6);
+        assert_eq!(transformed.nrows(), 5);
+
+        // First 3 columns are one-hot: each row should have exactly one 1.0
+        for i in 0..5 {
+            let ohe_sum: f64 = (0..3).map(|j| transformed[[i, j]]).sum();
+            assert!(
+                (ohe_sum - 1.0).abs() < EPSILON,
+                "Row {} one-hot sum is {}",
+                i,
+                ohe_sum
+            );
+        }
+
+        // Last 3 columns are standard-scaled: mean ~0, std ~1
+        for col in 3..6 {
+            let col_mean: f64 = (0..5).map(|i| transformed[[i, col]]).sum::<f64>() / 5.0;
+            assert!(
+                col_mean.abs() < 1e-6,
+                "Scaled column {} has mean {}",
+                col,
+                col_mean
+            );
+        }
+    }
+
+    #[test]
+    fn test_column_transformer_onehot_and_passthrough() {
+        use crate::pipeline::{ColumnSelector, ColumnTransformer, RemainderHandling};
+
+        // col 0 = categorical, cols 1-2 = numeric (passthrough via remainder)
+        let x = array![[0.0, 10.0, 100.0], [1.0, 20.0, 200.0], [2.0, 30.0, 300.0],];
+
+        let mut ct = ColumnTransformer::new()
+            .add_transformer(
+                "encoder",
+                OneHotEncoder::new(),
+                ColumnSelector::indices([0]),
+            )
+            .with_remainder(RemainderHandling::Passthrough);
+
+        let transformed = ct.fit_transform(&x).unwrap();
+
+        // OneHot on col 0: 3 categories -> 3 cols
+        // Passthrough cols 1,2 -> 2 cols
+        // Total: 5 columns
+        assert_eq!(transformed.ncols(), 5);
+        assert_eq!(transformed.nrows(), 3);
+
+        // Passthrough columns should be unchanged (last 2 cols)
+        assert!((transformed[[0, 3]] - 10.0).abs() < EPSILON);
+        assert!((transformed[[0, 4]] - 100.0).abs() < EPSILON);
+        assert!((transformed[[1, 3]] - 20.0).abs() < EPSILON);
+        assert!((transformed[[1, 4]] - 200.0).abs() < EPSILON);
+    }
+
+    #[test]
+    fn test_column_transformer_output_shape_correctness() {
+        use crate::pipeline::{ColumnSelector, ColumnTransformer, RemainderHandling};
+        use crate::preprocessing::scalers::MinMaxScaler;
+
+        // 5 features: cols 0,1 = categorical (binary), cols 2,3,4 = numeric
+        let x = array![
+            [0.0, 0.0, 1.0, 2.0, 3.0],
+            [1.0, 1.0, 4.0, 5.0, 6.0],
+            [0.0, 1.0, 7.0, 8.0, 9.0],
+            [1.0, 0.0, 10.0, 11.0, 12.0],
+        ];
+
+        let mut ct = ColumnTransformer::new()
+            .add_transformer(
+                "onehot",
+                OneHotEncoder::new(),
+                ColumnSelector::indices([0, 1]),
+            )
+            .add_transformer(
+                "minmax",
+                MinMaxScaler::new(),
+                ColumnSelector::indices([2, 3, 4]),
+            )
+            .with_remainder(RemainderHandling::Drop);
+
+        let transformed = ct.fit_transform(&x).unwrap();
+
+        // Col 0: 2 categories -> 2 OHE cols
+        // Col 1: 2 categories -> 2 OHE cols
+        // Cols 2,3,4: 3 MinMax cols
+        // Total: 7 columns
+        assert_eq!(transformed.ncols(), 7);
+        assert_eq!(transformed.nrows(), 4);
+
+        // MinMax scaled values should be in [0, 1]
+        for i in 0..4 {
+            for j in 4..7 {
+                assert!(
+                    transformed[[i, j]] >= -EPSILON && transformed[[i, j]] <= 1.0 + EPSILON,
+                    "MinMax value out of range at [{}, {}]: {}",
+                    i,
+                    j,
+                    transformed[[i, j]]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_column_transformer_transform_after_fit() {
+        use crate::pipeline::{ColumnSelector, ColumnTransformer, RemainderHandling};
+        use crate::preprocessing::scalers::StandardScaler;
+
+        // Fit on training data, transform test data
+        let x_train = array![[0.0, 10.0], [1.0, 20.0], [2.0, 30.0], [0.0, 40.0],];
+        let x_test = array![[1.0, 25.0], [2.0, 35.0],];
+
+        let mut ct = ColumnTransformer::new()
+            .add_transformer(
+                "encoder",
+                OneHotEncoder::new(),
+                ColumnSelector::indices([0]),
+            )
+            .add_transformer(
+                "scaler",
+                StandardScaler::new(),
+                ColumnSelector::indices([1]),
+            )
+            .with_remainder(RemainderHandling::Drop);
+
+        ct.fit(&x_train).unwrap();
+        let transformed = ct.transform(&x_test).unwrap();
+
+        // 3 OHE cols + 1 scaled col = 4 columns
+        assert_eq!(transformed.ncols(), 4);
+        assert_eq!(transformed.nrows(), 2);
+
+        // First row: category 1 -> [0, 1, 0]
+        assert!((transformed[[0, 1]] - 1.0).abs() < EPSILON);
+        assert!((transformed[[0, 0]]).abs() < EPSILON);
+        assert!((transformed[[0, 2]]).abs() < EPSILON);
+    }
+
+    // ========== Mixed Categorical/Numeric Pipeline Tests ==========
+
+    #[test]
+    fn test_mixed_pipeline_column_transformer_to_model() {
+        use crate::models::hist_boosting::HistGradientBoostingClassifier;
+        use crate::models::Model;
+        use crate::pipeline::{ColumnSelector, ColumnTransformer, RemainderHandling};
+        use crate::preprocessing::scalers::StandardScaler;
+
+        // Simulate categorical + numeric features
+        // Col 0: categorical (0, 1, 2), Cols 1-2: numeric
+        let x = array![
+            [0.0, 1.0, 0.5],
+            [0.0, 1.5, 0.6],
+            [0.0, 0.8, 0.4],
+            [0.0, 1.2, 0.55],
+            [1.0, 3.0, 1.5],
+            [1.0, 3.5, 1.6],
+            [1.0, 2.8, 1.4],
+            [1.0, 3.2, 1.55],
+            [2.0, 5.0, 2.5],
+            [2.0, 5.5, 2.6],
+            [2.0, 4.8, 2.4],
+            [2.0, 5.2, 2.55],
+        ];
+        let y = Array1::from_vec(vec![
+            0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+        ]);
+
+        // Step 1: encode categoricals + scale numerics
+        let mut ct = ColumnTransformer::new()
+            .add_transformer(
+                "encoder",
+                OneHotEncoder::new(),
+                ColumnSelector::indices([0]),
+            )
+            .add_transformer(
+                "scaler",
+                StandardScaler::new(),
+                ColumnSelector::indices([1, 2]),
+            )
+            .with_remainder(RemainderHandling::Drop);
+
+        let x_transformed = ct.fit_transform(&x).unwrap();
+
+        // 3 OHE cols + 2 scaled cols = 5 features
+        assert_eq!(x_transformed.ncols(), 5);
+
+        // Step 2: fit model on transformed data
+        let mut clf = HistGradientBoostingClassifier::new()
+            .with_max_iter(50)
+            .with_learning_rate(0.1)
+            .with_min_samples_leaf(2)
+            .with_random_state(42);
+
+        clf.fit(&x_transformed, &y).unwrap();
+        let predictions = clf.predict(&x_transformed).unwrap();
+        assert_eq!(predictions.len(), 12);
+
+        let accuracy: f64 = predictions
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (**p - **t).abs() < 0.5)
+            .count() as f64
+            / y.len() as f64;
+
+        // Should do better than random (>50%) on training data
+        assert!(accuracy >= 0.6, "Pipeline accuracy too low: {}", accuracy);
+    }
+
+    #[test]
+    fn test_mixed_pipeline_produces_valid_predictions() {
+        use crate::models::hist_boosting::HistGradientBoostingRegressor;
+        use crate::models::Model;
+        use crate::pipeline::{ColumnSelector, ColumnTransformer, RemainderHandling};
+        use crate::preprocessing::scalers::MinMaxScaler;
+
+        // Col 0: categorical, Cols 1-2: numeric
+        let x = array![
+            [0.0, 10.0, 100.0],
+            [0.0, 11.0, 110.0],
+            [0.0, 9.0, 90.0],
+            [1.0, 20.0, 200.0],
+            [1.0, 21.0, 210.0],
+            [1.0, 19.0, 190.0],
+            [2.0, 30.0, 300.0],
+            [2.0, 31.0, 310.0],
+            [2.0, 29.0, 290.0],
+        ];
+        let y = Array1::from_vec(vec![5.0, 5.5, 4.5, 15.0, 15.5, 14.5, 25.0, 25.5, 24.5]);
+
+        // Encode + scale
+        let mut ct = ColumnTransformer::new()
+            .add_transformer(
+                "encoder",
+                OneHotEncoder::new(),
+                ColumnSelector::indices([0]),
+            )
+            .add_transformer(
+                "minmax",
+                MinMaxScaler::new(),
+                ColumnSelector::indices([1, 2]),
+            )
+            .with_remainder(RemainderHandling::Drop);
+
+        let x_transformed = ct.fit_transform(&x).unwrap();
+
+        let mut reg = HistGradientBoostingRegressor::new()
+            .with_max_iter(100)
+            .with_learning_rate(0.1)
+            .with_random_state(42);
+
+        reg.fit(&x_transformed, &y).unwrap();
+        let predictions = reg.predict(&x_transformed).unwrap();
+
+        // All predictions should be finite
+        for p in predictions.iter() {
+            assert!(p.is_finite(), "Non-finite prediction: {}", p);
+        }
+
+        // Predictions should be in a reasonable range (not wildly off)
+        for p in predictions.iter() {
+            assert!(*p > -50.0 && *p < 80.0, "Prediction out of range: {}", p);
+        }
+
+        // RMSE should be reasonable
+        let mse: f64 = predictions
+            .iter()
+            .zip(y.iter())
+            .map(|(p, t)| (p - t).powi(2))
+            .sum::<f64>()
+            / y.len() as f64;
+        assert!(mse.sqrt() < 10.0, "RMSE too high: {}", mse.sqrt());
+    }
+
+    #[test]
+    fn test_mixed_pipeline_multiple_encoder_types() {
+        use crate::pipeline::{ColumnSelector, ColumnTransformer, RemainderHandling};
+        use crate::preprocessing::scalers::StandardScaler;
+
+        // Col 0: to be one-hot encoded
+        // Col 1: numeric, to be scaled
+        // Col 2: numeric, passthrough
+        let x = array![
+            [0.0, 10.0, 1.0],
+            [1.0, 20.0, 2.0],
+            [2.0, 30.0, 3.0],
+            [0.0, 40.0, 4.0],
+            [1.0, 50.0, 5.0],
+        ];
+
+        let mut ct = ColumnTransformer::new()
+            .add_transformer("onehot", OneHotEncoder::new(), ColumnSelector::indices([0]))
+            .add_transformer(
+                "scaler",
+                StandardScaler::new(),
+                ColumnSelector::indices([1]),
+            )
+            .with_remainder(RemainderHandling::Passthrough);
+
+        let transformed = ct.fit_transform(&x).unwrap();
+
+        // 3 OHE cols + 1 scaled col + 1 passthrough col = 5
+        assert_eq!(transformed.ncols(), 5);
+        assert_eq!(transformed.nrows(), 5);
+
+        // One-hot columns sum to 1 per row
+        for i in 0..5 {
+            let ohe_sum: f64 = (0..3).map(|j| transformed[[i, j]]).sum();
+            assert!(
+                (ohe_sum - 1.0).abs() < EPSILON,
+                "Row {} one-hot sum: {}",
+                i,
+                ohe_sum
+            );
+        }
+
+        // Scaled column has mean ~0
+        let scaled_mean: f64 = (0..5).map(|i| transformed[[i, 3]]).sum::<f64>() / 5.0;
+        assert!(scaled_mean.abs() < 1e-6, "Scaled mean: {}", scaled_mean);
+
+        // Passthrough column preserves original values
+        for i in 0..5 {
+            assert!(
+                (transformed[[i, 4]] - x[[i, 2]]).abs() < EPSILON,
+                "Passthrough mismatch at row {}",
+                i
+            );
+        }
+    }
 }

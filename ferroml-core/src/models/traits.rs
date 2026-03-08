@@ -78,6 +78,38 @@ pub trait TreeModel: super::Model {
     }
 }
 
+/// Trait for anomaly detection models (IsolationForest, LocalOutlierFactor, etc.)
+///
+/// Sign conventions match sklearn:
+/// - `score_samples()`: lower values = more anomalous
+/// - `decision_function()`: negative = outlier, positive = inlier
+/// - `predict()`: returns +1 (inlier) or -1 (outlier)
+pub trait OutlierDetector: Send + Sync {
+    /// Fit the model on unlabeled data.
+    fn fit_unsupervised(&mut self, x: &Array2<f64>) -> Result<()>;
+
+    /// Predict inlier (+1) or outlier (-1) labels.
+    fn predict_outliers(&self, x: &Array2<f64>) -> Result<Array1<i32>>;
+
+    /// Fit and predict in one step (required for LOF in non-novelty mode).
+    fn fit_predict_outliers(&mut self, x: &Array2<f64>) -> Result<Array1<i32>> {
+        self.fit_unsupervised(x)?;
+        self.predict_outliers(x)
+    }
+
+    /// Raw anomaly scores. Lower = more anomalous.
+    fn score_samples(&self, x: &Array2<f64>) -> Result<Array1<f64>>;
+
+    /// `score_samples() - offset`. Negative = outlier.
+    fn decision_function(&self, x: &Array2<f64>) -> Result<Array1<f64>>;
+
+    /// Whether the model has been fitted.
+    fn is_fitted(&self) -> bool;
+
+    /// The threshold offset used for binary classification.
+    fn offset(&self) -> f64;
+}
+
 /// Trait for ensemble models with warm start capability
 pub trait WarmStartModel: super::Model {
     /// Enable/disable warm start

@@ -104,3 +104,242 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     distances[i * dims.C + j] = dist;
 }
 ";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // Shader source non-empty checks
+    // ========================================================================
+
+    #[test]
+    fn test_matmul_shader_non_empty() {
+        assert!(!MATMUL_SHADER.is_empty());
+        assert!(MATMUL_SHADER.len() > 100, "Shader suspiciously short");
+    }
+
+    #[test]
+    fn test_distance_shader_non_empty() {
+        assert!(!DISTANCE_SHADER.is_empty());
+        assert!(DISTANCE_SHADER.len() > 100, "Shader suspiciously short");
+    }
+
+    // ========================================================================
+    // Matmul shader structure checks
+    // ========================================================================
+
+    #[test]
+    fn test_matmul_shader_has_workgroup_size() {
+        assert!(
+            MATMUL_SHADER.contains("@workgroup_size"),
+            "Matmul shader missing @workgroup_size annotation"
+        );
+    }
+
+    #[test]
+    fn test_matmul_shader_workgroup_16x16() {
+        assert!(
+            MATMUL_SHADER.contains("@workgroup_size(16, 16)"),
+            "Matmul shader should use 16x16 tile workgroup size"
+        );
+    }
+
+    #[test]
+    fn test_matmul_shader_has_compute() {
+        assert!(
+            MATMUL_SHADER.contains("@compute"),
+            "Matmul shader missing @compute annotation"
+        );
+    }
+
+    #[test]
+    fn test_matmul_shader_has_main_entry_point() {
+        assert!(
+            MATMUL_SHADER.contains("fn main"),
+            "Matmul shader missing main entry point"
+        );
+    }
+
+    #[test]
+    fn test_matmul_shader_buffer_bindings() {
+        // Should have 4 bindings: uniform dims, A, B, C
+        assert!(MATMUL_SHADER.contains("@binding(0)"));
+        assert!(MATMUL_SHADER.contains("@binding(1)"));
+        assert!(MATMUL_SHADER.contains("@binding(2)"));
+        assert!(MATMUL_SHADER.contains("@binding(3)"));
+    }
+
+    #[test]
+    fn test_matmul_shader_has_uniform_dims() {
+        assert!(
+            MATMUL_SHADER.contains("var<uniform>"),
+            "Matmul shader should have uniform buffer for dimensions"
+        );
+    }
+
+    #[test]
+    fn test_matmul_shader_has_storage_buffers() {
+        assert!(
+            MATMUL_SHADER.contains("var<storage, read>"),
+            "Matmul shader should have read storage buffers"
+        );
+        assert!(
+            MATMUL_SHADER.contains("var<storage, read_write>"),
+            "Matmul shader should have read_write output buffer"
+        );
+    }
+
+    #[test]
+    fn test_matmul_shader_has_workgroup_barrier() {
+        assert!(
+            MATMUL_SHADER.contains("workgroupBarrier()"),
+            "Tiled matmul shader requires workgroup barriers for synchronization"
+        );
+    }
+
+    #[test]
+    fn test_matmul_shader_has_tile_shared_memory() {
+        assert!(
+            MATMUL_SHADER.contains("var<workgroup>"),
+            "Tiled matmul should use workgroup shared memory"
+        );
+    }
+
+    #[test]
+    fn test_matmul_shader_dims_struct() {
+        assert!(
+            MATMUL_SHADER.contains("struct Dims"),
+            "Matmul shader should define Dims struct"
+        );
+        assert!(MATMUL_SHADER.contains("M: u32"));
+        assert!(MATMUL_SHADER.contains("K: u32"));
+        assert!(MATMUL_SHADER.contains("N: u32"));
+    }
+
+    // ========================================================================
+    // Distance shader structure checks
+    // ========================================================================
+
+    #[test]
+    fn test_distance_shader_has_workgroup_size() {
+        assert!(
+            DISTANCE_SHADER.contains("@workgroup_size"),
+            "Distance shader missing @workgroup_size annotation"
+        );
+    }
+
+    #[test]
+    fn test_distance_shader_workgroup_256() {
+        assert!(
+            DISTANCE_SHADER.contains("@workgroup_size(256)"),
+            "Distance shader should use workgroup size 256"
+        );
+    }
+
+    #[test]
+    fn test_distance_shader_has_compute() {
+        assert!(
+            DISTANCE_SHADER.contains("@compute"),
+            "Distance shader missing @compute annotation"
+        );
+    }
+
+    #[test]
+    fn test_distance_shader_has_main_entry_point() {
+        assert!(
+            DISTANCE_SHADER.contains("fn main"),
+            "Distance shader missing main entry point"
+        );
+    }
+
+    #[test]
+    fn test_distance_shader_buffer_bindings() {
+        assert!(DISTANCE_SHADER.contains("@binding(0)"));
+        assert!(DISTANCE_SHADER.contains("@binding(1)"));
+        assert!(DISTANCE_SHADER.contains("@binding(2)"));
+        assert!(DISTANCE_SHADER.contains("@binding(3)"));
+    }
+
+    #[test]
+    fn test_distance_shader_has_uniform_dims() {
+        assert!(
+            DISTANCE_SHADER.contains("var<uniform>"),
+            "Distance shader should have uniform buffer for dimensions"
+        );
+    }
+
+    #[test]
+    fn test_distance_shader_has_storage_buffers() {
+        assert!(
+            DISTANCE_SHADER.contains("var<storage, read>"),
+            "Distance shader should have read storage buffers"
+        );
+        assert!(
+            DISTANCE_SHADER.contains("var<storage, read_write>"),
+            "Distance shader should have read_write output buffer"
+        );
+    }
+
+    #[test]
+    fn test_distance_shader_dims_struct() {
+        assert!(
+            DISTANCE_SHADER.contains("struct Dims"),
+            "Distance shader should define Dims struct"
+        );
+        assert!(DISTANCE_SHADER.contains("N: u32"));
+        assert!(DISTANCE_SHADER.contains("C: u32"));
+        assert!(DISTANCE_SHADER.contains("D: u32"));
+    }
+
+    #[test]
+    fn test_distance_shader_uses_f32() {
+        // Both shaders should use f32 (GPU precision)
+        assert!(DISTANCE_SHADER.contains("f32"));
+        assert!(MATMUL_SHADER.contains("f32"));
+    }
+
+    #[test]
+    fn test_distance_shader_group_annotation() {
+        // All bindings should be in group 0
+        assert!(DISTANCE_SHADER.contains("@group(0)"));
+        assert!(MATMUL_SHADER.contains("@group(0)"));
+    }
+
+    // ========================================================================
+    // Cross-shader consistency
+    // ========================================================================
+
+    #[test]
+    fn test_both_shaders_have_global_invocation_id() {
+        assert!(MATMUL_SHADER.contains("global_invocation_id"));
+        assert!(DISTANCE_SHADER.contains("global_invocation_id"));
+    }
+
+    #[test]
+    fn test_shaders_are_valid_wgsl_structure() {
+        // Basic structural check: braces are balanced
+        fn check_balanced(src: &str) -> bool {
+            let mut depth = 0i32;
+            for c in src.chars() {
+                match c {
+                    '{' => depth += 1,
+                    '}' => depth -= 1,
+                    _ => {}
+                }
+                if depth < 0 {
+                    return false;
+                }
+            }
+            depth == 0
+        }
+        assert!(
+            check_balanced(MATMUL_SHADER),
+            "Matmul shader has unbalanced braces"
+        );
+        assert!(
+            check_balanced(DISTANCE_SHADER),
+            "Distance shader has unbalanced braces"
+        );
+    }
+}

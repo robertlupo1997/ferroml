@@ -17,7 +17,8 @@ use crate::array_utils::to_owned_array_2d;
 use crate::pickle::{getstate, setstate};
 use ferroml_core::clustering::metrics;
 use ferroml_core::clustering::{
-    AgglomerativeClustering, ClusteringModel, ClusteringStatistics, KMeans, DBSCAN,
+    AgglomerativeClustering, ClusteringModel, ClusteringStatistics, CovarianceType,
+    GaussianMixture, GmmInit, KMeans, DBSCAN,
 };
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -738,6 +739,288 @@ impl PyAgglomerativeClustering {
 }
 
 // =============================================================================
+// GaussianMixture
+// =============================================================================
+
+/// Gaussian Mixture Model fitted via Expectation-Maximization.
+///
+/// Parameters
+/// ----------
+/// n_components : int, optional (default=1)
+///     Number of mixture components.
+/// covariance_type : str, optional (default="full")
+///     Covariance type: "full", "tied", "diagonal", "spherical".
+/// max_iter : int, optional (default=100)
+///     Maximum number of EM iterations.
+/// tol : float, optional (default=1e-3)
+///     Convergence threshold.
+/// n_init : int, optional (default=1)
+///     Number of initializations to perform.
+/// init_params : str, optional (default="kmeans")
+///     Initialization method: "kmeans" or "random".
+/// reg_covar : float, optional (default=1e-6)
+///     Regularization added to diagonal of covariance matrices.
+/// random_state : int, optional
+///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.clustering import GaussianMixture
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [1.5, 1.8], [5, 8], [8, 8], [1, 0.6], [9, 11]])
+/// >>> gmm = GaussianMixture(n_components=2, random_state=42)
+/// >>> gmm.fit(X)
+/// >>> gmm.predict(X)
+/// >>> gmm.predict_proba(X)
+#[pyclass(name = "GaussianMixture", module = "ferroml.clustering")]
+pub struct PyGaussianMixture {
+    inner: GaussianMixture,
+}
+
+#[pymethods]
+impl PyGaussianMixture {
+    #[new]
+    #[pyo3(signature = (
+        n_components=1,
+        covariance_type="full",
+        max_iter=100,
+        tol=1e-3,
+        n_init=1,
+        init_params="kmeans",
+        reg_covar=1e-6,
+        random_state=None
+    ))]
+    fn new(
+        n_components: usize,
+        covariance_type: &str,
+        max_iter: usize,
+        tol: f64,
+        n_init: usize,
+        init_params: &str,
+        reg_covar: f64,
+        random_state: Option<u64>,
+    ) -> PyResult<Self> {
+        let cov_type = match covariance_type {
+            "full" => CovarianceType::Full,
+            "tied" => CovarianceType::Tied,
+            "diag" | "diagonal" => CovarianceType::Diagonal,
+            "spherical" => CovarianceType::Spherical,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown covariance_type: '{}'. Use 'full', 'tied', 'diag', or 'spherical'.",
+                    covariance_type
+                )));
+            }
+        };
+
+        let init = match init_params {
+            "kmeans" | "k-means" => GmmInit::KMeans,
+            "random" => GmmInit::Random,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown init_params: '{}'. Use 'kmeans' or 'random'.",
+                    init_params
+                )));
+            }
+        };
+
+        let mut inner = GaussianMixture::new(n_components)
+            .covariance_type(cov_type)
+            .max_iter(max_iter)
+            .tol(tol)
+            .n_init(n_init)
+            .init_params(init)
+            .reg_covar(reg_covar);
+
+        if let Some(seed) = random_state {
+            inner = inner.random_state(seed);
+        }
+
+        Ok(Self { inner })
+    }
+
+    /// Fit the Gaussian mixture model.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict cluster labels (hard assignment).
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        let x_arr = to_owned_array_2d(x);
+        let labels = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(labels.into_pyarray(py))
+    }
+
+    /// Fit and predict in one step.
+    fn fit_predict<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        let x_arr = to_owned_array_2d(x);
+        let labels = self
+            .inner
+            .fit_predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(labels.into_pyarray(py))
+    }
+
+    /// Predict posterior probability of each component given data.
+    fn predict_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let proba = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(proba.into_pyarray(py))
+    }
+
+    /// Compute per-sample log-likelihood.
+    fn score_samples<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let scores = self
+            .inner
+            .score_samples(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(scores.into_pyarray(py))
+    }
+
+    /// Compute mean per-sample log-likelihood.
+    fn score(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        self.inner
+            .score(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Compute Bayesian Information Criterion.
+    fn bic(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        self.inner
+            .bic(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Compute Akaike Information Criterion.
+    fn aic(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        self.inner
+            .aic(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Generate random samples from the fitted model.
+    ///
+    /// Returns
+    /// -------
+    /// tuple of (X, labels) where X has shape (n_samples, n_features)
+    #[pyo3(signature = (n_samples=1))]
+    #[allow(clippy::type_complexity)]
+    fn sample<'py>(
+        &self,
+        py: Python<'py>,
+        n_samples: usize,
+    ) -> PyResult<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray1<i32>>)> {
+        let (samples, labels) = self
+            .inner
+            .sample(n_samples)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok((samples.into_pyarray(py), labels.into_pyarray(py)))
+    }
+
+    /// Get mixture weights.
+    #[getter]
+    fn weights_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let weights = self.inner.weights().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(weights.clone().into_pyarray(py))
+    }
+
+    /// Get component means.
+    #[getter]
+    fn means_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let means = self.inner.means().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(means.clone().into_pyarray(py))
+    }
+
+    /// Get cluster labels from last fit.
+    #[getter]
+    fn labels_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        let labels = self.inner.labels().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(labels.clone().into_pyarray(py))
+    }
+
+    /// Get number of iterations run.
+    #[getter]
+    fn n_iter_(&self) -> PyResult<usize> {
+        self.inner.n_iter().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    /// Whether the EM algorithm converged.
+    #[getter]
+    fn converged_(&self) -> PyResult<bool> {
+        self.inner.converged().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    /// Get the lower bound value on the log-likelihood.
+    #[getter]
+    fn lower_bound_(&self) -> PyResult<f64> {
+        self.inner.lower_bound().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    /// Return the state of the model for pickling.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    /// Restore the model state from pickled bytes.
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "GaussianMixture(n_components={})",
+            self.inner.weights().map_or(0, |w| w.len())
+        )
+    }
+}
+
+// =============================================================================
 // Clustering Metrics Functions
 // =============================================================================
 
@@ -964,6 +1247,7 @@ pub fn register_clustering_module(parent_module: &Bound<'_, PyModule>) -> PyResu
     clustering_module.add_class::<PyKMeans>()?;
     clustering_module.add_class::<PyDBSCAN>()?;
     clustering_module.add_class::<PyAgglomerativeClustering>()?;
+    clustering_module.add_class::<PyGaussianMixture>()?;
 
     // Add metric functions
     clustering_module.add_function(wrap_pyfunction!(py_silhouette_score, &clustering_module)?)?;

@@ -28,6 +28,10 @@
 
 use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
+use ferroml_core::models::quantile::QuantileRegression;
+use ferroml_core::models::regularized::{ElasticNetCV, LassoCV, RidgeCV, RidgeClassifier};
+use ferroml_core::models::robust::{MEstimator, RobustRegression};
+use ferroml_core::models::sgd::Perceptron;
 use ferroml_core::models::{
     ElasticNet, LassoRegression, LinearRegression, LogisticRegression, Model, ProbabilisticModel,
     RidgeRegression, StatisticalModel,
@@ -1930,10 +1934,738 @@ impl PyElasticNet {
 }
 
 // =============================================================================
+// RobustRegression
+// =============================================================================
+
+/// Robust Regression using M-estimators.
+///
+/// Iteratively Reweighted Least Squares (IRLS) regression that is resistant
+/// to outliers by using robust loss functions.
+///
+/// Parameters
+/// ----------
+/// estimator : str, optional (default="huber")
+///     M-estimator type: "huber", "bisquare"/"tukey", "hampel", "andrews".
+/// max_iter : int, optional (default=50)
+///     Maximum number of IRLS iterations.
+/// tol : float, optional (default=1e-6)
+///     Convergence tolerance.
+///
+/// Attributes
+/// ----------
+/// coef_ : ndarray of shape (n_features,)
+///     Estimated coefficients.
+/// intercept_ : float
+///     Estimated intercept.
+#[pyclass(name = "RobustRegression", module = "ferroml.linear")]
+pub struct PyRobustRegression {
+    inner: RobustRegression,
+}
+
+#[pymethods]
+impl PyRobustRegression {
+    #[new]
+    #[pyo3(signature = (estimator="huber", max_iter=50, tol=1e-6))]
+    fn new(estimator: &str, max_iter: usize, tol: f64) -> PyResult<Self> {
+        let est = match estimator.to_lowercase().as_str() {
+            "huber" => MEstimator::Huber,
+            "bisquare" | "tukey" => MEstimator::Bisquare,
+            "hampel" => MEstimator::Hampel,
+            "andrews" | "andrews_wave" => MEstimator::AndrewsWave,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "estimator must be 'huber', 'bisquare'/'tukey', 'hampel', or 'andrews'",
+                ))
+            }
+        };
+        let inner = RobustRegression::with_estimator(est)
+            .with_max_iter(max_iter)
+            .with_tol(tol);
+        Ok(Self { inner })
+    }
+
+    /// Fit the model to training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Predict target values.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let predictions = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
+    /// Get the fitted coefficients.
+    #[getter]
+    fn coef_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let coef = self.inner.coefficients().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(coef.clone().into_pyarray(py))
+    }
+
+    /// Get the fitted intercept.
+    #[getter]
+    fn intercept_(&self) -> PyResult<f64> {
+        self.inner.intercept().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "RobustRegression(estimator={:?}, max_iter={}, tol={})",
+            self.inner.estimator, self.inner.max_iter, self.inner.tol
+        )
+    }
+}
+
+// =============================================================================
+// QuantileRegression
+// =============================================================================
+
+/// Quantile Regression.
+///
+/// Estimates conditional quantiles of the response variable, rather than
+/// the conditional mean. Useful for understanding the full distribution
+/// of the response.
+///
+/// Parameters
+/// ----------
+/// quantile : float, optional (default=0.5)
+///     The quantile to estimate (0 < quantile < 1). 0.5 gives the median.
+/// max_iter : int, optional (default=1000)
+///     Maximum number of iterations.
+/// tol : float, optional (default=1e-6)
+///     Convergence tolerance.
+///
+/// Attributes
+/// ----------
+/// coef_ : ndarray of shape (n_features,)
+///     Estimated coefficients.
+/// intercept_ : float
+///     Estimated intercept.
+#[pyclass(name = "QuantileRegression", module = "ferroml.linear")]
+pub struct PyQuantileRegression {
+    inner: QuantileRegression,
+}
+
+#[pymethods]
+impl PyQuantileRegression {
+    #[new]
+    #[pyo3(signature = (quantile=0.5, max_iter=1000, tol=1e-6))]
+    fn new(quantile: f64, max_iter: usize, tol: f64) -> PyResult<Self> {
+        let inner = QuantileRegression::new(quantile)
+            .with_max_iter(max_iter)
+            .with_tol(tol);
+        Ok(Self { inner })
+    }
+
+    /// Fit the model to training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Predict target values.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let predictions = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
+    /// Get the fitted coefficients.
+    #[getter]
+    fn coef_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let coef = self.inner.coefficients().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(coef.clone().into_pyarray(py))
+    }
+
+    /// Get the fitted intercept.
+    #[getter]
+    fn intercept_(&self) -> PyResult<f64> {
+        self.inner.intercept().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "QuantileRegression(quantile={}, max_iter={}, tol={})",
+            self.inner.quantile, self.inner.max_iter, self.inner.tol
+        )
+    }
+}
+
+// =============================================================================
+// Perceptron
+// =============================================================================
+
+/// Perceptron classifier.
+///
+/// A simple online learning algorithm for binary and multiclass classification.
+/// Equivalent to SGDClassifier with hinge loss and no regularization.
+///
+/// Parameters
+/// ----------
+/// max_iter : int, optional (default=1000)
+///     Maximum number of passes over the training data.
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+#[pyclass(name = "Perceptron", module = "ferroml.linear")]
+pub struct PyPerceptron {
+    inner: Perceptron,
+}
+
+#[pymethods]
+impl PyPerceptron {
+    #[new]
+    #[pyo3(signature = (max_iter=1000, random_state=None))]
+    fn new(max_iter: usize, random_state: Option<u64>) -> PyResult<Self> {
+        let mut p = Perceptron::new().with_max_iter(max_iter);
+        if let Some(seed) = random_state {
+            p = p.with_random_state(seed);
+        }
+        Ok(Self { inner: p })
+    }
+
+    /// Fit the model to training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Predict class labels.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let predictions = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
+    fn __repr__(&self) -> String {
+        "Perceptron()".to_string()
+    }
+}
+
+// =============================================================================
+// RidgeCV
+// =============================================================================
+
+/// Ridge Regression with built-in cross-validated alpha selection.
+///
+/// Automatically selects the best regularization strength (alpha) using
+/// cross-validation over a range of candidate values.
+///
+/// Parameters
+/// ----------
+/// alphas : list of float, optional
+///     List of alpha values to try. If None, uses log-spaced defaults.
+/// cv : int, optional (default=5)
+///     Number of cross-validation folds.
+///
+/// Attributes
+/// ----------
+/// alpha_ : float
+///     The best alpha found by cross-validation. Only available after fit.
+#[pyclass(name = "RidgeCV", module = "ferroml.linear")]
+pub struct PyRidgeCV {
+    inner: RidgeCV,
+}
+
+#[pymethods]
+impl PyRidgeCV {
+    #[new]
+    #[pyo3(signature = (alphas=None, cv=5))]
+    fn new(alphas: Option<Vec<f64>>, cv: usize) -> Self {
+        let inner = match alphas {
+            Some(a) => RidgeCV::new(a, cv),
+            None => RidgeCV::with_defaults(cv),
+        };
+        Self { inner }
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let predictions = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
+    #[getter]
+    fn alpha_(&self) -> PyResult<f64> {
+        self.inner.best_alpha().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    fn __repr__(&self) -> String {
+        format!("RidgeCV(cv={})", self.inner.cv)
+    }
+}
+
+// =============================================================================
+// LassoCV
+// =============================================================================
+
+/// Lasso Regression with built-in cross-validated alpha selection.
+///
+/// Automatically generates log-spaced alpha candidates and selects the best
+/// one using cross-validation.
+///
+/// Parameters
+/// ----------
+/// n_alphas : int, optional (default=100)
+///     Number of alpha values to try (log-spaced).
+/// cv : int, optional (default=5)
+///     Number of cross-validation folds.
+///
+/// Attributes
+/// ----------
+/// alpha_ : float
+///     The best alpha found by cross-validation. Only available after fit.
+#[pyclass(name = "LassoCV", module = "ferroml.linear")]
+pub struct PyLassoCV {
+    inner: LassoCV,
+}
+
+#[pymethods]
+impl PyLassoCV {
+    #[new]
+    #[pyo3(signature = (n_alphas=100, cv=5))]
+    fn new(n_alphas: usize, cv: usize) -> Self {
+        Self {
+            inner: LassoCV::new(n_alphas, cv),
+        }
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let predictions = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
+    #[getter]
+    fn alpha_(&self) -> PyResult<f64> {
+        self.inner.best_alpha().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "LassoCV(n_alphas={}, cv={})",
+            self.inner.n_alphas, self.inner.cv
+        )
+    }
+}
+
+// =============================================================================
+// ElasticNetCV
+// =============================================================================
+
+/// ElasticNet with built-in cross-validated alpha and l1_ratio selection.
+///
+/// Searches over a grid of alpha and l1_ratio values using cross-validation
+/// to find the best combination.
+///
+/// Parameters
+/// ----------
+/// n_alphas : int, optional (default=100)
+///     Number of alpha values to try (log-spaced).
+/// l1_ratios : list of float, optional
+///     List of l1_ratio values to try. If None, uses defaults
+///     [0.1, 0.5, 0.7, 0.9, 0.95, 0.99, 1.0].
+/// cv : int, optional (default=5)
+///     Number of cross-validation folds.
+///
+/// Attributes
+/// ----------
+/// alpha_ : float
+///     The best alpha found by cross-validation. Only available after fit.
+/// l1_ratio_ : float
+///     The best l1_ratio found by cross-validation. Only available after fit.
+#[pyclass(name = "ElasticNetCV", module = "ferroml.linear")]
+pub struct PyElasticNetCV {
+    inner: ElasticNetCV,
+}
+
+#[pymethods]
+impl PyElasticNetCV {
+    #[new]
+    #[pyo3(signature = (n_alphas=100, l1_ratios=None, cv=5))]
+    fn new(n_alphas: usize, l1_ratios: Option<Vec<f64>>, cv: usize) -> Self {
+        let inner = match l1_ratios {
+            Some(ratios) => ElasticNetCV::new(n_alphas, ratios, cv),
+            None => ElasticNetCV::with_defaults(n_alphas, cv),
+        };
+        Self { inner }
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let predictions = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
+    #[getter]
+    fn alpha_(&self) -> PyResult<f64> {
+        self.inner.best_alpha().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    #[getter]
+    fn l1_ratio_(&self) -> PyResult<f64> {
+        self.inner.best_l1_ratio().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ElasticNetCV(n_alphas={}, cv={})",
+            self.inner.n_alphas, self.inner.cv
+        )
+    }
+}
+
+// =============================================================================
+// RidgeClassifier
+// =============================================================================
+
+/// Ridge Classifier.
+///
+/// Classification using Ridge regression on {-1, +1} encoded targets.
+/// For binary classification, fits a single Ridge and thresholds at 0.
+/// For multiclass, fits one Ridge per class (One-vs-Rest) and predicts argmax.
+///
+/// Parameters
+/// ----------
+/// alpha : float, optional (default=1.0)
+///     Regularization strength. Larger values specify stronger regularization.
+/// fit_intercept : bool, optional (default=True)
+///     Whether to calculate the intercept for this model.
+#[pyclass(name = "RidgeClassifier", module = "ferroml.linear")]
+pub struct PyRidgeClassifier {
+    inner: RidgeClassifier,
+}
+
+#[pymethods]
+impl PyRidgeClassifier {
+    #[new]
+    #[pyo3(signature = (alpha=1.0, fit_intercept=true))]
+    fn new(alpha: f64, fit_intercept: bool) -> Self {
+        Self {
+            inner: RidgeClassifier::new(alpha).with_fit_intercept(fit_intercept),
+        }
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let predictions = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "RidgeClassifier(alpha={}, fit_intercept={})",
+            self.inner.alpha, self.inner.fit_intercept
+        )
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
-/// Register the linear models submodule.
+// Register the linear models submodule — see register_linear_module below.
+
+// =============================================================================
+// IsotonicRegression
+// =============================================================================
+
+/// Isotonic Regression.
+///
+/// Fits a monotonically non-decreasing (or non-increasing) piecewise-linear function
+/// using the Pool Adjacent Violators Algorithm (PAVA).
+///
+/// Parameters
+/// ----------
+/// increasing : str, optional (default="true")
+///     "true" for non-decreasing, "false" for non-increasing, "auto" for auto-detection.
+/// y_min : float, optional
+///     Minimum output value.
+/// y_max : float, optional
+///     Maximum output value.
+/// out_of_bounds : str, optional (default="nan")
+///     How to handle out-of-range predictions: "nan", "clip", or "raise".
+#[pyclass(name = "IsotonicRegression", module = "ferroml.linear")]
+pub struct PyIsotonicRegression {
+    inner: ferroml_core::models::IsotonicRegression,
+}
+
+#[pymethods]
+impl PyIsotonicRegression {
+    #[new]
+    #[pyo3(signature = (increasing="true", y_min=None, y_max=None, out_of_bounds="nan"))]
+    fn new(
+        increasing: &str,
+        y_min: Option<f64>,
+        y_max: Option<f64>,
+        out_of_bounds: &str,
+    ) -> PyResult<Self> {
+        use ferroml_core::models::isotonic::{Increasing, OutOfBounds};
+
+        let inc = match increasing {
+            "true" => Increasing::True,
+            "false" => Increasing::False,
+            "auto" => Increasing::Auto,
+            other => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "increasing must be 'true', 'false', or 'auto', got '{}'",
+                    other
+                )))
+            }
+        };
+
+        let oob = match out_of_bounds {
+            "nan" => OutOfBounds::Nan,
+            "clip" => OutOfBounds::Clip,
+            "raise" => OutOfBounds::Raise,
+            other => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "out_of_bounds must be 'nan', 'clip', or 'raise', got '{}'",
+                    other
+                )))
+            }
+        };
+
+        let mut iso = ferroml_core::models::IsotonicRegression::new()
+            .with_increasing(inc)
+            .with_out_of_bounds(oob);
+        if let Some(ymin) = y_min {
+            iso = iso.with_y_min(ymin);
+        }
+        if let Some(ymax) = y_max {
+            iso = iso.with_y_max(ymax);
+        }
+
+        Ok(Self { inner: iso })
+    }
+
+    /// Fit the isotonic regression model.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, 1)
+    ///     Training data (must be single-column).
+    /// y : array-like of shape (n_samples,)
+    ///     Target values.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict target values.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, 1)
+    ///     Samples (must be single-column).
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let preds = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(preds.into_pyarray(py))
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        "IsotonicRegression()".to_string()
+    }
+}
+
 pub fn register_linear_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
     let linear_module = PyModule::new(parent_module.py(), "linear")?;
 
@@ -1942,6 +2674,14 @@ pub fn register_linear_module(parent_module: &Bound<'_, PyModule>) -> PyResult<(
     linear_module.add_class::<PyRidgeRegression>()?;
     linear_module.add_class::<PyLassoRegression>()?;
     linear_module.add_class::<PyElasticNet>()?;
+    linear_module.add_class::<PyRobustRegression>()?;
+    linear_module.add_class::<PyQuantileRegression>()?;
+    linear_module.add_class::<PyPerceptron>()?;
+    linear_module.add_class::<PyRidgeCV>()?;
+    linear_module.add_class::<PyLassoCV>()?;
+    linear_module.add_class::<PyElasticNetCV>()?;
+    linear_module.add_class::<PyRidgeClassifier>()?;
+    linear_module.add_class::<PyIsotonicRegression>()?;
 
     parent_module.add_submodule(&linear_module)?;
 

@@ -12,6 +12,9 @@ DBSCAN
 AgglomerativeClustering
     Hierarchical agglomerative clustering with Ward, complete, average,
     and single linkage strategies
+GaussianMixture
+    Gaussian Mixture Model with EM algorithm, multiple covariance types,
+    BIC/AIC model selection, and soft clustering via predict_proba
 
 Functions
 ---------
@@ -57,6 +60,7 @@ from ferroml import ferroml as _native
 KMeans = _native.clustering.KMeans
 DBSCAN = _native.clustering.DBSCAN
 AgglomerativeClustering = _native.clustering.AgglomerativeClustering
+GaussianMixture = _native.clustering.GaussianMixture
 
 # Metric functions
 silhouette_score = _native.clustering.silhouette_score
@@ -72,6 +76,7 @@ __all__ = [
     "KMeans",
     "DBSCAN",
     "AgglomerativeClustering",
+    "GaussianMixture",
     # Metrics
     "silhouette_score",
     "silhouette_samples",

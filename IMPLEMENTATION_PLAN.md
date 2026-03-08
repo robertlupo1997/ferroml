@@ -4,38 +4,29 @@
 >
 > This file is the shared state for the Ralph loop. Update after each task.
 
-## Current Phase: Phase 12 - CI/CD & Release
+## Current Phase: v0.2.0 — Feature Expansion & Hardening
 
-**Last Updated**: Phase 22 (Sparse Data Support Tests) completed:
-- Registered `sparse_tests` module in `testing/mod.rs` with `#[cfg(feature = "sparse")]` gate
-- Fixed missing `sparse_eye` import in memory efficiency tests
-- 65 sparse tests now passing covering CSR/CSC, distances, memory efficiency, and integration
+**Last Updated**: 2026-03-08 — Plans G-L all executed. Phases 23-30 complete.
 
-Previously: TASK-006 completed - Added remaining model comparison tests
-Previously: TASK-137 completed - GitHub Release creation with artifacts:
-- Created `.github/workflows/release.yml` for automated GitHub Release creation
-  - Triggers on version tags (v*) and manual workflow_dispatch with tag input
-  - Generates changelog using git-cliff for release notes
-  - Builds release artifacts:
-    - Rust library files (rlib, static lib)
-    - Rust crate package (.crate file)
-    - Python wheels for Linux (x86_64), macOS (arm64), Windows (x86_64)
-  - Creates GitHub Release with softprops/action-gh-release@v2
-  - Auto-detects prereleases from version tags (-alpha, -beta, -rc)
-  - Generates SHA256 checksums for all artifacts
-  - Includes installation instructions for PyPI and crates.io
-  - Supports draft release creation via workflow_dispatch
+**Status**: v0.2.0 feature-complete. 2,701 Rust tests + 1,006 Python tests passing. Plans A-L all executed.
+All original phases (1-12), quality hardening plans (A-F), and v0.2.0 plans (G-L) are complete.
+
+### What's Next (Plans G-L)
+
+Each plan is documented in `thoughts/shared/plans/2026-03-07_plan-{G..L}-*.md`.
+
+| Plan | Description | Phases | Est. Size |
+|------|-------------|--------|-----------|
+| ~~**G**~~ | ~~Python bindings completion + CI hardening + code quality~~ | G.1-G.7 | ✅ Complete |
+| ~~**H**~~ | ~~Gaussian Mixture Models (GMM)~~ | H.1-H.4 | ✅ Complete |
+| ~~**I**~~ | ~~Anomaly Detection (IsolationForest + LOF)~~ | I.1-I.6 | ✅ Complete |
+| ~~**J**~~ | ~~t-SNE~~ | J.1-J.3 | ✅ Complete |
+| ~~**K**~~ | ~~QDA + IsotonicRegression~~ | K.1-K.5 | ✅ Complete |
+| ~~**L**~~ | ~~Testing Phases 23-28~~ | L.1-L.6 | ✅ Complete |
 
 ### Phase 12 Complete!
 All CI/CD & Release tasks have been completed:
-- [x] TASK-130: GitHub Actions: cargo check, clippy, fmt
-- [x] TASK-131: GitHub Actions: cargo test on Linux, macOS, Windows
-- [x] TASK-132: GitHub Actions: Python binding tests
-- [x] TASK-133: Code coverage with codecov.io
-- [x] TASK-134: Automated crates.io publishing on tag
-- [x] TASK-135: Automated PyPI wheel building via maturin
-- [x] TASK-136: Changelog generation from commits
-- [x] TASK-137: GitHub Release creation with artifacts
+- [x] TASK-130 through TASK-137: GitHub Actions, coverage, publishing, changelog, releases
 
 FerroML v0.1.0 is ready for release!
 
@@ -1045,72 +1036,72 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 - [x] TASK-T22-012: Integration tests (3 workflow tests including K-NN and recommendation)
 (**65 tests passing**)
 
-### Phase 23: Multi-output Prediction Tests 🔴 NOT STARTED
-- [ ] TASK-T23-001: Create `ferroml-core/src/testing/multioutput.rs`
-- [ ] TASK-T23-002: Register module in `mod.rs`
-- [ ] TASK-T23-003: Multi-output regression tests
-- [ ] TASK-T23-004: Multi-label classification tests
-- [ ] TASK-T23-005: Prediction shape validation tests
-- [ ] TASK-T23-006: Per-output metrics tests
+### Phase 23: Multi-output Prediction Tests ✅ COMPLETE
+- [x] TASK-T23-001: Create `ferroml-core/src/testing/multioutput.rs`
+- [x] TASK-T23-002: Register module in `mod.rs`
+- [x] TASK-T23-003: Multi-output regression tests
+- [x] TASK-T23-004: Multi-label classification tests
+- [x] TASK-T23-005: Prediction shape validation tests
+- [x] TASK-T23-006: Per-output metrics tests
 
-### Phase 24: Advanced Cross-validation Tests 🔴 NOT STARTED
-- [ ] TASK-T24-001: Create `ferroml-core/src/testing/cv_advanced.rs`
-- [ ] TASK-T24-002: Register module in `mod.rs`
-- [ ] TASK-T24-003: NestedCV data leakage prevention tests
-- [ ] TASK-T24-004: GroupKFold group integrity tests
-- [ ] TASK-T24-005: TimeSeriesSplit temporal order tests
-- [ ] TASK-T24-006: learning_curve validation tests
-- [ ] TASK-T24-007: validation_curve validation tests
+### Phase 24: Advanced Cross-validation Tests ✅ COMPLETE
+- [x] TASK-T24-001: Create `ferroml-core/src/testing/cv_advanced.rs`
+- [x] TASK-T24-002: Register module in `mod.rs`
+- [x] TASK-T24-003: NestedCV data leakage prevention tests
+- [x] TASK-T24-004: GroupKFold group integrity tests
+- [x] TASK-T24-005: TimeSeriesSplit temporal order tests
+- [x] TASK-T24-006: learning_curve validation tests
+- [x] TASK-T24-007: validation_curve validation tests
 
-### Phase 25: Ensemble Stacking Tests 🔴 NOT STARTED
-- [ ] TASK-T25-001: Create `ferroml-core/src/testing/ensemble_advanced.rs`
-- [ ] TASK-T25-002: Register module in `mod.rs`
-- [ ] TASK-T25-003: StackingClassifier meta-learner tests
-- [ ] TASK-T25-004: StackingRegressor meta-learner tests
-- [ ] TASK-T25-005: Passthrough option tests
-- [ ] TASK-T25-006: CV-based stacking data leakage tests
-- [ ] TASK-T25-007: Ensemble weights optimization tests
+### Phase 25: Ensemble Stacking Tests ✅ COMPLETE
+- [x] TASK-T25-001: Create `ferroml-core/src/testing/ensemble_advanced.rs`
+- [x] TASK-T25-002: Register module in `mod.rs`
+- [x] TASK-T25-003: StackingClassifier meta-learner tests
+- [x] TASK-T25-004: StackingRegressor meta-learner tests
+- [x] TASK-T25-005: Passthrough option tests
+- [x] TASK-T25-006: CV-based stacking data leakage tests
+- [x] TASK-T25-007: Ensemble weights optimization tests
 
-### Phase 26: Categorical Feature Handling Tests 🔴 NOT STARTED
-- [ ] TASK-T26-001: Create `ferroml-core/src/testing/categorical.rs`
-- [ ] TASK-T26-002: Register module in `mod.rs`
-- [ ] TASK-T26-003: Native categorical handling tests (HistGradientBoosting)
-- [ ] TASK-T26-004: Ordered target encoding tests
-- [ ] TASK-T26-005: Unknown category handling tests
-- [ ] TASK-T26-006: Mixed categorical/numeric feature tests
+### Phase 26: Categorical Feature Handling Tests ✅ COMPLETE
+- [x] TASK-T26-001: Create `ferroml-core/src/testing/categorical.rs`
+- [x] TASK-T26-002: Register module in `mod.rs`
+- [x] TASK-T26-003: Native categorical handling tests (HistGradientBoosting)
+- [x] TASK-T26-004: Ordered target encoding tests
+- [x] TASK-T26-005: Unknown category handling tests
+- [x] TASK-T26-006: Mixed categorical/numeric feature tests
 
-### Phase 27: Warm Start / Incremental Learning Tests 🔴 NOT STARTED
-- [ ] TASK-T27-001: Create `ferroml-core/src/testing/incremental.rs`
-- [ ] TASK-T27-002: Register module in `mod.rs`
-- [ ] TASK-T27-003: partial_fit tests for NaiveBayes
-- [ ] TASK-T27-004: warm_start tests for ensemble models
-- [ ] TASK-T27-005: Knowledge preservation tests
-- [ ] TASK-T27-006: Online learning scenario tests
+### Phase 27: Warm Start / Incremental Learning Tests ✅ COMPLETE
+- [x] TASK-T27-001: Create `ferroml-core/src/testing/incremental.rs`
+- [x] TASK-T27-002: Register module in `mod.rs`
+- [x] TASK-T27-003: partial_fit tests for NaiveBayes
+- [x] TASK-T27-004: warm_start tests for ensemble models
+- [x] TASK-T27-005: Knowledge preservation tests
+- [x] TASK-T27-006: Online learning scenario tests
 
-### Phase 28: Custom Metrics Tests 🔴 NOT STARTED
-- [ ] TASK-T28-001: Create `ferroml-core/src/testing/metrics_custom.rs`
-- [ ] TASK-T28-002: Register module in `mod.rs`
-- [ ] TASK-T28-003: Custom scoring function tests for CV
-- [ ] TASK-T28-004: Custom metric tests for HPO
-- [ ] TASK-T28-005: Multi-objective optimization tests
-- [ ] TASK-T28-006: Metric with confidence intervals tests
+### Phase 28: Custom Metrics Tests ✅ COMPLETE
+- [x] TASK-T28-001: Create `ferroml-core/src/testing/metrics_custom.rs`
+- [x] TASK-T28-002: Register module in `mod.rs`
+- [x] TASK-T28-003: Custom scoring function tests for CV
+- [x] TASK-T28-004: Custom metric tests for HPO
+- [x] TASK-T28-005: Multi-objective optimization tests
+- [x] TASK-T28-006: Metric with confidence intervals tests
 
-### Phase 29: Fairness Testing 🔴 NOT STARTED
-- [ ] TASK-T29-001: Create `ferroml-core/src/testing/fairness.rs`
-- [ ] TASK-T29-002: Register module in `mod.rs`
-- [ ] TASK-T29-003: Demographic parity tests
-- [ ] TASK-T29-004: Equalized odds tests
-- [ ] TASK-T29-005: Disparate impact ratio tests
-- [ ] TASK-T29-006: Group accuracy reporting tests
-- [ ] TASK-T29-007: Bias detection integration tests
+### Phase 29: Fairness Testing ✅ COMPLETE
+- [x] TASK-T29-001: Create `ferroml-core/src/testing/fairness.rs` (1,343 lines, 38 tests)
+- [x] TASK-T29-002: Register module in `mod.rs`
+- [x] TASK-T29-003: Demographic parity tests
+- [x] TASK-T29-004: Equalized odds tests
+- [x] TASK-T29-005: Disparate impact ratio tests
+- [x] TASK-T29-006: Group accuracy reporting tests
+- [x] TASK-T29-007: Bias detection integration tests
 
-### Phase 30: Drift Detection Tests 🔴 NOT STARTED
-- [ ] TASK-T30-001: Create `ferroml-core/src/testing/drift.rs`
-- [ ] TASK-T30-002: Register module in `mod.rs`
-- [ ] TASK-T30-003: Data drift detection tests (KS test)
-- [ ] TASK-T30-004: Concept drift detection tests
-- [ ] TASK-T30-005: Label drift detection tests
-- [ ] TASK-T30-006: Feature-wise drift identification tests
+### Phase 30: Drift Detection Tests ✅ COMPLETE
+- [x] TASK-T30-001: Create `ferroml-core/src/testing/drift.rs` (1,229 lines, 36 tests)
+- [x] TASK-T30-002: Register module in `mod.rs`
+- [x] TASK-T30-003: Data drift detection tests (KS test)
+- [x] TASK-T30-004: Concept drift detection tests
+- [x] TASK-T30-005: Label drift detection tests
+- [x] TASK-T30-006: Feature-wise drift identification tests
 
 ### Phase 31: Regression Test Suite 🔴 NOT STARTED
 - [ ] TASK-T31-001: Create `ferroml-core/tests/regression/baselines.json`
@@ -1129,14 +1120,85 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 
 ---
 
+## v0.2.0 Implementation Plans
+
+### Plan G: Python Bindings Completion + CI Hardening + Code Quality
+> Plan file: `thoughts/shared/plans/2026-03-07_plan-G-python-bindings-ci-cleanup.md`
+
+**14 Rust models need Python bindings. CI needs hardening. 5 code quality items.**
+
+- [x] TASK-G01: Phase G.1 — Expose GaussianNB, MultinomialNB, BernoulliNB to Python (new `naive_bayes.rs` + tests)
+- [x] TASK-G02: Phase G.2 — Expose RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier to Python (edit `linear.rs` + tests)
+- [x] TASK-G03: Phase G.3 — Expose RobustRegression, QuantileRegression, NearestCentroid, Perceptron to Python (edit `linear.rs`/`neighbors.rs` + tests)
+- [x] TASK-G04: Phase G.4 — Expose LinearSVC, LinearSVR, TemperatureScalingCalibrator to Python (+ tests)
+- [x] TASK-G05: Phase G.5 — Fix README discrepancies (sync model lists with actual exports)
+- [x] TASK-G06: Phase G.6 — CI hardening (strict clippy, remove `|| true` from pytest in publish)
+- [x] TASK-G07: Phase G.7 — Code quality fixes (TASK-IMP-001 through IMP-005)
+
+### Plan H: Gaussian Mixture Models
+> Plan file: `thoughts/shared/plans/2026-03-07_plan-H-gaussian-mixture-models.md`
+
+**New clustering algorithm: GaussianMixture with EM, 4 covariance types, BIC/AIC.**
+
+- [x] TASK-H01: Phase H.1 — Add Cholesky + log-determinant to `linalg.rs`
+- [x] TASK-H02: Phase H.2 — Implement `GaussianMixture` struct in `clustering/gmm.rs` (~800 lines)
+- [x] TASK-H03: Phase H.3 — GaussianMixture Rust tests (~30 tests)
+- [x] TASK-H04: Phase H.4 — Python bindings + tests (~20 Python tests)
+
+### Plan I: Anomaly Detection (IsolationForest + LocalOutlierFactor)
+> Plan file: `thoughts/shared/plans/2026-03-07_plan-I-anomaly-detection.md`
+
+**New model category: anomaly/outlier detection.**
+
+- [x] TASK-I01: Phase I.1 — Define `OutlierDetector` trait in `models/traits.rs`
+- [x] TASK-I02: Phase I.2 — Implement `IsolationForest` in `models/isolation_forest.rs` (~500 lines)
+- [x] TASK-I03: Phase I.3 — IsolationForest Rust tests (~30 tests)
+- [x] TASK-I04: Phase I.4 — Implement `LocalOutlierFactor` in `models/lof.rs` (~400 lines)
+- [x] TASK-I05: Phase I.5 — LocalOutlierFactor Rust tests (~30 tests)
+- [x] TASK-I06: Phase I.6 — Python bindings for both + tests (~30 Python tests)
+
+### Plan J: t-SNE
+> Plan file: `thoughts/shared/plans/2026-03-07_plan-J-tsne.md`
+
+**Nonlinear dimensionality reduction for visualization. Exact O(N^2) algorithm.**
+
+- [x] TASK-J01: Phase J.1 — Implement `TSNE` struct in `decomposition/tsne.rs` (~600 lines)
+- [x] TASK-J02: Phase J.2 — t-SNE Rust tests (~25 tests)
+- [x] TASK-J03: Phase J.3 — Python bindings + tests (~15 Python tests)
+
+### Plan K: QDA + IsotonicRegression
+> Plan file: `thoughts/shared/plans/2026-03-07_plan-K-qda-isotonic.md`
+
+**Two small models leveraging existing infrastructure (LDA, IsotonicCalibrator PAVA).**
+
+- [x] TASK-K01: Phase K.1 — Implement `QuadraticDiscriminantAnalysis` in `models/qda.rs` (~400 lines)
+- [x] TASK-K02: Phase K.2 — QDA Rust tests (~20 tests)
+- [x] TASK-K03: Phase K.3 — Implement `IsotonicRegression` in `models/isotonic.rs` (~250 lines)
+- [x] TASK-K04: Phase K.4 — IsotonicRegression Rust tests (~20 tests)
+- [x] TASK-K05: Phase K.5 — Python bindings for both + tests (~20 Python tests)
+
+### Plan L: Testing Phases 23-28
+> Plan file: `thoughts/shared/plans/2026-03-07_plan-L-testing-phases-23-28.md`
+
+**6 test modules for existing functionality. All independent, can run in parallel.**
+
+- [x] TASK-L01: Phase L.1 — Multi-output prediction tests (`testing/multioutput.rs`, ~20 tests)
+- [x] TASK-L02: Phase L.2 — Advanced cross-validation tests (`testing/cv_advanced.rs`, ~25 tests)
+- [x] TASK-L03: Phase L.3 — Ensemble stacking tests (`testing/ensemble_advanced.rs`, ~25 tests)
+- [x] TASK-L04: Phase L.4 — Categorical feature handling tests (`testing/categorical.rs`, ~20 tests)
+- [x] TASK-L05: Phase L.5 — Warm start / incremental learning tests (`testing/incremental.rs`, ~15 tests)
+- [x] TASK-L06: Phase L.6 — Custom metrics tests (`testing/metrics_custom.rs`, ~20 tests)
+
+---
+
 ## Continuous Improvement Tasks
 
 ### Immediate Code Quality Issues (Identified from Testing)
-- [ ] TASK-IMP-001: Fix unused import warnings in `callbacks.rs` (TrainingHistory)
-- [ ] TASK-IMP-002: Fix unused variables in test files (`counter`, `next_rand`, `perm_result`, `pdp_ratio`)
-- [ ] TASK-IMP-003: Add missing documentation for struct fields in `callbacks.rs` (31 warnings)
-- [ ] TASK-IMP-004: Address unused function `edge_case_matrix_strategy` in `properties.rs`
-- [ ] TASK-IMP-005: Run `cargo fix --lib -p ferroml-core --tests` to auto-fix 5 clippy suggestions
+- [x] TASK-IMP-001: Fix unused import warnings in `callbacks.rs` (TrainingHistory) ✅ (Plan G.7)
+- [x] TASK-IMP-002: Fix unused variables in test files (`counter`, `next_rand`, `perm_result`, `pdp_ratio`) ✅ (Plan G.7)
+- [x] TASK-IMP-003: Add missing documentation for struct fields in `callbacks.rs` (31 warnings) ✅ (Plan G.7)
+- [x] TASK-IMP-004: Address unused function `edge_case_matrix_strategy` in `properties.rs` ✅ (Plan G.7)
+- [x] TASK-IMP-005: Run `cargo fix --lib -p ferroml-core --tests` to auto-fix 5 clippy suggestions ✅ (Plan G.7)
 
 ### HIGH PRIORITY Testing Phases (Ready for Implementation)
 - [x] **TASK-IMP-006**: Phase 21 - Sample Weights & Class Weights Tests ✅ COMPLETE
@@ -1149,26 +1211,23 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
   - Tests sparse/dense equivalence, memory efficiency, CSR/CSC compatibility
   - 65 tests covering all sparse matrix operations (exceeded expectations)
 
-- [ ] **TASK-IMP-008**: Phase 23 - Multi-output Prediction Tests
-  - Extend basic multi-output support found in 2 files
-  - Test multi-output regression, multi-label classification, shape validation
-  - Expected: ~15-20 tests for multi-target scenarios
+- [x] **TASK-IMP-008**: Phase 23 - Multi-output Prediction Tests ✅ COMPLETE
+  - Created `testing/multioutput.rs` via Plan L
+  - Tests multi-output regression, multi-label classification, shape validation
 
 ### MEDIUM PRIORITY Testing Phases
-- [ ] TASK-IMP-009: Phase 24 - Advanced Cross-validation Tests (extend existing cv/)
-- [ ] TASK-IMP-010: Phase 25 - Ensemble Stacking Tests (extend existing ensemble/)
-- [ ] TASK-IMP-011: Phase 26 - Categorical Feature Tests (leverage HistGradientBoosting)
+- [x] TASK-IMP-009: Phase 24 - Advanced Cross-validation Tests ✅ COMPLETE (via Plan L)
+- [x] TASK-IMP-010: Phase 25 - Ensemble Stacking Tests ✅ COMPLETE (via Plan L)
+- [x] TASK-IMP-011: Phase 26 - Categorical Feature Tests ✅ COMPLETE (via Plan L)
 
 ### NEW FEATURE IMPLEMENTATION Required
-- [ ] **TASK-IMP-012**: Phase 29 - Fairness Testing (NEW MODULE REQUIRED)
-  - Implement demographic parity, disparate impact, equalized odds metrics
-  - Create `ferroml-core/src/fairness/` module with bias detection
-  - Expected: ~25-30 tests for comprehensive fairness validation
+- [x] **TASK-IMP-012**: Phase 29 - Fairness Testing ✅ COMPLETE
+  - Created `ferroml-core/src/testing/fairness.rs` (1,343 lines, 38 tests)
+  - Implements demographic parity, disparate impact, equalized odds metrics
 
-- [ ] **TASK-IMP-013**: Phase 30 - Drift Detection (NEW MODULE REQUIRED)
-  - Implement data drift (KS test), concept drift, label drift detection
-  - Create `ferroml-core/src/drift/` module with monitoring capabilities
-  - Expected: ~20-25 tests for drift detection scenarios
+- [x] **TASK-IMP-013**: Phase 30 - Drift Detection ✅ COMPLETE
+  - Created `ferroml-core/src/testing/drift.rs` (1,229 lines, 36 tests)
+  - Implements data drift (KS test), concept drift, label drift detection
 
 ### INFRASTRUCTURE PHASES
 - [ ] TASK-IMP-014: Phase 31 - Regression Test Baselines (JSON baselines + CI integration)
@@ -1215,13 +1274,15 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
    - **Phases 16-20**: ✅ **COMPLETE** - All test files created, modules registered
    - **Phase 21**: 🟡 **IMPLEMENTATION EXISTS** (12+ files with weight support), needs dedicated testing
    - **Phase 22**: 🟡 **IMPLEMENTATION EXISTS** (comprehensive sparse.rs with CSR/CSC), needs testing module
-   - **Phase 23**: 🔴 **NOT IMPLEMENTED** - Multi-output support not found in codebase
-   - **Phase 24**: 🟡 **IMPLEMENTATION EXISTS** (group.rs, timeseries.rs in cv/), needs testing module
-   - **Phase 25**: 🟡 **IMPLEMENTATION EXISTS** (stacking.rs in ensemble/), needs testing module
-   - **Phase 26**: 🟡 **IMPLEMENTATION EXISTS** (encoders.rs with OneHotEncoder, OrdinalEncoder), needs testing
-   - **Phase 27**: 🟡 **PARTIAL IMPLEMENTATION** (partial_fit in NaiveBayes, warm_start in ensembles)
-   - **Phase 28**: 🟡 **BASIC IMPLEMENTATION** (metrics module exists), needs custom metrics testing
-   - **Phases 29-32**: 🔴 **NOT IMPLEMENTED** - Requires new modules/infrastructure
+   - **Phase 23**: ✅ **COMPLETE** - Multi-output tests in `multioutput.rs` (Plan L)
+   - **Phase 24**: ✅ **COMPLETE** - Advanced CV tests in `cv_advanced.rs` (Plan L)
+   - **Phase 25**: ✅ **COMPLETE** - Ensemble stacking tests in `ensemble_advanced.rs` (Plan L)
+   - **Phase 26**: ✅ **COMPLETE** - Categorical tests in `categorical.rs` (Plan L)
+   - **Phase 27**: ✅ **COMPLETE** - Incremental learning tests in `incremental.rs` (Plan L)
+   - **Phase 28**: ✅ **COMPLETE** - Custom metrics tests in `metrics_custom.rs` (Plan L)
+   - **Phase 29**: ✅ **COMPLETE** - Fairness testing in `fairness.rs` (38 tests, 1,343 lines)
+   - **Phase 30**: ✅ **COMPLETE** - Drift detection in `drift.rs` (36 tests, 1,229 lines)
+   - **Phases 31-32**: 🔴 **NOT IMPLEMENTED** - Requires infrastructure setup
 
 3. **Implementation Verification Results**:
    | Feature | Grep Result | Files Found |
@@ -1241,24 +1302,19 @@ FerroML v0.1.0 implementation is complete. All 137 tasks across 12 phases have b
 > **Note**: The handoff document `thoughts/shared/handoffs/2026-02-01_ferroml-testing-phases-16-20.md` is now OUTDATED.
 > All testing modules for phases 16-20 are properly registered in `mod.rs` and tests are running.
 
-#### **IMMEDIATE (Phases 22-23)** - Testing for Existing Features
-These phases only require creating test files - the implementations already exist:
-- **Phase 21**: ✅ COMPLETE - `weights.rs` created with 33 tests for sample_weight/class_weight
-- **Phase 22**: Create `sparse_tests.rs` - test comprehensive sparse.rs (CSR/CSC/distances)
-- **Phase 23**: **REQUIRES IMPLEMENTATION** - Multi-output support not found in codebase
+#### **ALL COMPLETE (Phases 21-30)**
+- **Phase 21**: ✅ COMPLETE - `weights.rs` (33 tests)
+- **Phase 22**: ✅ COMPLETE - `sparse_tests.rs` (65 tests)
+- **Phase 23**: ✅ COMPLETE - `multioutput.rs` (via Plan L)
+- **Phase 24**: ✅ COMPLETE - `cv_advanced.rs` (via Plan L)
+- **Phase 25**: ✅ COMPLETE - `ensemble_advanced.rs` (via Plan L)
+- **Phase 26**: ✅ COMPLETE - `categorical.rs` (via Plan L)
+- **Phase 27**: ✅ COMPLETE - `incremental.rs` (via Plan L)
+- **Phase 28**: ✅ COMPLETE - `metrics_custom.rs` (via Plan L)
+- **Phase 29**: ✅ COMPLETE - `fairness.rs` (38 tests, 1,343 lines)
+- **Phase 30**: ✅ COMPLETE - `drift.rs` (36 tests, 1,229 lines)
 
-#### **SHORT-TERM (Phases 24-26)** - Testing for Existing Features
-- **Phase 24**: Create `cv_advanced.rs` - test group.rs, timeseries.rs, nested.rs
-- **Phase 25**: Create `ensemble_advanced.rs` - test stacking.rs passthrough, meta-learners
-- **Phase 26**: Create `categorical.rs` - test encoders.rs, HistGradientBoosting categorical
-
-#### **MEDIUM-TERM (Phases 27-30)** - Mixed Implementation + Testing
-- **Phase 27**: Create `incremental.rs` - test partial_fit (NaiveBayes), warm_start (ensembles)
-- **Phase 28**: Create `metrics_custom.rs` - test custom scoring functions
-- **Phase 29**: **NEW MODULE REQUIRED** - Create `src/fairness/` + tests
-- **Phase 30**: **NEW MODULE REQUIRED** - Create `src/drift/` + tests
-
-#### **INFRASTRUCTURE (Phases 31-32)**
+#### **INFRASTRUCTURE (Phases 31-32)** - Remaining
 - **Phase 31**: Create `tests/regression/baselines.json` + test suite
 - **Phase 32**: Create `.github/workflows/mutation.yml` with cargo-mutants
 
@@ -1273,27 +1329,29 @@ These phases only require creating test files - the implementations already exis
 | 20 | ONNX Export/Import | ✅ Complete | ✅ Complete | Maintain | - |
 | 21 | Sample/Class Weights | ✅ In 12+ files | ✅ 33 tests | Complete | - |
 | 22 | Sparse Data | ✅ Comprehensive | ✅ 65 tests | Complete | - |
-| 23 | Multi-output | 🔴 Not found | 🔴 None | **MEDIUM** | Implement + test |
-| 24 | Advanced CV | ✅ group.rs, timeseries.rs | 🔴 No test file | MEDIUM | Create cv_advanced.rs |
-| 25 | Ensemble Stacking | ✅ stacking.rs | 🔴 No test file | MEDIUM | Create ensemble_advanced.rs |
-| 26 | Categorical Features | ✅ encoders.rs | 🔴 No test file | MEDIUM | Create categorical.rs |
-| 27 | Incremental Learning | 🟡 partial_fit exists | 🔴 No test file | LOW | Create incremental.rs |
-| 28 | Custom Metrics | 🟡 metrics/ exists | 🔴 No test file | LOW | Create metrics_custom.rs |
-| 29 | Fairness Testing | 🔴 No implementation | 🔴 None | **NEW** | Create fairness/ module |
-| 30 | Drift Detection | 🔴 No implementation | 🔴 None | **NEW** | Create drift/ module |
+| 23 | Multi-output | ✅ Complete | ✅ Complete | Complete | - |
+| 24 | Advanced CV | ✅ Complete | ✅ Complete | Complete | - |
+| 25 | Ensemble Stacking | ✅ Complete | ✅ Complete | Complete | - |
+| 26 | Categorical Features | ✅ Complete | ✅ Complete | Complete | - |
+| 27 | Incremental Learning | ✅ Complete | ✅ Complete | Complete | - |
+| 28 | Custom Metrics | ✅ Complete | ✅ Complete | Complete | - |
+| 29 | Fairness Testing | ✅ Complete | ✅ 38 tests | Complete | - |
+| 30 | Drift Detection | ✅ Complete | ✅ 36 tests | Complete | - |
 | 31 | Regression Baselines | 🔴 No baselines.json | 🔴 None | INFRA | Create tests/regression/ |
 | 32 | Mutation Testing | 🔴 No workflow | 🔴 None | INFRA | Create mutation.yml |
 
-## Progress Metrics (Updated 2026-02-01)
+## Progress Metrics (Updated 2026-03-08)
 
 | Metric | Current | Target | Notes |
 |--------|---------|--------|----|
-| Implementation Tasks | 137/137 | Complete | ✅ All core features done |
-| Testing Phases | **7/17 complete** | 17/17 | Phases 16-22 complete, 23-32 pending |
-| Test Occurrences | **1,890 #[test]** | 2,500+ | Across 98 source files |
-| Testing Module Lines | **16,937 lines** | Maintain | 16 modules in src/testing/ |
-| Code Coverage | ~75%+ | 90%+ | Need systematic coverage analysis |
-| Testing Infrastructure | ✅ Excellent | Maintain | All modules properly registered |
+| v0.1.0 Tasks | 137/137 | Complete | All core features done |
+| v0.2.0 Plans | **6/6 complete** | 6/6 | Plans G-L all complete |
+| v0.2.0 Tasks | **31/31** | 31/31 | All tasks complete |
+| Rust Tests | **2,701** | 2,800+ | All plans executed |
+| Python Tests | **1,006** | 950+ | Exceeded target |
+| Testing Phases | **15/17 complete** | 17/17 | Phases 16-30 done; 31-32 remain (infra) |
+| Python Model Coverage | **37+ exposed** | 39+ exposed | Plans G-K complete |
+| New Algorithms | 6 | 6 | GMM, IsolationForest, LOF, t-SNE, QDA, IsotonicRegression |
 
 ### Testing Module Breakdown (15 modules):
 

@@ -58,7 +58,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run clippy
-        run: cargo clippy -p ferroml-core --all-features || true  # Warn only
+        run: cargo clippy -p ferroml-core --all-features -- -D warnings
 
       - name: Run Rust tests
         run: cargo test -p ferroml-core --all-features
@@ -79,7 +79,7 @@ jobs:
         working-directory: ${{ env.PACKAGE_DIR }}
         run: |
           source ../.venv/bin/activate
-          pytest tests/ -v --tb=short || true  # Allow test failures for now
+          pytest tests/ -v --tb=short
 
       - name: Extract version from tag
         if: github.event_name == 'push'

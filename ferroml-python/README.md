@@ -38,15 +38,19 @@ print(result.summary())
 
 | Module | Models / Features |
 |--------|-------------------|
-| `linear` | LinearRegression, Ridge, Lasso, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, QuantileRegression, RobustRegression, SGDClassifier, SGDRegressor, PassiveAggressiveClassifier |
-| `trees` | DecisionTreeClassifier, DecisionTreeRegressor, ExtraTreesClassifier, ExtraTreesRegressor |
-| `ensemble` | RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor, AdaBoostClassifier, AdaBoostRegressor |
-| `neighbors` | KNeighborsClassifier, KNeighborsRegressor |
+| `linear` | LinearRegression, LogisticRegression, RidgeRegression, LassoRegression, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier, QuantileRegression, RobustRegression, Perceptron |
+| `trees` | DecisionTreeClassifier, DecisionTreeRegressor |
+| `ensemble` | RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor, HistGradientBoostingClassifier, HistGradientBoostingRegressor, ExtraTreesClassifier, ExtraTreesRegressor, AdaBoostClassifier, AdaBoostRegressor, SGDClassifier, SGDRegressor, PassiveAggressiveClassifier, BaggingClassifier, BaggingRegressor |
+| `naive_bayes` | GaussianNB, MultinomialNB, BernoulliNB |
+| `svm` | LinearSVC, LinearSVR |
+| `neighbors` | KNeighborsClassifier, KNeighborsRegressor, NearestCentroid |
+| `neural` | MLPClassifier, MLPRegressor |
 | `clustering` | KMeans, DBSCAN, AgglomerativeClustering |
-| `preprocessing` | StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler, OneHotEncoder, OrdinalEncoder, LabelEncoder, TargetEncoder, SimpleImputer, KNNImputer, PolynomialFeatures, PowerTransformer, QuantileTransformer, VarianceThreshold, SelectKBest, Normalizer, Binarizer, KBinsDiscretizer, FunctionTransformer, SelectFromModel, SMOTE, ADASYN, RandomUnderSampler, RandomOverSampler |
+| `preprocessing` | StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler, OneHotEncoder, OrdinalEncoder, LabelEncoder, TargetEncoder, SimpleImputer, KNNImputer, PolynomialFeatures, PowerTransformer, QuantileTransformer, VarianceThreshold, SelectKBest, SelectFromModel, RecursiveFeatureElimination, KBinsDiscretizer, SMOTE, BorderlineSMOTE, ADASYN, RandomUnderSampler |
 | `decomposition` | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis |
-| `explainability` | TreeSHAP, permutation importance (10 model types), PDP, 2D PDP, ICE, H-statistic |
-| `pipeline` | Pipeline with step chaining |
+| `explainability` | TreeSHAP, KernelSHAP, permutation importance, PDP, 2D PDP, ICE, H-statistic |
+| `calibration` | TemperatureScalingCalibrator |
+| `pipeline` | Pipeline, ColumnTransformer, FeatureUnion |
 | `automl` | AutoML with statistical model comparison |
 | `datasets` | Iris, Diabetes, Wine, synthetic generators |
 

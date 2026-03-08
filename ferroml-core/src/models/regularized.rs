@@ -1522,11 +1522,11 @@ impl Model for RidgeCV {
             cv_scores.push(mean_score);
         }
 
-        // Find best alpha
+        // Find best alpha (NaN scores treated as worst)
         let best_idx = cv_scores
             .iter()
             .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Less))
             .map(|(i, _)| i)
             .unwrap_or(0);
 

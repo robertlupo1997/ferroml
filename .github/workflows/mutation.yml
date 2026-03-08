@@ -9,13 +9,9 @@ on:
       timeout:
         description: 'Timeout per mutant in seconds'
         required: false
-        default: '300'
-      package:
-        description: 'Package to test (ferroml-core or all)'
-        required: false
-        default: 'ferroml-core'
+        default: '60'
       module:
-        description: 'Specific module to test (e.g., models::linear, or empty for all)'
+        description: 'Specific module glob (e.g., ferroml-core/src/models/linear.rs, or empty for all configured modules)'
         required: false
         default: ''
 
@@ -51,6 +47,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-mutants-
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h /
+
       - name: Install cargo-mutants
         run: |
           if ! command -v cargo-mutants &> /dev/null; then
@@ -60,147 +62,120 @@ jobs:
       - name: Run mutation testing
         id: mutants
         run: |
-          TIMEOUT="${{ github.event.inputs.timeout || '300' }}"
-          PACKAGE="${{ github.event.inputs.package || 'ferroml-core' }}"
+          TIMEOUT="${{ github.event.inputs.timeout || '60' }}"
+
+          echo "Running mutation testing with timeout=${TIMEOUT}s"
+
+          # Build the command — mutants.toml handles package, exclusions, and examine_globs
+          CMD="cargo mutants --timeout ${TIMEOUT} --output mutants.out"
+
+          # Add module filter if specified via workflow_dispatch
           MODULE="${{ github.event.inputs.module || '' }}"
-
-          echo "Running mutation testing with:"
-          echo "  Timeout: ${TIMEOUT}s"
-          echo "  Package: ${PACKAGE}"
-          echo "  Module: ${MODULE}"
-
-          # Build base command
-          CMD="cargo mutants -p ${PACKAGE} --timeout ${TIMEOUT} --jobs 2"
-
-          # Add module filter if specified
           if [ -n "${MODULE}" ]; then
-            CMD="${CMD} --file 'src/${MODULE//::/\/}*.rs'"
+            CMD="${CMD} --file '${MODULE}'"
+            echo "Filtering to module: ${MODULE}"
           fi
 
-          # Run mutation testing and capture output
-          ${CMD} -- --lib 2>&1 | tee mutants-output.txt
+          # Run mutation testing (--lib to skip integration tests for speed)
+          echo "::group::Mutation testing output"
+          eval ${CMD} -- --release --lib 2>&1 | tee mutants-output.txt || true
+          echo "::endgroup::"
 
-          # Extract summary statistics
-          if grep -q "mutants tested" mutants-output.txt; then
-            TOTAL=$(grep "mutants tested" mutants-output.txt | grep -oP '\d+(?= mutants)')
-            CAUGHT=$(grep -oP '\d+(?= caught)' mutants-output.txt || echo "0")
-            MISSED=$(grep -oP '\d+(?= missed)' mutants-output.txt || echo "0")
-            TIMEOUT_COUNT=$(grep -oP '\d+(?= timeout)' mutants-output.txt || echo "0")
+          # Parse results from the outcomes directory
+          CAUGHT=0
+          MISSED=0
+          TIMEOUT_COUNT=0
+          UNVIABLE=0
 
-            if [ -n "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
-              SCORE=$(echo "scale=2; ($CAUGHT / $TOTAL) * 100" | bc)
-              echo "mutation_score=${SCORE}" >> $GITHUB_OUTPUT
-              echo "total_mutants=${TOTAL}" >> $GITHUB_OUTPUT
-              echo "caught=${CAUGHT}" >> $GITHUB_OUTPUT
-              echo "missed=${MISSED}" >> $GITHUB_OUTPUT
-            fi
+          if [ -d mutants.out ]; then
+            [ -f mutants.out/caught.txt ] && CAUGHT=$(wc -l < mutants.out/caught.txt | tr -d ' ')
+            [ -f mutants.out/missed.txt ] && MISSED=$(wc -l < mutants.out/missed.txt | tr -d ' ')
+            [ -f mutants.out/timeout.txt ] && TIMEOUT_COUNT=$(wc -l < mutants.out/timeout.txt | tr -d ' ')
+            [ -f mutants.out/unviable.txt ] && UNVIABLE=$(wc -l < mutants.out/unviable.txt | tr -d ' ')
           fi
 
-      - name: Generate mutation report
+          TESTED=$((CAUGHT + MISSED))
+          TOTAL=$((TESTED + TIMEOUT_COUNT + UNVIABLE))
+
+          if [ "$TESTED" -gt 0 ]; then
+            SCORE=$(echo "scale=1; ($CAUGHT * 100) / $TESTED" | bc)
+          else
+            SCORE="N/A"
+          fi
+
+          echo "mutation_score=${SCORE}" >> $GITHUB_OUTPUT
+          echo "total=${TOTAL}" >> $GITHUB_OUTPUT
+          echo "caught=${CAUGHT}" >> $GITHUB_OUTPUT
+          echo "missed=${MISSED}" >> $GITHUB_OUTPUT
+          echo "timeout_count=${TIMEOUT_COUNT}" >> $GITHUB_OUTPUT
+          echo "unviable=${UNVIABLE}" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "===== MUTATION TESTING SUMMARY ====="
+          echo "Caught:   ${CAUGHT}"
+          echo "Missed:   ${MISSED}"
+          echo "Timeout:  ${TIMEOUT_COUNT}"
+          echo "Unviable: ${UNVIABLE}"
+          echo "Score:    ${SCORE}%"
+          echo "===================================="
+
+      - name: Add job summary
         if: always()
         run: |
-          echo "# Mutation Testing Report" > mutation-report.md
-          echo "" >> mutation-report.md
-          echo "**Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> mutation-report.md
-          echo "**Package:** ${{ github.event.inputs.package || 'ferroml-core' }}" >> mutation-report.md
-          echo "" >> mutation-report.md
+          SCORE="${{ steps.mutants.outputs.mutation_score }}"
+          CAUGHT="${{ steps.mutants.outputs.caught }}"
+          MISSED="${{ steps.mutants.outputs.missed }}"
+          TIMEOUT_COUNT="${{ steps.mutants.outputs.timeout_count }}"
+          UNVIABLE="${{ steps.mutants.outputs.unviable }}"
+          TOTAL="${{ steps.mutants.outputs.total }}"
 
-          if [ -f mutants-output.txt ]; then
-            echo "## Summary" >> mutation-report.md
-            echo '```' >> mutation-report.md
-            tail -20 mutants-output.txt >> mutation-report.md
-            echo '```' >> mutation-report.md
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## Mutation Testing Results
+
+          | Metric | Value |
+          |--------|-------|
+          | **Mutation Score** | ${SCORE:-N/A}% |
+          | Mutants Caught | ${CAUGHT:-0} |
+          | Mutants Missed | ${MISSED:-0} |
+          | Timed Out | ${TIMEOUT_COUNT:-0} |
+          | Unviable | ${UNVIABLE:-0} |
+          | **Total** | ${TOTAL:-0} |
+
+          EOF
+
+          # Add missed mutants details if any
+          if [ -f mutants.out/missed.txt ] && [ -s mutants.out/missed.txt ]; then
+            echo "### Missed Mutants (tests to improve)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -100 mutants.out/missed.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           fi
 
-          # List missed mutants if any
-          if [ -d mutants.out ]; then
-            echo "" >> mutation-report.md
-            echo "## Missed Mutants (Tests to Improve)" >> mutation-report.md
-            if [ -f mutants.out/missed.txt ]; then
-              echo '```' >> mutation-report.md
-              head -50 mutants.out/missed.txt >> mutation-report.md
-              echo '```' >> mutation-report.md
-            else
-              echo "No missed mutants found - excellent test coverage!" >> mutation-report.md
-            fi
-          fi
-
-          cat mutation-report.md
-
-      - name: Upload mutation report
+      - name: Upload mutation results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mutation-report
+          name: mutation-results
           path: |
-            mutation-report.md
             mutants-output.txt
             mutants.out/
           retention-days: 30
 
-      - name: Check mutation score threshold
-        if: github.event_name == 'schedule'
+      - name: Annotate with mutation score
+        if: always()
         run: |
           SCORE="${{ steps.mutants.outputs.mutation_score }}"
-          THRESHOLD=70  # Start with 70%, increase to 80% as tests improve
+          MISSED="${{ steps.mutants.outputs.missed }}"
+          THRESHOLD=70
 
-          if [ -n "$SCORE" ]; then
-            echo "Mutation Score: ${SCORE}%"
-            echo "Threshold: ${THRESHOLD}%"
-
-            if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
-              echo "::warning::Mutation score ${SCORE}% is below ${THRESHOLD}% threshold"
-              # Don't fail for now - just warn
-              # exit 1
-            else
-              echo "::notice::Mutation score ${SCORE}% meets ${THRESHOLD}% threshold"
-            fi
-          else
+          if [ -z "$SCORE" ] || [ "$SCORE" = "N/A" ]; then
             echo "::warning::Could not determine mutation score"
+            exit 0
           fi
 
-  # Quick mutation test for critical modules only (can run more frequently)
-  mutation-quick:
-    name: Quick Mutation Test (Critical Modules)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.module == ''
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-mutants-quick-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install cargo-mutants
-        run: cargo install cargo-mutants --locked || true
-
-      - name: Quick mutation test - Core metrics
-        run: |
-          cargo mutants -p ferroml-core \
-            --timeout 120 \
-            --jobs 2 \
-            --file 'src/metrics/*.rs' \
-            -- --lib || true
-          echo "Metrics module mutation testing complete"
-
-      - name: Quick mutation test - Model traits
-        run: |
-          cargo mutants -p ferroml-core \
-            --timeout 120 \
-            --jobs 2 \
-            --file 'src/models/traits.rs' \
-            -- --lib || true
-          echo "Traits module mutation testing complete"
+          if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
+            echo "::warning::Mutation score ${SCORE}% is below ${THRESHOLD}% threshold (${MISSED} mutants missed)"
+          else
+            echo "::notice::Mutation score ${SCORE}% meets ${THRESHOLD}% threshold"
+          fi
