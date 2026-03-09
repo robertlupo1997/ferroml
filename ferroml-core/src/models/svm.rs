@@ -435,7 +435,8 @@ impl BinarySVC {
                         // Update alpha_i
                         alpha[i] = (y[i] * y[j]).mul_add(alpha_j_old - alpha[j], alpha_i_old);
 
-                        // Update threshold
+                        // Update threshold (save old b for incremental error update)
+                        let b_old = b;
                         let b1 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
                             -kernel_matrix[[i, j]],
                             (y[i] * (alpha[i] - alpha_i_old))
@@ -456,11 +457,17 @@ impl BinarySVC {
                             (b1 + b2) / 2.0
                         };
 
-                        // Update error cache
-                        for k in 0..n_samples {
-                            errors[k] =
-                                self.decision_function_cached(kernel_matrix, &alpha, y, b, k)
-                                    - y[k];
+                        // Incremental error cache update: O(n) instead of O(n * n_sv).
+                        // errors[k] = f(x_k) - y[k], and f changed only at indices i,j:
+                        // delta_f(k) = di*K(i,k) + dj*K(j,k) + (b_new - b_old)
+                        {
+                            let di = (alpha[i] - alpha_i_old) * y[i];
+                            let dj = (alpha[j] - alpha_j_old) * y[j];
+                            let db = b - b_old;
+                            for k in 0..n_samples {
+                                errors[k] +=
+                                    di * kernel_matrix[[i, k]] + dj * kernel_matrix[[j, k]] + db;
+                            }
                         }
 
                         n_changed += 1;
@@ -514,24 +521,6 @@ impl BinarySVC {
             let diff_b = (ei - errors[b]).abs();
             diff_a.partial_cmp(&diff_b).unwrap_or(Ordering::Equal)
         })
-    }
-
-    /// Compute decision function using cached kernel matrix.
-    fn decision_function_cached(
-        &self,
-        kernel_matrix: &Array2<f64>,
-        alpha: &ndarray::ArrayViewMut1<f64>,
-        y: &Array1<f64>,
-        b: f64,
-        idx: usize,
-    ) -> f64 {
-        let mut sum = 0.0;
-        for i in 0..y.len() {
-            if alpha[i] > 1e-8 {
-                sum += alpha[i] * y[i] * kernel_matrix[[i, idx]];
-            }
-        }
-        sum + b
     }
 
     /// Compute full kernel matrix.
@@ -1427,15 +1416,27 @@ impl SVR {
     }
 
     /// Compute full kernel matrix.
+    ///
+    /// Optimized: uses array slices directly instead of allocating Vecs per pair.
     fn compute_kernel_matrix(&self, x: &Array2<f64>) -> Array2<f64> {
         let n = x.nrows();
+        // Ensure contiguous layout for slice access
+        let x_c = if x.is_standard_layout() {
+            None
+        } else {
+            Some(x.as_standard_layout().into_owned())
+        };
+        let x_ref = x_c.as_ref().unwrap_or(x);
+
         let mut k = Array2::zeros((n, n));
 
         for i in 0..n {
-            let xi: Vec<f64> = x.row(i).to_vec();
+            let ri = x_ref.row(i);
+            let xi = ri.as_slice().unwrap();
             for j in i..n {
-                let xj: Vec<f64> = x.row(j).to_vec();
-                let val = self.kernel.compute(&xi, &xj);
+                let rj = x_ref.row(j);
+                let xj = rj.as_slice().unwrap();
+                let val = self.kernel.compute(xi, xj);
                 k[[i, j]] = val;
                 k[[j, i]] = val;
             }

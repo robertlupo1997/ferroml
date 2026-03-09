@@ -61,9 +61,12 @@ use crate::models::{
     check_is_fitted, validate_fit_input, validate_predict_input, ClassWeight, Model,
 };
 use crate::{FerroError, Result};
-use ndarray::{Array1, Array2};
+use ndarray::{Array1, Array2, Axis};
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
 
 // =============================================================================
 // Loss Functions
@@ -750,6 +753,55 @@ impl Model for GradientBoostingRegressor {
         let init = self.init_prediction.unwrap();
         let n_samples = x.nrows();
 
+        // Parallel prediction: split samples across threads, each thread traverses
+        // all trees for its chunk. Minimum chunk size avoids overhead for small inputs.
+        #[cfg(feature = "parallel")]
+        {
+            const MIN_PARALLEL_SAMPLES: usize = 256;
+            if n_samples >= MIN_PARALLEL_SAMPLES {
+                // Pre-compute learning rates for each estimator
+                let lrs: Vec<f64> = (0..estimators.len())
+                    .map(|i| self.learning_rate_schedule.get_lr(i, self.n_estimators))
+                    .collect();
+
+                let chunk_size = (n_samples / rayon::current_num_threads()).max(64);
+                let chunks: Vec<Array1<f64>> = (0..n_samples)
+                    .collect::<Vec<_>>()
+                    .par_chunks(chunk_size)
+                    .map(|indices| {
+                        // Build sub-matrix for this chunk
+                        let chunk_len = indices.len();
+                        let sub_x = x.select(Axis(0), indices);
+                        let mut chunk_preds = Array1::from_elem(chunk_len, init);
+
+                        for (tree_idx, tree) in estimators.iter().enumerate() {
+                            // tree.predict is infallible on valid input since model is fitted
+                            if let Ok(tree_pred) = tree.predict(&sub_x) {
+                                let lr = lrs[tree_idx];
+                                chunk_preds.zip_mut_with(&tree_pred, |p, &tp| *p += tp * lr);
+                            }
+                        }
+
+                        chunk_preds
+                    })
+                    .collect();
+
+                // Assemble results
+                let mut predictions = Array1::zeros(n_samples);
+                let mut offset = 0;
+                for chunk in chunks {
+                    let len = chunk.len();
+                    predictions
+                        .slice_mut(ndarray::s![offset..offset + len])
+                        .assign(&chunk);
+                    offset += len;
+                }
+
+                return Ok(predictions);
+            }
+        }
+
+        // Sequential fallback (also used when parallel feature is disabled)
         let mut predictions = Array1::from_elem(n_samples, init);
 
         for (i, tree) in estimators.iter().enumerate() {
@@ -1001,6 +1053,78 @@ impl GradientBoostingClassifier {
         // For binary classification, we only have 1 tree per stage
         let n_trees_per_stage = if n_classes == 2 { 1 } else { n_classes };
 
+        // Parallel prediction: split samples across threads
+        #[cfg(feature = "parallel")]
+        {
+            const MIN_PARALLEL_SAMPLES: usize = 256;
+            if n_samples >= MIN_PARALLEL_SAMPLES {
+                // Pre-compute learning rates
+                let lrs: Vec<f64> = (0..estimators.len())
+                    .map(|i| self.learning_rate_schedule.get_lr(i, self.n_estimators))
+                    .collect();
+                let init_clone = init.clone();
+
+                let chunk_size = (n_samples / rayon::current_num_threads()).max(64);
+                let chunks: Vec<Array2<f64>> = (0..n_samples)
+                    .collect::<Vec<_>>()
+                    .par_chunks(chunk_size)
+                    .map(|indices| {
+                        let chunk_len = indices.len();
+                        let sub_x = x.select(Axis(0), indices);
+                        let mut raw = Array2::zeros((chunk_len, n_trees_per_stage));
+                        for k in 0..n_trees_per_stage {
+                            for i in 0..chunk_len {
+                                raw[[i, k]] = init_clone[k];
+                            }
+                        }
+                        for (iter_idx, trees_at_stage) in estimators.iter().enumerate() {
+                            let lr = lrs[iter_idx];
+                            for (k, tree) in trees_at_stage.iter().enumerate() {
+                                if let Ok(tree_pred) = tree.predict(&sub_x) {
+                                    for i in 0..chunk_len {
+                                        raw[[i, k]] += lr * tree_pred[i];
+                                    }
+                                }
+                            }
+                        }
+                        // Convert to probabilities
+                        let mut probas = Array2::zeros((chunk_len, n_classes));
+                        if n_classes == 2 {
+                            for i in 0..chunk_len {
+                                let p = sigmoid(raw[[i, 0]]);
+                                probas[[i, 0]] = 1.0 - p;
+                                probas[[i, 1]] = p;
+                            }
+                        } else {
+                            for i in 0..chunk_len {
+                                let row = raw.row(i);
+                                let max_val = row.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                                let exp_sum: f64 = row.iter().map(|&v| (v - max_val).exp()).sum();
+                                for j in 0..n_classes {
+                                    probas[[i, j]] = (raw[[i, j]] - max_val).exp() / exp_sum;
+                                }
+                            }
+                        }
+                        probas
+                    })
+                    .collect();
+
+                // Assemble results
+                let mut probas = Array2::zeros((n_samples, n_classes));
+                let mut offset = 0;
+                for chunk in chunks {
+                    let len = chunk.nrows();
+                    probas
+                        .slice_mut(ndarray::s![offset..offset + len, ..])
+                        .assign(&chunk);
+                    offset += len;
+                }
+
+                return Ok(probas);
+            }
+        }
+
+        // Sequential fallback
         // Initialize raw predictions (log-odds space)
         let mut raw_predictions = Array2::zeros((n_samples, n_trees_per_stage));
         for k in 0..n_trees_per_stage {
@@ -1208,6 +1332,15 @@ impl Model for GradientBoostingClassifier {
         let mut best_val_loss = f64::INFINITY;
         let mut no_improvement_count = 0;
 
+        // Pre-allocate subsample buffers (reused across iterations and classes)
+        let subsample_size_cls = if self.subsample < 1.0 {
+            ((n_train as f64 * self.subsample).ceil() as usize).max(1)
+        } else {
+            n_train
+        };
+        let mut x_subsample = Array2::zeros((subsample_size_cls, n_features));
+        let mut y_subsample = Array1::zeros(subsample_size_cls);
+
         for iteration in 0..self.n_estimators {
             let lr = self
                 .learning_rate_schedule
@@ -1241,22 +1374,30 @@ impl Model for GradientBoostingClassifier {
                             0.0
                         };
 
-                        // Compute softmax probability for class k
-                        let row: Vec<f64> = (0..n_trees_per_stage)
-                            .map(|j| raw_predictions[[i, j]])
-                            .collect();
-                        let max_val = row.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                        let exp_sum: f64 = row.iter().map(|&v| (v - max_val).exp()).sum();
+                        // Compute softmax probability for class k (inline without temporary Vec)
+                        let mut max_val = f64::NEG_INFINITY;
+                        for j in 0..n_trees_per_stage {
+                            let v = raw_predictions[[i, j]];
+                            if v > max_val {
+                                max_val = v;
+                            }
+                        }
+                        let mut exp_sum = 0.0f64;
+                        for j in 0..n_trees_per_stage {
+                            exp_sum += (raw_predictions[[i, j]] - max_val).exp();
+                        }
                         let p_k = (raw_predictions[[i, k]] - max_val).exp() / exp_sum;
 
                         y_one_hot - p_k
                     }))
                 };
 
-                // Create training subset
+                // Create training subset (reuse pre-allocated buffers)
                 let n_subsample = sample_indices.len();
-                let mut x_subsample = Array2::zeros((n_subsample, n_features));
-                let mut y_subsample = Array1::zeros(n_subsample);
+                if n_subsample != x_subsample.nrows() {
+                    x_subsample = Array2::zeros((n_subsample, n_features));
+                    y_subsample = Array1::zeros(n_subsample);
+                }
                 for (i, &idx) in sample_indices.iter().enumerate() {
                     x_subsample.row_mut(i).assign(&x_train.row(idx));
                     y_subsample[i] = neg_gradient[idx];

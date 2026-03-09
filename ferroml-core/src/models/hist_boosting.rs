@@ -1401,8 +1401,9 @@ impl HistGradientBoostingClassifier {
         for iteration_trees in trees {
             for (k, tree) in iteration_trees.iter().enumerate() {
                 for i in 0..n_samples {
-                    let row: Vec<u8> = x_binned.row(i).to_vec();
-                    raw_predictions[[i, k]] += self.learning_rate * tree.predict_single(&row);
+                    let row = x_binned.row(i);
+                    let row_slice = row.as_slice().expect("x_binned is standard layout");
+                    raw_predictions[[i, k]] += self.learning_rate * tree.predict_single(row_slice);
                 }
             }
         }
@@ -1621,16 +1622,18 @@ impl Model for HistGradientBoostingClassifier {
         // Sample indices
         let sample_indices: Vec<usize> = (0..n_train).collect();
 
+        // Pre-allocate gradient/hessian buffers (reused across iterations and classes)
+        let mut gradients = vec![0.0f64; n_train];
+        let mut hessians = vec![0.0f64; n_train];
+
         // Main boosting loop
         for _iteration in 0..self.max_iter {
             let mut iteration_trees = Vec::with_capacity(n_trees_per_iter);
 
             for k in 0..n_trees_per_iter {
-                // Compute gradients and hessians
-                let (gradients, hessians) = if n_classes == 2 {
+                // Compute gradients and hessians (reusing pre-allocated buffers)
+                if n_classes == 2 {
                     // Binary: gradient = p - y, hessian = p * (1 - p)
-                    let mut g = Vec::with_capacity(n_train);
-                    let mut h = Vec::with_capacity(n_train);
                     for i in 0..n_train {
                         let y_binary = if (y_train[i] - classes[1]).abs() < 1e-10 {
                             1.0
@@ -1638,14 +1641,11 @@ impl Model for HistGradientBoostingClassifier {
                             0.0
                         };
                         let p = sigmoid(raw_predictions[[i, 0]]);
-                        g.push(p - y_binary);
-                        h.push((p * (1.0 - p)).max(1e-8));
+                        gradients[i] = p - y_binary;
+                        hessians[i] = (p * (1.0 - p)).max(1e-8);
                     }
-                    (g, h)
                 } else {
                     // Multiclass: gradient = p_k - y_k, hessian = p_k * (1 - p_k)
-                    let mut g = Vec::with_capacity(n_train);
-                    let mut h = Vec::with_capacity(n_train);
                     for i in 0..n_train {
                         let y_one_hot = if (y_train[i] - classes[k]).abs() < 1e-10 {
                             1.0
@@ -1653,19 +1653,24 @@ impl Model for HistGradientBoostingClassifier {
                             0.0
                         };
 
-                        // Compute softmax
-                        let row: Vec<f64> = (0..n_trees_per_iter)
-                            .map(|j| raw_predictions[[i, j]])
-                            .collect();
-                        let max_val = row.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                        let exp_sum: f64 = row.iter().map(|&v| (v - max_val).exp()).sum();
+                        // Compute softmax (inline without temporary Vec)
+                        let mut max_val = f64::NEG_INFINITY;
+                        for j in 0..n_trees_per_iter {
+                            let v = raw_predictions[[i, j]];
+                            if v > max_val {
+                                max_val = v;
+                            }
+                        }
+                        let mut exp_sum = 0.0f64;
+                        for j in 0..n_trees_per_iter {
+                            exp_sum += (raw_predictions[[i, j]] - max_val).exp();
+                        }
                         let p_k = (raw_predictions[[i, k]] - max_val).exp() / exp_sum;
 
-                        g.push(p_k - y_one_hot);
-                        h.push((p_k * (1.0 - p_k)).max(1e-8));
+                        gradients[i] = p_k - y_one_hot;
+                        hessians[i] = (p_k * (1.0 - p_k)).max(1e-8);
                     }
-                    (g, h)
-                };
+                }
 
                 // Build tree
                 let tree = tree_builder.build_leaf_wise(
@@ -1678,8 +1683,9 @@ impl Model for HistGradientBoostingClassifier {
 
                 // Update predictions
                 for i in 0..n_train {
-                    let row: Vec<u8> = x_binned.row(i).to_vec();
-                    raw_predictions[[i, k]] += self.learning_rate * tree.predict_single(&row);
+                    let row = x_binned.row(i);
+                    let row_slice = row.as_slice().expect("x_binned is standard layout");
+                    raw_predictions[[i, k]] += self.learning_rate * tree.predict_single(row_slice);
                 }
 
                 // Update validation predictions
@@ -1687,8 +1693,9 @@ impl Model for HistGradientBoostingClassifier {
                     (&x_val_binned, &mut val_raw_predictions)
                 {
                     for i in 0..xvb.nrows() {
-                        let row: Vec<u8> = xvb.row(i).to_vec();
-                        vrp[[i, k]] += self.learning_rate * tree.predict_single(&row);
+                        let row = xvb.row(i);
+                        let row_slice = row.as_slice().expect("x_val_binned is standard layout");
+                        vrp[[i, k]] += self.learning_rate * tree.predict_single(row_slice);
                     }
                 }
 
@@ -2115,8 +2122,9 @@ impl HistGradientBoostingRegressor {
 
         Ok(trees.iter().map(move |tree| {
             for i in 0..n_samples {
-                let row: Vec<u8> = x_binned.row(i).to_vec();
-                predictions[i] += self.learning_rate * tree.predict_single(&row);
+                let row = x_binned.row(i);
+                let row_slice = row.as_slice().expect("x_binned is standard layout");
+                predictions[i] += self.learning_rate * tree.predict_single(row_slice);
             }
             predictions.clone()
         }))
@@ -2253,20 +2261,21 @@ impl Model for HistGradientBoostingRegressor {
         // Sample indices
         let sample_indices: Vec<usize> = (0..n_train).collect();
 
+        // Pre-allocate gradient/hessian buffers (reused across iterations)
+        let mut gradients = vec![0.0f64; n_train];
+        let mut hessians = vec![0.0f64; n_train];
+
         // Main boosting loop
         for _iteration in 0..self.max_iter {
             // Compute gradients and hessians
-            let mut gradients = Vec::with_capacity(n_train);
-            let mut hessians = Vec::with_capacity(n_train);
             for i in 0..n_train {
-                let g = self
+                gradients[i] = self
                     .loss
                     .gradient(y_train[i], predictions[i], self.huber_delta);
-                let h = self
+                hessians[i] = self
                     .loss
-                    .hessian(y_train[i], predictions[i], self.huber_delta);
-                gradients.push(g);
-                hessians.push(h.max(1e-8)); // Ensure positive hessian
+                    .hessian(y_train[i], predictions[i], self.huber_delta)
+                    .max(1e-8); // Ensure positive hessian
             }
 
             // Build tree
@@ -2280,15 +2289,17 @@ impl Model for HistGradientBoostingRegressor {
 
             // Update predictions
             for i in 0..n_train {
-                let row: Vec<u8> = x_binned.row(i).to_vec();
-                predictions[i] += self.learning_rate * tree.predict_single(&row);
+                let row = x_binned.row(i);
+                let row_slice = row.as_slice().expect("x_binned is standard layout");
+                predictions[i] += self.learning_rate * tree.predict_single(row_slice);
             }
 
             // Update validation predictions
             if let (Some(ref xvb), Some(ref mut vp)) = (&x_val_binned, &mut val_predictions) {
                 for i in 0..xvb.nrows() {
-                    let row: Vec<u8> = xvb.row(i).to_vec();
-                    vp[i] += self.learning_rate * tree.predict_single(&row);
+                    let row = xvb.row(i);
+                    let row_slice = row.as_slice().expect("x_val_binned is standard layout");
+                    vp[i] += self.learning_rate * tree.predict_single(row_slice);
                 }
             }
 
@@ -2357,8 +2368,9 @@ impl Model for HistGradientBoostingRegressor {
         // Add tree predictions
         for tree in trees {
             for i in 0..n_samples {
-                let row: Vec<u8> = x_binned.row(i).to_vec();
-                predictions[i] += self.learning_rate * tree.predict_single(&row);
+                let row = x_binned.row(i);
+                let row_slice = row.as_slice().expect("x_binned is standard layout");
+                predictions[i] += self.learning_rate * tree.predict_single(row_slice);
             }
         }
 

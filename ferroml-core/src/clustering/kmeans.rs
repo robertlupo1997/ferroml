@@ -264,6 +264,10 @@ impl KMeans {
         let mut prev_inertia = f64::MAX;
         let mut rng = StdRng::seed_from_u64(self.random_state.unwrap_or(42));
 
+        // Pre-allocate working buffers for the update step (reused across iterations)
+        let mut new_centers = Array2::zeros((self.n_clusters, n_features));
+        let mut counts = vec![0usize; self.n_clusters];
+
         for iter in 0..self.max_iter {
             // Assignment step: assign each point to nearest center
 
@@ -310,8 +314,8 @@ impl KMeans {
             prev_inertia = inertia;
 
             // Update step: move centers to mean of assigned points
-            let mut new_centers = Array2::zeros((self.n_clusters, n_features));
-            let mut counts = vec![0usize; self.n_clusters];
+            new_centers.fill(0.0);
+            counts.fill(0);
 
             for i in 0..n_samples {
                 let k = labels[i] as usize;
@@ -334,7 +338,7 @@ impl KMeans {
                 }
             }
 
-            centers = new_centers;
+            std::mem::swap(&mut centers, &mut new_centers);
         }
 
         // Compute final inertia

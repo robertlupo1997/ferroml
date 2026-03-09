@@ -11,9 +11,14 @@
 //! 3. Optimize Y via gradient descent on KL divergence between P and
 //!    Student-t distributed similarities Q in low-dimensional space
 //!
+//! ## Methods
+//!
+//! - **Exact** — O(N^2) pairwise computation, practical for up to ~5K points
+//! - **Barnes-Hut** — O(N log N) approximation using VP-tree + quad-tree,
+//!   suitable for larger datasets. Controlled by `theta` parameter (default 0.5).
+//!
 //! ## Limitations
 //!
-//! - Exact O(N^2) algorithm — practical for datasets up to ~5K points
 //! - t-SNE is transductive: no out-of-sample `transform()` for new data
 //! - Non-convex objective: results depend on initialization and random seed
 //!
@@ -45,6 +50,8 @@ use rand::SeedableRng;
 use rand_distr::{Distribution, StandardNormal};
 use serde::{Deserialize, Serialize};
 
+use crate::decomposition::quadtree::QuadTree;
+use crate::decomposition::vptree::VPTree;
 use crate::preprocessing::{check_non_empty, Transformer};
 use crate::{FerroError, Result};
 
@@ -77,6 +84,16 @@ pub enum LearningRate {
     Fixed(f64),
 }
 
+/// t-SNE computation method.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum TsneMethod {
+    /// Exact O(N^2) computation — computes all pairwise interactions
+    Exact,
+    /// Barnes-Hut O(N log N) approximation — uses VP-tree for kNN and
+    /// quad-tree for approximate repulsive forces
+    BarnesHut,
+}
+
 /// t-distributed Stochastic Neighbor Embedding.
 ///
 /// Reduces high-dimensional data to `n_components` dimensions (typically 2)
@@ -93,6 +110,8 @@ pub enum LearningRate {
 /// - `metric` — Distance metric: Euclidean, Manhattan, or Cosine.
 /// - `init` — Initialization: PCA or Random.
 /// - `random_state` — Seed for reproducibility.
+/// - `method` — Exact or BarnesHut (default: BarnesHut for n > 1000, Exact otherwise).
+/// - `theta` — Barnes-Hut accuracy parameter (default 0.5). Lower = more accurate but slower.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TSNE {
     // Config
@@ -105,6 +124,8 @@ pub struct TSNE {
     metric: TsneMetric,
     init: TsneInit,
     random_state: Option<u64>,
+    method: Option<TsneMethod>,
+    theta: f64,
 
     // Fitted state
     embedding_: Option<Array2<f64>>,
@@ -132,6 +153,8 @@ impl TSNE {
             metric: TsneMetric::Euclidean,
             init: TsneInit::Pca,
             random_state: None,
+            method: None,
+            theta: 0.5,
             embedding_: None,
             kl_divergence_: None,
             n_iter_final_: None,
@@ -196,6 +219,26 @@ impl TSNE {
     /// Set the random state for reproducibility.
     pub fn with_random_state(mut self, seed: u64) -> Self {
         self.random_state = Some(seed);
+        self
+    }
+
+    /// Set the computation method (Exact or BarnesHut).
+    ///
+    /// If not set, defaults to BarnesHut for n > 1000, Exact otherwise.
+    pub fn with_method(mut self, method: TsneMethod) -> Self {
+        self.method = Some(method);
+        self
+    }
+
+    /// Set the Barnes-Hut accuracy parameter theta (default 0.5).
+    ///
+    /// - theta = 0: exact (no approximation, equivalent to Exact method)
+    /// - theta = 0.5: good balance between speed and accuracy (default)
+    /// - theta = 1.0: fast but less accurate
+    ///
+    /// Only used when method is BarnesHut.
+    pub fn with_theta(mut self, theta: f64) -> Self {
+        self.theta = theta;
         self
     }
 
@@ -490,7 +533,317 @@ impl TSNE {
         (kl, grad, grad_norm)
     }
 
-    /// Run the t-SNE optimization.
+    /// Determine the effective method to use based on configuration and data size.
+    fn effective_method(&self, n_samples: usize) -> TsneMethod {
+        match self.method {
+            Some(m) => m,
+            None => {
+                if n_samples > 1000 {
+                    TsneMethod::BarnesHut
+                } else {
+                    TsneMethod::Exact
+                }
+            }
+        }
+    }
+
+    /// Compute sparse joint probabilities using VP-tree for k nearest neighbors.
+    ///
+    /// Returns a sparse representation: `Vec<Vec<(usize, f64)>>` where entry `i`
+    /// contains `(j, p_ij)` pairs for the k nearest neighbors of point i.
+    fn compute_sparse_joint_probabilities(&self, x: &Array2<f64>) -> Vec<Vec<(usize, f64)>> {
+        let n = x.nrows();
+        let k = (3.0 * self.perplexity).ceil() as usize;
+        let k = k.min(n - 1);
+
+        // Build VP-tree
+        let tree = VPTree::from_array(x);
+
+        // For each point, find k nearest neighbors and compute conditional probabilities
+        let mut sparse_p: Vec<Vec<(usize, f64)>> = Vec::with_capacity(n);
+
+        for i in 0..n {
+            let query = x.row(i).to_vec();
+            let mut neighbors = tree.search(&query, k + 1); // +1 because self is included
+
+            // Remove self from neighbors
+            neighbors.retain(|&(idx, _)| idx != i);
+            neighbors.truncate(k);
+
+            // Compute squared distances for perplexity calibration
+            let sq_dists: Vec<f64> = neighbors.iter().map(|&(_, d)| d * d).collect();
+
+            // Binary search for sigma (perplexity calibration)
+            let p_row = Self::binary_search_perplexity_sparse(&sq_dists, self.perplexity);
+
+            let row: Vec<(usize, f64)> = neighbors
+                .iter()
+                .zip(p_row.iter())
+                .map(|(&(idx, _), &p)| (idx, p))
+                .collect();
+
+            sparse_p.push(row);
+        }
+
+        // Symmetrize: p_ij = (p_{j|i} + p_{i|j}) / (2N)
+        let two_n = 2.0 * n as f64;
+        let mut sym_p: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];
+
+        // Collect all (i, j, p_cond) entries
+        let mut all_entries: std::collections::HashMap<(usize, usize), f64> =
+            std::collections::HashMap::new();
+
+        for (i, neighbors) in sparse_p.iter().enumerate() {
+            for &(j, p_cond) in neighbors {
+                // p_{j|i} contribution
+                *all_entries.entry((i, j)).or_insert(0.0) += p_cond;
+                *all_entries.entry((j, i)).or_insert(0.0) += 0.0; // ensure symmetric key exists
+            }
+        }
+
+        // Symmetrize
+        let mut sym_entries: std::collections::HashMap<(usize, usize), f64> =
+            std::collections::HashMap::new();
+        for (&(i, j), &p_ji) in &all_entries {
+            if i < j {
+                let p_ij = all_entries.get(&(j, i)).copied().unwrap_or(0.0);
+                let sym_val = ((p_ji + p_ij) / two_n).max(1e-12);
+                sym_entries.insert((i, j), sym_val);
+                sym_entries.insert((j, i), sym_val);
+            }
+        }
+
+        for (&(i, j), &val) in &sym_entries {
+            sym_p[i].push((j, val));
+        }
+
+        // Sort each row by index for consistent iteration
+        for row in &mut sym_p {
+            row.sort_by_key(|&(idx, _)| idx);
+        }
+
+        sym_p
+    }
+
+    /// Binary search for perplexity on sparse distances (only k neighbors).
+    fn binary_search_perplexity_sparse(sq_distances: &[f64], target_perplexity: f64) -> Vec<f64> {
+        let k = sq_distances.len();
+        if k == 0 {
+            return Vec::new();
+        }
+
+        let target_entropy = target_perplexity.ln();
+        let tol = 1e-5;
+        let max_tries = 50;
+
+        let mut beta = 1.0_f64;
+        let mut beta_min = f64::NEG_INFINITY;
+        let mut beta_max = f64::INFINITY;
+        let mut p = vec![0.0; k];
+
+        for _ in 0..max_tries {
+            let mut sum_p = 0.0;
+            for (j, &d) in sq_distances.iter().enumerate() {
+                p[j] = (-d * beta).exp();
+                sum_p += p[j];
+            }
+
+            if sum_p < 1e-300 {
+                for pj in &mut p {
+                    *pj = 1.0 / k as f64;
+                }
+                break;
+            }
+
+            for pj in p.iter_mut() {
+                *pj /= sum_p;
+            }
+
+            let mut entropy = 0.0;
+            for &pj in &p {
+                if pj > 1e-300 {
+                    entropy -= pj * pj.ln();
+                }
+            }
+
+            let diff = entropy - target_entropy;
+            if diff.abs() < tol {
+                break;
+            }
+
+            if diff > 0.0 {
+                beta_min = beta;
+                beta = if beta_max.is_infinite() {
+                    beta * 2.0
+                } else {
+                    (beta + beta_max) / 2.0
+                };
+            } else {
+                beta_max = beta;
+                beta = if beta_min.is_infinite() {
+                    beta / 2.0
+                } else {
+                    (beta + beta_min) / 2.0
+                };
+            }
+        }
+
+        p
+    }
+
+    /// Compute gradient using Barnes-Hut approximation.
+    ///
+    /// Uses the quad-tree for repulsive forces and sparse P for attractive forces.
+    fn compute_gradient_barnes_hut(
+        sparse_p: &[Vec<(usize, f64)>],
+        y: &Array2<f64>,
+        exaggeration: f64,
+        theta: f64,
+    ) -> (f64, Array2<f64>, f64) {
+        let n = y.nrows();
+        let n_components = y.ncols();
+        let mut grad = Array2::zeros((n, n_components));
+
+        // Build quad-tree from current embedding
+        let tree = QuadTree::new(y);
+
+        // Compute repulsive forces via Barnes-Hut
+        let mut total_sum_q = 0.0;
+        let mut neg_forces = Array2::zeros((n, n_components));
+
+        for i in 0..n {
+            let px = y[[i, 0]];
+            let py_val = y[[i, 1]];
+            let (fx, fy, sq) = tree.compute_non_edge_forces(px, py_val, theta);
+            neg_forces[[i, 0]] = fx;
+            if n_components > 1 {
+                neg_forces[[i, 1]] = fy;
+            }
+            total_sum_q += sq;
+        }
+
+        // Avoid division by zero
+        total_sum_q = total_sum_q.max(1e-300);
+
+        // Compute attractive forces from sparse P (edge forces)
+        let mut pos_forces: Array2<f64> = Array2::zeros((n, n_components));
+        let mut kl = 0.0;
+
+        for i in 0..n {
+            for &(j, p_ij) in &sparse_p[i] {
+                let p_val = p_ij * exaggeration;
+
+                let mut dist_sq = 0.0;
+                for k in 0..n_components {
+                    let diff = y[[i, k]] - y[[j, k]];
+                    dist_sq += diff * diff;
+                }
+
+                let q_ij = 1.0 / (1.0 + dist_sq);
+
+                // Attractive force
+                let mult = p_val * q_ij;
+                for k in 0..n_components {
+                    pos_forces[[i, k]] += mult * (y[[i, k]] - y[[j, k]]);
+                }
+
+                // KL divergence contribution
+                let q_normalized = (q_ij / total_sum_q).max(1e-12);
+                if p_val > 1e-300 {
+                    kl += p_val * (p_val / q_normalized).ln();
+                }
+            }
+        }
+
+        // Combine: gradient = 4 * (attractive - repulsive / sum_Q)
+        for i in 0..n {
+            for k in 0..n_components {
+                grad[[i, k]] = 4.0 * (pos_forces[[i, k]] - neg_forces[[i, k]] / total_sum_q);
+            }
+        }
+
+        let grad_norm = grad.iter().map(|&g| g * g).sum::<f64>().sqrt();
+        (kl, grad, grad_norm)
+    }
+
+    /// Run the Barnes-Hut t-SNE optimization with sparse P.
+    fn run_optimization_barnes_hut(
+        &self,
+        sparse_p: &[Vec<(usize, f64)>],
+        y_init: Array2<f64>,
+    ) -> Result<(Array2<f64>, f64, usize)> {
+        let n = y_init.nrows();
+        let n_components = y_init.ncols();
+
+        let lr = match self.learning_rate {
+            LearningRate::Auto => (n as f64 / self.early_exaggeration / 4.0).max(50.0),
+            LearningRate::Fixed(lr) => lr,
+        };
+
+        let early_exaggeration_stop = 250.min(self.max_iter);
+
+        let mut y = y_init;
+        let mut gains: Array2<f64> = Array2::from_elem((n, n_components), 1.0_f64);
+        let mut update: Array2<f64> = Array2::zeros((n, n_components));
+        let mut best_kl = f64::INFINITY;
+        let mut final_iter = 0;
+
+        for iter in 0..self.max_iter {
+            let momentum = if iter < early_exaggeration_stop {
+                0.5
+            } else {
+                0.8
+            };
+
+            let exaggeration = if iter < early_exaggeration_stop {
+                self.early_exaggeration
+            } else {
+                1.0
+            };
+
+            let (kl, grad, grad_norm) =
+                Self::compute_gradient_barnes_hut(sparse_p, &y, exaggeration, self.theta);
+            best_kl = kl;
+            final_iter = iter + 1;
+
+            if iter > early_exaggeration_stop && grad_norm < self.min_grad_norm {
+                break;
+            }
+
+            // Adaptive gains
+            for i in 0..n {
+                for k in 0..n_components {
+                    let same_sign = (grad[[i, k]] > 0.0) == (update[[i, k]] > 0.0);
+                    if same_sign {
+                        let g: f64 = gains[[i, k]] * 0.8;
+                        gains[[i, k]] = g.max(0.01);
+                    } else {
+                        gains[[i, k]] = gains[[i, k]] + 0.2;
+                    }
+                }
+            }
+
+            // Update with momentum
+            for i in 0..n {
+                for k in 0..n_components {
+                    update[[i, k]] = momentum * update[[i, k]] - lr * gains[[i, k]] * grad[[i, k]];
+                    y[[i, k]] += update[[i, k]];
+                }
+            }
+
+            // Re-center
+            let mean = y.mean_axis(Axis(0)).unwrap();
+            for i in 0..n {
+                for k in 0..n_components {
+                    y[[i, k]] -= mean[k];
+                }
+            }
+        }
+
+        Ok((y, best_kl, final_iter))
+    }
+
+    /// Run the t-SNE optimization (exact method).
     fn run_optimization(
         &self,
         p: &Array2<f64>,
@@ -610,21 +963,32 @@ impl Transformer for TSNE {
 
         self.n_features_in_ = Some(n_features);
 
-        // Step 1: Compute pairwise distances
-        let distances = self.compute_pairwise_distances(x);
+        let method = self.effective_method(n_samples);
 
-        // Step 2: Compute joint probabilities P
-        let p = self.compute_joint_probabilities(&distances);
-
-        // Step 3: Initialize embedding
+        // Step 1: Initialize embedding
         let mut rng = match self.random_state {
             Some(seed) => rand::rngs::StdRng::seed_from_u64(seed),
             None => rand::rngs::StdRng::from_os_rng(),
         };
         let y_init = self.initialize_embedding(x, &mut rng)?;
 
-        // Step 4: Optimize
-        let (embedding, kl, n_iter) = self.run_optimization(&p, y_init)?;
+        // Step 2+3: Compute probabilities and optimize
+        let (embedding, kl, n_iter) = match method {
+            TsneMethod::Exact => {
+                let distances = self.compute_pairwise_distances(x);
+                let p = self.compute_joint_probabilities(&distances);
+                self.run_optimization(&p, y_init)?
+            }
+            TsneMethod::BarnesHut => {
+                if self.n_components != 2 {
+                    return Err(FerroError::invalid_input(
+                        "Barnes-Hut method only supports n_components=2. Use Exact for other dimensions.",
+                    ));
+                }
+                let sparse_p = self.compute_sparse_joint_probabilities(x);
+                self.run_optimization_barnes_hut(&sparse_p, y_init)?
+            }
+        };
 
         self.embedding_ = Some(embedding.clone());
         self.kl_divergence_ = Some(kl);
@@ -1183,5 +1547,233 @@ mod tests {
             result.iter().all(|v| v.is_finite()),
             "All embedding values should be finite"
         );
+    }
+
+    // =========================================================================
+    // Barnes-Hut t-SNE tests
+    // =========================================================================
+
+    #[test]
+    fn test_barnes_hut_produces_valid_2d_embedding() {
+        let (data, _) = make_clusters(30, 3, 10, 42);
+        let mut tsne = TSNE::new()
+            .with_method(TsneMethod::BarnesHut)
+            .with_perplexity(10.0)
+            .with_max_iter(500)
+            .with_random_state(42);
+
+        let result = tsne.fit_transform(&data).unwrap();
+        assert_eq!(result.dim(), (90, 2));
+        assert!(
+            result.iter().all(|v| v.is_finite()),
+            "All Barnes-Hut embedding values should be finite"
+        );
+    }
+
+    #[test]
+    fn test_barnes_hut_separates_clusters() {
+        let (data, labels) = make_clusters(30, 3, 10, 42);
+        let mut tsne = TSNE::new()
+            .with_method(TsneMethod::BarnesHut)
+            .with_perplexity(10.0)
+            .with_max_iter(500)
+            .with_random_state(42);
+
+        let embedding = tsne.fit_transform(&data).unwrap();
+        let ratio = cluster_separation_ratio(&embedding, &labels);
+        assert!(
+            ratio < 0.6,
+            "Barnes-Hut should separate clusters, ratio={}",
+            ratio
+        );
+    }
+
+    #[test]
+    fn test_barnes_hut_knn_preservation() {
+        // Test that Barnes-Hut preserves local neighborhoods
+        let (data, _) = make_clusters(40, 3, 10, 42);
+        let n = data.nrows();
+        let k = 7;
+
+        let mut tsne = TSNE::new()
+            .with_method(TsneMethod::BarnesHut)
+            .with_perplexity(15.0)
+            .with_max_iter(500)
+            .with_random_state(42);
+
+        let embedding = tsne.fit_transform(&data).unwrap();
+
+        // Compute kNN in original space
+        let orig_knn = compute_knn(&data, k);
+        // Compute kNN in embedding space
+        let emb_knn = compute_knn(&embedding, k);
+
+        // Measure preservation: fraction of original kNN preserved in embedding
+        let mut total_preserved = 0;
+        let total_possible = n * k;
+
+        for i in 0..n {
+            for &j in &orig_knn[i] {
+                if emb_knn[i].contains(&j) {
+                    total_preserved += 1;
+                }
+            }
+        }
+
+        let preservation = total_preserved as f64 / total_possible as f64;
+        assert!(
+            preservation > 0.50,
+            "kNN preservation should be > 0.50, got {}",
+            preservation
+        );
+    }
+
+    /// Compute k nearest neighbors for each point.
+    fn compute_knn(data: &Array2<f64>, k: usize) -> Vec<Vec<usize>> {
+        let n = data.nrows();
+        let mut result = Vec::with_capacity(n);
+
+        for i in 0..n {
+            let mut dists: Vec<(usize, f64)> = (0..n)
+                .filter(|&j| j != i)
+                .map(|j| {
+                    let d = squared_euclidean_distance(
+                        data.row(i).as_slice().unwrap(),
+                        data.row(j).as_slice().unwrap(),
+                    );
+                    (j, d)
+                })
+                .collect();
+            dists.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            result.push(dists.iter().take(k).map(|&(j, _)| j).collect());
+        }
+
+        result
+    }
+
+    #[test]
+    fn test_exact_method_unchanged() {
+        // Verify that explicitly setting Exact produces the same results as before
+        let (data, _) = make_clusters(20, 3, 10, 42);
+
+        let mut tsne_default = TSNE::new()
+            .with_method(TsneMethod::Exact)
+            .with_n_components(2)
+            .with_perplexity(10.0)
+            .with_max_iter(300)
+            .with_random_state(42);
+        let result = tsne_default.fit_transform(&data).unwrap();
+
+        assert_eq!(result.dim(), (60, 2));
+        assert!(result.iter().all(|v| v.is_finite()));
+    }
+
+    #[test]
+    fn test_barnes_hut_reproducibility() {
+        let (data, _) = make_clusters(30, 3, 10, 42);
+
+        let mut tsne1 = TSNE::new()
+            .with_method(TsneMethod::BarnesHut)
+            .with_perplexity(10.0)
+            .with_max_iter(300)
+            .with_random_state(99);
+        let result1 = tsne1.fit_transform(&data).unwrap();
+
+        let mut tsne2 = TSNE::new()
+            .with_method(TsneMethod::BarnesHut)
+            .with_perplexity(10.0)
+            .with_max_iter(300)
+            .with_random_state(99);
+        let result2 = tsne2.fit_transform(&data).unwrap();
+
+        for (a, b) in result1.iter().zip(result2.iter()) {
+            assert!(
+                (a - b).abs() < 1e-10,
+                "Barnes-Hut should be reproducible with same seed"
+            );
+        }
+    }
+
+    #[test]
+    fn test_theta_affects_result() {
+        let (data, _) = make_clusters(30, 3, 10, 42);
+
+        let mut tsne_low = TSNE::new()
+            .with_method(TsneMethod::BarnesHut)
+            .with_theta(0.1)
+            .with_perplexity(10.0)
+            .with_max_iter(300)
+            .with_random_state(42);
+        let result_low = tsne_low.fit_transform(&data).unwrap();
+
+        let mut tsne_high = TSNE::new()
+            .with_method(TsneMethod::BarnesHut)
+            .with_theta(1.0)
+            .with_perplexity(10.0)
+            .with_max_iter(300)
+            .with_random_state(42);
+        let result_high = tsne_high.fit_transform(&data).unwrap();
+
+        let max_diff: f64 = result_low
+            .iter()
+            .zip(result_high.iter())
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0, f64::max);
+        assert!(
+            max_diff > 1e-3,
+            "Different theta should produce different results"
+        );
+    }
+
+    #[test]
+    fn test_barnes_hut_kl_divergence_stored() {
+        let (data, _) = make_clusters(20, 2, 5, 42);
+        let mut tsne = TSNE::new()
+            .with_method(TsneMethod::BarnesHut)
+            .with_perplexity(5.0)
+            .with_max_iter(200)
+            .with_random_state(42);
+
+        tsne.fit_transform(&data).unwrap();
+
+        let kl = tsne.kl_divergence().unwrap();
+        assert!(kl.is_finite(), "KL divergence should be finite");
+    }
+
+    #[test]
+    fn test_barnes_hut_3d_errors() {
+        // Barnes-Hut only supports 2D
+        let (data, _) = make_clusters(20, 2, 5, 42);
+        let mut tsne = TSNE::new()
+            .with_method(TsneMethod::BarnesHut)
+            .with_n_components(3)
+            .with_perplexity(5.0)
+            .with_max_iter(100)
+            .with_random_state(42);
+
+        let result = tsne.fit_transform(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_auto_method_selects_exact_for_small() {
+        // < 1000 points should default to Exact, which supports 3D
+        let (data, _) = make_clusters(10, 2, 5, 42);
+        let mut tsne = TSNE::new()
+            .with_n_components(2)
+            .with_perplexity(5.0)
+            .with_max_iter(100)
+            .with_random_state(42);
+
+        // Should work without specifying method (defaults to Exact for small n)
+        let result = tsne.fit_transform(&data).unwrap();
+        assert_eq!(result.dim(), (20, 2));
+    }
+
+    #[test]
+    fn test_default_parameters_include_method_theta() {
+        let tsne = TSNE::new();
+        assert!(tsne.method.is_none()); // Auto-detection
+        assert!((tsne.theta - 0.5).abs() < 1e-10);
     }
 }

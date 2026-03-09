@@ -68,6 +68,9 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 /// Distance metric for K-Nearest Neighbors.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum DistanceMetric {
@@ -1019,19 +1022,12 @@ impl Model for KNeighborsClassifier {
             .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
-        let mut predictions = Array1::zeros(n_samples);
+        // Classes are already sorted, so use binary search for O(log C) lookup
+        let classes_slice = classes.as_slice().unwrap();
 
-        // Pre-build class label -> index map to avoid O(classes) linear search per neighbor
-        use std::collections::HashMap;
-        let class_index_map: HashMap<i64, usize> = classes
-            .iter()
-            .enumerate()
-            .map(|(ci, &c)| ((c * 1e10) as i64, ci))
-            .collect();
-
-        for i in 0..n_samples {
+        // Helper closure that predicts a single sample
+        let predict_one = |i: usize| -> f64 {
             let row = x.row(i);
-            // Use as_slice() to avoid Vec allocation; fall back to to_vec() for non-contiguous
             let query: std::borrow::Cow<[f64]> = if let Some(slice) = row.as_slice() {
                 std::borrow::Cow::Borrowed(slice)
             } else {
@@ -1040,19 +1036,17 @@ impl Model for KNeighborsClassifier {
             let neighbors = self.find_neighbors(&query);
             let weights = self.compute_weights(&neighbors);
 
-            // Weighted vote
-            let mut class_weights = vec![0.0; classes.len()];
+            let mut cw = vec![0.0; classes.len()];
             for ((idx, _), w) in neighbors.iter().zip(weights.iter()) {
                 let label = y_train[*idx];
-                // Use hash map for O(1) class lookup instead of O(classes) linear scan
-                let key = (label * 1e10) as i64;
-                if let Some(&ci) = class_index_map.get(&key) {
-                    class_weights[ci] += w;
+                if let Ok(ci) = classes_slice
+                    .binary_search_by(|c| c.partial_cmp(&label).unwrap_or(Ordering::Equal))
+                {
+                    cw[ci] += w;
                 }
             }
 
-            // Find class with highest weight
-            let best_class_idx = class_weights
+            let best_class_idx = cw
                 .iter()
                 .enumerate()
                 .max_by(|(ia, a), (ib, b)| {
@@ -1061,7 +1055,21 @@ impl Model for KNeighborsClassifier {
                 .map(|(idx, _)| idx)
                 .unwrap_or(0);
 
-            predictions[i] = classes[best_class_idx];
+            classes[best_class_idx]
+        };
+
+        #[cfg(feature = "parallel")]
+        {
+            const MIN_PARALLEL_SAMPLES: usize = 128;
+            if n_samples >= MIN_PARALLEL_SAMPLES {
+                let preds: Vec<f64> = (0..n_samples).into_par_iter().map(predict_one).collect();
+                return Ok(Array1::from_vec(preds));
+            }
+        }
+
+        let mut predictions = Array1::zeros(n_samples);
+        for i in 0..n_samples {
+            predictions[i] = predict_one(i);
         }
 
         Ok(predictions)
@@ -1415,10 +1423,10 @@ impl Model for KNeighborsRegressor {
             .as_ref()
             .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
+        let y_mean = y_train.mean().unwrap_or(0.0);
 
-        let mut predictions = Array1::zeros(n_samples);
-
-        for i in 0..n_samples {
+        // Helper closure that predicts a single sample
+        let predict_one = |i: usize| -> f64 {
             let row = x.row(i);
             let query: std::borrow::Cow<[f64]> = if let Some(slice) = row.as_slice() {
                 std::borrow::Cow::Borrowed(slice)
@@ -1428,7 +1436,6 @@ impl Model for KNeighborsRegressor {
             let neighbors = self.find_neighbors(&query);
             let weights = self.compute_weights(&neighbors);
 
-            // Weighted average
             let mut weighted_sum = 0.0;
             let mut weight_sum = 0.0;
 
@@ -1437,12 +1444,25 @@ impl Model for KNeighborsRegressor {
                 weight_sum += w;
             }
 
-            predictions[i] = if weight_sum > 0.0 {
+            if weight_sum > 0.0 {
                 weighted_sum / weight_sum
             } else {
-                // Fallback to mean of all training targets
-                y_train.mean().unwrap_or(0.0)
-            };
+                y_mean
+            }
+        };
+
+        #[cfg(feature = "parallel")]
+        {
+            const MIN_PARALLEL_SAMPLES: usize = 128;
+            if n_samples >= MIN_PARALLEL_SAMPLES {
+                let preds: Vec<f64> = (0..n_samples).into_par_iter().map(predict_one).collect();
+                return Ok(Array1::from_vec(preds));
+            }
+        }
+
+        let mut predictions = Array1::zeros(n_samples);
+        for i in 0..n_samples {
+            predictions[i] = predict_one(i);
         }
 
         Ok(predictions)

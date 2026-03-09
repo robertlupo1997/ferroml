@@ -83,11 +83,13 @@
 mod factor_analysis;
 mod lda;
 mod pca;
+pub mod quadtree;
 mod truncated_svd;
 mod tsne;
+pub mod vptree;
 
 pub use factor_analysis::{FaSvdMethod, FactorAnalysis, Rotation};
 pub use lda::{LdaSolver, LDA};
 pub use pca::{IncrementalPCA, SvdSolver, PCA};
 pub use truncated_svd::{TruncatedSVD, TruncatedSvdAlgorithm};
-pub use tsne::{LearningRate, TsneInit, TsneMetric, TSNE};
+pub use tsne::{LearningRate, TsneInit, TsneMethod, TsneMetric, TSNE};
