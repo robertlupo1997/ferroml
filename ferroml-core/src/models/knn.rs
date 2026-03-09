@@ -357,8 +357,13 @@ impl KDTree {
         // If this is a leaf node, check all points in the leaf
         if node.is_leaf {
             for &idx in &node.point_indices {
-                let point: Vec<f64> = self.data.row(idx).to_vec();
-                let dist = metric.compute(query, &point);
+                let row = self.data.row(idx);
+                let dist = if let Some(slice) = row.as_slice() {
+                    metric.compute(query, slice)
+                } else {
+                    let point: Vec<f64> = row.to_vec();
+                    metric.compute(query, &point)
+                };
 
                 if heap.len() < k {
                     heap.push(NeighborCandidate { idx, dist });
@@ -373,8 +378,13 @@ impl KDTree {
         }
 
         // For internal nodes, check the node's point
-        let point: Vec<f64> = self.data.row(node.point_idx).to_vec();
-        let dist = metric.compute(query, &point);
+        let row = self.data.row(node.point_idx);
+        let dist = if let Some(slice) = row.as_slice() {
+            metric.compute(query, slice)
+        } else {
+            let point: Vec<f64> = row.to_vec();
+            metric.compute(query, &point)
+        };
 
         if heap.len() < k {
             heap.push(NeighborCandidate {
@@ -711,8 +721,14 @@ fn brute_force_search(
         .into_iter()
         .enumerate()
         .map(|(idx, row)| {
-            let point: Vec<f64> = row.to_vec();
-            (idx, metric.compute(query, &point))
+            // Use as_slice() to avoid Vec allocation; fall back to to_vec() for non-contiguous
+            let dist = if let Some(slice) = row.as_slice() {
+                metric.compute(query, slice)
+            } else {
+                let point: Vec<f64> = row.to_vec();
+                metric.compute(query, &point)
+            };
+            (idx, dist)
         })
         .collect();
 
@@ -1005,8 +1021,22 @@ impl Model for KNeighborsClassifier {
 
         let mut predictions = Array1::zeros(n_samples);
 
+        // Pre-build class label -> index map to avoid O(classes) linear search per neighbor
+        use std::collections::HashMap;
+        let class_index_map: HashMap<i64, usize> = classes
+            .iter()
+            .enumerate()
+            .map(|(ci, &c)| ((c * 1e10) as i64, ci))
+            .collect();
+
         for i in 0..n_samples {
-            let query: Vec<f64> = x.row(i).to_vec();
+            let row = x.row(i);
+            // Use as_slice() to avoid Vec allocation; fall back to to_vec() for non-contiguous
+            let query: std::borrow::Cow<[f64]> = if let Some(slice) = row.as_slice() {
+                std::borrow::Cow::Borrowed(slice)
+            } else {
+                std::borrow::Cow::Owned(row.to_vec())
+            };
             let neighbors = self.find_neighbors(&query);
             let weights = self.compute_weights(&neighbors);
 
@@ -1014,12 +1044,10 @@ impl Model for KNeighborsClassifier {
             let mut class_weights = vec![0.0; classes.len()];
             for ((idx, _), w) in neighbors.iter().zip(weights.iter()) {
                 let label = y_train[*idx];
-                // Find class index
-                for (ci, &c) in classes.iter().enumerate() {
-                    if (label - c).abs() < 1e-10 {
-                        class_weights[ci] += w;
-                        break;
-                    }
+                // Use hash map for O(1) class lookup instead of O(classes) linear scan
+                let key = (label * 1e10) as i64;
+                if let Some(&ci) = class_index_map.get(&key) {
+                    class_weights[ci] += w;
                 }
             }
 
@@ -1084,7 +1112,12 @@ impl ProbabilisticModel for KNeighborsClassifier {
         let mut proba = Array2::zeros((n_samples, n_classes));
 
         for i in 0..n_samples {
-            let query: Vec<f64> = x.row(i).to_vec();
+            let row = x.row(i);
+            let query: std::borrow::Cow<[f64]> = if let Some(slice) = row.as_slice() {
+                std::borrow::Cow::Borrowed(slice)
+            } else {
+                std::borrow::Cow::Owned(row.to_vec())
+            };
             let neighbors = self.find_neighbors(&query);
             let weights = self.compute_weights(&neighbors);
 
@@ -1386,7 +1419,12 @@ impl Model for KNeighborsRegressor {
         let mut predictions = Array1::zeros(n_samples);
 
         for i in 0..n_samples {
-            let query: Vec<f64> = x.row(i).to_vec();
+            let row = x.row(i);
+            let query: std::borrow::Cow<[f64]> = if let Some(slice) = row.as_slice() {
+                std::borrow::Cow::Borrowed(slice)
+            } else {
+                std::borrow::Cow::Owned(row.to_vec())
+            };
             let neighbors = self.find_neighbors(&query);
             let weights = self.compute_weights(&neighbors);
 

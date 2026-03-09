@@ -280,6 +280,14 @@ pub fn solve_lower_triangular_vec(l: &Array2<f64>, b: &Array1<f64>) -> Result<Ar
 // Distance Computations (with optional SIMD)
 // =============================================================================
 
+/// Euclidean distance between two slices.
+///
+/// When the `simd` feature is enabled, uses SIMD-accelerated computation.
+#[inline]
+pub fn euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
+    squared_euclidean_distance(a, b).sqrt()
+}
+
 /// Squared Euclidean distance between two slices.
 ///
 /// When the `simd` feature is enabled, uses SIMD-accelerated computation.

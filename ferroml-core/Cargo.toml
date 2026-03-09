@@ -123,7 +123,7 @@ name = "gradient_boosting"
 path = "examples/gradient_boosting.rs"
 
 [features]
-default = ["parallel", "onnx"]
+default = ["parallel", "onnx", "simd"]
 parallel = []
 simd = ["wide"]  # SIMD acceleration for distance calculations
 sparse = ["sprs"]  # Native sparse matrix operations

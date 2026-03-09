@@ -127,13 +127,17 @@ impl DBSCAN {
             .map(|labels| labels.iter().filter(|&&l| l == -1).count())
     }
 
-    /// Find neighbors within eps distance
+    /// Find neighbors within eps distance.
+    ///
+    /// Uses squared distances internally to avoid sqrt overhead.
     fn region_query(&self, x: &Array2<f64>, point_idx: usize) -> Vec<usize> {
         let point = x.row(point_idx);
+        let eps_sq = self.eps * self.eps;
         let mut neighbors = Vec::new();
 
         for i in 0..x.nrows() {
-            if euclidean_distance(&point, &x.row(i)) <= self.eps {
+            let dist_sq = squared_euclidean_distance(&point, &x.row(i));
+            if dist_sq <= eps_sq {
                 neighbors.push(i);
             }
         }
@@ -410,14 +414,15 @@ impl ClusteringModel for DBSCAN {
         let n_samples = x.nrows();
         let mut labels = Array1::from_elem(n_samples, -1i32);
 
+        let eps_sq = self.eps * self.eps;
         for i in 0..n_samples {
-            let mut min_dist = f64::MAX;
+            let mut min_dist_sq = f64::MAX;
             let mut nearest_core = None;
 
             for (j, &core_idx) in core_indices.iter().enumerate() {
-                let dist = euclidean_distance(&x.row(i), &components.row(j));
-                if dist <= self.eps && dist < min_dist {
-                    min_dist = dist;
+                let dist_sq = squared_euclidean_distance(&x.row(i), &components.row(j));
+                if dist_sq <= eps_sq && dist_sq < min_dist_sq {
+                    min_dist_sq = dist_sq;
                     nearest_core = Some(core_idx);
                 }
             }
@@ -439,14 +444,24 @@ impl ClusteringModel for DBSCAN {
     }
 }
 
-/// Compute Euclidean distance between two vectors
+/// Compute Euclidean distance between two vectors.
+///
+/// Uses SIMD-accelerated computation when the `simd` feature is enabled (default).
 #[inline]
 fn euclidean_distance(a: &ArrayView1<f64>, b: &ArrayView1<f64>) -> f64 {
-    a.iter()
-        .zip(b.iter())
-        .map(|(&x, &y)| (x - y).powi(2))
-        .sum::<f64>()
-        .sqrt()
+    squared_euclidean_distance(a, b).sqrt()
+}
+
+/// Compute squared Euclidean distance between two vectors (avoids sqrt).
+///
+/// Uses SIMD-accelerated computation when the `simd` feature is enabled (default).
+#[inline]
+fn squared_euclidean_distance(a: &ArrayView1<f64>, b: &ArrayView1<f64>) -> f64 {
+    if let (Some(a_slice), Some(b_slice)) = (a.as_slice(), b.as_slice()) {
+        crate::linalg::squared_euclidean_distance(a_slice, b_slice)
+    } else {
+        a.iter().zip(b.iter()).map(|(&x, &y)| (x - y).powi(2)).sum()
+    }
 }
 
 #[cfg(test)]

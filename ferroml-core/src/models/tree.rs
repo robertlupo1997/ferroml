@@ -964,25 +964,32 @@ impl DecisionTreeClassifier {
 
                 if gain > best_gain {
                     best_gain = gain;
-                    let split_pos = pos + 1;
-                    best_split = Some((
-                        feature_idx,
-                        threshold,
-                        sorted_indices[..split_pos]
-                            .iter()
-                            .map(|&si| indices[si])
-                            .collect(),
-                        sorted_indices[split_pos..]
-                            .iter()
-                            .map(|&si| indices[si])
-                            .collect(),
-                        gain,
-                    ));
+                    // Store only the split metadata; defer index collection until the end
+                    best_split = Some((feature_idx, threshold, pos + 1, gain));
                 }
             }
         }
 
-        best_split
+        // Only collect left/right index vectors for the final best split
+        best_split.map(|(feature_idx, threshold, split_pos, gain)| {
+            // Re-sort indices for the winning feature to collect left/right
+            sorted_indices.clear();
+            sorted_indices.extend(0..n_samples);
+            sorted_indices.sort_by(|&a, &b| {
+                x[[indices[a], feature_idx]]
+                    .partial_cmp(&x[[indices[b], feature_idx]])
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let left: Vec<usize> = sorted_indices[..split_pos]
+                .iter()
+                .map(|&si| indices[si])
+                .collect();
+            let right: Vec<usize> = sorted_indices[split_pos..]
+                .iter()
+                .map(|&si| indices[si])
+                .collect();
+            (feature_idx, threshold, left, right, gain)
+        })
     }
 
     /// Compute feature importances from the tree
@@ -1745,20 +1752,8 @@ impl DecisionTreeRegressor {
 
                         if gain > best_gain + 1e-10 {
                             best_gain = gain;
-                            let split_pos = pos + 1;
-                            best_split = Some((
-                                feature_idx,
-                                threshold,
-                                sorted_pos[..split_pos]
-                                    .iter()
-                                    .map(|&sp| indices[sp])
-                                    .collect(),
-                                sorted_pos[split_pos..]
-                                    .iter()
-                                    .map(|&sp| indices[sp])
-                                    .collect(),
-                                gain,
-                            ));
+                            // Defer index collection — store only split metadata
+                            best_split = Some((feature_idx, threshold, pos + 1, gain));
                         }
                     }
                 }
@@ -1797,19 +1792,8 @@ impl DecisionTreeRegressor {
 
                         if gain > best_gain + 1e-10 {
                             best_gain = gain;
-                            best_split = Some((
-                                feature_idx,
-                                threshold,
-                                sorted_pos[..split_pos]
-                                    .iter()
-                                    .map(|&sp| indices[sp])
-                                    .collect(),
-                                sorted_pos[split_pos..]
-                                    .iter()
-                                    .map(|&sp| indices[sp])
-                                    .collect(),
-                                gain,
-                            ));
+                            // Defer index collection — store only split metadata
+                            best_split = Some((feature_idx, threshold, split_pos, gain));
                         }
                     }
                 }
@@ -1820,7 +1804,26 @@ impl DecisionTreeRegressor {
             }
         }
 
-        best_split
+        // Only collect left/right index vectors for the final best split
+        best_split.map(|(feature_idx, threshold, split_pos, gain)| {
+            // Re-sort indices for the winning feature
+            sorted_pos.clear();
+            sorted_pos.extend(0..n_samples);
+            sorted_pos.sort_by(|&a, &b| {
+                x[[indices[a], feature_idx]]
+                    .partial_cmp(&x[[indices[b], feature_idx]])
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let left: Vec<usize> = sorted_pos[..split_pos]
+                .iter()
+                .map(|&sp| indices[sp])
+                .collect();
+            let right: Vec<usize> = sorted_pos[split_pos..]
+                .iter()
+                .map(|&sp| indices[sp])
+                .collect();
+            (feature_idx, threshold, left, right, gain)
+        })
     }
 
     /// Compute feature importances from the tree

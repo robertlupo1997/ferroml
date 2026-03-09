@@ -650,6 +650,15 @@ impl Model for GradientBoostingRegressor {
         let mut best_val_loss = f64::INFINITY;
         let mut no_improvement_count = 0;
 
+        // Pre-allocate subsample buffers (reused across iterations)
+        let subsample_size = if self.subsample < 1.0 {
+            ((n_train as f64 * self.subsample).ceil() as usize).max(1)
+        } else {
+            n_train
+        };
+        let mut x_subsample = Array2::zeros((subsample_size, n_features));
+        let mut y_subsample = Array1::zeros(subsample_size);
+
         for iteration in 0..self.n_estimators {
             let lr = self
                 .learning_rate_schedule
@@ -664,10 +673,13 @@ impl Model for GradientBoostingRegressor {
             // Sample indices for stochastic gradient boosting
             let sample_indices = self.sample_indices(n_train, &mut rng);
 
-            // Create training subset
+            // Create training subset (reuse pre-allocated buffers)
             let n_subsample = sample_indices.len();
-            let mut x_subsample = Array2::zeros((n_subsample, n_features));
-            let mut y_subsample = Array1::zeros(n_subsample);
+            // Resize if needed (in case subsample ratio changed)
+            if n_subsample != x_subsample.nrows() {
+                x_subsample = Array2::zeros((n_subsample, n_features));
+                y_subsample = Array1::zeros(n_subsample);
+            }
             for (i, &idx) in sample_indices.iter().enumerate() {
                 x_subsample.row_mut(i).assign(&x_train.row(idx));
                 y_subsample[i] = neg_gradient[idx];
@@ -687,9 +699,9 @@ impl Model for GradientBoostingRegressor {
             tree = tree.with_random_state(rng.random());
             tree.fit(&x_subsample, &y_subsample)?;
 
-            // Update predictions
+            // Update predictions in-place (avoids temporary allocations)
             let tree_pred = tree.predict(&x_train)?;
-            predictions = &predictions + &(tree_pred * lr);
+            predictions.zip_mut_with(&tree_pred, |p, &tp| *p += tp * lr);
 
             // Compute training loss
             let train_loss = self.loss.loss(&y_train, &predictions, self.alpha);
@@ -700,7 +712,7 @@ impl Model for GradientBoostingRegressor {
                 (&x_val, &y_val, &mut val_predictions)
             {
                 let tree_val_pred = tree.predict(xv)?;
-                *vp = &*vp + &(tree_val_pred * lr);
+                vp.zip_mut_with(&tree_val_pred, |p, &tp| *p += tp * lr);
 
                 let val_loss = self.loss.loss(yv, vp, self.alpha);
                 history.val_loss.push(val_loss);
@@ -743,7 +755,8 @@ impl Model for GradientBoostingRegressor {
         for (i, tree) in estimators.iter().enumerate() {
             let lr = self.learning_rate_schedule.get_lr(i, self.n_estimators);
             let tree_pred = tree.predict(x)?;
-            predictions = &predictions + &(tree_pred * lr);
+            // In-place update: predictions += tree_pred * lr (avoids 2 temporary allocations)
+            predictions.zip_mut_with(&tree_pred, |p, &tp| *p += tp * lr);
         }
 
         Ok(predictions)
