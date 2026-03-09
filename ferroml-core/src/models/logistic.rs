@@ -474,16 +474,13 @@ impl LogisticRegression {
             let z: Array1<f64> = &eta + &((y - &mu) / &variance_part);
 
             // Weighted least squares: solve (X'WX)β = X'Wz
-            // Compute X'WX
-            let mut xtwx = Array2::zeros((p, p));
+            // Compute X'WX = (W^½X)' @ (W^½X)
+            let mut scaled_x = x_design.to_owned();
             for i in 0..n {
-                let xi = x_design.row(i);
-                for j in 0..p {
-                    for k in 0..p {
-                        xtwx[[j, k]] += w_clamped[i] * xi[j] * xi[k];
-                    }
-                }
+                let w_sqrt = w_clamped[i].sqrt();
+                scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
             }
+            let mut xtwx = scaled_x.t().dot(&scaled_x);
 
             // Add L2 regularization if specified (don't regularize intercept)
             if self.l2_penalty > 0.0 {
@@ -493,10 +490,9 @@ impl LogisticRegression {
                 }
             }
 
-            // Compute X'Wz
-            let xtwz: Array1<f64> = (0..p)
-                .map(|j| (0..n).map(|i| w_clamped[i] * x_design[[i, j]] * z[i]).sum())
-                .collect();
+            // Compute X'Wz = X' @ (W ⊙ z)
+            let wz: Array1<f64> = &w_clamped * &z;
+            let xtwz = x_design.t().dot(&wz);
 
             // Solve using Cholesky decomposition
             let beta_new = solve_symmetric_positive_definite(&xtwx, &xtwz)?;

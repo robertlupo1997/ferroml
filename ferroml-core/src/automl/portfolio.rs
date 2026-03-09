@@ -138,6 +138,17 @@ impl AlgorithmConfig {
                 AlgorithmComplexity::Low,
                 true,
             ),
+            AlgorithmType::CategoricalNB => (
+                SearchSpace::new()
+                    .float_log("alpha", 0.01, 10.0)
+                    .bool("fit_prior"),
+                vec![
+                    PreprocessingRequirement::NonNegative,
+                    PreprocessingRequirement::HandleMissing,
+                ],
+                AlgorithmComplexity::Low,
+                true,
+            ),
 
             // KNN
             AlgorithmType::KNeighborsClassifier | AlgorithmType::KNeighborsRegressor => (
@@ -484,6 +495,8 @@ pub enum AlgorithmType {
     GaussianNB,
     /// Multinomial Naive Bayes
     MultinomialNB,
+    /// Categorical Naive Bayes
+    CategoricalNB,
 
     // Classification - Instance-based
     /// K-Nearest Neighbors Classifier
@@ -548,6 +561,7 @@ impl AlgorithmType {
             Self::LogisticRegression
                 | Self::GaussianNB
                 | Self::MultinomialNB
+                | Self::CategoricalNB
                 | Self::KNeighborsClassifier
                 | Self::SVC
                 | Self::LinearSVC
@@ -569,6 +583,7 @@ impl AlgorithmType {
             Self::LogisticRegression => "Logistic Regression",
             Self::GaussianNB => "Gaussian Naive Bayes",
             Self::MultinomialNB => "Multinomial Naive Bayes",
+            Self::CategoricalNB => "Categorical Naive Bayes",
             Self::KNeighborsClassifier => "K-Nearest Neighbors Classifier",
             Self::SVC => "Support Vector Classifier",
             Self::LinearSVC => "Linear SVC",
@@ -909,6 +924,7 @@ impl AlgorithmPortfolio {
             AlgorithmConfig::new(AlgorithmType::LogisticRegression).with_priority(80),
             AlgorithmConfig::new(AlgorithmType::GaussianNB).with_priority(65),
             AlgorithmConfig::new(AlgorithmType::MultinomialNB).with_priority(55),
+            AlgorithmConfig::new(AlgorithmType::CategoricalNB).with_priority(50),
             AlgorithmConfig::new(AlgorithmType::KNeighborsClassifier).with_priority(60),
             AlgorithmConfig::new(AlgorithmType::SVC).with_priority(70),
             AlgorithmConfig::new(AlgorithmType::LinearSVC).with_priority(75),
@@ -1019,7 +1035,7 @@ mod tests {
     fn test_portfolio_thorough_classification() {
         let portfolio = AlgorithmPortfolio::for_classification(PortfolioPreset::Thorough);
 
-        assert_eq!(portfolio.algorithms.len(), 10);
+        assert_eq!(portfolio.algorithms.len(), 11);
     }
 
     #[test]

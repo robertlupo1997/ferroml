@@ -166,6 +166,9 @@ pub fn invert_upper_triangular(r: &Array2<f64>) -> Result<Array2<f64>> {
 /// The input matrix must be symmetric positive definite. A small diagonal
 /// regularization (`reg`) can be added to improve numerical stability.
 ///
+/// When the `faer-backend` feature is enabled, delegates to faer's Cholesky
+/// for better performance on large matrices.
+///
 /// # Arguments
 /// * `a` - Symmetric positive-definite matrix of shape `(n, n)`
 /// * `reg` - Diagonal regularization (added to diagonal before decomposition)
@@ -173,6 +176,58 @@ pub fn invert_upper_triangular(r: &Array2<f64>) -> Result<Array2<f64>> {
 /// # Returns
 /// Lower triangular matrix `L` of shape `(n, n)`
 pub fn cholesky(a: &Array2<f64>, reg: f64) -> Result<Array2<f64>> {
+    #[cfg(feature = "faer-backend")]
+    {
+        cholesky_faer(a, reg)
+    }
+    #[cfg(not(feature = "faer-backend"))]
+    {
+        cholesky_native(a, reg)
+    }
+}
+
+/// Cholesky decomposition via faer (high performance).
+#[cfg(feature = "faer-backend")]
+pub fn cholesky_faer(a: &Array2<f64>, reg: f64) -> Result<Array2<f64>> {
+    let (n, m) = a.dim();
+    if n != m {
+        return Err(FerroError::shape_mismatch(
+            format!("({0}, {0})", n),
+            format!("({}, {})", n, m),
+        ));
+    }
+
+    // Convert ndarray -> faer Mat, applying regularization
+    let mut mat = faer::Mat::zeros(n, n);
+    for i in 0..n {
+        for j in 0..n {
+            mat.write(i, j, a[[i, j]]);
+        }
+        mat.write(i, i, a[[i, i]] + reg);
+    }
+
+    // Compute Cholesky (lower triangular)
+    let chol = mat.cholesky(faer::Side::Lower).map_err(|_| {
+        FerroError::numerical(
+            "Matrix not positive definite for Cholesky decomposition. \
+             Try increasing reg_covar.",
+        )
+    })?;
+
+    // Extract L factor and convert faer Mat -> ndarray
+    let l_faer = chol.compute_l();
+    let mut l = Array2::zeros((n, n));
+    for i in 0..n {
+        for j in 0..=i {
+            l[[i, j]] = l_faer.read(i, j);
+        }
+    }
+
+    Ok(l)
+}
+
+/// Cholesky decomposition (pure Rust fallback).
+pub fn cholesky_native(a: &Array2<f64>, reg: f64) -> Result<Array2<f64>> {
     let (n, m) = a.dim();
     if n != m {
         return Err(FerroError::shape_mismatch(

@@ -1236,6 +1236,163 @@ fn py_hopkins_statistic(
 }
 
 // =============================================================================
+// HDBSCAN
+// =============================================================================
+
+/// HDBSCAN: Hierarchical Density-Based Spatial Clustering.
+///
+/// HDBSCAN extends DBSCAN by building a hierarchy of clusters and extracting
+/// the most stable flat clusters using the excess of mass method. Unlike DBSCAN,
+/// it can find clusters of varying density without requiring an `eps` parameter.
+///
+/// Parameters
+/// ----------
+/// min_cluster_size : int, optional (default=5)
+///     Minimum number of points to form a cluster.
+/// min_samples : int, optional
+///     Number of neighbors for core distance computation. Defaults to
+///     min_cluster_size if not specified.
+/// cluster_selection_epsilon : float, optional (default=0.0)
+///     Clusters closer than this distance threshold will be merged.
+/// allow_single_cluster : bool, optional (default=False)
+///     Whether to allow a single cluster as output.
+///
+/// Attributes
+/// ----------
+/// labels_ : ndarray of shape (n_samples,)
+///     Cluster labels (-1 for noise).
+/// probabilities_ : ndarray of shape (n_samples,)
+///     Cluster membership probabilities.
+/// n_clusters_ : int
+///     Number of clusters found.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.clustering import HDBSCAN
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [1.5, 1.8], [1.2, 2.1], [5, 8], [5.5, 7.8], [5.2, 8.1]])
+/// >>> hdbscan = HDBSCAN(min_cluster_size=2)
+/// >>> hdbscan.fit(X)
+/// >>> hdbscan.labels_
+#[pyclass(name = "HDBSCAN", module = "ferroml.clustering")]
+pub struct PyHDBSCAN {
+    inner: ferroml_core::clustering::HDBSCAN,
+}
+
+#[pymethods]
+impl PyHDBSCAN {
+    /// Create a new HDBSCAN model.
+    #[new]
+    #[pyo3(signature = (min_cluster_size=5, min_samples=None, cluster_selection_epsilon=0.0, allow_single_cluster=false))]
+    fn new(
+        min_cluster_size: usize,
+        min_samples: Option<usize>,
+        cluster_selection_epsilon: f64,
+        allow_single_cluster: bool,
+    ) -> Self {
+        let mut inner = ferroml_core::clustering::HDBSCAN::new(min_cluster_size);
+        if let Some(ms) = min_samples {
+            inner = inner.with_min_samples(ms);
+        }
+        if cluster_selection_epsilon > 0.0 {
+            inner = inner.with_cluster_selection_epsilon(cluster_selection_epsilon);
+        }
+        if allow_single_cluster {
+            inner = inner.with_allow_single_cluster(allow_single_cluster);
+        }
+        Self { inner }
+    }
+
+    /// Fit the HDBSCAN model to the data.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Training data.
+    ///
+    /// Returns
+    /// -------
+    /// self : HDBSCAN
+    ///     Fitted estimator.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Fit the model and predict cluster labels in one step.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Training data.
+    ///
+    /// Returns
+    /// -------
+    /// labels : ndarray of shape (n_samples,)
+    ///     Cluster labels (-1 for noise).
+    fn fit_predict<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let labels = self
+            .inner
+            .fit_predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(labels.into_pyarray(py))
+    }
+
+    /// Cluster labels for each point (-1 for noise).
+    #[getter]
+    fn labels_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        let labels = self
+            .inner
+            .labels()
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "Model not fitted. Call fit() first.",
+                )
+            })?
+            .clone();
+        Ok(labels.into_pyarray(py))
+    }
+
+    /// Cluster membership probabilities for each point.
+    #[getter]
+    fn probabilities_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let probs = self
+            .inner
+            .probabilities()
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "Model not fitted. Call fit() first.",
+                )
+            })?
+            .clone();
+        Ok(probs.into_pyarray(py))
+    }
+
+    /// Number of clusters found (excluding noise).
+    #[getter]
+    fn n_clusters_(&self) -> PyResult<usize> {
+        self.inner.n_clusters().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -1248,6 +1405,7 @@ pub fn register_clustering_module(parent_module: &Bound<'_, PyModule>) -> PyResu
     clustering_module.add_class::<PyDBSCAN>()?;
     clustering_module.add_class::<PyAgglomerativeClustering>()?;
     clustering_module.add_class::<PyGaussianMixture>()?;
+    clustering_module.add_class::<PyHDBSCAN>()?;
 
     // Add metric functions
     clustering_module.add_function(wrap_pyfunction!(py_silhouette_score, &clustering_module)?)?;

@@ -1710,3 +1710,660 @@ mod zero_budget_edge_case_tests {
         );
     }
 }
+
+// =============================================================================
+// System-Level Integration Tests
+// =============================================================================
+
+#[cfg(test)]
+mod system_level_tests {
+    use crate::automl::PortfolioPreset;
+    use crate::{AutoML, AutoMLConfig, Metric, MultipleTesting, Task};
+    use ndarray::{Array1, Array2};
+
+    /// Generate iris-like classification data: 150 samples, 4 features, 3 classes
+    fn make_iris_like() -> (Array2<f64>, Array1<f64>) {
+        let mut x = Array2::zeros((150, 4));
+        let mut y = Array1::zeros(150);
+        for i in 0..150 {
+            let class = (i / 50) as f64;
+            y[i] = class;
+            let seed = i as f64;
+            x[[i, 0]] = class * 1.5 + (seed * 0.1).sin() * 0.3;
+            x[[i, 1]] = class * 0.8 + (seed * 0.2).cos() * 0.2;
+            x[[i, 2]] = class * 2.0 + (seed * 0.3).sin() * 0.5;
+            x[[i, 3]] = class * 0.5 + (seed * 0.15).cos() * 0.4;
+        }
+        (x, y)
+    }
+
+    /// Generate wine-like classification data: 178 samples, 13 features, 3 classes
+    fn make_wine_like() -> (Array2<f64>, Array1<f64>) {
+        let n_samples = 178;
+        let n_features = 13;
+        let mut x = Array2::zeros((n_samples, n_features));
+        let mut y = Array1::zeros(n_samples);
+        for i in 0..n_samples {
+            let class = if i < 59 {
+                0.0
+            } else if i < 130 {
+                1.0
+            } else {
+                2.0
+            };
+            y[i] = class;
+            let seed = i as f64;
+            for j in 0..n_features {
+                let jf = j as f64;
+                x[[i, j]] =
+                    class * (jf + 1.0) * 0.3 + (seed * (jf + 1.0) * 0.07).sin() * 0.5 + jf * 0.1;
+            }
+        }
+        (x, y)
+    }
+
+    /// Generate regression data: 200 samples, 5 features, linear relationship
+    fn make_regression_data() -> (Array2<f64>, Array1<f64>) {
+        let mut x = Array2::zeros((200, 5));
+        let mut y = Array1::zeros(200);
+        for i in 0..200 {
+            let seed = i as f64;
+            for j in 0..5 {
+                x[[i, j]] = (seed * (j as f64 + 1.0) * 0.1).sin() + (j as f64);
+            }
+            y[i] = 2.0 * x[[i, 0]] + 1.5 * x[[i, 1]] - x[[i, 2]] + (seed * 0.05).sin() * 0.5;
+        }
+        (x, y)
+    }
+
+    /// Generate binary classification data
+    fn make_binary_data() -> (Array2<f64>, Array1<f64>) {
+        let mut x = Array2::zeros((120, 4));
+        let mut y = Array1::zeros(120);
+        for i in 0..120 {
+            let class = if i < 60 { 0.0 } else { 1.0 };
+            y[i] = class;
+            let seed = i as f64;
+            x[[i, 0]] = class * 2.0 + (seed * 0.1).sin() * 0.5;
+            x[[i, 1]] = class * 1.5 + (seed * 0.2).cos() * 0.3;
+            x[[i, 2]] = (seed * 0.3).sin() * 0.8;
+            x[[i, 3]] = class * 0.7 + (seed * 0.15).cos() * 0.4;
+        }
+        (x, y)
+    }
+
+    /// Generate imbalanced classification data (90/10 split)
+    fn make_imbalanced_data() -> (Array2<f64>, Array1<f64>) {
+        let n = 100;
+        let mut x = Array2::zeros((n, 4));
+        let mut y = Array1::zeros(n);
+        for i in 0..n {
+            let class = if i < 90 { 0.0 } else { 1.0 };
+            y[i] = class;
+            let seed = i as f64;
+            x[[i, 0]] = class * 3.0 + (seed * 0.1).sin() * 0.5;
+            x[[i, 1]] = class * 2.0 + (seed * 0.2).cos() * 0.3;
+            x[[i, 2]] = (seed * 0.3).sin();
+            x[[i, 3]] = class * 1.0 + (seed * 0.15).cos() * 0.4;
+        }
+        (x, y)
+    }
+
+    /// Generate small dataset: 30 samples, 3 features, 2 classes
+    fn make_small_data() -> (Array2<f64>, Array1<f64>) {
+        let mut x = Array2::zeros((30, 3));
+        let mut y = Array1::zeros(30);
+        for i in 0..30 {
+            let class = if i < 15 { 0.0 } else { 1.0 };
+            y[i] = class;
+            let seed = i as f64;
+            x[[i, 0]] = class * 2.0 + (seed * 0.2).sin() * 0.3;
+            x[[i, 1]] = class * 1.0 + (seed * 0.3).cos() * 0.2;
+            x[[i, 2]] = (seed * 0.1).sin() * 0.5 + class;
+        }
+        (x, y)
+    }
+
+    fn classification_config() -> AutoMLConfig {
+        AutoMLConfig {
+            task: Task::Classification,
+            metric: Metric::Accuracy,
+            time_budget_seconds: 15,
+            cv_folds: 3,
+            statistical_tests: true,
+            confidence_level: 0.95,
+            multiple_testing_correction: MultipleTesting::BenjaminiHochberg,
+            seed: Some(42),
+            n_jobs: 1,
+            ensemble_size: 5,
+            preset: PortfolioPreset::Quick,
+            ..Default::default()
+        }
+    }
+
+    fn regression_config() -> AutoMLConfig {
+        AutoMLConfig {
+            task: Task::Regression,
+            metric: Metric::R2,
+            time_budget_seconds: 15,
+            cv_folds: 3,
+            statistical_tests: true,
+            confidence_level: 0.95,
+            multiple_testing_correction: MultipleTesting::BenjaminiHochberg,
+            seed: Some(42),
+            n_jobs: 1,
+            ensemble_size: 5,
+            preset: PortfolioPreset::Quick,
+            ..Default::default()
+        }
+    }
+
+    // =========================================================================
+    // Test 1: Classification end-to-end
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_classification_end_to_end() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        assert!(result.is_successful(), "AutoML should succeed");
+        assert!(
+            !result.leaderboard.is_empty(),
+            "Leaderboard should not be empty"
+        );
+
+        let best = result.best_model().expect("Should have a best model");
+        assert!(
+            best.cv_score > 0.70,
+            "Best score {:.4} should be > 0.70",
+            best.cv_score
+        );
+
+        let predictions = result.predict(&x, &y, &x).unwrap();
+        assert_eq!(
+            predictions.len(),
+            x.nrows(),
+            "Predictions should match input rows"
+        );
+
+        // All predictions should be valid class labels
+        for &p in predictions.iter() {
+            assert!(
+                p == 0.0 || p == 1.0 || p == 2.0,
+                "Prediction {} is not a valid class label",
+                p
+            );
+        }
+    }
+
+    // =========================================================================
+    // Test 2: Wine-like classification
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_classification_wine_like() {
+        let (x, y) = make_wine_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        assert!(result.is_successful());
+        let best = result.best_model().unwrap();
+        assert!(
+            best.cv_score > 0.65,
+            "Wine-like best score {:.4} should be > 0.65",
+            best.cv_score
+        );
+    }
+
+    // =========================================================================
+    // Test 3: Regression end-to-end
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_regression_end_to_end() {
+        let (x, y) = make_regression_data();
+        let automl = AutoML::new(regression_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        assert!(result.is_successful());
+        let best = result.best_model().unwrap();
+        assert!(
+            best.cv_score > 0.20,
+            "Regression R2 {:.4} should be > 0.20",
+            best.cv_score
+        );
+
+        let predictions = result.predict(&x, &y, &x).unwrap();
+        for &p in predictions.iter() {
+            assert!(p.is_finite(), "Prediction {} is not finite", p);
+        }
+    }
+
+    // =========================================================================
+    // Test 4: Ensemble no degradation
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_ensemble_no_degradation() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        if let (Some(ensemble_score), Some(best)) = (result.ensemble_score(), result.best_model()) {
+            // Ensemble should not degrade more than 0.02 from best single model
+            assert!(
+                ensemble_score >= best.cv_score - 0.02,
+                "Ensemble score {:.4} should be >= best {:.4} - 0.02",
+                ensemble_score,
+                best.cv_score
+            );
+        }
+    }
+
+    // =========================================================================
+    // Test 5: Predict after fit with train/test split
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_predict_after_fit() {
+        let (x, y) = make_iris_like();
+        // Use first 120 samples as train, last 30 as test
+        let x_train = x.slice(ndarray::s![..120, ..]).to_owned();
+        let y_train = y.slice(ndarray::s![..120]).to_owned();
+        let x_test = x.slice(ndarray::s![120.., ..]).to_owned();
+
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x_train, &y_train).unwrap();
+
+        let predictions = result.predict(&x_train, &y_train, &x_test).unwrap();
+        assert_eq!(
+            predictions.len(),
+            30,
+            "Should have 30 predictions for 30 test samples"
+        );
+    }
+
+    // =========================================================================
+    // Test 6: Classification predictions are valid classes
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_classification_predictions_valid_classes() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        let predictions = result.predict(&x, &y, &x).unwrap();
+
+        // Collect unique classes from training data
+        let mut classes: Vec<f64> = y.iter().copied().collect();
+        classes.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        classes.dedup();
+
+        for &p in predictions.iter() {
+            assert!(
+                classes.contains(&p),
+                "Prediction {} is not in training classes {:?}",
+                p,
+                classes
+            );
+        }
+    }
+
+    // =========================================================================
+    // Test 7: Regression predictions are finite
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_regression_predictions_finite() {
+        let (x, y) = make_regression_data();
+        let automl = AutoML::new(regression_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        let predictions = result.predict(&x, &y, &x).unwrap();
+        for (i, &p) in predictions.iter().enumerate() {
+            assert!(
+                p.is_finite(),
+                "Prediction at index {} is not finite: {}",
+                i,
+                p
+            );
+            assert!(!p.is_nan(), "Prediction at index {} is NaN", i);
+        }
+    }
+
+    // =========================================================================
+    // Test 8: Reproducibility with same seed
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_reproducibility() {
+        let (x, y) = make_iris_like();
+
+        let config1 = classification_config();
+        let config2 = classification_config();
+
+        let result1 = AutoML::new(config1).fit(&x, &y).unwrap();
+        let result2 = AutoML::new(config2).fit(&x, &y).unwrap();
+
+        assert_eq!(
+            result1.leaderboard.len(),
+            result2.leaderboard.len(),
+            "Leaderboards should have the same number of entries"
+        );
+
+        // Compare scores of all leaderboard entries
+        for (e1, e2) in result1.leaderboard.iter().zip(result2.leaderboard.iter()) {
+            assert!(
+                (e1.cv_score - e2.cv_score).abs() < 1e-10,
+                "Scores should match: {:.10} vs {:.10}",
+                e1.cv_score,
+                e2.cv_score
+            );
+        }
+    }
+
+    // =========================================================================
+    // Test 9: Competitive models include best
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_competitive_models() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        let competitive = result.competitive_models();
+        assert!(
+            !competitive.is_empty(),
+            "Should have at least one competitive model"
+        );
+
+        let best = result.best_model().unwrap();
+        let best_is_competitive = competitive.iter().any(|m| m.trial_id == best.trial_id);
+        assert!(
+            best_is_competitive,
+            "Best model should be among competitive models"
+        );
+    }
+
+    // =========================================================================
+    // Test 10: Feature importance
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_feature_importance() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        if let Some(features) = result.top_features(4) {
+            assert!(
+                !features.is_empty(),
+                "Feature importance should return entries"
+            );
+            for (name, importance, ci_lower, ci_upper) in &features {
+                assert!(!name.is_empty(), "Feature name should not be empty");
+                assert!(
+                    *importance >= 0.0,
+                    "Feature importance {} should be non-negative",
+                    importance
+                );
+                assert!(
+                    ci_lower <= ci_upper,
+                    "CI lower {} should be <= upper {}",
+                    ci_lower,
+                    ci_upper
+                );
+            }
+        }
+        // Feature importance may not always be available, so not asserting Some
+    }
+
+    // =========================================================================
+    // Test 11: Different classification metrics
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_different_classification_metrics() {
+        let (x, y) = make_binary_data();
+
+        for metric in [Metric::Accuracy, Metric::F1] {
+            let config = AutoMLConfig {
+                metric,
+                ..classification_config()
+            };
+            let automl = AutoML::new(config);
+            let result = automl.fit(&x, &y).unwrap();
+
+            assert!(
+                result.is_successful(),
+                "AutoML should succeed with metric {:?}",
+                metric
+            );
+            let best = result.best_model().unwrap();
+            assert!(
+                best.cv_score > 0.0 && best.cv_score <= 1.0,
+                "Score {:.4} for {:?} should be in (0, 1]",
+                best.cv_score,
+                metric
+            );
+        }
+    }
+
+    // =========================================================================
+    // Test 12: Different regression metrics
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_different_regression_metrics() {
+        let (x, y) = make_regression_data();
+
+        for metric in [Metric::Mse, Metric::Mae, Metric::R2] {
+            let config = AutoMLConfig {
+                metric,
+                ..regression_config()
+            };
+            let automl = AutoML::new(config);
+            let result = automl.fit(&x, &y).unwrap();
+
+            assert!(
+                result.is_successful(),
+                "AutoML should succeed with metric {:?}",
+                metric
+            );
+            let best = result.best_model().unwrap();
+            assert!(
+                best.cv_score.is_finite(),
+                "Score for {:?} should be finite, got {}",
+                metric,
+                best.cv_score
+            );
+        }
+    }
+
+    // =========================================================================
+    // Test 13: Small dataset
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_small_dataset() {
+        let (x, y) = make_small_data();
+        let config = AutoMLConfig {
+            cv_folds: 2, // Very small data, use 2 folds
+            ..classification_config()
+        };
+        let automl = AutoML::new(config);
+        let result = automl.fit(&x, &y).unwrap();
+
+        assert!(
+            result.is_successful(),
+            "AutoML should complete on small dataset"
+        );
+    }
+
+    // =========================================================================
+    // Test 14: Imbalanced classification
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_imbalanced_classification() {
+        let (x, y) = make_imbalanced_data();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        assert!(result.is_successful(), "Should handle imbalanced data");
+        let best = result.best_model().unwrap();
+        assert!(
+            best.cv_score > 0.5,
+            "Imbalanced score {:.4} should be > 0.5 (better than random)",
+            best.cv_score
+        );
+    }
+
+    // =========================================================================
+    // Test 15: Summary is non-empty
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_summary_nonempty() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        let summary = result.summary();
+        assert!(!summary.is_empty(), "Summary should not be empty");
+        assert!(
+            summary.contains("AutoML"),
+            "Summary should contain 'AutoML'"
+        );
+        assert!(
+            summary.contains("Best Model") || summary.contains("Leaderboard"),
+            "Summary should contain model information"
+        );
+    }
+
+    // =========================================================================
+    // Test 16: Leaderboard sorted by rank
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_leaderboard_sorted() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        for (i, entry) in result.leaderboard.iter().enumerate() {
+            assert_eq!(
+                entry.rank,
+                i + 1,
+                "Leaderboard entry at index {} should have rank {}, got {}",
+                i,
+                i + 1,
+                entry.rank
+            );
+        }
+    }
+
+    // =========================================================================
+    // Test 17: Leaderboard CI contains estimate
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_leaderboard_ci_contains_estimate() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        for entry in &result.leaderboard {
+            assert!(
+                entry.ci_lower <= entry.cv_score,
+                "CI lower {:.4} should be <= cv_score {:.4} for rank {}",
+                entry.ci_lower,
+                entry.cv_score,
+                entry.rank
+            );
+            assert!(
+                entry.cv_score <= entry.ci_upper,
+                "cv_score {:.4} should be <= CI upper {:.4} for rank {}",
+                entry.cv_score,
+                entry.ci_upper,
+                entry.rank
+            );
+        }
+    }
+
+    // =========================================================================
+    // Test 18: Result metadata
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_result_metadata() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        assert!(
+            result.total_time_seconds > 0.0,
+            "Total time should be positive"
+        );
+        assert!(
+            result.n_successful_trials > 0,
+            "Should have at least one successful trial"
+        );
+        assert_eq!(result.cv_folds, 3, "CV folds should match config");
+    }
+
+    // =========================================================================
+    // Test 19: Binary classification
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_binary_classification() {
+        let (x, y) = make_binary_data();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        assert!(result.is_successful());
+        let predictions = result.predict(&x, &y, &x).unwrap();
+        for &p in predictions.iter() {
+            assert!(
+                p == 0.0 || p == 1.0,
+                "Binary prediction {} should be 0 or 1",
+                p
+            );
+        }
+    }
+
+    // =========================================================================
+    // Test 20: Ensemble weights valid
+    // =========================================================================
+    #[test]
+    #[ignore]
+    fn test_system_ensemble_weights_valid() {
+        let (x, y) = make_iris_like();
+        let automl = AutoML::new(classification_config());
+        let result = automl.fit(&x, &y).unwrap();
+
+        if let Some(ensemble) = &result.ensemble {
+            assert!(!ensemble.members.is_empty(), "Ensemble should have members");
+            for member in &ensemble.members {
+                assert!(
+                    member.weight > 0.0,
+                    "Ensemble member weight {} should be positive",
+                    member.weight
+                );
+            }
+
+            // Weights should sum to approximately 1.0
+            let total_weight: f64 = ensemble.members.iter().map(|m| m.weight).sum();
+            assert!(
+                (total_weight - 1.0).abs() < 0.01,
+                "Ensemble weights should sum to ~1.0, got {}",
+                total_weight
+            );
+        }
+    }
+}

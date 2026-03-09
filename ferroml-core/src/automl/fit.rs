@@ -57,11 +57,11 @@ use crate::metrics::{
     Average, Direction, Metric as MetricTrait, MetricValue,
 };
 use crate::models::{
-    DecisionTreeClassifier, DecisionTreeRegressor, GaussianNB, GradientBoostingClassifier,
-    GradientBoostingRegressor, HistGradientBoostingClassifier, HistGradientBoostingRegressor,
-    KNeighborsClassifier, KNeighborsRegressor, LinearRegression, LinearSVC, LinearSVR,
-    LogisticRegression, Model, MultinomialNB, QuantileRegression, RandomForestClassifier,
-    RandomForestRegressor, RidgeRegression, RobustRegression, SVC, SVR,
+    CategoricalNB, DecisionTreeClassifier, DecisionTreeRegressor, GaussianNB,
+    GradientBoostingClassifier, GradientBoostingRegressor, HistGradientBoostingClassifier,
+    HistGradientBoostingRegressor, KNeighborsClassifier, KNeighborsRegressor, LinearRegression,
+    LinearSVC, LinearSVR, LogisticRegression, Model, MultinomialNB, QuantileRegression,
+    RandomForestClassifier, RandomForestRegressor, RidgeRegression, RobustRegression, SVC, SVR,
 };
 use crate::{AutoML, FerroError, Metric, Result, Task};
 use ndarray::{Array1, Array2};
@@ -1151,6 +1151,7 @@ fn create_model(algorithm: AlgorithmType) -> Result<Box<dyn Model>> {
         // Classification - Probabilistic
         AlgorithmType::GaussianNB => Ok(Box::new(GaussianNB::new())),
         AlgorithmType::MultinomialNB => Ok(Box::new(MultinomialNB::new())),
+        AlgorithmType::CategoricalNB => Ok(Box::new(CategoricalNB::new())),
 
         // Classification - Instance-based
         AlgorithmType::KNeighborsClassifier => Ok(Box::new(KNeighborsClassifier::new(5))),
@@ -1606,6 +1607,7 @@ mod tests {
         let classifiers = [
             AlgorithmType::LogisticRegression,
             AlgorithmType::GaussianNB,
+            AlgorithmType::CategoricalNB,
             AlgorithmType::KNeighborsClassifier,
             AlgorithmType::DecisionTreeClassifier,
             AlgorithmType::RandomForestClassifier,

@@ -80,6 +80,7 @@ fn algorithm_type_to_str(algo: AlgorithmType) -> &'static str {
         AlgorithmType::LogisticRegression => "LogisticRegression",
         AlgorithmType::GaussianNB => "GaussianNB",
         AlgorithmType::MultinomialNB => "MultinomialNB",
+        AlgorithmType::CategoricalNB => "CategoricalNB",
         AlgorithmType::KNeighborsClassifier => "KNeighborsClassifier",
         AlgorithmType::SVC => "SVC",
         AlgorithmType::LinearSVC => "LinearSVC",

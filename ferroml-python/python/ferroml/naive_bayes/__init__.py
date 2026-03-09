@@ -16,6 +16,9 @@ MultinomialNB
 BernoulliNB
     Bernoulli Naive Bayes for binary/boolean features; models each feature
     as a Bernoulli random variable.
+CategoricalNB
+    Categorical Naive Bayes for discrete categorical features; models each
+    feature as a categorical distribution.
 
 Example
 -------
@@ -35,9 +38,11 @@ from ferroml import ferroml as _native
 GaussianNB = _native.naive_bayes.GaussianNB
 MultinomialNB = _native.naive_bayes.MultinomialNB
 BernoulliNB = _native.naive_bayes.BernoulliNB
+CategoricalNB = _native.naive_bayes.CategoricalNB
 
 __all__ = [
     "GaussianNB",
     "MultinomialNB",
     "BernoulliNB",
+    "CategoricalNB",
 ]

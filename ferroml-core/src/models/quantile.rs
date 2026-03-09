@@ -347,7 +347,6 @@ impl QuantileRegression {
     /// Uses the MM algorithm with Huber-like smoothing for stability.
     fn fit_irls(&self, x_design: &Array2<f64>, y: &Array1<f64>) -> Result<(Array1<f64>, usize)> {
         let n = x_design.nrows();
-        let p = x_design.ncols();
         let tau = self.quantile;
 
         // Initialize with OLS solution
@@ -380,19 +379,17 @@ impl QuantileRegression {
             }
 
             // Weighted least squares: solve (X'WX)β = X'Wy
-            let mut xtwx = Array2::zeros((p, p));
-            let mut xtwy = Array1::zeros(p);
-
+            // X'WX = (W^½X)' @ (W^½X)
+            let mut scaled_x = x_design.to_owned();
             for i in 0..n {
-                let xi = x_design.row(i);
-                let w = weights[i];
-                for j in 0..p {
-                    for k in 0..p {
-                        xtwx[[j, k]] += w * xi[j] * xi[k];
-                    }
-                    xtwy[j] += w * xi[j] * y[i];
-                }
+                let w_sqrt = weights[i].sqrt();
+                scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
             }
+            let xtwx = scaled_x.t().dot(&scaled_x);
+
+            // X'Wy = X' @ (W ⊙ y)
+            let wy: Array1<f64> = &weights * y;
+            let xtwy = x_design.t().dot(&wy);
 
             // Solve via Cholesky
             let beta_new = self.solve_symmetric(&xtwx, &xtwy)?;

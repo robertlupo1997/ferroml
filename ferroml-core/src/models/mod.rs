@@ -84,7 +84,7 @@ pub use knn::{
 pub use linear::LinearRegression;
 pub use lof::LocalOutlierFactor;
 pub use logistic::{LogisticRegression, OddsRatioInfo};
-pub use naive_bayes::{BernoulliNB, GaussianNB, MultinomialNB};
+pub use naive_bayes::{BernoulliNB, CategoricalNB, GaussianNB, MultinomialNB};
 pub use qda::QuadraticDiscriminantAnalysis;
 pub use quantile::{MultiQuantileResults, QuantileRegression};
 pub use regularized::{

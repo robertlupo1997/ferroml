@@ -51,6 +51,7 @@ pub mod agglomerative;
 pub mod dbscan;
 pub mod diagnostics;
 pub mod gmm;
+pub mod hdbscan;
 pub mod kmeans;
 pub mod metrics;
 
@@ -59,6 +60,7 @@ pub use agglomerative::{AgglomerativeClustering, Linkage};
 pub use dbscan::DBSCAN;
 pub use diagnostics::ClusterDiagnostics;
 pub use gmm::{CovarianceType, GaussianMixture, GmmInit};
+pub use hdbscan::HDBSCAN;
 pub use kmeans::KMeans;
 pub use metrics::{
     adjusted_rand_index, calinski_harabasz_score, davies_bouldin_score, hopkins_statistic,

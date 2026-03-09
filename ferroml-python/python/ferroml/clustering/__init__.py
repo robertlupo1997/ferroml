@@ -61,6 +61,7 @@ KMeans = _native.clustering.KMeans
 DBSCAN = _native.clustering.DBSCAN
 AgglomerativeClustering = _native.clustering.AgglomerativeClustering
 GaussianMixture = _native.clustering.GaussianMixture
+HDBSCAN = _native.clustering.HDBSCAN
 
 # Metric functions
 silhouette_score = _native.clustering.silhouette_score
@@ -77,6 +78,7 @@ __all__ = [
     "DBSCAN",
     "AgglomerativeClustering",
     "GaussianMixture",
+    "HDBSCAN",
     # Metrics
     "silhouette_score",
     "silhouette_samples",

@@ -4,9 +4,10 @@
 //! - GaussianNB
 //! - MultinomialNB
 //! - BernoulliNB
+//! - CategoricalNB
 
 use crate::array_utils::{py_array_to_f64_1d, to_owned_array_2d};
-use ferroml_core::models::naive_bayes::{BernoulliNB, GaussianNB, MultinomialNB};
+use ferroml_core::models::naive_bayes::{BernoulliNB, CategoricalNB, GaussianNB, MultinomialNB};
 use ferroml_core::models::{Model, ProbabilisticModel};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -483,6 +484,217 @@ impl PyBernoulliNB {
 }
 
 // ---------------------------------------------------------------------------
+// CategoricalNB
+// ---------------------------------------------------------------------------
+
+/// Categorical Naive Bayes classifier.
+///
+/// Suitable for classification with discrete categorical features. Each feature
+/// is assumed to be generated from a categorical distribution. This is
+/// appropriate for features that represent categories (e.g., color, size)
+/// rather than counts or continuous values.
+///
+/// Parameters
+/// ----------
+/// alpha : float, optional (default=1.0)
+///     Additive (Laplace/Lidstone) smoothing parameter (0 for no smoothing).
+/// fit_prior : bool, optional (default=True)
+///     Whether to learn class prior probabilities. If False, a uniform prior
+///     will be used.
+///
+/// Example
+/// -------
+/// >>> from ferroml.naive_bayes import CategoricalNB
+/// >>> import numpy as np
+/// >>> X = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+/// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> model = CategoricalNB()
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
+#[pyclass(name = "CategoricalNB", module = "ferroml.naive_bayes")]
+pub struct PyCategoricalNB {
+    inner: CategoricalNB,
+}
+
+#[pymethods]
+impl PyCategoricalNB {
+    /// Create a new Categorical Naive Bayes classifier.
+    #[new]
+    #[pyo3(signature = (alpha=1.0, fit_prior=true))]
+    fn new(alpha: f64, fit_prior: bool) -> Self {
+        let inner = CategoricalNB::new()
+            .with_alpha(alpha)
+            .with_fit_prior(fit_prior);
+        Self { inner }
+    }
+
+    /// Fit the model to training data.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Training data (categorical features as floats).
+    /// y : array-like of shape (n_samples,)
+    ///     Target class labels. Can be integer or float array.
+    ///
+    /// Returns
+    /// -------
+    /// self : CategoricalNB
+    ///     Fitted estimator.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Predict class labels.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Samples.
+    ///
+    /// Returns
+    /// -------
+    /// y_pred : ndarray of shape (n_samples,)
+    ///     Predicted class labels.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let predictions = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
+    /// Predict class probabilities.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Samples.
+    ///
+    /// Returns
+    /// -------
+    /// probas : ndarray of shape (n_samples, n_classes)
+    ///     Probability of each class.
+    fn predict_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(probas.into_pyarray(py))
+    }
+
+    /// Incremental fit on a batch of samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Training data.
+    /// y : array-like of shape (n_samples,)
+    ///     Target class labels.
+    /// classes : list of float, optional
+    ///     All possible classes. Required on first call.
+    ///
+    /// Returns
+    /// -------
+    /// self : CategoricalNB
+    ///     Updated estimator.
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+        classes: Option<Vec<f64>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+
+        slf.inner
+            .partial_fit(&x_arr, &y_arr, classes)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Get the unique class labels.
+    #[getter]
+    fn classes_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let classes = self
+            .inner
+            .classes()
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Model not fitted. Call fit() first.",
+                )
+            })?
+            .clone();
+        Ok(classes.into_pyarray(py))
+    }
+
+    /// Get the number of samples per class.
+    #[getter]
+    fn class_count_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let class_count = self
+            .inner
+            .class_count()
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Model not fitted. Call fit() first.",
+                )
+            })?
+            .clone();
+        Ok(class_count.into_pyarray(py))
+    }
+
+    /// Get the log prior probabilities of each class.
+    #[getter]
+    fn class_log_prior_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let class_log_prior = self
+            .inner
+            .class_log_prior()
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Model not fitted. Call fit() first.",
+                )
+            })?
+            .clone();
+        Ok(class_log_prior.into_pyarray(py))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CategoricalNB(alpha={}, fit_prior={})",
+            self.inner.alpha, self.inner.fit_prior
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Module registration
 // ---------------------------------------------------------------------------
 
@@ -491,6 +703,7 @@ pub fn register_naive_bayes_module(parent_module: &Bound<'_, PyModule>) -> PyRes
     nb_module.add_class::<PyGaussianNB>()?;
     nb_module.add_class::<PyMultinomialNB>()?;
     nb_module.add_class::<PyBernoulliNB>()?;
+    nb_module.add_class::<PyCategoricalNB>()?;
     parent_module.add_submodule(&nb_module)?;
     Ok(())
 }
