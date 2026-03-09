@@ -16,8 +16,8 @@
 use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::decomposition::{
-    FactorAnalysis, IncrementalPCA, LearningRate, TruncatedSVD, TsneInit, TsneMetric, LDA, PCA,
-    TSNE,
+    FactorAnalysis, IncrementalPCA, LearningRate, TruncatedSVD, TsneInit, TsneMethod, TsneMetric,
+    LDA, PCA, TSNE,
 };
 use ferroml_core::preprocessing::Transformer;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
@@ -602,6 +602,12 @@ impl PyFactorAnalysis {
 ///     Distance metric: "euclidean", "manhattan", or "cosine".
 /// init : str, optional (default="pca")
 ///     Initialization: "pca" or "random".
+/// method : str, optional (default="auto")
+///     Algorithm: "exact" for O(N^2), "barnes_hut" for O(N log N) approximation,
+///     or "auto" to choose based on dataset size (Barnes-Hut for n > 1000).
+/// theta : float, optional (default=0.5)
+///     Barnes-Hut trade-off parameter (0.0 = exact, higher = faster but less accurate).
+///     Only used when method is "barnes_hut" or "auto" selects Barnes-Hut.
 /// random_state : int, optional
 ///     Seed for reproducibility.
 ///
@@ -640,6 +646,8 @@ impl PyTSNE {
         min_grad_norm=1e-7,
         metric="euclidean",
         init="pca",
+        method="auto",
+        theta=0.5,
         random_state=None,
     ))]
     fn new(
@@ -651,6 +659,8 @@ impl PyTSNE {
         min_grad_norm: f64,
         metric: &str,
         init: &str,
+        method: &str,
+        theta: f64,
         random_state: Option<u64>,
     ) -> PyResult<Self> {
         let tsne_metric = match metric {
@@ -681,6 +691,18 @@ impl PyTSNE {
             None => LearningRate::Auto,
         };
 
+        let tsne_method = match method {
+            "exact" => Some(TsneMethod::Exact),
+            "barnes_hut" => Some(TsneMethod::BarnesHut),
+            "auto" => None,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown method '{}'. Expected 'exact', 'barnes_hut', or 'auto'.",
+                    method
+                )));
+            }
+        };
+
         let mut tsne = TSNE::new()
             .with_n_components(n_components)
             .with_perplexity(perplexity)
@@ -689,7 +711,12 @@ impl PyTSNE {
             .with_early_exaggeration(early_exaggeration)
             .with_min_grad_norm(min_grad_norm)
             .with_metric(tsne_metric)
-            .with_init(tsne_init);
+            .with_init(tsne_init)
+            .with_theta(theta);
+
+        if let Some(m) = tsne_method {
+            tsne = tsne.with_method(m);
+        }
 
         if let Some(seed) = random_state {
             tsne = tsne.with_random_state(seed);

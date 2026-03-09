@@ -2324,4 +2324,109 @@ mod tests {
         let x = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
         assert!(clf.predict(&x).is_err());
     }
+
+    #[test]
+    fn test_knn_parallel_predict_matches_sequential() {
+        // Fit KNN on 200+ samples, predict on 200+ samples (above the 128 threshold
+        // for parallel predict), verify results match a sequential baseline.
+        let n_samples = 250;
+        let n_features = 3;
+        let mut data = Vec::with_capacity(n_samples * n_features);
+        let mut labels = Vec::with_capacity(n_samples);
+        for i in 0..n_samples {
+            let val = i as f64;
+            data.push(val);
+            data.push(val * 0.5);
+            data.push(val * 0.3);
+            labels.push(if i < n_samples / 2 { 0.0 } else { 1.0 });
+        }
+        let x = Array2::from_shape_vec((n_samples, n_features), data).unwrap();
+        let y = Array1::from_vec(labels);
+
+        // Fit with brute force (guaranteed sequential)
+        let mut clf_brute = KNeighborsClassifier::new(5).with_algorithm(KNNAlgorithm::BruteForce);
+        clf_brute.fit(&x, &y).unwrap();
+        let pred_brute = clf_brute.predict(&x).unwrap();
+
+        // Fit with KD-tree (may use parallel predict path on large datasets)
+        let mut clf_kd = KNeighborsClassifier::new(5).with_algorithm(KNNAlgorithm::KDTree);
+        clf_kd.fit(&x, &y).unwrap();
+        let pred_kd = clf_kd.predict(&x).unwrap();
+
+        assert_eq!(pred_brute.len(), n_samples);
+        assert_eq!(pred_kd.len(), n_samples);
+
+        for i in 0..n_samples {
+            assert!(
+                (pred_brute[i] - pred_kd[i]).abs() < 1e-10,
+                "Mismatch at sample {}: brute={}, kdtree={}",
+                i,
+                pred_brute[i],
+                pred_kd[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_knn_binary_search_class_lookup() {
+        // Verify predict works correctly with class labels that are NOT small integers.
+        // Tests the binary search fix for class label lookup.
+        let x = Array2::from_shape_vec(
+            (9, 2),
+            vec![
+                0.0, 0.0, 0.5, 0.5, 0.0, 0.5, // class 10.0
+                5.0, 5.0, 5.5, 5.5, 5.0, 5.5, // class 20.0
+                10.0, 10.0, 10.5, 10.5, 10.0, 10.5, // class 30.0
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![10.0, 10.0, 10.0, 20.0, 20.0, 20.0, 30.0, 30.0, 30.0]);
+
+        let mut clf = KNeighborsClassifier::new(3);
+        clf.fit(&x, &y).unwrap();
+
+        let predictions = clf.predict(&x).unwrap();
+        assert_eq!(predictions.len(), 9);
+
+        // Verify each point is classified with its correct non-integer label
+        for i in 0..3 {
+            assert!(
+                (predictions[i] - 10.0).abs() < 1e-10,
+                "Expected class 10.0 at index {}, got {}",
+                i,
+                predictions[i]
+            );
+        }
+        for i in 3..6 {
+            assert!(
+                (predictions[i] - 20.0).abs() < 1e-10,
+                "Expected class 20.0 at index {}, got {}",
+                i,
+                predictions[i]
+            );
+        }
+        for i in 6..9 {
+            assert!(
+                (predictions[i] - 30.0).abs() < 1e-10,
+                "Expected class 30.0 at index {}, got {}",
+                i,
+                predictions[i]
+            );
+        }
+
+        // Also test prediction on novel points
+        let query = Array2::from_shape_vec(
+            (3, 2),
+            vec![
+                0.2, 0.2, // near class 10.0
+                5.2, 5.2, // near class 20.0
+                10.2, 10.2, // near class 30.0
+            ],
+        )
+        .unwrap();
+        let query_pred = clf.predict(&query).unwrap();
+        assert!((query_pred[0] - 10.0).abs() < 1e-10);
+        assert!((query_pred[1] - 20.0).abs() < 1e-10);
+        assert!((query_pred[2] - 30.0).abs() < 1e-10);
+    }
 }

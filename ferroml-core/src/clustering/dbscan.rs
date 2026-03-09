@@ -589,4 +589,77 @@ mod tests {
         assert_eq!(centroid.len(), 2);
         assert_eq!(std.len(), 2);
     }
+
+    #[test]
+    fn test_squared_distance_equivalence() {
+        // Verify squared_euclidean_distance(a,b) == euclidean_distance(a,b).powi(2)
+        let pairs: Vec<(Vec<f64>, Vec<f64>)> = vec![
+            (vec![0.0, 0.0], vec![3.0, 4.0]),
+            (vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]),
+            (vec![0.0], vec![0.0]),
+            (vec![-1.5, 2.7, -0.3], vec![3.1, -4.2, 1.8]),
+            (vec![1e6, -1e6], vec![-1e6, 1e6]),
+        ];
+
+        for (a_vec, b_vec) in &pairs {
+            let a = Array1::from_vec(a_vec.clone());
+            let b = Array1::from_vec(b_vec.clone());
+            let a_view = a.view();
+            let b_view = b.view();
+
+            let sq_dist = squared_euclidean_distance(&a_view, &b_view);
+            let euc_dist = euclidean_distance(&a_view, &b_view);
+            let euc_sq = euc_dist.powi(2);
+
+            // Use relative tolerance for large values
+            let tol = 1e-10 * sq_dist.abs().max(1.0);
+            assert!(
+                (sq_dist - euc_sq).abs() < tol,
+                "Mismatch for {:?} vs {:?}: squared={}, euclidean^2={}, diff={}",
+                a_vec,
+                b_vec,
+                sq_dist,
+                euc_sq,
+                (sq_dist - euc_sq).abs()
+            );
+        }
+    }
+
+    #[test]
+    fn test_dbscan_with_squared_distances_matches_expected() {
+        // Small dataset with known cluster structure.
+        // Three tight clusters at (0,0), (10,10), (20,20) with points within eps=1.5.
+        let x = Array2::from_shape_vec(
+            (9, 2),
+            vec![
+                0.0, 0.0, 0.5, 0.5, 0.0, 0.5, // cluster A
+                10.0, 10.0, 10.5, 10.5, 10.0, 10.5, // cluster B
+                20.0, 20.0, 20.5, 20.5, 20.0, 20.5, // cluster C
+            ],
+        )
+        .unwrap();
+
+        let mut dbscan = DBSCAN::new(1.5, 2);
+        dbscan.fit(&x).unwrap();
+
+        let labels = dbscan.labels().unwrap();
+        assert_eq!(labels.len(), 9);
+
+        // Should find exactly 3 clusters, no noise
+        assert_eq!(dbscan.n_clusters(), Some(3));
+        assert_eq!(dbscan.n_noise(), Some(0));
+
+        // Points within same cluster should share labels
+        assert_eq!(labels[0], labels[1]);
+        assert_eq!(labels[1], labels[2]);
+        assert_eq!(labels[3], labels[4]);
+        assert_eq!(labels[4], labels[5]);
+        assert_eq!(labels[6], labels[7]);
+        assert_eq!(labels[7], labels[8]);
+
+        // Different clusters should have different labels
+        assert_ne!(labels[0], labels[3]);
+        assert_ne!(labels[0], labels[6]);
+        assert_ne!(labels[3], labels[6]);
+    }
 }

@@ -1,8 +1,8 @@
 {
     "version": "1.0",
-    "timestamp": "2026-02-28T00:00:00Z",
-    "commit": "0160c35",
-    "description": "Initial baseline for FerroML benchmarks. Run `cargo bench -p ferroml-core` to generate updated timings.",
+    "timestamp": "2026-03-09T00:00:00Z",
+    "commit": "55ae057",
+    "description": "Post-Plan-N optimization baseline. SIMD default, deferred tree splits, in-place boosting, parallel predict, Barnes-Hut t-SNE.",
     "methodology": {
         "criterion_version": "0.5",
         "sample_size_default": 100,
@@ -117,8 +117,9 @@
             "complexity": "O(iter*n*sum(layer_i*layer_{i+1}))"
         },
         "DBSCAN/fit/1000x20": {
-            "expected_range_us": [1000, 100000],
-            "complexity": "O(n^2*p)"
+            "expected_range_us": [1000, 20000],
+            "complexity": "O(n^2*p)",
+            "note": "2.4x faster after SIMD + squared distance optimization"
         },
         "KMeans/fit/5000x50": {
             "expected_range_us": [5000, 100000],
@@ -205,6 +206,6 @@
             "complexity": "O(n*trees*depth)"
         }
     },
-    "regression_threshold_percent": 20,
-    "usage": "Compare Criterion output against expected_range_us values. A benchmark is flagged as a regression if it exceeds the upper bound by more than regression_threshold_percent."
+    "regression_threshold_percent": 15,
+    "usage": "Compare Criterion output against expected_range_us values. A benchmark is flagged as a regression if it exceeds the upper bound by more than regression_threshold_percent. Threshold tightened from 20% to 15% after Plan N optimizations."
 }

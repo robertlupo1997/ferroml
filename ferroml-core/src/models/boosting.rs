@@ -1950,4 +1950,119 @@ mod tests {
         let predictions = reg.predict(&x).unwrap();
         assert_eq!(predictions.len(), 20);
     }
+
+    #[test]
+    fn test_gb_regressor_predict_consistency() {
+        // Fit a GB regressor, predict twice on the same data, verify identical results.
+        // This ensures in-place ops don't have state bugs that corrupt between calls.
+        let (x, y) = make_regression_data();
+
+        let mut reg = GradientBoostingRegressor::new()
+            .with_n_estimators(30)
+            .with_learning_rate(0.1)
+            .with_max_depth(Some(3))
+            .with_random_state(42);
+        reg.fit(&x, &y).unwrap();
+
+        let pred1 = reg.predict(&x).unwrap();
+        let pred2 = reg.predict(&x).unwrap();
+
+        assert_eq!(pred1.len(), pred2.len());
+        for i in 0..pred1.len() {
+            assert!(
+                (pred1[i] - pred2[i]).abs() < 1e-12,
+                "Predictions differ at index {}: {} vs {}",
+                i,
+                pred1[i],
+                pred2[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_gb_classifier_subsample_buffer_reuse() {
+        // Fit with subsample=0.8, verify predictions are reasonable.
+        // Ensures buffer pre-allocation doesn't break subsampling logic.
+        let (x, y) = make_classification_data();
+
+        let mut clf = GradientBoostingClassifier::new()
+            .with_n_estimators(50)
+            .with_learning_rate(0.1)
+            .with_subsample(0.8)
+            .with_max_depth(Some(3))
+            .with_random_state(42);
+
+        clf.fit(&x, &y).unwrap();
+        assert!(clf.is_fitted());
+
+        let predictions = clf.predict(&x).unwrap();
+        assert_eq!(predictions.len(), 20);
+
+        // With well-separated data and 50 estimators, should get good accuracy
+        let accuracy: f64 = predictions
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (**p - **t).abs() < 0.5)
+            .count() as f64
+            / 20.0;
+        assert!(
+            accuracy > 0.7,
+            "Accuracy with subsample=0.8 was only {}",
+            accuracy
+        );
+
+        // Also verify probabilities are valid
+        let probas = clf.predict_proba(&x).unwrap();
+        assert_eq!(probas.shape(), &[20, 2]);
+        for i in 0..20 {
+            let row_sum: f64 = probas.row(i).sum();
+            assert_abs_diff_eq!(row_sum, 1.0, epsilon = 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_gb_parallel_predict_large_batch() {
+        // Fit GB regressor, predict on 300+ samples (above 256 threshold for parallel),
+        // then verify results match prediction on smaller batches.
+        let (x_train, y_train) = make_regression_data();
+
+        let mut reg = GradientBoostingRegressor::new()
+            .with_n_estimators(20)
+            .with_learning_rate(0.1)
+            .with_max_depth(Some(3))
+            .with_random_state(42);
+        reg.fit(&x_train, &y_train).unwrap();
+
+        // Build a large test set by repeating training data 16x (320 samples)
+        let n_repeats = 16;
+        let n_train = x_train.nrows();
+        let n_features = x_train.ncols();
+        let n_large = n_train * n_repeats;
+        let mut large_data = Vec::with_capacity(n_large * n_features);
+        for _ in 0..n_repeats {
+            for row in x_train.rows() {
+                large_data.extend(row.iter());
+            }
+        }
+        let x_large = Array2::from_shape_vec((n_large, n_features), large_data).unwrap();
+        assert!(x_large.nrows() > 256, "Need >256 samples for parallel path");
+
+        let pred_large = reg.predict(&x_large).unwrap();
+        assert_eq!(pred_large.len(), n_large);
+
+        // Each repeated block should produce the same predictions as the original
+        let pred_small = reg.predict(&x_train).unwrap();
+        for rep in 0..n_repeats {
+            for i in 0..n_train {
+                assert!(
+                    (pred_large[rep * n_train + i] - pred_small[i]).abs() < 1e-10,
+                    "Mismatch at rep={}, i={}: large={}, small={}",
+                    rep,
+                    i,
+                    pred_large[rep * n_train + i],
+                    pred_small[i]
+                );
+            }
+        }
+    }
 }

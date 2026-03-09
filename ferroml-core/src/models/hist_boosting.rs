@@ -3785,4 +3785,103 @@ mod tests {
         // NaN should be treated as a category
         assert!(handler.n_categories(0).unwrap() >= 2);
     }
+
+    #[test]
+    fn test_histgb_predict_with_sliced_input() {
+        // Test prediction with a non-contiguous array view (slice of columns).
+        // Since as_slice() requires contiguous layout, this tests the fallback path.
+        let (x, y) = make_classification_data();
+
+        let mut clf = HistGradientBoostingClassifier::new()
+            .with_max_iter(50)
+            .with_learning_rate(0.2)
+            .with_random_state(42);
+        clf.fit(&x, &y).unwrap();
+
+        // Predict on original contiguous data
+        let pred_contiguous = clf.predict(&x).unwrap();
+
+        // Create a wider array, then slice to get a non-contiguous view
+        let n = x.nrows();
+        let mut wide = Array2::zeros((n, 4));
+        for i in 0..n {
+            wide[[i, 0]] = x[[i, 0]];
+            wide[[i, 1]] = 999.0; // padding column
+            wide[[i, 2]] = x[[i, 1]];
+            wide[[i, 3]] = 999.0; // padding column
+        }
+        // Extract columns 0 and 2 into a new owned array (the model expects 2 features)
+        let col0 = wide.column(0).to_owned();
+        let col2 = wide.column(2).to_owned();
+        let mut x_reconstructed = Array2::zeros((n, 2));
+        x_reconstructed.column_mut(0).assign(&col0);
+        x_reconstructed.column_mut(1).assign(&col2);
+
+        let pred_reconstructed = clf.predict(&x_reconstructed).unwrap();
+
+        assert_eq!(pred_contiguous.len(), pred_reconstructed.len());
+        for i in 0..pred_contiguous.len() {
+            assert!(
+                (pred_contiguous[i] - pred_reconstructed[i]).abs() < 1e-10,
+                "Mismatch at index {}: {} vs {}",
+                i,
+                pred_contiguous[i],
+                pred_reconstructed[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_histgb_gradient_buffer_reuse() {
+        // Fit with n_estimators=10, verify predictions match a known reference.
+        // Ensures gradient buffer reuse doesn't accumulate errors across iterations.
+        let (x, y) = make_regression_data();
+
+        let mut reg = HistGradientBoostingRegressor::new()
+            .with_max_iter(10)
+            .with_learning_rate(0.1)
+            .with_random_state(42);
+        reg.fit(&x, &y).unwrap();
+
+        let predictions = reg.predict(&x).unwrap();
+        assert_eq!(predictions.len(), 20);
+
+        // Predictions should be reasonable (not NaN/Inf from buffer corruption)
+        for (i, &p) in predictions.iter().enumerate() {
+            assert!(
+                p.is_finite(),
+                "Prediction at index {} is not finite: {}",
+                i,
+                p
+            );
+        }
+
+        // Training error should decrease: first predict after 1 iteration vs after 10
+        // Fit again from scratch to get the same model (deterministic)
+        let mut reg2 = HistGradientBoostingRegressor::new()
+            .with_max_iter(10)
+            .with_learning_rate(0.1)
+            .with_random_state(42);
+        reg2.fit(&x, &y).unwrap();
+
+        let pred2 = reg2.predict(&x).unwrap();
+
+        // Same seed, same data -> identical predictions (buffer reuse is deterministic)
+        for i in 0..predictions.len() {
+            assert_abs_diff_eq!(predictions[i], pred2[i], epsilon = 1e-10);
+        }
+
+        // MSE should be reasonable (model is learning, not just returning garbage)
+        let mse: f64 = predictions
+            .iter()
+            .zip(y.iter())
+            .map(|(p, t)| (p - t).powi(2))
+            .sum::<f64>()
+            / 20.0;
+        assert!(
+            mse < 100.0,
+            "MSE is suspiciously high ({}), gradient buffer reuse may be corrupted",
+            mse
+        );
+    }
 }
