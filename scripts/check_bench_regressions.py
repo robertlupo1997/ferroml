@@ -45,15 +45,53 @@ def load_baseline(baseline_path: Path) -> Tuple[Dict, float]:
     return benchmarks, threshold
 
 
+def _normalize_criterion_name(parts: List[str]) -> str:
+    """
+    Normalize Criterion directory paths to match baseline.json key format.
+
+    Criterion outputs benchmark results in directories like:
+      ModelName_operation/samples/size/new/estimates.json
+    But baseline.json uses keys like:
+      ModelName/operation/size
+
+    This function handles:
+    1. Stripping the 'samples' directory level
+    2. Splitting group_operation into group/operation
+    """
+    # Filter out 'samples' level
+    parts = [p for p in parts if p != "samples"]
+
+    if not parts:
+        return ""
+
+    # Known operation suffixes used in benchmark function names
+    operations = ["fit_predict", "fit_transform", "transform_only", "fit", "predict"]
+
+    group = parts[0]
+    rest = parts[1:]
+
+    # Try to split the group name on known operation suffixes
+    # e.g. "LinearRegression_fit" -> "LinearRegression/fit"
+    # e.g. "KNeighborsClassifier_fit_predict" -> "KNeighborsClassifier/fit_predict"
+    for op in operations:
+        suffix = f"_{op}"
+        if group.endswith(suffix):
+            model = group[: -len(suffix)]
+            return "/".join([model, op] + rest)
+
+    # No known operation suffix found — return as-is (e.g. Scaling benchmarks)
+    return "/".join([group] + rest)
+
+
 def load_criterion_results(criterion_dir: Path) -> Dict[str, float]:
     """
     Load Criterion benchmark results from target/criterion/.
 
     Each benchmark has a directory structure like:
-      target/criterion/<group>/<bench_name>/new/estimates.json
+      target/criterion/<group>/[samples/]<size>/new/estimates.json
 
     The point_estimate in estimates.json is in nanoseconds.
-    Returns a dict mapping benchmark name -> time in microseconds.
+    Returns a dict mapping normalized benchmark name -> time in microseconds.
     """
     results = {}
     if not criterion_dir.exists():
@@ -80,12 +118,10 @@ def load_criterion_results(criterion_dir: Path) -> Dict[str, float]:
             point_estimate_us = point_estimate_ns / 1000.0
 
             # Build benchmark name from directory path
-            # e.g. target/criterion/LinearRegression/fit/100x10/new/estimates.json
-            # -> LinearRegression/fit/100x10
             rel = estimates_file.relative_to(criterion_dir)
             # Remove "new/estimates.json" suffix (2 levels)
             parts = list(rel.parts[:-2])
-            bench_name = "/".join(parts)
+            bench_name = _normalize_criterion_name(parts)
 
             if bench_name:
                 results[bench_name] = point_estimate_us

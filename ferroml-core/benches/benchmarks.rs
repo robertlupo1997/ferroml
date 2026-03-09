@@ -1808,6 +1808,8 @@ fn bench_robust_regression_fit(c: &mut Criterion) {
 }
 
 /// Benchmark QuantileRegression training time (median regression, quantile=0.5)
+/// Note: bootstrap inference is disabled (n_bootstrap=0) to benchmark the core
+/// IRLS solver. With default n_bootstrap=200, each fit takes ~200x longer.
 fn bench_quantile_regression_fit(c: &mut Criterion) {
     let mut group = c.benchmark_group("QuantileRegression/fit");
     group.sample_size(10);
@@ -1821,7 +1823,7 @@ fn bench_quantile_regression_fit(c: &mut Criterion) {
             &(&x, &y),
             |b, (x, y)| {
                 b.iter(|| {
-                    let mut model = QuantileRegression::new(0.5);
+                    let mut model = QuantileRegression::new(0.5).with_n_bootstrap(0);
                     model.fit(black_box(*x), black_box(*y)).unwrap()
                 })
             },

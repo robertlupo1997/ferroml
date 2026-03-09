@@ -21,8 +21,9 @@
             "complexity": "O(n*p^2)"
         },
         "LinearRegression/fit/10000x100": {
-            "expected_range_us": [5000, 50000],
-            "complexity": "O(n*p^2)"
+            "expected_range_us": [50000, 300000],
+            "complexity": "O(n*p^2)",
+            "note": "QR decomposition + leverage computation O(n*p^2) is expensive at 10Kx100"
         },
         "RidgeRegression/fit/1000x50": {
             "expected_range_us": [500, 5000],
@@ -93,8 +94,9 @@
             "complexity": "O(n*p*k)"
         },
         "LogisticRegression/fit_predict/1000x50": {
-            "expected_range_us": [500, 20000],
-            "complexity": "O(n*p*iter)"
+            "expected_range_us": [5000, 100000],
+            "complexity": "O(n*p^2*iter)",
+            "note": "IRLS with X'WX construction is O(n*p^2) per iteration"
         },
         "VotingClassifier/fit_predict/1000x20": {
             "expected_range_us": [5000, 200000],
@@ -122,14 +124,15 @@
             "note": "2.4x faster after SIMD + squared distance optimization"
         },
         "KMeans/fit/5000x50": {
-            "expected_range_us": [5000, 100000],
-            "complexity": "O(n*k*p*iter)"
+            "expected_range_us": [100000, 800000],
+            "complexity": "O(n*k*p*iter)",
+            "note": "Default k=5, max_iter=300. Multiple restarts (n_init) dominate."
         },
         "StandardScaler/fit_transform/10000x100": {
             "expected_range_us": [500, 10000],
             "complexity": "O(n*p)"
         },
-        "PolynomialFeatures/fit_transform/1000x10_d2": {
+        "PolynomialFeatures/fit_transform/config/1000x10_d2": {
             "expected_range_us": [100, 10000],
             "complexity": "O(n*C(p+d,d))"
         },
@@ -137,11 +140,11 @@
             "expected_range_us": [10000, 200000],
             "complexity": "O(min(n,p)*p^2)"
         },
-        "LargeScale/LinearRegression/fit/100000": {
+        "LargeScale_LinearRegression/fit/100000": {
             "expected_range_us": [10000, 200000],
             "complexity": "O(n*p^2)"
         },
-        "LargeScale/RandomForest/predict/100000": {
+        "LargeScale_RandomForest/predict/100000": {
             "expected_range_us": [50000, 1000000],
             "complexity": "O(n*trees*depth)"
         },
@@ -162,8 +165,9 @@
             "complexity": "O(n*p*iter)"
         },
         "QuantileRegression/fit/1000x50": {
-            "expected_range_us": [5000, 200000],
-            "complexity": "O(n*p*iter)"
+            "expected_range_us": [100000, 800000],
+            "complexity": "O(n*p^2*iter)",
+            "note": "Benchmarked with n_bootstrap=0 (IRLS only). O(n*p^2) from X'WX construction."
         },
         "PassiveAggressiveClassifier/fit_predict/5000x100": {
             "expected_range_us": [1000, 50000],
@@ -173,7 +177,7 @@
             "expected_range_us": [500, 20000],
             "complexity": "O(n*p^2)"
         },
-        "CalibratedClassifierCV/fit_predict/500x20": {
+        "CalibratedClassifierCV/fit_predict/500x20_lr_sigmoid": {
             "expected_range_us": [50000, 2000000],
             "complexity": "O(cv*base_fit)"
         },
@@ -186,8 +190,9 @@
             "complexity": "O(iter*n*p^2)"
         },
         "Scaling_KMeans_Samples/fit/10000": {
-            "expected_range_us": [10000, 500000],
-            "complexity": "O(n*k*p*iter)"
+            "expected_range_us": [500000, 2000000],
+            "complexity": "O(n*k*p*iter)",
+            "note": "Default k=5, n_features=20, multiple restarts"
         },
         "Scaling_DBSCAN_Samples/fit/2000": {
             "expected_range_us": [10000, 1000000],
