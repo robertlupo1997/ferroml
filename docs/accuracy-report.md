@@ -22,11 +22,27 @@ Comparison of FerroML against scikit-learn across models and preprocessing trans
 
 | Category | Tested | Status |
 |----------|--------|--------|
-| Models (sklearn comparison) | 17 | All passing |
-| Preprocessing (sklearn comparison) | 15 | All passing |
+| Models (sklearn comparison, Rust fixtures) | 17 | All passing |
+| Preprocessing (sklearn comparison, Rust fixtures) | 15 | All passing |
 | New models (unit-tested) | 6 | All passing |
 | Regression baselines | 20 | All passing |
-| **Total** | **58** | **All passing** |
+| **Plan M: Python side-by-side validation** | **279** | **All passing** |
+| **Total** | **337** | **All passing** |
+
+## Plan M: Side-by-Side Validation (265 tests)
+
+Comprehensive Python-level comparison of 50+ FerroML models against sklearn equivalents.
+See [validation-report.md](validation-report.md) for full results including performance data.
+
+| Phase | Scope | Tests | Status |
+|-------|-------|-------|--------|
+| M.1 | 13 linear models | 41 | All pass |
+| M.2 | 14 tree & ensemble models | 48 | All pass |
+| M.3 | 14 KNN/SVM/NB/MLP models | 34 | All pass |
+| M.4 | 13 clustering & unsupervised models | 39 | All pass |
+| M.5 | 18 preprocessing transformers | 40 | All pass |
+| M.6 | 15 performance benchmarks x 4 sizes | 52 | All pass |
+| M.7 | 7 edge case categories | 25 | All pass |
 
 ## Model Accuracy (sklearn comparison)
 
@@ -130,8 +146,8 @@ In addition to sklearn fixture comparisons, FerroML has dedicated correctness te
 | Lib tests (src/) | ~2,930 passing |
 | Integration tests (tests/) | ~480 passing |
 | Sklearn correctness tests | 58 passing |
-| Python tests | ~1,100 passing, 18 skipped |
-| Python test files | 28 |
+| Python tests | ~1,385 passing, 18 skipped |
+| Python test files | 35 |
 | Benchmarks | 86+ Criterion functions |
 
 ## Reproducing Results
