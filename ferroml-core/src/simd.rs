@@ -212,6 +212,92 @@ pub fn batch_squared_euclidean(
     distances
 }
 
+/// Compute Manhattan distances from a query to multiple points using SIMD.
+///
+/// Points are stored as a flat array [p0_d0, p0_d1, ..., p1_d0, p1_d1, ...].
+///
+/// # Arguments
+///
+/// * `query` - Query vector
+/// * `references` - Flat array of reference points (n_samples * n_features elements)
+/// * `n_samples` - Number of reference points
+/// * `n_features` - Dimensionality of each point
+///
+/// # Returns
+///
+/// Vector of Manhattan distances from query to each reference point.
+#[inline]
+pub fn batch_manhattan_distance(
+    query: &[f64],
+    references: &[f64],
+    n_samples: usize,
+    n_features: usize,
+) -> Vec<f64> {
+    debug_assert_eq!(
+        query.len(),
+        n_features,
+        "Query must have n_features dimensions"
+    );
+    debug_assert_eq!(
+        references.len(),
+        n_samples * n_features,
+        "References must have n_samples * n_features elements"
+    );
+
+    let mut distances = Vec::with_capacity(n_samples);
+
+    for sample_idx in 0..n_samples {
+        let ref_start = sample_idx * n_features;
+        let ref_slice = &references[ref_start..ref_start + n_features];
+        distances.push(manhattan_distance(query, ref_slice));
+    }
+
+    distances
+}
+
+/// Compute cosine similarities from a query to multiple points using SIMD.
+///
+/// Points are stored as a flat array [p0_d0, p0_d1, ..., p1_d0, p1_d1, ...].
+///
+/// # Arguments
+///
+/// * `query` - Query vector
+/// * `references` - Flat array of reference points (n_samples * n_features elements)
+/// * `n_samples` - Number of reference points
+/// * `n_features` - Dimensionality of each point
+///
+/// # Returns
+///
+/// Vector of cosine similarities from query to each reference point.
+#[inline]
+pub fn cosine_similarity_batch(
+    query: &[f64],
+    references: &[f64],
+    n_samples: usize,
+    n_features: usize,
+) -> Vec<f64> {
+    debug_assert_eq!(
+        query.len(),
+        n_features,
+        "Query must have n_features dimensions"
+    );
+    debug_assert_eq!(
+        references.len(),
+        n_samples * n_features,
+        "References must have n_samples * n_features elements"
+    );
+
+    let mut similarities = Vec::with_capacity(n_samples);
+
+    for sample_idx in 0..n_samples {
+        let ref_start = sample_idx * n_features;
+        let ref_slice = &references[ref_start..ref_start + n_features];
+        similarities.push(cosine_similarity(query, ref_slice));
+    }
+
+    similarities
+}
+
 /// Compute the dot product of two vectors using SIMD.
 ///
 /// # Arguments
@@ -2086,5 +2172,70 @@ mod tests {
         for i in 0..100 {
             assert!((div_result[i] - (b[i] / a[i])).abs() < 1e-10);
         }
+    }
+
+    // ==========================================================================
+    // Batch Distance Tests
+    // ==========================================================================
+
+    #[test]
+    fn test_batch_manhattan_distance_basic() {
+        let query = [0.0, 0.0];
+        let references = [
+            1.0, 0.0, // manhattan = 1
+            0.0, 2.0, // manhattan = 2
+            3.0, 4.0, // manhattan = 7
+        ];
+
+        let distances = batch_manhattan_distance(&query, &references, 3, 2);
+        assert_eq!(distances.len(), 3);
+        assert!((distances[0] - 1.0).abs() < EPSILON);
+        assert!((distances[1] - 2.0).abs() < EPSILON);
+        assert!((distances[2] - 7.0).abs() < EPSILON);
+    }
+
+    #[test]
+    fn test_batch_manhattan_distance_high_dim() {
+        // 5-dimensional, 2 points
+        let query = [1.0, 2.0, 3.0, 4.0, 5.0];
+        let references = [
+            2.0, 3.0, 4.0, 5.0, 6.0, // each diff = 1, manhattan = 5
+            0.0, 0.0, 0.0, 0.0, 0.0, // diffs = 1+2+3+4+5 = 15
+        ];
+
+        let distances = batch_manhattan_distance(&query, &references, 2, 5);
+        assert_eq!(distances.len(), 2);
+        assert!((distances[0] - 5.0).abs() < EPSILON);
+        assert!((distances[1] - 15.0).abs() < EPSILON);
+    }
+
+    #[test]
+    fn test_cosine_similarity_batch_basic() {
+        let query = [1.0, 0.0];
+        let references = [
+            1.0, 0.0, // identical direction, similarity = 1
+            0.0, 1.0, // orthogonal, similarity = 0
+            -1.0, 0.0, // opposite, similarity = -1
+        ];
+
+        let sims = cosine_similarity_batch(&query, &references, 3, 2);
+        assert_eq!(sims.len(), 3);
+        assert!((sims[0] - 1.0).abs() < EPSILON);
+        assert!(sims[1].abs() < EPSILON);
+        assert!((sims[2] + 1.0).abs() < EPSILON);
+    }
+
+    #[test]
+    fn test_cosine_similarity_batch_high_dim() {
+        let query = [1.0, 2.0, 3.0, 4.0];
+        let references = [
+            1.0, 2.0, 3.0, 4.0, // identical, similarity = 1
+            2.0, 4.0, 6.0, 8.0, // same direction (scaled), similarity = 1
+        ];
+
+        let sims = cosine_similarity_batch(&query, &references, 2, 4);
+        assert_eq!(sims.len(), 2);
+        assert!((sims[0] - 1.0).abs() < EPSILON);
+        assert!((sims[1] - 1.0).abs() < EPSILON);
     }
 }

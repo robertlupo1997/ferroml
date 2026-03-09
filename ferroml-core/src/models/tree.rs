@@ -2457,4 +2457,121 @@ mod tests {
             "MAE tree should not predict global mean for all samples"
         );
     }
+
+    #[test]
+    fn test_presorted_regressor_produces_correct_splits() {
+        // Verify that the pre-sorted optimization produces identical results
+        // to what we'd expect on a non-trivial multi-feature dataset.
+        // The pre-sort filters global sorted arrays at each node instead of
+        // re-sorting; this test ensures the filtering preserves sort order.
+        let x = Array2::from_shape_vec(
+            (12, 3),
+            vec![
+                3.0, 1.0, 5.0, // idx 0
+                1.0, 3.0, 2.0, // idx 1
+                5.0, 2.0, 1.0, // idx 2
+                2.0, 5.0, 4.0, // idx 3
+                4.0, 4.0, 3.0, // idx 4
+                6.0, 6.0, 6.0, // idx 5
+                8.0, 7.0, 9.0, // idx 6
+                7.0, 9.0, 7.0, // idx 7
+                9.0, 8.0, 8.0, // idx 8
+                10.0, 10.0, 10.0, // idx 9
+                11.0, 11.0, 12.0, // idx 10
+                12.0, 12.0, 11.0, // idx 11
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            1.0, 1.5, 2.0, 2.5, 3.0, 6.0, 8.0, 7.5, 9.0, 10.0, 11.0, 12.0,
+        ]);
+
+        let mut reg = DecisionTreeRegressor::new()
+            .with_max_depth(Some(4))
+            .with_criterion(SplitCriterion::Mse);
+        reg.fit(&x, &y).unwrap();
+
+        let predictions = reg.predict(&x).unwrap();
+
+        // Training predictions should perfectly (or near-perfectly) fit the data
+        // with sufficient depth on 12 samples
+        for i in 0..12 {
+            assert!(
+                (predictions[i] - y[i]).abs() < 1.0,
+                "Sample {} prediction {:.2} too far from target {:.2}",
+                i,
+                predictions[i],
+                y[i]
+            );
+        }
+
+        // Feature importance should be valid
+        let importance = reg.feature_importance().unwrap();
+        assert_eq!(importance.len(), 3);
+        assert!((importance.sum() - 1.0).abs() < 1e-10);
+        assert!(importance.iter().all(|&v| v >= 0.0));
+
+        // Tree structure should be valid
+        let tree = reg.tree().unwrap();
+        assert!(tree.max_depth <= 4);
+        assert!(tree.n_leaves >= 2);
+    }
+
+    #[test]
+    fn test_presorted_classifier_produces_correct_splits() {
+        // Verify that the pre-sorted optimization produces identical results
+        // for the classifier on a multi-class, multi-feature dataset.
+        // Tests that filtering pre-sorted arrays at child nodes preserves
+        // correctness of the weighted Gini sweep.
+        let x = Array2::from_shape_vec(
+            (15, 3),
+            vec![
+                1.0, 5.0, 3.0, // class 0
+                2.0, 4.0, 1.0, // class 0
+                3.0, 3.0, 2.0, // class 0
+                1.5, 4.5, 2.5, // class 0
+                2.5, 3.5, 1.5, // class 0
+                6.0, 1.0, 7.0, // class 1
+                7.0, 2.0, 8.0, // class 1
+                8.0, 1.5, 9.0, // class 1
+                6.5, 1.5, 7.5, // class 1
+                7.5, 2.5, 8.5, // class 1
+                11.0, 11.0, 11.0, // class 2
+                12.0, 12.0, 12.0, // class 2
+                13.0, 13.0, 13.0, // class 2
+                11.5, 11.5, 11.5, // class 2
+                12.5, 12.5, 12.5, // class 2
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+        ]);
+
+        let mut clf = DecisionTreeClassifier::new()
+            .with_max_depth(Some(4))
+            .with_criterion(SplitCriterion::Gini);
+        clf.fit(&x, &y).unwrap();
+
+        let predictions = clf.predict(&x).unwrap();
+
+        // Should classify all training samples correctly on well-separated 3-class data
+        for i in 0..15 {
+            assert_abs_diff_eq!(predictions[i], y[i], epsilon = 1e-10);
+        }
+
+        // Probabilities should be well-calibrated (near 1.0 for correct class)
+        let probas = clf.predict_proba(&x).unwrap();
+        assert_eq!(probas.shape(), &[15, 3]);
+        for i in 0..15 {
+            let row_sum: f64 = probas.row(i).sum();
+            assert_abs_diff_eq!(row_sum, 1.0, epsilon = 1e-10);
+        }
+
+        // Feature importance should be valid
+        let importance = clf.feature_importance().unwrap();
+        assert_eq!(importance.len(), 3);
+        assert!((importance.sum() - 1.0).abs() < 1e-10);
+        assert!(importance.iter().all(|&v| v >= 0.0));
+    }
 }

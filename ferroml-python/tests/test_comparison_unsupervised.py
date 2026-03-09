@@ -712,6 +712,108 @@ class TestTSNEComparison:
 
 
 # ===========================================================================
+# Barnes-Hut t-SNE
+# ===========================================================================
+
+class TestBarnesHutTSNE:
+    """Tests for Barnes-Hut t-SNE optimization."""
+
+    def test_barnes_hut_basic(self):
+        """Barnes-Hut t-SNE produces valid 2D embedding."""
+        from ferroml.decomposition import TSNE as FerroTSNE
+
+        np.random.seed(42)
+        X = np.random.randn(200, 10)
+        tsne = FerroTSNE(n_components=2, method="barnes_hut", theta=0.5, random_state=42)
+        embedding = tsne.fit_transform(X)
+        assert embedding.shape == (200, 2), f"Shape: {embedding.shape}"
+        assert np.all(np.isfinite(embedding)), "Embedding contains non-finite values"
+
+    def test_barnes_hut_vs_exact_quality(self):
+        """Barnes-Hut produces reasonable quality compared to exact."""
+        from ferroml.decomposition import TSNE as FerroTSNE
+
+        # Create data with clear structure
+        np.random.seed(42)
+        X = np.vstack([
+            np.random.randn(50, 5) + [5, 0, 0, 0, 0],
+            np.random.randn(50, 5) + [-5, 0, 0, 0, 0],
+        ])
+        labels = np.array([0] * 50 + [1] * 50)
+
+        tsne_bh = FerroTSNE(n_components=2, method="barnes_hut", theta=0.5,
+                            perplexity=20.0, random_state=42)
+        emb_bh = tsne_bh.fit_transform(X)
+
+        # Check that clusters are separated in the embedding
+        center0 = emb_bh[labels == 0].mean(axis=0)
+        center1 = emb_bh[labels == 1].mean(axis=0)
+        cluster_dist = np.linalg.norm(center0 - center1)
+        # Clusters should be separated
+        assert cluster_dist > 1.0, (
+            f"Cluster centroids too close: {cluster_dist:.4f}"
+        )
+
+    def test_barnes_hut_theta_parameter(self):
+        """Different theta values produce valid results."""
+        from ferroml.decomposition import TSNE as FerroTSNE
+
+        np.random.seed(42)
+        X = np.random.randn(100, 5)
+
+        for theta in [0.3, 0.5, 0.8]:
+            tsne = FerroTSNE(n_components=2, method="barnes_hut", theta=theta,
+                             random_state=42)
+            embedding = tsne.fit_transform(X)
+            assert embedding.shape == (100, 2), f"Shape for theta={theta}: {embedding.shape}"
+            assert np.all(np.isfinite(embedding)), f"Non-finite for theta={theta}"
+
+    def test_method_auto_selection(self):
+        """Auto method selection works."""
+        from ferroml.decomposition import TSNE as FerroTSNE
+
+        np.random.seed(42)
+        X = np.random.randn(100, 5)
+        tsne = FerroTSNE(n_components=2, method="auto", random_state=42)
+        embedding = tsne.fit_transform(X)
+        assert embedding.shape == (100, 2), f"Shape: {embedding.shape}"
+        assert np.all(np.isfinite(embedding)), "Non-finite values in auto embedding"
+
+    def test_exact_method_still_works(self):
+        """Explicit exact method still works."""
+        from ferroml.decomposition import TSNE as FerroTSNE
+
+        np.random.seed(42)
+        X = np.random.randn(50, 5)
+        tsne = FerroTSNE(n_components=2, method="exact", random_state=42)
+        embedding = tsne.fit_transform(X)
+        assert embedding.shape == (50, 2), f"Shape: {embedding.shape}"
+        assert np.all(np.isfinite(embedding)), "Non-finite values in exact embedding"
+
+    def test_barnes_hut_3d_raises(self):
+        """Barnes-Hut raises error for n_components != 2."""
+        from ferroml.decomposition import TSNE as FerroTSNE
+        import pytest
+
+        np.random.seed(42)
+        X = np.random.randn(100, 10)
+        tsne = FerroTSNE(n_components=3, method="barnes_hut", theta=0.5, random_state=42)
+        with pytest.raises(RuntimeError, match="Barnes-Hut.*only supports n_components=2"):
+            tsne.fit_transform(X)
+
+    def test_exact_3d(self):
+        """Exact method works for 3D output."""
+        from ferroml.decomposition import TSNE as FerroTSNE
+
+        np.random.seed(42)
+        X = np.random.randn(50, 5)
+        tsne = FerroTSNE(n_components=3, method="exact", random_state=42)
+        embedding = tsne.fit_transform(X)
+        assert embedding.shape == (50, 3), f"Shape: {embedding.shape}"
+        assert np.all(np.isfinite(embedding)), "Non-finite values in 3D embedding"
+
+
+# ===========================================================================
 # TruncatedSVD
 # ===========================================================================
 

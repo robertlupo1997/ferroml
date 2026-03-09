@@ -195,12 +195,54 @@ impl KMeans {
     }
 
     /// CPU assignment step: assign each point to nearest center.
+    ///
+    /// Uses the norm trick: ||x - c||² = ||x||² + ||c||² - 2·x·c
+    /// This pre-computes norms and uses fast dot products instead of
+    /// element-wise difference computation.
     fn cpu_assign(
         x: &Array2<f64>,
         centers: &Array2<f64>,
         n_clusters: usize,
         n_samples: usize,
     ) -> (Array1<i32>, f64) {
+        // Pre-compute ||c||² for each centroid
+        let center_norms_sq: Vec<f64> = (0..n_clusters)
+            .map(|k| {
+                let row = centers.row(k);
+                if let Some(s) = row.as_slice() {
+                    crate::linalg::dot_product(s, s)
+                } else {
+                    row.iter().map(|&v| v * v).sum()
+                }
+            })
+            .collect();
+
+        // Pre-compute ||x||² for each sample
+        let x_norms_sq: Vec<f64> = (0..n_samples)
+            .map(|i| {
+                let row = x.row(i);
+                if let Some(s) = row.as_slice() {
+                    crate::linalg::dot_product(s, s)
+                } else {
+                    row.iter().map(|&v| v * v).sum()
+                }
+            })
+            .collect();
+
+        // Helper to compute distance using norm trick
+        let compute_dist = |i: usize, k: usize| -> f64 {
+            let x_row = x.row(i);
+            let c_row = centers.row(k);
+            let dot = if let (Some(xs), Some(cs)) = (x_row.as_slice(), c_row.as_slice()) {
+                crate::linalg::dot_product(xs, cs)
+            } else {
+                x_row.iter().zip(c_row.iter()).map(|(&a, &b)| a * b).sum()
+            };
+            // ||x - c||² = ||x||² + ||c||² - 2·x·c
+            // Clamp to 0.0 to handle floating-point rounding
+            (x_norms_sq[i] + center_norms_sq[k] - 2.0 * dot).max(0.0)
+        };
+
         #[cfg(feature = "parallel")]
         {
             use rayon::prelude::*;
@@ -210,7 +252,7 @@ impl KMeans {
                     let mut min_dist = f64::MAX;
                     let mut min_idx = 0i32;
                     for k in 0..n_clusters {
-                        let dist = squared_euclidean(&x.row(i), &centers.row(k));
+                        let dist = compute_dist(i, k);
                         if dist < min_dist {
                             min_dist = dist;
                             min_idx = k as i32;
@@ -235,7 +277,7 @@ impl KMeans {
                 let mut min_dist = f64::MAX;
                 let mut min_idx = 0;
                 for k in 0..n_clusters {
-                    let dist = squared_euclidean(&x.row(i), &centers.row(k));
+                    let dist = compute_dist(i, k);
                     if dist < min_dist {
                         min_dist = dist;
                         min_idx = k;
@@ -835,5 +877,72 @@ mod tests {
         for s in stability.iter() {
             assert!(*s > 0.7);
         }
+    }
+
+    #[test]
+    fn test_norm_trick_matches_direct_computation() {
+        // Verify that the norm trick (||x||² + ||c||² - 2·x·c) produces the same
+        // assignments as direct squared Euclidean distance computation
+        let x = Array2::from_shape_vec(
+            (8, 3),
+            vec![
+                1.0, 2.0, 3.0, 1.5, 2.5, 3.5, 2.0, 1.0, 0.5, 10.0, 10.0, 10.0, 10.5, 10.5, 10.5,
+                11.0, 9.5, 10.0, 5.0, 5.0, 5.0, 5.5, 4.5, 5.5,
+            ],
+        )
+        .unwrap();
+
+        let centers =
+            Array2::from_shape_vec((3, 3), vec![1.5, 1.8, 2.3, 10.2, 10.0, 10.2, 5.2, 4.8, 5.2])
+                .unwrap();
+
+        let (labels, inertia) = KMeans::cpu_assign(&x, &centers, 3, 8);
+
+        // Compute expected assignments using direct squared Euclidean
+        for i in 0..8 {
+            let mut min_dist = f64::MAX;
+            let mut min_idx = 0i32;
+            for k in 0..3 {
+                let dist: f64 = x
+                    .row(i)
+                    .iter()
+                    .zip(centers.row(k).iter())
+                    .map(|(&a, &b)| (a - b).powi(2))
+                    .sum();
+                if dist < min_dist {
+                    min_dist = dist;
+                    min_idx = k as i32;
+                }
+            }
+            assert_eq!(labels[i], min_idx, "Label mismatch at sample {}", i);
+        }
+
+        // Inertia should be positive
+        assert!(inertia > 0.0);
+    }
+
+    #[test]
+    fn test_norm_trick_no_negative_distances() {
+        // When a point exactly matches a centroid, distance must be 0 (not negative)
+        let x = Array2::from_shape_vec(
+            (4, 2),
+            vec![
+                1.0, 2.0, 3.0, 4.0, 1.0, 2.0, // duplicate of centroid 0
+                3.0, 4.0, // duplicate of centroid 1
+            ],
+        )
+        .unwrap();
+
+        let centers = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
+
+        let (labels, inertia) = KMeans::cpu_assign(&x, &centers, 2, 4);
+
+        // Points matching centroids should have 0 distance contribution
+        assert_eq!(labels[0], 0);
+        assert_eq!(labels[1], 1);
+        assert_eq!(labels[2], 0);
+        assert_eq!(labels[3], 1);
+        // Inertia should be exactly 0 since all points lie on centroids
+        assert!((inertia - 0.0).abs() < 1e-10);
     }
 }

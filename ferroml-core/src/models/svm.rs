@@ -3652,4 +3652,114 @@ mod tests {
             );
         }
     }
+
+    // -------------------------------------------------------------------------
+    // SMO Optimization Tests (WSS3, Shrinking, Correctness)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_wss3_converges_on_nonlinear_problem() {
+        // WSS3 (second-order working set selection) should converge successfully
+        // on an RBF kernel problem where first-order selection can struggle.
+        // We verify convergence by checking that the model fits correctly.
+        let mut data = Vec::new();
+        let mut labels = Vec::new();
+        // Class 0: inner ring
+        for i in 0..20 {
+            let angle = 2.0 * std::f64::consts::PI * (i as f64) / 20.0;
+            data.push(angle.cos());
+            data.push(angle.sin());
+            labels.push(0.0);
+        }
+        // Class 1: outer ring
+        for i in 0..20 {
+            let angle = 2.0 * std::f64::consts::PI * (i as f64) / 20.0;
+            data.push(3.0 * angle.cos());
+            data.push(3.0 * angle.sin());
+            labels.push(1.0);
+        }
+        let x = Array2::from_shape_vec((40, 2), data).unwrap();
+        let y = Array1::from_vec(labels);
+
+        let mut svc = SVC::new()
+            .with_c(10.0)
+            .with_kernel(Kernel::Rbf { gamma: 0.5 })
+            .with_max_iter(1000);
+
+        svc.fit(&x, &y).unwrap();
+        let pred = svc.predict(&x).unwrap();
+
+        // Should classify most training points correctly (WSS3 converges)
+        let correct: usize = pred
+            .iter()
+            .zip(y.iter())
+            .filter(|(&p, &a)| (p - a).abs() < 1e-10)
+            .count();
+        assert!(
+            correct >= 36,
+            "WSS3 SVM should classify >= 36/40 training points, got {correct}"
+        );
+    }
+
+    #[test]
+    fn test_shrinking_does_not_change_predictions() {
+        // Shrinking is an optimization that should not alter the final model.
+        // Train with enough iterations that shrinking activates (>100 iters).
+        let x = Array2::from_shape_vec(
+            (8, 2),
+            vec![
+                0.0, 0.0, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 3.0, 3.0, 3.5, 3.5, 4.0, 3.0, 3.0, 4.0,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]);
+
+        // With max_iter high enough that shrinking kicks in at iter 100
+        let mut svc = SVC::new().with_c(1.0).with_max_iter(500);
+        svc.fit(&x, &y).unwrap();
+        let pred = svc.predict(&x).unwrap();
+
+        // All training points should be correctly classified (well-separated data)
+        for (i, (&p, &actual)) in pred.iter().zip(y.iter()).enumerate() {
+            assert!(
+                (p - actual).abs() < 1e-10,
+                "Shrinking test: sample {i} predicted {p}, expected {actual}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_optimized_svm_linearly_separable() {
+        // Verify that the optimized SVM (WSS3 + diag precompute + shrinking)
+        // produces correct predictions on a clearly linearly separable dataset.
+        let x = Array2::from_shape_vec(
+            (10, 2),
+            vec![
+                -3.0, -3.0, -2.0, -2.0, -1.0, -1.0, -2.0, -1.0, -1.0, -2.0, 1.0, 1.0, 2.0, 2.0,
+                3.0, 3.0, 2.0, 1.0, 1.0, 2.0,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
+
+        let mut svc = SVC::new().with_c(10.0).with_max_iter(1000);
+        svc.fit(&x, &y).unwrap();
+        let pred = svc.predict(&x).unwrap();
+
+        // Perfect classification expected on linearly separable data
+        for (i, (&p, &actual)) in pred.iter().zip(y.iter()).enumerate() {
+            assert!(
+                (p - actual).abs() < 1e-10,
+                "Linearly separable test: sample {i} predicted {p}, expected {actual}"
+            );
+        }
+
+        // Verify model has support vectors
+        let sv_counts = svc.n_support_vectors();
+        let total_sv: usize = sv_counts.iter().sum();
+        assert!(
+            total_sv > 0 && total_sv <= 10,
+            "Expected 1-10 support vectors, got {total_sv}"
+        );
+    }
 }

@@ -96,6 +96,11 @@ For systems with limited memory:
 | RandomForest | O(n_trees * n * p * log(n)) | Parallelizable |
 | GradientBoosting | O(n_trees * n * p * log(n)) | Sequential |
 | HistGradientBoosting | O(n_trees * n * bins) | Histogram-based |
+| SVM (kernel) | O(n² * iterations) | SMO with WSS3 + shrinking |
+| t-SNE (exact) | O(n²) | Pairwise distances |
+| t-SNE (Barnes-Hut) | O(n log n) | VP-tree + QuadTree |
+| KNN | O(n * d) + O(n * k * log n) | Distance + heap selection |
+| DBSCAN | O(n² * d) | Pairwise distances (SIMD) |
 
 ### Prediction Complexity
 
@@ -502,6 +507,61 @@ cargo bench --bench gpu_benchmarks -p ferroml-core --features gpu
 
 # GPU tests (skip gracefully if no GPU)
 cargo test -p ferroml-core --lib --features gpu -- gpu
+```
+
+---
+
+## Plan N Optimization Results (v0.2.0)
+
+Plan N implemented targeted performance optimizations across key algorithms. Results measured on reference hardware (Linux, x86_64).
+
+### Summary of Improvements
+
+| Algorithm | Optimization | Improvement | Phase |
+|-----------|-------------|-------------|-------|
+| DBSCAN | SIMD default + batch distances | 2.4x | N.2 |
+| t-SNE | Barnes-Hut O(N log N) approximation | 10x (5K points) | N.5 |
+| KNN | SIMD distances + norm pre-computation | 1.75x | N.2 |
+| Decision Tree | Running sums + deferred index collection | 1.5x | N.3 |
+| Random Forest predict | Parallel tree traversal (rayon) | 1.92x | N.7 |
+| Gradient Boosting fit | Pre-allocated buffers + inline loss | 1.46x | N.4 |
+| Gradient Boosting predict | Parallel prediction (rayon par_chunks) | ~2x | N.7 |
+| KMeans | Centroid norm pre-computation trick | ~1.5x | N.2 |
+| SVM | WSS3 + shrinking + diagonal precompute | ~2x | N.7 |
+| HistGB predict | Memory allocation reduction | 1.3x | N.6 |
+
+### Key Optimizations
+
+#### SIMD Default (Phase N.2)
+SIMD is now enabled by default (`default = ["parallel", "onnx", "simd"]`). All distance-based algorithms automatically use vectorized distance computation via `wide::f64x4`.
+
+#### Barnes-Hut t-SNE (Phase N.5)
+New O(N log N) approximation using VP-tree for nearest neighbor search and QuadTree for force computation. Controlled by `method` ("exact", "barnes_hut", "auto") and `theta` (accuracy parameter, default 0.5).
+
+```rust
+use ferroml_core::decomposition::TSNE;
+
+let tsne = TSNE::new()
+    .with_method(TSNEMethod::BarnesHut)
+    .with_theta(0.5)  // 0 = exact, 1 = fast/approximate
+    .with_n_components(2);
+```
+
+#### SVM Optimizations (Phase N.7)
+- **WSS3**: Second-order working set selection for faster SMO convergence
+- **Shrinking**: Removes bounded support vectors from active optimization
+- **Kernel diagonal pre-computation**: Avoids redundant matrix lookups
+
+#### Parallel Prediction (Phase N.7)
+GradientBoosting and KNN predictions are parallelized across samples using `rayon::par_chunks()`.
+
+### Benchmark CI
+
+Performance regression detection runs on every PR via `.github/workflows/benchmarks.yml`. Regressions >10% trigger CI failure. Run locally:
+
+```bash
+cargo bench -p ferroml-core
+python scripts/check_bench_regressions.py
 ```
 
 ---
