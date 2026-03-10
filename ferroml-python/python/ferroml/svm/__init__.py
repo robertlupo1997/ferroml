@@ -16,7 +16,7 @@ SVC
     sigmoid, linear); uses the SMO algorithm for training.
 SVR
     Support Vector Regression with kernel methods (RBF, poly,
-    sigmoid, linear); supports epsilon-insensitive and Huber loss.
+    sigmoid, linear); supports epsilon-insensitive loss.
 
 Example
 -------

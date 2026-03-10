@@ -351,3 +351,72 @@ class TestSVR:
         preds_high = model_high.predict(X)
         # Predictions should differ
         assert not np.allclose(preds_low, preds_high, atol=1e-3)
+
+
+# =============================================================================
+# P.2 tests: SVC custom class weights
+# =============================================================================
+
+class TestSVCCustomClassWeight:
+    def test_svc_custom_class_weight_dict(self):
+        X, y = make_binary_classification_data()
+        model = SVC(class_weight={0.0: 1.0, 1.0: 10.0})
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (X.shape[0],)
+
+    def test_svc_custom_class_weight_invalid(self):
+        with pytest.raises(ValueError):
+            SVC(class_weight=42)
+
+
+# =============================================================================
+# P.3 tests: SVC/SVR decision_function
+# =============================================================================
+
+class TestSVCDecisionFunction:
+    def test_svc_decision_function_binary_shape(self):
+        X, y = make_binary_classification_data()
+        model = SVC(multiclass="ovo")
+        model.fit(X, y)
+        decisions = model.decision_function(X)
+        # Binary OvO: 1 classifier
+        assert decisions.shape == (X.shape[0], 1)
+
+    def test_svc_decision_function_multiclass_ovo_shape(self):
+        X, y = make_multiclass_data()
+        model = SVC(multiclass="ovo")
+        model.fit(X, y)
+        decisions = model.decision_function(X)
+        n_classes = 3
+        n_pairs = n_classes * (n_classes - 1) // 2
+        assert decisions.shape == (X.shape[0], n_pairs)
+
+    def test_svc_decision_function_multiclass_ovr_shape(self):
+        X, y = make_multiclass_data()
+        model = SVC(multiclass="ovr")
+        model.fit(X, y)
+        decisions = model.decision_function(X)
+        assert decisions.shape == (X.shape[0], 3)
+
+    def test_svc_decision_function_unfitted(self):
+        model = SVC()
+        X = np.random.randn(10, 4)
+        with pytest.raises(RuntimeError):
+            model.decision_function(X)
+
+    def test_svr_decision_function_shape(self):
+        X, y = make_regression_data()
+        model = SVR()
+        model.fit(X, y)
+        decisions = model.decision_function(X)
+        assert decisions.shape == (X.shape[0],)
+        # Should match predict
+        preds = model.predict(X)
+        np.testing.assert_allclose(decisions, preds, atol=1e-10)
+
+    def test_svr_decision_function_unfitted(self):
+        model = SVR()
+        X = np.random.randn(10, 4)
+        with pytest.raises(RuntimeError):
+            model.decision_function(X)

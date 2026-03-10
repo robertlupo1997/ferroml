@@ -97,7 +97,7 @@ class TestLinearSVC:
     def test_repr(self):
         model = LinearSVC(c=2.0, max_iter=200)
         r = repr(model)
-        assert r == "LinearSVC(C=2, max_iter=200)"
+        assert r == "LinearSVC(C=2, loss='squared_hinge', max_iter=200)"
 
     def test_predict_unfitted_raises(self):
         model = LinearSVC()
@@ -182,7 +182,7 @@ class TestLinearSVR:
     def test_repr(self):
         model = LinearSVR(c=0.5, epsilon=0.1)
         r = repr(model)
-        assert r == "LinearSVR(C=0.5, epsilon=0.1)"
+        assert r == "LinearSVR(C=0.5, epsilon=0.1, loss='epsilon_insensitive')"
 
     def test_prediction_quality(self):
         """On linear data, predictions should correlate well."""
@@ -192,6 +192,122 @@ class TestLinearSVR:
         preds = model.predict(X)
         correlation = np.corrcoef(y, preds)[0, 1]
         assert correlation > 0.8
+
+
+# =============================================================================
+# P.1 tests: LinearSVC/LinearSVR loss parameter
+# =============================================================================
+
+class TestLinearSVCLoss:
+    def test_linear_svc_loss_hinge(self):
+        X, y = make_binary_classification_data()
+        model = LinearSVC(loss="hinge")
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (X.shape[0],)
+
+    def test_linear_svc_loss_squared_hinge(self):
+        X, y = make_binary_classification_data()
+        model = LinearSVC(loss="squared_hinge")
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (X.shape[0],)
+
+    def test_linear_svc_loss_invalid(self):
+        with pytest.raises(ValueError, match="Unknown loss"):
+            LinearSVC(loss="invalid")
+
+    def test_linear_svc_loss_in_repr(self):
+        model = LinearSVC(loss="hinge")
+        r = repr(model)
+        assert "loss='hinge'" in r
+
+
+class TestLinearSVRLoss:
+    def test_linear_svr_loss_epsilon_insensitive(self):
+        X, y = make_regression_data()
+        model = LinearSVR(loss="epsilon_insensitive")
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (X.shape[0],)
+
+    def test_linear_svr_loss_squared(self):
+        X, y = make_regression_data()
+        model = LinearSVR(loss="squared_epsilon_insensitive")
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (X.shape[0],)
+
+    def test_linear_svr_loss_invalid(self):
+        with pytest.raises(ValueError, match="Unknown loss"):
+            LinearSVR(loss="invalid")
+
+    def test_linear_svr_loss_in_repr(self):
+        model = LinearSVR(loss="squared_epsilon_insensitive")
+        r = repr(model)
+        assert "loss='squared_epsilon_insensitive'" in r
+
+
+# =============================================================================
+# P.2 tests: LinearSVC class weights
+# =============================================================================
+
+class TestLinearSVCClassWeight:
+    def test_linear_svc_class_weight_balanced(self):
+        X, y = make_binary_classification_data()
+        model = LinearSVC(class_weight="balanced")
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (X.shape[0],)
+
+    def test_linear_svc_class_weight_dict(self):
+        X, y = make_binary_classification_data()
+        model = LinearSVC(class_weight={0.0: 1.0, 1.0: 10.0})
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (X.shape[0],)
+
+    def test_linear_svc_class_weight_invalid(self):
+        with pytest.raises(ValueError):
+            LinearSVC(class_weight="invalid")
+
+
+# =============================================================================
+# P.3 tests: decision_function
+# =============================================================================
+
+class TestLinearSVCDecisionFunction:
+    def test_linear_svc_decision_function_shape(self):
+        X, y = make_binary_classification_data()
+        model = LinearSVC()
+        model.fit(X, y)
+        decisions = model.decision_function(X)
+        # Binary: 1 classifier
+        assert decisions.shape == (X.shape[0], 1)
+
+    def test_linear_svc_decision_function_unfitted(self):
+        model = LinearSVC()
+        X = np.random.randn(10, 5)
+        with pytest.raises(RuntimeError):
+            model.decision_function(X)
+
+
+class TestLinearSVRDecisionFunction:
+    def test_linear_svr_decision_function_shape(self):
+        X, y = make_regression_data()
+        model = LinearSVR()
+        model.fit(X, y)
+        decisions = model.decision_function(X)
+        assert decisions.shape == (X.shape[0],)
+        # Should match predict output
+        preds = model.predict(X)
+        np.testing.assert_allclose(decisions, preds, atol=1e-10)
+
+    def test_linear_svr_decision_function_unfitted(self):
+        model = LinearSVR()
+        X = np.random.randn(10, 5)
+        with pytest.raises(RuntimeError):
+            model.decision_function(X)
 
 
 # =============================================================================

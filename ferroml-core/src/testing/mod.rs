@@ -81,6 +81,7 @@ pub mod regression;
 pub mod serialization;
 #[cfg(feature = "sparse")]
 pub mod sparse_tests;
+pub mod svm;
 pub mod transformer;
 pub mod utils;
 pub mod weights;

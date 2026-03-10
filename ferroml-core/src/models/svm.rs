@@ -866,6 +866,24 @@ impl SVC {
             .collect()
     }
 
+    /// Compute decision function values for each sample.
+    ///
+    /// For OvO: returns Array2 shape (n_samples, n_classifiers) where
+    ///   n_classifiers = n_classes * (n_classes - 1) / 2
+    /// For OvR: returns Array2 shape (n_samples, n_classes)
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.classes, "decision_function")?;
+        validate_predict_input(x, self.n_features.unwrap())?;
+        let n_samples = x.nrows();
+        let n_classifiers = self.classifiers.len();
+        let mut decisions = Array2::zeros((n_samples, n_classifiers));
+        for (clf_idx, clf) in self.classifiers.iter().enumerate() {
+            let d = clf.decision_function(x)?;
+            decisions.column_mut(clf_idx).assign(&d);
+        }
+        Ok(decisions)
+    }
+
     /// Compute class weights from training data.
     fn compute_class_weights(&mut self, y: &Array1<f64>) {
         let classes = self.classes.as_ref().unwrap();
@@ -1415,6 +1433,11 @@ impl SVR {
         self.intercept
     }
 
+    /// Compute decision function values (same as predict for regression).
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+        self.predict(x)
+    }
+
     /// Compute full kernel matrix.
     ///
     /// Optimized: uses array slices directly instead of allocating Vecs per pair.
@@ -1886,6 +1909,25 @@ impl LinearSVC {
     #[must_use]
     pub fn intercepts(&self) -> Option<&Vec<f64>> {
         self.intercepts.as_ref()
+    }
+
+    /// Compute decision function values.
+    ///
+    /// Returns Array2 shape (n_samples, n_classifiers) where n_classifiers is 1 for
+    /// binary classification and n_classes for multiclass (one-vs-rest).
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.classes, "decision_function")?;
+        validate_predict_input(x, self.n_features.unwrap())?;
+        let weights = self.weights.as_ref().unwrap();
+        let intercepts = self.intercepts.as_ref().unwrap();
+        let n_samples = x.nrows();
+        let n_classifiers = weights.len();
+        let mut decisions = Array2::zeros((n_samples, n_classifiers));
+        for (clf_idx, (w, &b)) in weights.iter().zip(intercepts.iter()).enumerate() {
+            let col = self.decision_function_binary(x, w, b);
+            decisions.column_mut(clf_idx).assign(&col);
+        }
+        Ok(decisions)
     }
 
     /// Compute class weights from training data.
@@ -2415,6 +2457,11 @@ impl LinearSVR {
     #[must_use]
     pub fn intercept(&self) -> f64 {
         self.intercept
+    }
+
+    /// Compute decision function values (same as predict for regression).
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+        self.predict(x)
     }
 }
 

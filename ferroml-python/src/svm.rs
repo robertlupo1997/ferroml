@@ -8,7 +8,8 @@
 
 use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
 use ferroml_core::models::svm::{
-    ClassWeight, Kernel, LinearSVC, LinearSVR, MulticlassStrategy, SVC, SVR,
+    ClassWeight, Kernel, LinearSVC, LinearSVCLoss, LinearSVR, LinearSVRLoss, MulticlassStrategy,
+    SVC, SVR,
 };
 use ferroml_core::models::{Model, ProbabilisticModel};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
@@ -34,19 +35,41 @@ use pyo3::prelude::*;
 #[pyclass(name = "LinearSVC", module = "ferroml.svm")]
 pub struct PyLinearSVC {
     inner: LinearSVC,
+    loss: String,
 }
 
 #[pymethods]
 impl PyLinearSVC {
     #[new]
-    #[pyo3(signature = (c=1.0, max_iter=1000, tol=1e-4))]
-    fn new(c: f64, max_iter: usize, tol: f64) -> Self {
-        Self {
+    #[pyo3(signature = (c=1.0, loss="squared_hinge", max_iter=1000, tol=1e-4, class_weight=None))]
+    fn new(
+        c: f64,
+        loss: &str,
+        max_iter: usize,
+        tol: f64,
+        class_weight: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let parsed_loss = match loss {
+            "hinge" => LinearSVCLoss::Hinge,
+            "squared_hinge" => LinearSVCLoss::SquaredHinge,
+            other => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown loss '{}'. Supported: 'hinge', 'squared_hinge'",
+                    other
+                )));
+            }
+        };
+        let cw = parse_class_weight(class_weight)?;
+
+        Ok(Self {
             inner: LinearSVC::new()
                 .with_c(c)
+                .with_loss(parsed_loss)
                 .with_max_iter(max_iter)
-                .with_tol(tol),
-        }
+                .with_tol(tol)
+                .with_class_weight(cw),
+            loss: loss.to_string(),
+        })
     }
 
     /// Fit the model to training data.
@@ -104,10 +127,24 @@ impl PyLinearSVC {
         Ok(predictions.into_pyarray(py))
     }
 
+    /// Compute decision function values.
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "LinearSVC(C={}, max_iter={})",
-            self.inner.c, self.inner.max_iter
+            "LinearSVC(C={}, loss='{}', max_iter={})",
+            self.inner.c, self.loss, self.inner.max_iter
         )
     }
 }
@@ -135,20 +172,34 @@ impl PyLinearSVC {
 #[pyclass(name = "LinearSVR", module = "ferroml.svm")]
 pub struct PyLinearSVR {
     inner: LinearSVR,
+    loss: String,
 }
 
 #[pymethods]
 impl PyLinearSVR {
     #[new]
-    #[pyo3(signature = (c=1.0, epsilon=0.0, max_iter=1000, tol=1e-4))]
-    fn new(c: f64, epsilon: f64, max_iter: usize, tol: f64) -> Self {
-        Self {
+    #[pyo3(signature = (c=1.0, epsilon=0.0, loss="epsilon_insensitive", max_iter=1000, tol=1e-4))]
+    fn new(c: f64, epsilon: f64, loss: &str, max_iter: usize, tol: f64) -> PyResult<Self> {
+        let parsed_loss = match loss {
+            "epsilon_insensitive" => LinearSVRLoss::EpsilonInsensitive,
+            "squared_epsilon_insensitive" => LinearSVRLoss::SquaredEpsilonInsensitive,
+            other => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown loss '{}'. Supported: 'epsilon_insensitive', 'squared_epsilon_insensitive'",
+                    other
+                )));
+            }
+        };
+
+        Ok(Self {
             inner: LinearSVR::new()
                 .with_c(c)
                 .with_epsilon(epsilon)
+                .with_loss(parsed_loss)
                 .with_max_iter(max_iter)
                 .with_tol(tol),
-        }
+            loss: loss.to_string(),
+        })
     }
 
     /// Fit the model to training data.
@@ -205,6 +256,20 @@ impl PyLinearSVR {
         Ok(predictions.into_pyarray(py))
     }
 
+    /// Compute decision function values (same as predict for regression).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     /// Coefficient vector.
     #[getter]
     fn coef_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -225,8 +290,8 @@ impl PyLinearSVR {
 
     fn __repr__(&self) -> String {
         format!(
-            "LinearSVR(C={}, epsilon={})",
-            self.inner.c, self.inner.epsilon
+            "LinearSVR(C={}, epsilon={}, loss='{}')",
+            self.inner.c, self.inner.epsilon, self.loss
         )
     }
 }
@@ -284,6 +349,48 @@ fn parse_multiclass_strategy(strategy: &str) -> PyResult<MulticlassStrategy> {
 }
 
 // =============================================================================
+// Class weight parsing helper
+// =============================================================================
+
+/// Parse a class_weight argument: None, "balanced", or {class: weight} dict.
+fn parse_class_weight(class_weight: Option<&Bound<'_, PyAny>>) -> PyResult<ClassWeight> {
+    match class_weight {
+        None => Ok(ClassWeight::Uniform),
+        Some(ob) => {
+            if let Ok(s) = ob.extract::<String>() {
+                match s.as_str() {
+                    "balanced" => Ok(ClassWeight::Balanced),
+                    other => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Unknown class_weight '{}'. Supported: None, 'balanced', or dict",
+                        other
+                    ))),
+                }
+            } else if let Ok(dict) = ob.downcast::<pyo3::types::PyDict>() {
+                let mut weights = Vec::new();
+                for (key, value) in dict.iter() {
+                    let k: f64 = key.extract().map_err(|_| {
+                        PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                            "class_weight dict keys must be floats",
+                        )
+                    })?;
+                    let v: f64 = value.extract().map_err(|_| {
+                        PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                            "class_weight dict values must be floats",
+                        )
+                    })?;
+                    weights.push((k, v));
+                }
+                Ok(ClassWeight::Custom(weights))
+            } else {
+                Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "class_weight must be None, 'balanced', or a dict {class: weight}",
+                ))
+            }
+        }
+    }
+}
+
+// =============================================================================
 // SVC (Kernel Support Vector Classification)
 // =============================================================================
 
@@ -312,8 +419,8 @@ fn parse_multiclass_strategy(strategy: &str) -> PyResult<MulticlassStrategy> {
 ///     Whether to enable probability estimates.
 /// multiclass : str, optional (default="ovo")
 ///     Multiclass strategy: "ovo" (one-vs-one) or "ovr" (one-vs-rest).
-/// class_weight : str or None, optional (default=None)
-///     Class weight strategy: None (uniform) or "balanced".
+/// class_weight : str, dict, or None, optional (default=None)
+///     Class weight strategy: None (uniform), "balanced", or dict {class: weight}.
 #[pyclass(name = "SVC", module = "ferroml.svm")]
 pub struct PySVC {
     inner: SVC,
@@ -334,20 +441,11 @@ impl PySVC {
         max_iter: usize,
         probability: bool,
         multiclass: &str,
-        class_weight: Option<&str>,
+        class_weight: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let kernel_enum = parse_kernel(kernel, gamma, degree, coef0)?;
         let strategy = parse_multiclass_strategy(multiclass)?;
-        let cw = match class_weight {
-            Some("balanced") => ClassWeight::Balanced,
-            Some(other) => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Unknown class_weight '{}'. Supported: None, 'balanced'",
-                    other
-                )));
-            }
-            None => ClassWeight::Uniform,
-        };
+        let cw = parse_class_weight(class_weight)?;
 
         Ok(Self {
             inner: SVC::new()
@@ -443,6 +541,20 @@ impl PySVC {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(probas.into_pyarray(py))
+    }
+
+    /// Compute decision function values.
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
     }
 
     /// Number of support vectors per binary classifier.
@@ -583,6 +695,20 @@ impl PySVR {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(predictions.into_pyarray(py))
+    }
+
+    /// Compute decision function values (same as predict for regression).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
     }
 
     /// Number of support vectors.
