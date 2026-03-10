@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from ferroml.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
+from ferroml.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB
 
 
 # ---------------------------------------------------------------------------
@@ -347,3 +347,130 @@ class TestBernoulliNB:
         model = BernoulliNB()
         result = model.fit(X, y)
         assert result is model
+
+
+# ---------------------------------------------------------------------------
+# CategoricalNB tests
+# ---------------------------------------------------------------------------
+
+class TestCategoricalNB:
+    def test_fit_predict_basic(self):
+        # Categorical features encoded as integers (0, 1, 2)
+        X = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0],
+                       [1.0, 1.0], [2.0, 0.0], [2.0, 1.0]])
+        y = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
+        model = CategoricalNB()
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (6,)
+        assert np.all(np.isin(preds, [0.0, 1.0]))
+
+    def test_predict_proba_sums_to_one(self):
+        X = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]])
+        y = np.array([0.0, 0.0, 1.0, 1.0])
+        model = CategoricalNB()
+        model.fit(X, y)
+        probas = model.predict_proba(X)
+        assert probas.shape == (4, 2)
+        np.testing.assert_allclose(probas.sum(axis=1), 1.0, atol=1e-10)
+
+    def test_predict_proba_values_in_range(self):
+        X = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]])
+        y = np.array([0.0, 0.0, 1.0, 1.0])
+        model = CategoricalNB()
+        model.fit(X, y)
+        probas = model.predict_proba(X)
+        assert np.all(probas >= 0.0)
+        assert np.all(probas <= 1.0)
+
+    def test_classes_getter(self):
+        X = np.array([[0.0], [1.0], [0.0], [1.0]])
+        y = np.array([0.0, 0.0, 1.0, 1.0])
+        model = CategoricalNB()
+        model.fit(X, y)
+        classes = model.classes_
+        np.testing.assert_array_equal(classes, [0.0, 1.0])
+
+    def test_class_count(self):
+        X = np.array([[0.0], [1.0], [0.0], [1.0], [0.0]])
+        y = np.array([0.0, 0.0, 0.0, 1.0, 1.0])
+        model = CategoricalNB()
+        model.fit(X, y)
+        counts = model.class_count_
+        np.testing.assert_array_equal(counts, [3.0, 2.0])
+
+    def test_class_log_prior(self):
+        X = np.array([[0.0], [1.0], [0.0], [1.0]])
+        y = np.array([0.0, 0.0, 1.0, 1.0])
+        model = CategoricalNB()
+        model.fit(X, y)
+        log_prior = model.class_log_prior_
+        # Equal class balance => equal priors
+        np.testing.assert_allclose(log_prior[0], log_prior[1], atol=1e-10)
+
+    def test_alpha_smoothing(self):
+        X = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]])
+        y = np.array([0.0, 0.0, 1.0, 1.0])
+        model_default = CategoricalNB(alpha=1.0)
+        model_default.fit(X, y)
+        model_small = CategoricalNB(alpha=0.01)
+        model_small.fit(X, y)
+        # Both should produce valid probabilities
+        p1 = model_default.predict_proba(X)
+        p2 = model_small.predict_proba(X)
+        np.testing.assert_allclose(p1.sum(axis=1), 1.0, atol=1e-10)
+        np.testing.assert_allclose(p2.sum(axis=1), 1.0, atol=1e-10)
+
+    def test_fit_prior_false(self):
+        X = np.array([[0.0], [1.0], [0.0], [0.0], [0.0]])
+        y = np.array([0.0, 0.0, 0.0, 0.0, 1.0])
+        model = CategoricalNB(fit_prior=False)
+        model.fit(X, y)
+        # With fit_prior=False, log priors should be uniform
+        log_prior = model.class_log_prior_
+        np.testing.assert_allclose(log_prior[0], log_prior[1], atol=1e-10)
+
+    def test_multiclass(self):
+        X = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0],
+                       [1.0, 1.0], [2.0, 0.0], [2.0, 1.0]])
+        y = np.array([0.0, 0.0, 1.0, 1.0, 2.0, 2.0])
+        model = CategoricalNB()
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (6,)
+        probas = model.predict_proba(X)
+        assert probas.shape == (6, 3)
+        np.testing.assert_allclose(probas.sum(axis=1), 1.0, atol=1e-10)
+
+    def test_partial_fit(self):
+        X1 = np.array([[0.0, 0.0], [0.0, 1.0]])
+        y1 = np.array([0.0, 0.0])
+        X2 = np.array([[1.0, 0.0], [1.0, 1.0]])
+        y2 = np.array([1.0, 1.0])
+        model = CategoricalNB()
+        model.partial_fit(X1, y1, classes=[0.0, 1.0])
+        model.partial_fit(X2, y2)
+        preds = model.predict(np.vstack([X1, X2]))
+        assert preds.shape == (4,)
+
+    def test_repr(self):
+        model = CategoricalNB(alpha=0.5, fit_prior=False)
+        r = repr(model)
+        assert "CategoricalNB" in r
+        assert "0.5" in r
+
+    def test_fit_returns_self(self):
+        X = np.array([[0.0, 1.0], [1.0, 0.0]])
+        y = np.array([0.0, 1.0])
+        model = CategoricalNB()
+        result = model.fit(X, y)
+        assert result is model
+
+    def test_perfect_separation(self):
+        # Feature 0 perfectly separates classes
+        X = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]])
+        y = np.array([0.0, 0.0, 1.0, 1.0])
+        model = CategoricalNB()
+        model.fit(X, y)
+        preds = model.predict(X)
+        np.testing.assert_array_equal(preds, y)

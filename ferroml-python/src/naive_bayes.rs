@@ -624,6 +624,7 @@ impl PyCategoricalNB {
     /// -------
     /// self : CategoricalNB
     ///     Updated estimator.
+    #[pyo3(signature = (x, y, classes=None))]
     fn partial_fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'py>,

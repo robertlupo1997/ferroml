@@ -6,6 +6,7 @@ import pytest
 from ferroml.clustering import (
     KMeans,
     DBSCAN,
+    HDBSCAN,
     silhouette_score,
     silhouette_samples,
     calinski_harabasz_score,
@@ -482,3 +483,106 @@ class TestClusteringMetrics:
         assert np.isfinite(silhouette_score(blob_data, labels))
         assert np.isfinite(calinski_harabasz_score(blob_data, labels))
         assert np.isfinite(davies_bouldin_score(blob_data, labels))
+
+
+# ---------------------------------------------------------------------------
+# HDBSCAN tests
+# ---------------------------------------------------------------------------
+
+
+class TestHDBSCAN:
+    def test_fit_basic(self, blob_data):
+        model = HDBSCAN(min_cluster_size=5)
+        model.fit(blob_data)
+        labels = model.labels_
+        assert labels.shape == (120,)
+        # Should find at least 2 clusters on well-separated blobs
+        n_clusters = len(set(labels) - {-1})
+        assert n_clusters >= 2
+
+    def test_fit_predict(self, blob_data):
+        model = HDBSCAN(min_cluster_size=5)
+        labels = model.fit_predict(blob_data)
+        assert labels.shape == (120,)
+        assert labels.dtype == np.int32
+
+    def test_labels_match_fit_predict(self, blob_data):
+        model = HDBSCAN(min_cluster_size=5)
+        labels_fp = model.fit_predict(blob_data)
+        labels_attr = model.labels_
+        np.testing.assert_array_equal(labels_fp, labels_attr)
+
+    def test_probabilities(self, blob_data):
+        model = HDBSCAN(min_cluster_size=5)
+        model.fit(blob_data)
+        probs = model.probabilities_
+        assert probs.shape == (120,)
+        assert np.all(probs >= 0.0)
+        assert np.all(probs <= 1.0)
+
+    def test_n_clusters(self, blob_data):
+        model = HDBSCAN(min_cluster_size=5)
+        model.fit(blob_data)
+        n = model.n_clusters_
+        assert n >= 2
+
+    def test_noise_points_have_label_minus_one(self, dense_blob_data):
+        model = HDBSCAN(min_cluster_size=5)
+        model.fit(dense_blob_data)
+        labels = model.labels_
+        # Noise points should exist (origin scatter)
+        if -1 in labels:
+            noise_probs = model.probabilities_[labels == -1]
+            # Noise points should have 0 probability
+            np.testing.assert_array_equal(noise_probs, 0.0)
+
+    def test_min_samples_parameter(self, blob_data):
+        model = HDBSCAN(min_cluster_size=5, min_samples=3)
+        model.fit(blob_data)
+        labels = model.labels_
+        assert labels.shape == (120,)
+
+    def test_cluster_selection_epsilon(self, blob_data):
+        model = HDBSCAN(min_cluster_size=5, cluster_selection_epsilon=0.5)
+        model.fit(blob_data)
+        labels = model.labels_
+        assert labels.shape == (120,)
+
+    def test_allow_single_cluster(self):
+        # Uniform data — should allow single cluster
+        np.random.seed(42)
+        X = np.random.randn(50, 2) * 0.1
+        model = HDBSCAN(min_cluster_size=5, allow_single_cluster=True)
+        model.fit(X)
+        labels = model.labels_
+        assert labels.shape == (50,)
+
+    def test_not_fitted_errors(self):
+        model = HDBSCAN(min_cluster_size=5)
+        with pytest.raises(RuntimeError):
+            _ = model.labels_
+        with pytest.raises(RuntimeError):
+            _ = model.probabilities_
+        with pytest.raises(RuntimeError):
+            _ = model.n_clusters_
+
+    def test_fit_returns_self(self, blob_data):
+        model = HDBSCAN(min_cluster_size=5)
+        result = model.fit(blob_data)
+        assert result is model
+
+    def test_two_clusters_well_separated(self):
+        np.random.seed(42)
+        X = np.vstack([
+            np.random.randn(50, 2) + [10, 10],
+            np.random.randn(50, 2) + [-10, -10],
+        ])
+        model = HDBSCAN(min_cluster_size=5)
+        model.fit(X)
+        labels = model.labels_
+        # Should find exactly 2 clusters
+        n_clusters = len(set(labels) - {-1})
+        assert n_clusters == 2
+        # Points in same blob should have same label
+        assert len(set(labels[:50]) - {-1}) == 1
+        assert len(set(labels[50:]) - {-1}) == 1
