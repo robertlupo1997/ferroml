@@ -365,6 +365,7 @@ model.fit(X_train, y_train)
 **GaussianNB**: Assumes Gaussian features
 **MultinomialNB**: For count data (text classification)
 **BernoulliNB**: For binary features
+**CategoricalNB**: For discrete categorical features
 
 All support incremental learning via `partial_fit()`.
 
@@ -441,6 +442,7 @@ Linear dimensionality reduction via singular value decomposition:
 
 Non-linear dimensionality reduction for visualization:
 - Exact O(N^2) algorithm
+- Barnes-Hut O(N log N) approximation for large datasets
 - Distance metrics: Euclidean, Manhattan, Cosine
 - Initialization: PCA-based or random
 - Configurable perplexity (controls local/global structure balance)
@@ -487,6 +489,26 @@ gmm.fit(X)
 labels = gmm.predict(X)        # Hard assignments
 probs = gmm.predict_proba(X)   # Soft assignments
 bic = gmm.bic(X)               # Model selection criterion
+```
+
+**HDBSCAN**: Hierarchical density-based clustering
+
+An extension of DBSCAN that finds clusters of varying densities and automatically determines the number of clusters:
+- Builds a mutual reachability graph and minimum spanning tree
+- Extracts clusters using excess-of-mass method on the condensed tree
+- Points not belonging to any cluster are labeled as noise (-1)
+- Returns cluster membership probabilities
+- No need to specify number of clusters (unlike KMeans)
+- Configurable `min_cluster_size`, `min_samples`, and `cluster_selection_epsilon`
+
+```python
+from ferroml.clustering import HDBSCAN
+
+hdbscan = HDBSCAN(min_cluster_size=5)
+hdbscan.fit(X)
+labels = hdbscan.labels_          # Cluster labels (-1 for noise)
+probs = hdbscan.probabilities_    # Cluster membership probabilities
+n = hdbscan.n_clusters_           # Number of clusters found
 ```
 
 ### Clustering Metrics

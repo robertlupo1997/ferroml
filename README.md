@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/ferroml-core.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-4503%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-4%2C351%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v0.1.0 Feature-Complete** — 50+ ML algorithms, 4,503 tests passing (3,411 Rust + 1,092 Python), validated against sklearn with 252 correctness tests. See [Project Status](#project-status) for details.
+> **Status: v0.1.0 Feature-Complete** — 50+ ML algorithms, 4,351 tests passing (2,933 Rust + 1,418 Python), validated against sklearn with 252+ correctness tests. Plans A-O complete. See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -146,7 +146,7 @@ print(f"95% CI: [{best.ci_lower:.4f}, {best.ci_upper:.4f}]")
 | `ensemble` | Bagging, stacking, voting classifiers with diversity-weighted selection |
 | `hpo` | Bayesian optimization, Hyperband, ASHA, random/grid search |
 | `preprocessing` | Imputation, one-hot/target encoding, standard/robust scaling, feature selection, SMOTE/ADASYN resampling |
-| `clustering` | KMeans (k-means++), DBSCAN, AgglomerativeClustering (Ward/complete/average/single), GaussianMixture (EM, 4 covariance types) |
+| `clustering` | KMeans (k-means++), DBSCAN, HDBSCAN, AgglomerativeClustering (Ward/complete/average/single), GaussianMixture (EM, 4 covariance types) |
 | `neural` | MLPClassifier, MLPRegressor with training diagnostics, MC Dropout uncertainty |
 | `decomposition` | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis, t-SNE |
 | `pipeline` | DAG-based pipeline execution with caching and parallel processing |
@@ -192,6 +192,7 @@ ferroml-core = { version = "0.1", features = ["simd", "sparse", "onnx"] }
 | `simd` | SIMD acceleration for distance calculations |
 | `sparse` | Native sparse matrix operations |
 | `onnx` | ONNX model export (enabled by default) |
+| `faer-backend` | BLAS-backed linear algebra via faer (enabled by default) |
 | `gpu` | GPU acceleration via wgpu (GEMM, distance matrix) |
 
 ## Performance
@@ -202,6 +203,8 @@ FerroML leverages Rust's performance characteristics:
 - **Rayon parallelism** — Automatic parallel iteration
 - **SIMD operations** — Vectorized distance calculations
 - **Memory-mapped files** — Efficient handling of large datasets
+- **faer-backend** — BLAS-accelerated linear algebra (Cholesky, matrix solve) via faer
+- **Barnes-Hut t-SNE** — O(N log N) visualization with VP-tree and QuadTree
 - **LTO optimization** — Link-time optimization in release builds
 
 ## License
@@ -217,16 +220,16 @@ at your option.
 
 ### Current State (v0.1.0)
 
-FerroML is **feature-complete for v0.1.0**, hardened through 12 plans (A-L) of correctness and quality work:
+FerroML is **feature-complete for v0.1.0**, hardened through 21 plans (1-6, A-O) of correctness and quality work:
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 4,503 passing (3,411 Rust + 1,092 Python), 0 failing, 6 ignored (slow) |
-| **Correctness Tests** | 252 (clustering: 102, neural: 49, preprocessing: 101) |
+| **Tests** | 4,351 passing (2,933 Rust + 1,418 Python), 0 failing, 26 ignored (slow AutoML system tests) |
+| **Correctness Tests** | 252+ (clustering: 102, neural: 49, preprocessing: 101) |
 | **Sklearn Match** | 58 comparisons passing (32 models + preprocessing) |
-| **Python Test Files** | 28 end-to-end test files |
+| **Python Test Files** | 23 end-to-end test files |
 | **Python Bindings** | ~99% coverage (50+ models, 21 preprocessors, 6 decomposition, 37 explainability) |
-| **Benchmarks** | 86+ Criterion benchmarks with regression baseline |
+| **Benchmarks** | 86+ Criterion benchmarks with CI regression baseline |
 
 ### What's Implemented
 
@@ -234,9 +237,9 @@ FerroML is **feature-complete for v0.1.0**, hardened through 12 plans (A-L) of c
 - **Trees & Ensembles**: DecisionTree, RandomForest, ExtraTrees, GradientBoosting, HistGradientBoosting, AdaBoost, Bagging, Stacking, Voting
 - **Instance-Based**: KNN (classifier + regressor) with KD-Tree/Ball-Tree acceleration, NearestCentroid
 - **SVM**: SVC, SVR (kernel), LinearSVC, LinearSVR
-- **Probabilistic**: Gaussian/Multinomial/Bernoulli Naive Bayes, QuadraticDiscriminantAnalysis (QDA)
+- **Probabilistic**: Gaussian/Multinomial/Bernoulli/Categorical Naive Bayes, QuadraticDiscriminantAnalysis (QDA)
 - **Anomaly Detection**: IsolationForest, LocalOutlierFactor (LOF)
-- **Clustering**: KMeans (k-means++), DBSCAN, AgglomerativeClustering (4 linkage methods), GaussianMixture (EM, 4 covariance types, BIC/AIC)
+- **Clustering**: KMeans (k-means++), DBSCAN, HDBSCAN, AgglomerativeClustering (4 linkage methods), GaussianMixture (EM, 4 covariance types, BIC/AIC)
 - **Calibration**: TemperatureScaling, Sigmoid (Platt), Isotonic
 - **Regression**: IsotonicRegression (monotonic constraints)
 - **Neural Networks**: MLPClassifier, MLPRegressor with training diagnostics, MC Dropout

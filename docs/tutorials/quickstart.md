@@ -243,11 +243,13 @@ FerroML implements 45+ algorithms. Here's a quick guide:
 | Classification | `KNeighborsClassifier` | Small data, no training needed |
 | Clustering | `KMeans` | Known number of clusters |
 | Clustering | `DBSCAN` | Unknown clusters, arbitrary shapes |
+| Clustering | `HDBSCAN` | Variable-density clusters, automatic k |
 | Clustering | `GaussianMixture` | Soft clustering, overlapping clusters |
 | Anomaly Detection | `IsolationForest` | Unsupervised outlier detection |
 | Anomaly Detection | `LocalOutlierFactor` | Density-based outlier detection |
 | Classification | `LinearSVC` / `SVC` | Maximum-margin classifier (linear or kernel) |
 | Classification | `GaussianNB` | Fast probabilistic baseline |
+| Classification | `CategoricalNB` | Discrete categorical features |
 | Dimensionality Reduction | `TSNE` | Visualization of high-dimensional data |
 
 ## Anomaly Detection

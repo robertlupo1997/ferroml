@@ -8,6 +8,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+#### Plans M-O: Validation & Optimization (2026-03-08 — 2026-03-09)
+
+**Plan M — Real-World Validation (2026-03-08):**
+- 279 side-by-side comparison tests against sklearn on real datasets (iris, wine, breast_cancer, diabetes)
+- Performance benchmarks: fit/predict time comparison across 15 models at 4 dataset sizes
+- Edge case testing: high dimensionality, class imbalance, near-constant features, multicollinearity
+- Zero bugs found during validation
+
+**Plan N — Performance Optimization (2026-03-08):**
+- DBSCAN 2.4x faster, KNN 1.75x faster, DecisionTree 1.5x faster
+- RandomForest predict 1.92x faster, GradientBoosting fit 1.46x faster
+- Barnes-Hut t-SNE: O(N log N) via VP-tree + QuadTree (was O(N²))
+- Memory allocation reduction in HistGB predict, gradient buffers, KMeans
+- Parallel predict for GradientBoosting and KNN via rayon
+- SVM incremental error update optimization
+- Benchmark CI workflow with regression detection script
+- SIMD batch distance computation
+
+**Plan O — System Validation + Features (2026-03-09):**
+- CategoricalNB: Categorical Naive Bayes (~450 lines, 25 Rust + 13 Python tests) — completes NB family 4/4
+- HDBSCAN: Hierarchical density-based clustering (~780 lines, 33 Rust + 12 Python tests, VP-tree k-NN, Prim's MST, condensed tree, excess-of-mass extraction)
+- 20 AutoML Rust system tests (end-to-end pipeline validation)
+- 17 AutoML Python system tests
+- LogReg/Quantile X'WX triple loop replaced with ndarray .dot() (BLAS-backed GEMM, ~2-3x speedup)
+- faer-backend enabled by default with faer Cholesky dispatch
+- CategoricalNB wired into AutoML classification portfolio
+
 #### Plans F-L: v0.1.0 Completion (2026-03-02 — 2026-03-08)
 
 **Plan F — CI Fixes & Tests (2026-03-02):**

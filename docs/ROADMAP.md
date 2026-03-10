@@ -1,10 +1,10 @@
 # FerroML Roadmap
 
-> **Last Updated:** 2026-03-08
+> **Last Updated:** 2026-03-09
 
 ## Current Status: v0.1.0 Complete
 
-FerroML has completed 18 plans of development and hardening (Plans 1-6, A-L) with ~3,500 Rust tests and ~1,047 Python tests passing. All core ML algorithms are implemented, validated against sklearn, and hardened with correctness tests. Python binding coverage is ~99%.
+FerroML has completed 21 plans of development and hardening (Plans 1-6, A-O) with ~2,933 Rust tests and ~1,418 Python tests passing. All core ML algorithms are implemented, validated against sklearn, and hardened with correctness tests. Python binding coverage is ~99%.
 
 ## Completed Plans
 
@@ -41,6 +41,14 @@ FerroML has completed 18 plans of development and hardening (Plans 1-6, A-L) wit
 | Plan K: QDA + IsotonicRegression | Per-class covariance, PAVA, 67 tests | Complete |
 | Plan L: Testing Phases 23-28 | 6 test modules, 218 tests | Complete |
 
+### Phase M-O: Validation & Optimization (2026-03-08 — 2026-03-09)
+
+| Plan | Description | Status |
+|------|-------------|--------|
+| Plan M: Real-World Validation | 279 comparison tests vs sklearn, performance benchmarks | Complete |
+| Plan N: Performance Optimization | SIMD, Barnes-Hut t-SNE, parallel predict, bench CI | Complete |
+| Plan O: System Validation + Features | CategoricalNB, HDBSCAN, AutoML system tests, faer default | Complete |
+
 ## Feature Completion Matrix
 
 ### Algorithms
@@ -52,8 +60,8 @@ FerroML has completed 18 plans of development and hardening (Plans 1-6, A-L) wit
 | Ensembles | 6+ | 10 | RF, GB, HistGB, AdaBoost, ExtraTrees, Bagging, Stacking, Voting |
 | SVM | 4 | 4 | SVC, SVR, LinearSVC, LinearSVR — full parity |
 | KNN | 2 | 3 | + NearestCentroid |
-| Naive Bayes | 4 | 3 | Missing ComplementNB |
-| Clustering | 8+ | 4 | KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture |
+| Naive Bayes | 4 | 4 | Missing ComplementNB |
+| Clustering | 8+ | 5 | KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture, HDBSCAN |
 | Anomaly Detection | 2 | 2 | IsolationForest, LocalOutlierFactor |
 | Decomposition | 7+ | 6 | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis, t-SNE |
 | Discriminant Analysis | 2 | 2 | LDA, QDA |
@@ -92,9 +100,9 @@ FerroML has completed 18 plans of development and hardening (Plans 1-6, A-L) wit
 | Preprocessing | ~95% | 21 transformers + 5 resamplers + RFE |
 | Decomposition | 100% | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis, t-SNE |
 | Explainability | ~95% | TreeSHAP, KernelSHAP (10 variants), permutation importance, PDP, ICE, H-statistic |
-| Clustering | 100% | KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture |
+| Clustering | 100% | KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture, HDBSCAN |
 | Anomaly | 100% | IsolationForest, LocalOutlierFactor |
-| Naive Bayes | 100% | GaussianNB, MultinomialNB, BernoulliNB |
+| Naive Bayes | 100% | GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB |
 | SVM | 100% | SVC, SVR, LinearSVC, LinearSVR |
 | Calibration | 100% | CalibratedClassifierCV, TemperatureScalingCalibrator |
 | Ensemble | 100% | BaggingClassifier (8 factories), BaggingRegressor (9 factories), Stacking, Voting |
@@ -116,12 +124,13 @@ FerroML has completed 18 plans of development and hardening (Plans 1-6, A-L) wit
 
 #### Performance
 - [ ] GPU acceleration (wgpu backend exists, needs hardening)
-- [ ] Barnes-Hut t-SNE for large datasets (O(N log N))
+- [x] Barnes-Hut t-SNE for large datasets (O(N log N)) — Complete (Plan N)
 - [ ] Sparse matrix optimizations for text/NLP workloads
 
 #### Coverage Gaps
 - [ ] ComplementNB (Naive Bayes)
-- [ ] HDBSCAN, Spectral Clustering
+- [x] HDBSCAN — Complete (Plan O)
+- [ ] Spectral Clustering
 - [ ] stats/power.rs and stats/diagnostics.rs test coverage
 - [ ] GPU backend tests (67 exist, more needed)
 

@@ -41,11 +41,11 @@ print(result.summary())
 | `linear` | LinearRegression, LogisticRegression, RidgeRegression, LassoRegression, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier, QuantileRegression, RobustRegression, Perceptron, IsotonicRegression |
 | `trees` | DecisionTreeClassifier, DecisionTreeRegressor |
 | `ensemble` | RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor, HistGradientBoostingClassifier, HistGradientBoostingRegressor, ExtraTreesClassifier, ExtraTreesRegressor, AdaBoostClassifier, AdaBoostRegressor, SGDClassifier, SGDRegressor, PassiveAggressiveClassifier, BaggingClassifier, BaggingRegressor |
-| `naive_bayes` | GaussianNB, MultinomialNB, BernoulliNB |
+| `naive_bayes` | GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB |
 | `svm` | LinearSVC, LinearSVR, SVC, SVR |
 | `neighbors` | KNeighborsClassifier, KNeighborsRegressor, NearestCentroid |
 | `neural` | MLPClassifier, MLPRegressor |
-| `clustering` | KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture, + 7 metrics |
+| `clustering` | KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture, HDBSCAN, + 7 metrics |
 | `anomaly` | IsolationForest, LocalOutlierFactor |
 | `preprocessing` | StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler, OneHotEncoder, OrdinalEncoder, LabelEncoder, TargetEncoder, SimpleImputer, KNNImputer, PolynomialFeatures, PowerTransformer, QuantileTransformer, VarianceThreshold, SelectKBest, SelectFromModel, RecursiveFeatureElimination, KBinsDiscretizer, SMOTE, BorderlineSMOTE, ADASYN, RandomUnderSampler |
 | `decomposition` | PCA, IncrementalPCA, TruncatedSVD, LDA, QuadraticDiscriminantAnalysis, FactorAnalysis, TSNE |
@@ -60,7 +60,7 @@ print(result.summary())
 - **Statistical Rigor**: Confidence intervals, effect sizes, and assumption tests
 - **Linear Models**: Full diagnostics (R-style summary, VIF, residual analysis)
 - **Tree Models**: RandomForest, GradientBoosting, HistGradientBoosting, ExtraTrees, AdaBoost
-- **Clustering**: KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture with full metrics
+- **Clustering**: KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture, HDBSCAN with full metrics
 - **Anomaly Detection**: IsolationForest, LocalOutlierFactor
 - **Neural Networks**: MLPClassifier, MLPRegressor with training diagnostics
 - **SVMs**: Linear and kernel-based SVC/SVR with multiple kernel options
@@ -68,7 +68,7 @@ print(result.summary())
 - **Preprocessing**: 22+ transformers including SMOTE/ADASYN resampling
 - **Explainability**: TreeSHAP, KernelSHAP, permutation importance, PDP, ICE, H-statistic
 - **AutoML**: Automatic model selection with statistical significance testing
-- **1,092 Python tests** across 28 test files
+- **1,418 Python tests** across 23 test files
 
 ## License
 

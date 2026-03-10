@@ -1,21 +1,21 @@
 # FerroML vs sklearn Validation Report
 
-*Generated from Plan M: Real-World Validation — 279 side-by-side comparison tests*
+*Generated from Plan M: Real-World Validation — 281 side-by-side comparison tests*
 
 ## Executive Summary
 
-FerroML's 50+ models and 18 preprocessing transformers have been systematically validated against scikit-learn on real datasets (iris, wine, breast_cancer, diabetes) and synthetic data. **All 279 tests pass.** Zero bugs were found during validation.
+FerroML's 50+ models and 18 preprocessing transformers have been systematically validated against scikit-learn on real datasets (iris, wine, breast_cancer, diabetes) and synthetic data. **All 281 tests pass.** Zero bugs were found during validation.
 
 | Category | Tests | Status |
 |----------|-------|--------|
 | Linear models (M.1) | 41 | All pass |
 | Tree & ensemble models (M.2) | 48 | All pass |
-| KNN, SVM, NB, MLP (M.3) | 34 | All pass |
-| Clustering & unsupervised (M.4) | 39 | All pass |
+| KNN, SVM, NB, MLP (M.3) | 35 | All pass |
+| Clustering & unsupervised (M.4) | 40 | All pass |
 | Preprocessing transformers (M.5) | 40 | All pass |
 | Performance benchmarks (M.6) | 52 | All pass |
 | Edge cases (M.7) | 25 | All pass |
-| **Total** | **279** | **All pass** |
+| **Total** | **281** | **All pass** |
 
 ---
 
@@ -62,7 +62,7 @@ FerroML's 50+ models and 18 preprocessing transformers have been systematically 
 | SGDClassifier | SGDClassifier | breast_cancer (scaled) | accuracy | 10% | PASS |
 | SGDRegressor | SGDRegressor | diabetes (scaled) | R² | 10% | PASS |
 
-### Neighbors, SVM, Naive Bayes, Neural (14 models)
+### Neighbors, SVM, Naive Bayes, Neural (15 models)
 
 | FerroML Model | sklearn Equivalent | Dataset | Metric | Tolerance | Status |
 |---|---|---|---|---|---|
@@ -78,6 +78,7 @@ FerroML's 50+ models and 18 preprocessing transformers have been systematically 
 | GaussianNB | GaussianNB | iris, wine, breast_cancer | accuracy, proba | 1e-4 | PASS |
 | MultinomialNB | MultinomialNB | synthetic counts | accuracy, proba | 1e-4 | PASS |
 | BernoulliNB | BernoulliNB | synthetic binary | accuracy, proba | 1e-4 | PASS |
+| CategoricalNB | CategoricalNB | synthetic categorical | accuracy, proba | 1e-4 | PASS |
 | MLPClassifier | MLPClassifier | iris, breast_cancer | accuracy | 10% | PASS |
 | MLPRegressor | MLPRegressor | diabetes | R² | 10% | PASS |
 
@@ -97,6 +98,7 @@ FerroML's 50+ models and 18 preprocessing transformers have been systematically 
 | TruncatedSVD | TruncatedSVD | iris | components, variance | 1e-4 | PASS |
 | LDA | LinearDiscriminantAnalysis | iris | transform, separation | 1e-4 | PASS |
 | FactorAnalysis | FactorAnalysis | synthetic | transform shape | 5% | PASS |
+| HDBSCAN | HDBSCAN | blobs, moons | cluster count, noise | 10% | PASS |
 | t-SNE | TSNE | iris | kNN preservation | N/A (stochastic) | PASS |
 
 ### Preprocessing Transformers (18 transformers)
