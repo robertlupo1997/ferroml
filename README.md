@@ -224,10 +224,10 @@ FerroML is **feature-complete for v0.1.0**, hardened through 21 plans (1-6, A-O)
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 4,351 passing (2,933 Rust + 1,418 Python), 0 failing, 26 ignored (slow AutoML system tests) |
+| **Tests** | 4,351 passing (2,933 Rust + 1,418 Python), 0 failing, 22 ignored (slow AutoML system tests) |
 | **Correctness Tests** | 252+ (clustering: 102, neural: 49, preprocessing: 101) |
 | **Sklearn Match** | 58 comparisons passing (32 models + preprocessing) |
-| **Python Test Files** | 23 end-to-end test files |
+| **Python Test Files** | 36 end-to-end test files |
 | **Python Bindings** | ~99% coverage (50+ models, 21 preprocessors, 6 decomposition, 37 explainability) |
 | **Benchmarks** | 86+ Criterion benchmarks with CI regression baseline |
 

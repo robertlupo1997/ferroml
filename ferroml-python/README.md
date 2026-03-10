@@ -68,7 +68,7 @@ print(result.summary())
 - **Preprocessing**: 22+ transformers including SMOTE/ADASYN resampling
 - **Explainability**: TreeSHAP, KernelSHAP, permutation importance, PDP, ICE, H-statistic
 - **AutoML**: Automatic model selection with statistical significance testing
-- **1,418 Python tests** across 23 test files
+- **1,418 Python tests** across 36 test files
 
 ## License
 
