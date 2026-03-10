@@ -35,5 +35,8 @@ ralph.log
 # Documents
 *.docx
 
+# Generated docs
+docs/python-api/
+
 # Test artifacts
 **/test_write.txt
