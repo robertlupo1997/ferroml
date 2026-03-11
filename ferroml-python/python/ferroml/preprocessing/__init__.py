@@ -64,6 +64,7 @@ ADASYN = _native.preprocessing.ADASYN
 RandomUnderSampler = _native.preprocessing.RandomUnderSampler
 RandomOverSampler = _native.preprocessing.RandomOverSampler
 RecursiveFeatureElimination = _native.preprocessing.RecursiveFeatureElimination
+TfidfTransformer = _native.preprocessing.TfidfTransformer
 
 __all__ = [
     "StandardScaler",
@@ -88,4 +89,5 @@ __all__ = [
     "RandomUnderSampler",
     "RandomOverSampler",
     "RecursiveFeatureElimination",
+    "TfidfTransformer",
 ]

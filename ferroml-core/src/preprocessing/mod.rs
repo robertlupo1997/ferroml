@@ -59,6 +59,7 @@ pub mod quantile;
 pub mod sampling;
 pub mod scalers;
 pub mod selection;
+pub mod tfidf;
 
 #[cfg(test)]
 mod compliance_tests;

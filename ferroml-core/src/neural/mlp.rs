@@ -313,10 +313,38 @@ impl MLP {
         for i in 0..n_layers {
             let is_output_layer = i == n_layers - 1;
 
-            // Apply dropout to hidden layers only during training
-            if needs_rng && !is_output_layer {
-                // We need a mutable reference to both the layer and the rng.
-                // Borrow the rng from self first, then the layer.
+            // Use GPU-accelerated forward when available
+            #[cfg(feature = "gpu")]
+            let has_gpu = self.gpu_backend.is_some();
+            #[cfg(not(feature = "gpu"))]
+            let has_gpu = false;
+
+            if has_gpu {
+                #[cfg(feature = "gpu")]
+                {
+                    let gpu = self.gpu_backend.as_ref().unwrap();
+                    output = self.layers[i].forward_gpu(&output, training, gpu.as_ref())?;
+
+                    // Apply dropout to hidden layers during training
+                    if needs_rng && !is_output_layer {
+                        let layer_output = self.layers[i].last_output.as_ref().unwrap();
+                        let rng = self.rng.as_mut().expect("RNG should be initialized");
+                        let keep_prob = 1.0 - self.regularization.dropout_rate;
+                        let mut mask = Array2::zeros(layer_output.raw_dim());
+                        for m in mask.iter_mut() {
+                            *m = if rng.random::<f64>() < keep_prob {
+                                1.0 / keep_prob
+                            } else {
+                                0.0
+                            };
+                        }
+                        output = &output * &mask;
+                        self.layers[i].dropout_mask = Some(mask);
+                        self.layers[i].last_output = Some(output.clone());
+                    }
+                }
+            } else if needs_rng && !is_output_layer {
+                // CPU path: Apply dropout to hidden layers only during training
                 let rng = self.rng.as_mut().expect("RNG should be initialized");
                 let layer = &mut self.layers[i];
                 output = layer.forward_with_dropout(
@@ -326,14 +354,6 @@ impl MLP {
                     rng,
                 )?;
             } else {
-                // Use GPU-accelerated forward when available
-                #[cfg(feature = "gpu")]
-                {
-                    if let Some(ref gpu) = self.gpu_backend {
-                        output = self.layers[i].forward_gpu(&output, training, gpu.as_ref())?;
-                        continue;
-                    }
-                }
                 output = self.layers[i].forward(&output, training)?;
             }
         }
@@ -365,10 +385,14 @@ impl MLP {
 
             #[cfg(feature = "gpu")]
             let (grad_w, grad_b, grad_input) = if let Some(ref gpu) = self.gpu_backend {
-                layer.backward_gpu(&grad, gpu.as_ref())?
+                if is_output_layer {
+                    // For output layer, the loss gradient already accounts for the
+                    // activation derivative (softmax+CE or linear+MSE), so skip it.
+                    layer.backward_gpu_skip_activation(&grad, gpu.as_ref())?
+                } else {
+                    layer.backward_gpu(&grad, gpu.as_ref())?
+                }
             } else if is_output_layer {
-                // For output layer, the loss gradient already accounts for the
-                // activation derivative (softmax+CE or linear+MSE), so skip it.
                 layer.backward_skip_activation(&grad)?
             } else {
                 layer.backward(&grad)?

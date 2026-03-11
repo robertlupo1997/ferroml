@@ -2330,6 +2330,687 @@ fn z_critical(p: f64) -> f64 {
     }
 }
 
+// =============================================================================
+// SparseModel Implementations
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for GaussianNB {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        if n_samples != y.len() {
+            return Err(FerroError::shape_mismatch(
+                format!("{} samples", n_samples),
+                format!("{} targets", y.len()),
+            ));
+        }
+        if n_samples == 0 {
+            return Err(FerroError::invalid_input("Empty input"));
+        }
+
+        let classes = super::get_unique_classes(y);
+        if classes.len() < 2 {
+            return Err(FerroError::invalid_input(
+                "GaussianNB requires at least 2 classes",
+            ));
+        }
+
+        let n_classes = classes.len();
+
+        // Build class index map
+        let class_indices: Vec<Vec<usize>> = classes
+            .iter()
+            .map(|&c| {
+                y.iter()
+                    .enumerate()
+                    .filter(|(_, &yi)| (yi - c).abs() < 1e-10)
+                    .map(|(i, _)| i)
+                    .collect()
+            })
+            .collect();
+
+        // Compute per-class mean and variance from sparse rows
+        // For sparse data: most values are 0, so we track sum and sum_sq of nnz
+        // and account for implicit zeros.
+        let mut theta = Array2::zeros((n_classes, n_features));
+        let mut var = Array2::zeros((n_classes, n_features));
+        let mut class_count = Array1::zeros(n_classes);
+
+        for (class_idx, indices) in class_indices.iter().enumerate() {
+            let n_c = indices.len() as f64;
+            if n_c == 0.0 {
+                continue;
+            }
+            class_count[class_idx] = n_c;
+
+            // Accumulate sum and sum_sq per feature using only nnz entries
+            let mut sum: Array1<f64> = Array1::zeros(n_features);
+            let mut sum_sq: Array1<f64> = Array1::zeros(n_features);
+
+            for &i in indices {
+                let row = x.row(i);
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    sum[col] += val;
+                    sum_sq[col] += val * val;
+                }
+            }
+
+            // mean = sum / n_c  (zero entries contribute 0)
+            // var = sum_sq / n_c - mean^2  (population variance)
+            for j in 0..n_features {
+                let mean_j = sum[j] / n_c;
+                theta[[class_idx, j]] = mean_j;
+                var[[class_idx, j]] = sum_sq[j] / n_c - mean_j * mean_j;
+                // Clamp to 0 for floating-point rounding
+                if var[[class_idx, j]] < 0.0 {
+                    var[[class_idx, j]] = 0.0;
+                }
+            }
+        }
+
+        // Compute epsilon and smoothed variance
+        let max_var = var.iter().copied().fold(0.0_f64, f64::max);
+        let epsilon = self.var_smoothing * max_var;
+        let var_smoothed = var.mapv(|v| v + epsilon);
+
+        // Compute class priors
+        let total_samples: f64 = class_count.sum();
+        let class_prior = if let Some(ref user_priors) = self.priors {
+            user_priors.clone()
+        } else {
+            class_count.mapv(|c| c / total_samples)
+        };
+
+        self.theta = Some(theta);
+        self.var = Some(var);
+        self.var_smoothed = Some(var_smoothed);
+        self.class_prior = Some(class_prior);
+        self.classes = Some(Array1::from_vec(classes.to_vec()));
+        self.class_count = Some(class_count);
+        self.n_features = Some(n_features);
+        self.epsilon = Some(epsilon);
+
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        let theta = self
+            .theta
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let var_smoothed = self
+            .var_smoothed
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let class_prior = self
+            .class_prior
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+
+        if x.ncols() != n_features {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", n_features),
+                format!("{} features", x.ncols()),
+            ));
+        }
+
+        let n_samples = x.nrows();
+        let n_classes = theta.nrows();
+
+        // Pre-compute per-class constants:
+        // const_term[c] = log_prior[c] - 0.5 * (n_features * log(2pi) + sum_j log(var[c][j]))
+        // base_mahal[c] = sum_j (mean[c][j]^2 / var[c][j])  (contribution when x_j = 0)
+        let mut const_term = Array1::zeros(n_classes);
+        let mut base_mahal = Array1::zeros(n_classes);
+
+        for c in 0..n_classes {
+            let log_prior = class_prior[c].ln();
+            let mut log_det = 0.0;
+            let mut mahal_zero = 0.0;
+            for j in 0..n_features {
+                let v = var_smoothed[[c, j]];
+                log_det += v.ln();
+                let m = theta[[c, j]];
+                mahal_zero += m * m / v;
+            }
+            const_term[c] = log_prior
+                - 0.5 * ((n_features as f64) * (2.0 * std::f64::consts::PI).ln() + log_det)
+                - 0.5 * mahal_zero;
+            base_mahal[c] = mahal_zero;
+        }
+
+        let mut predictions = Array1::zeros(n_samples);
+
+        for i in 0..n_samples {
+            let row = x.row(i);
+            let nnz_indices = row.indices();
+            let nnz_data = row.data();
+
+            let mut best_class = 0;
+            let mut best_score = f64::NEG_INFINITY;
+
+            for c in 0..n_classes {
+                // Start with the precomputed constant (assumes all x_j = 0)
+                // Then correct for nnz features:
+                // delta = -0.5 * [(x_j - mean)^2 / var - mean^2 / var]
+                //       = -0.5 * [(x_j^2 - 2*x_j*mean) / var]
+                let mut score = const_term[c];
+                for (&col, &val) in nnz_indices.iter().zip(nnz_data.iter()) {
+                    let m = theta[[c, col]];
+                    let v = var_smoothed[[c, col]];
+                    // Correction: replace (0 - mean)^2/var with (val - mean)^2/var
+                    // delta = -0.5 * ((val-m)^2/v - m^2/v) = -0.5 * (val^2 - 2*val*m) / v
+                    score -= 0.5 * (val * val - 2.0 * val * m) / v;
+                }
+
+                if score > best_score {
+                    best_score = score;
+                    best_class = c;
+                }
+            }
+
+            predictions[i] = classes[best_class];
+        }
+
+        Ok(predictions)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for MultinomialNB {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        if n_samples != y.len() {
+            return Err(FerroError::shape_mismatch(
+                format!("{} samples", n_samples),
+                format!("{} targets", y.len()),
+            ));
+        }
+        if n_samples == 0 {
+            return Err(FerroError::invalid_input("Empty input"));
+        }
+
+        // Validate non-negative values
+        if x.data().iter().any(|&v| v < 0.0) {
+            return Err(FerroError::invalid_input(
+                "MultinomialNB requires non-negative feature values",
+            ));
+        }
+
+        let classes = super::get_unique_classes(y);
+        if classes.len() < 2 {
+            return Err(FerroError::invalid_input(
+                "MultinomialNB requires at least 2 classes",
+            ));
+        }
+
+        let n_classes = classes.len();
+        let mut feature_count = Array2::zeros((n_classes, n_features));
+        let mut class_count = Array1::zeros(n_classes);
+
+        // Accumulate feature counts per class using only nnz entries
+        for i in 0..n_samples {
+            let yi = y[i];
+            let class_idx = classes
+                .iter()
+                .position(|&c| (c - yi).abs() < 1e-10)
+                .ok_or_else(|| FerroError::invalid_input("Unknown class label"))?;
+
+            let row = x.row(i);
+            for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                feature_count[[class_idx, col]] += val;
+            }
+            class_count[class_idx] += 1.0;
+        }
+
+        // Store fitted state
+        self.classes = Some(Array1::from_vec(classes.to_vec()));
+        self.n_features = Some(n_features);
+        self.feature_count = Some(feature_count);
+        self.class_count = Some(class_count);
+
+        // Compute log probabilities (reuses existing method)
+        self.update_log_probabilities();
+
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        let feature_log_prob = self
+            .feature_log_prob
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let class_log_prior = self
+            .class_log_prior
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+
+        if x.ncols() != n_features {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", n_features),
+                format!("{} features", x.ncols()),
+            ));
+        }
+
+        let n_samples = x.nrows();
+        let n_classes = feature_log_prob.nrows();
+        let mut predictions = Array1::zeros(n_samples);
+
+        for i in 0..n_samples {
+            let row = x.row(i);
+            let nnz_indices = row.indices();
+            let nnz_data = row.data();
+
+            let mut best_class = 0;
+            let mut best_score = f64::NEG_INFINITY;
+
+            for c in 0..n_classes {
+                // log P(y) + sum_j x_j * log P(x_j | y)
+                // Only nnz features contribute (x_j=0 contributes 0)
+                let mut score = class_log_prior[c];
+                for (&col, &val) in nnz_indices.iter().zip(nnz_data.iter()) {
+                    score += val * feature_log_prob[[c, col]];
+                }
+
+                if score > best_score {
+                    best_score = score;
+                    best_class = c;
+                }
+            }
+
+            predictions[i] = classes[best_class];
+        }
+
+        Ok(predictions)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for BernoulliNB {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        if n_samples != y.len() {
+            return Err(FerroError::shape_mismatch(
+                format!("{} samples", n_samples),
+                format!("{} targets", y.len()),
+            ));
+        }
+        if n_samples == 0 {
+            return Err(FerroError::invalid_input("Empty input"));
+        }
+
+        let classes = super::get_unique_classes(y);
+        if classes.len() < 2 {
+            return Err(FerroError::invalid_input(
+                "BernoulliNB requires at least 2 classes",
+            ));
+        }
+
+        let n_classes = classes.len();
+        let mut feature_count = Array2::zeros((n_classes, n_features));
+        let mut class_count = Array1::zeros(n_classes);
+
+        // For BernoulliNB, we count binary presence per feature per class.
+        // With binarization: any stored value > threshold counts as present.
+        // Without binarization: stored values are treated as-is (should be 0/1).
+        let threshold = self.binarize;
+
+        for i in 0..n_samples {
+            let yi = y[i];
+            let class_idx = classes
+                .iter()
+                .position(|&c| (c - yi).abs() < 1e-10)
+                .ok_or_else(|| FerroError::invalid_input("Unknown class label"))?;
+
+            let row = x.row(i);
+            if let Some(thresh) = threshold {
+                // Binarize: nnz values > threshold count as 1
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    if val > thresh {
+                        feature_count[[class_idx, col]] += 1.0;
+                    }
+                }
+            } else {
+                // No binarization: accumulate raw values (assumed binary)
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    feature_count[[class_idx, col]] += val;
+                }
+            }
+            class_count[class_idx] += 1.0;
+        }
+
+        // Store fitted state
+        self.classes = Some(Array1::from_vec(classes.to_vec()));
+        self.n_features = Some(n_features);
+        self.feature_count = Some(feature_count);
+        self.class_count = Some(class_count);
+
+        // Compute log probabilities (reuses existing method)
+        self.update_log_probabilities();
+
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        let feature_log_prob = self
+            .feature_log_prob
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let feature_log_prob_neg = self
+            .feature_log_prob_neg
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let class_log_prior = self
+            .class_log_prior
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+
+        if x.ncols() != n_features {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", n_features),
+                format!("{} features", x.ncols()),
+            ));
+        }
+
+        let n_samples = x.nrows();
+        let n_classes = feature_log_prob.nrows();
+
+        // Pre-compute per-class baseline: sum of log(1-p) over ALL features
+        // (the contribution when all features are 0)
+        let mut base_neg_sum = Array1::zeros(n_classes);
+        for c in 0..n_classes {
+            let mut s = 0.0;
+            for j in 0..n_features {
+                s += feature_log_prob_neg[[c, j]];
+            }
+            base_neg_sum[c] = s;
+        }
+
+        let threshold = self.binarize;
+        let mut predictions = Array1::zeros(n_samples);
+
+        for i in 0..n_samples {
+            let row = x.row(i);
+            let nnz_indices = row.indices();
+            let nnz_data = row.data();
+
+            // Determine which nnz features are "present" (binarized to 1)
+            let present: Vec<usize> = if let Some(thresh) = threshold {
+                nnz_indices
+                    .iter()
+                    .zip(nnz_data.iter())
+                    .filter(|(_, &val)| val > thresh)
+                    .map(|(&col, _)| col)
+                    .collect()
+            } else {
+                // Without binarization, nnz entries with value > 0 are present
+                nnz_indices
+                    .iter()
+                    .zip(nnz_data.iter())
+                    .filter(|(_, &val)| val > 0.0)
+                    .map(|(&col, _)| col)
+                    .collect()
+            };
+
+            let mut best_class = 0;
+            let mut best_score = f64::NEG_INFINITY;
+
+            for c in 0..n_classes {
+                // Start with log_prior + sum_j log(1-p_j) (all absent baseline)
+                // For present features, replace log(1-p) with log(p):
+                // delta = log(p) - log(1-p)
+                let mut score = class_log_prior[c] + base_neg_sum[c];
+                for &col in &present {
+                    score += feature_log_prob[[c, col]] - feature_log_prob_neg[[c, col]];
+                }
+
+                if score > best_score {
+                    best_score = score;
+                    best_class = c;
+                }
+            }
+
+            predictions[i] = classes[best_class];
+        }
+
+        Ok(predictions)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for CategoricalNB {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        if n_samples != y.len() {
+            return Err(FerroError::shape_mismatch(
+                format!("{} samples", n_samples),
+                format!("{} targets", y.len()),
+            ));
+        }
+        if n_samples == 0 {
+            return Err(FerroError::invalid_input("Empty input"));
+        }
+
+        let classes = super::get_unique_classes(y);
+        if classes.len() < 2 {
+            return Err(FerroError::invalid_input(
+                "CategoricalNB requires at least 2 classes",
+            ));
+        }
+
+        let n_classes = classes.len();
+
+        // First pass: discover unique categories per feature from sparse data.
+        // For sparse matrices, 0.0 is an implicit value for all non-stored entries,
+        // so we always include 0.0 as a possible category.
+        let mut feature_cats_set: Vec<std::collections::BTreeSet<i64>> =
+            vec![std::collections::BTreeSet::new(); n_features];
+
+        // Include 0.0 for every feature (implicit zeros in sparse)
+        for cat_set in &mut feature_cats_set {
+            cat_set.insert(0); // 0.0 encoded as i64 via to_bits-like scheme
+        }
+
+        // Collect all nnz values
+        for i in 0..n_samples {
+            let row = x.row(i);
+            for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                // Use a quantized integer key for the float category
+                let key = (val * 1e10).round() as i64;
+                feature_cats_set[col].insert(key);
+            }
+        }
+
+        // Build sorted category lists per feature
+        let mut feature_categories: Vec<Vec<f64>> = Vec::with_capacity(n_features);
+        for cat_set in &feature_cats_set {
+            let cats: Vec<f64> = cat_set.iter().map(|&k| k as f64 / 1e10).collect();
+            feature_categories.push(cats);
+        }
+
+        // Initialize count arrays
+        let mut category_count: Vec<Array2<f64>> = feature_categories
+            .iter()
+            .map(|cats| Array2::zeros((n_classes, cats.len())))
+            .collect();
+        let mut class_count = Array1::zeros(n_classes);
+
+        // Second pass: accumulate counts
+        for i in 0..n_samples {
+            let yi = y[i];
+            let class_idx = classes
+                .iter()
+                .position(|&c| (c - yi).abs() < 1e-10)
+                .ok_or_else(|| FerroError::invalid_input("Unknown class label"))?;
+
+            let row = x.row(i);
+
+            // Track which features have nnz entries for this row
+            let mut nnz_cols = std::collections::HashSet::new();
+
+            for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                nnz_cols.insert(col);
+                if let Some(cat_idx) = Self::category_index(&feature_categories[col], val) {
+                    category_count[col][[class_idx, cat_idx]] += 1.0;
+                }
+            }
+
+            // For features NOT in nnz, the value is 0.0
+            for j in 0..n_features {
+                if !nnz_cols.contains(&j) {
+                    if let Some(cat_idx) = Self::category_index(&feature_categories[j], 0.0) {
+                        category_count[j][[class_idx, cat_idx]] += 1.0;
+                    }
+                }
+            }
+
+            class_count[class_idx] += 1.0;
+        }
+
+        // Store fitted state
+        self.classes = Some(Array1::from_vec(classes.to_vec()));
+        self.n_features = Some(n_features);
+        self.class_count = Some(class_count);
+        self.feature_categories = Some(feature_categories);
+        self.category_count = Some(category_count);
+
+        // Compute log probabilities (reuses existing method)
+        self.update_log_probabilities();
+
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        let feature_log_prob = self
+            .feature_log_prob
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let feature_categories = self
+            .feature_categories
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let class_log_prior = self
+            .class_log_prior
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+
+        if x.ncols() != n_features {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", n_features),
+                format!("{} features", x.ncols()),
+            ));
+        }
+
+        let n_samples = x.nrows();
+        let n_classes = class_log_prior.len();
+
+        // Pre-compute per-class baseline: sum of log P(x_j=0|c) for all features
+        // (the contribution when all features are 0)
+        let mut base_zero_contrib = Array1::zeros(n_classes);
+        for c in 0..n_classes {
+            let mut s = 0.0;
+            for j in 0..n_features {
+                if let Some(cat_idx) = Self::category_index(&feature_categories[j], 0.0) {
+                    s += feature_log_prob[j][[c, cat_idx]];
+                } else {
+                    // 0.0 not a known category: use unseen category probability
+                    let n_cats = feature_categories[j].len();
+                    let n_k = self.class_count.as_ref().map(|cc| cc[c]).unwrap_or(0.0);
+                    let denominator = self.alpha.mul_add((n_cats + 1) as f64, n_k);
+                    s += (self.alpha / denominator).ln();
+                }
+            }
+            base_zero_contrib[c] = s;
+        }
+
+        let mut predictions = Array1::zeros(n_samples);
+
+        for i in 0..n_samples {
+            let row = x.row(i);
+            let nnz_indices = row.indices();
+            let nnz_data = row.data();
+
+            let mut best_class = 0;
+            let mut best_score = f64::NEG_INFINITY;
+
+            for c in 0..n_classes {
+                // Start with log_prior + baseline (all features = 0)
+                let mut score = class_log_prior[c] + base_zero_contrib[c];
+
+                // For nnz features, replace the x_j=0 contribution with actual value
+                for (&col, &val) in nnz_indices.iter().zip(nnz_data.iter()) {
+                    // Subtract the 0-category contribution
+                    if let Some(zero_cat_idx) = Self::category_index(&feature_categories[col], 0.0)
+                    {
+                        score -= feature_log_prob[col][[c, zero_cat_idx]];
+                    } else {
+                        let n_cats = feature_categories[col].len();
+                        let n_k = self.class_count.as_ref().map(|cc| cc[c]).unwrap_or(0.0);
+                        let denominator = self.alpha.mul_add((n_cats + 1) as f64, n_k);
+                        score -= (self.alpha / denominator).ln();
+                    }
+
+                    // Add the actual value's contribution
+                    if let Some(cat_idx) = Self::category_index(&feature_categories[col], val) {
+                        score += feature_log_prob[col][[c, cat_idx]];
+                    } else {
+                        // Unseen category
+                        let n_cats = feature_categories[col].len();
+                        let n_k = self.class_count.as_ref().map(|cc| cc[c]).unwrap_or(0.0);
+                        let denominator = self.alpha.mul_add((n_cats + 1) as f64, n_k);
+                        score += (self.alpha / denominator).ln();
+                    }
+                }
+
+                if score > best_score {
+                    best_score = score;
+                    best_class = c;
+                }
+            }
+
+            predictions[i] = classes[best_class];
+        }
+
+        Ok(predictions)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

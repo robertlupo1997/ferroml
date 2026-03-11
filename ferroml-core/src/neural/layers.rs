@@ -300,8 +300,8 @@ impl Layer {
 
     /// GPU-accelerated forward pass
     ///
-    /// Uses the GPU backend for matrix multiplication when available.
-    /// Falls back to CPU if GPU matmul fails.
+    /// Uses the GPU backend for matrix multiplication and activation functions.
+    /// Falls back to CPU for any operation where the GPU returns an error.
     #[cfg(feature = "gpu")]
     pub fn forward_gpu(
         &mut self,
@@ -317,13 +317,27 @@ impl Layer {
             )));
         }
 
-        // z = X @ W + b (GPU-accelerated matmul)
+        // z = X @ W + b (GPU-accelerated matmul + bias_add)
         let z = match gpu.matmul(input, &self.weights) {
-            Ok(result) => result + &self.biases,
+            Ok(xw) => gpu
+                .bias_add(&xw, &self.biases)
+                .unwrap_or_else(|_| xw + &self.biases),
             Err(_) => input.dot(&self.weights) + &self.biases, // CPU fallback
         };
 
-        let output = self.activation.apply_2d(&z);
+        // a = activation(z) — use GPU shaders for supported activations
+        let output = match self.activation {
+            crate::neural::Activation::ReLU => gpu
+                .relu(&z)
+                .unwrap_or_else(|_| self.activation.apply_2d(&z)),
+            crate::neural::Activation::Sigmoid => gpu
+                .sigmoid(&z)
+                .unwrap_or_else(|_| self.activation.apply_2d(&z)),
+            crate::neural::Activation::Softmax => gpu
+                .softmax(&z)
+                .unwrap_or_else(|_| self.activation.apply_2d(&z)),
+            _ => self.activation.apply_2d(&z), // Tanh, Linear, LeakyReLU, ELU: CPU
+        };
 
         if training {
             self.last_input = Some(input.clone());
@@ -339,6 +353,30 @@ impl Layer {
     pub fn backward_gpu(
         &self,
         grad_output: &Array2<f64>,
+        gpu: &dyn crate::gpu::GpuBackend,
+    ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
+        self.backward_gpu_impl(grad_output, false, gpu)
+    }
+
+    /// GPU-accelerated backward pass that skips the activation derivative.
+    ///
+    /// Used for the output layer when the loss gradient already incorporates
+    /// the activation derivative (e.g., softmax + cross-entropy, linear + MSE).
+    #[cfg(feature = "gpu")]
+    pub fn backward_gpu_skip_activation(
+        &self,
+        grad_output: &Array2<f64>,
+        gpu: &dyn crate::gpu::GpuBackend,
+    ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
+        self.backward_gpu_impl(grad_output, true, gpu)
+    }
+
+    /// Internal GPU-accelerated backward pass implementation.
+    #[cfg(feature = "gpu")]
+    fn backward_gpu_impl(
+        &self,
+        grad_output: &Array2<f64>,
+        skip_activation_deriv: bool,
         gpu: &dyn crate::gpu::GpuBackend,
     ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
         let z = self
@@ -359,16 +397,42 @@ impl Layer {
             None => grad_output.clone(),
         };
 
-        let activation_deriv = self.activation.derivative_2d(z, output);
-        let delta = &grad_output * &activation_deriv;
+        let delta = if skip_activation_deriv {
+            grad_output
+        } else {
+            // Use GPU activation gradient shaders where available
+            match self.activation {
+                crate::neural::Activation::ReLU => {
+                    let grad = gpu
+                        .relu_grad(z)
+                        .unwrap_or_else(|_| self.activation.derivative_2d(z, output));
+                    gpu.elementwise_mul(&grad_output, &grad)
+                        .unwrap_or_else(|_| &grad_output * &grad)
+                }
+                crate::neural::Activation::Sigmoid => {
+                    let grad = gpu
+                        .sigmoid_grad(output)
+                        .unwrap_or_else(|_| self.activation.derivative_2d(z, output));
+                    gpu.elementwise_mul(&grad_output, &grad)
+                        .unwrap_or_else(|_| &grad_output * &grad)
+                }
+                _ => {
+                    // Tanh, Linear, LeakyReLU, ELU, Softmax: CPU derivative
+                    let activation_deriv = self.activation.derivative_2d(z, output);
+                    &grad_output * &activation_deriv
+                }
+            }
+        };
 
-        // GPU-accelerated matrix multiplications
+        // GPU-accelerated matrix multiplications with CPU fallback
+        let input_t = input.t().to_owned();
         let grad_weights = gpu
-            .matmul(&input.t().to_owned(), &delta)
+            .matmul(&input_t, &delta)
             .unwrap_or_else(|_| input.t().dot(&delta));
         let grad_biases = delta.sum_axis(Axis(0));
+        let weights_t = self.weights.t().to_owned();
         let grad_input = gpu
-            .matmul(&delta, &self.weights.t().to_owned())
+            .matmul(&delta, &weights_t)
             .unwrap_or_else(|_| delta.dot(&self.weights.t()));
 
         Ok((grad_weights, grad_biases, grad_input))

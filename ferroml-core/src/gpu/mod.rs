@@ -23,12 +23,38 @@
 //! ```
 
 mod backend;
+mod dispatch;
 mod kernels;
 
 pub use backend::WgpuBackend;
+pub use dispatch::GpuDispatcher;
 
 use crate::Result;
-use ndarray::Array2;
+use ndarray::{Array1, Array2};
+
+/// Policy for GPU/CPU dispatch.
+#[derive(Debug, Clone)]
+pub enum GpuDispatchPolicy {
+    /// Always use GPU (return error on failure)
+    Always,
+    /// Use GPU if matrix exceeds threshold, else CPU
+    Auto { min_elements: usize },
+    /// Always use CPU (useful for testing/debugging)
+    Never,
+}
+
+impl Default for GpuDispatchPolicy {
+    fn default() -> Self {
+        GpuDispatchPolicy::Auto { min_elements: 4096 } // 64x64
+    }
+}
+
+/// GPU memory information queried from adapter.
+#[derive(Debug, Clone)]
+pub struct GpuMemoryInfo {
+    pub max_buffer_size: u64,
+    pub max_storage_buffer_binding_size: u32,
+}
 
 /// Trait for GPU-accelerated linear algebra operations.
 pub trait GpuBackend: Send + Sync + std::fmt::Debug {
@@ -38,6 +64,33 @@ pub trait GpuBackend: Send + Sync + std::fmt::Debug {
     /// Compute pairwise squared Euclidean distances between rows of X and rows of centers.
     /// Returns matrix of shape (n_samples, n_centers).
     fn pairwise_distances(&self, x: &Array2<f64>, centers: &Array2<f64>) -> Result<Array2<f64>>;
+
+    /// Element-wise ReLU: max(0, x).
+    fn relu(&self, x: &Array2<f64>) -> Result<Array2<f64>>;
+
+    /// Element-wise sigmoid: 1 / (1 + exp(-x)).
+    fn sigmoid(&self, x: &Array2<f64>) -> Result<Array2<f64>>;
+
+    /// Row-wise softmax: exp(x_ij - max_i) / sum_j exp(x_ij - max_i).
+    fn softmax(&self, x: &Array2<f64>) -> Result<Array2<f64>>;
+
+    /// Row-wise sum reduction.
+    fn row_sum(&self, x: &Array2<f64>) -> Result<Array1<f64>>;
+
+    /// Row-wise max reduction.
+    fn row_max(&self, x: &Array2<f64>) -> Result<Array1<f64>>;
+
+    /// Broadcast add bias vector to each row: output[i,j] = x[i,j] + bias[j].
+    fn bias_add(&self, x: &Array2<f64>, bias: &Array1<f64>) -> Result<Array2<f64>>;
+
+    /// ReLU gradient: 1.0 where z > 0, 0.0 otherwise.
+    fn relu_grad(&self, z: &Array2<f64>) -> Result<Array2<f64>>;
+
+    /// Sigmoid gradient: output * (1 - output), where output is the sigmoid output.
+    fn sigmoid_grad(&self, output: &Array2<f64>) -> Result<Array2<f64>>;
+
+    /// Element-wise multiplication: a * b.
+    fn elementwise_mul(&self, a: &Array2<f64>, b: &Array2<f64>) -> Result<Array2<f64>>;
 
     /// Check if GPU backend is available and functional.
     fn is_available(&self) -> bool;
@@ -70,6 +123,75 @@ mod tests {
     }
 
     impl GpuBackend for MockGpuBackend {
+        fn relu(&self, x: &Array2<f64>) -> crate::Result<Array2<f64>> {
+            Ok(x.mapv(|v| v.max(0.0)))
+        }
+
+        fn sigmoid(&self, x: &Array2<f64>) -> crate::Result<Array2<f64>> {
+            Ok(x.mapv(|v| 1.0 / (1.0 + (-v).exp())))
+        }
+
+        fn softmax(&self, x: &Array2<f64>) -> crate::Result<Array2<f64>> {
+            let (rows, cols) = x.dim();
+            let mut result = Array2::zeros((rows, cols));
+            for i in 0..rows {
+                let row = x.row(i);
+                let max_val = row.fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+                let exp_row: Vec<f64> = row.iter().map(|&v| (v - max_val).exp()).collect();
+                let sum: f64 = exp_row.iter().sum();
+                for j in 0..cols {
+                    result[[i, j]] = exp_row[j] / sum;
+                }
+            }
+            Ok(result)
+        }
+
+        fn row_sum(&self, x: &Array2<f64>) -> crate::Result<ndarray::Array1<f64>> {
+            Ok(x.sum_axis(ndarray::Axis(1)))
+        }
+
+        fn row_max(&self, x: &Array2<f64>) -> crate::Result<ndarray::Array1<f64>> {
+            let (rows, _) = x.dim();
+            let mut result = ndarray::Array1::zeros(rows);
+            for i in 0..rows {
+                result[i] = x.row(i).fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+            }
+            Ok(result)
+        }
+
+        fn bias_add(
+            &self,
+            x: &Array2<f64>,
+            bias: &ndarray::Array1<f64>,
+        ) -> crate::Result<Array2<f64>> {
+            let (_, cols) = x.dim();
+            if bias.len() != cols {
+                return Err(crate::FerroError::shape_mismatch(
+                    format!("matrix cols = {}", cols),
+                    format!("bias len = {}", bias.len()),
+                ));
+            }
+            Ok(x + &bias.broadcast((x.nrows(), cols)).unwrap())
+        }
+
+        fn relu_grad(&self, z: &Array2<f64>) -> crate::Result<Array2<f64>> {
+            Ok(z.mapv(|v| if v > 0.0 { 1.0 } else { 0.0 }))
+        }
+
+        fn sigmoid_grad(&self, output: &Array2<f64>) -> crate::Result<Array2<f64>> {
+            Ok(output * &(1.0 - output))
+        }
+
+        fn elementwise_mul(&self, a: &Array2<f64>, b: &Array2<f64>) -> crate::Result<Array2<f64>> {
+            if a.dim() != b.dim() {
+                return Err(crate::FerroError::shape_mismatch(
+                    format!("a shape = {:?}", a.dim()),
+                    format!("b shape = {:?}", b.dim()),
+                ));
+            }
+            Ok(a * b)
+        }
+
         fn matmul(&self, a: &Array2<f64>, b: &Array2<f64>) -> crate::Result<Array2<f64>> {
             let (_, k) = a.dim();
             let (k2, _) = b.dim();
@@ -456,8 +578,276 @@ mod tests {
     }
 
     // ========================================================================
+    // Mock backend: relu tests
+    // ========================================================================
+
+    #[test]
+    fn test_mock_relu_positive_passthrough() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+        let result = backend.relu(&x).unwrap();
+        assert!((result[[0, 0]] - 1.0).abs() < 1e-12);
+        assert!((result[[0, 1]] - 2.0).abs() < 1e-12);
+        assert!((result[[1, 2]] - 6.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_mock_relu_negative_to_zero() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[-1.0, -2.0], [-0.5, -100.0]];
+        let result = backend.relu(&x).unwrap();
+        for val in result.iter() {
+            assert!(val.abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_mock_relu_mixed() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[-1.0, 2.0], [0.0, -3.0]];
+        let result = backend.relu(&x).unwrap();
+        assert!((result[[0, 0]] - 0.0).abs() < 1e-12);
+        assert!((result[[0, 1]] - 2.0).abs() < 1e-12);
+        assert!((result[[1, 0]] - 0.0).abs() < 1e-12);
+        assert!((result[[1, 1]] - 0.0).abs() < 1e-12);
+    }
+
+    // ========================================================================
+    // Mock backend: sigmoid tests
+    // ========================================================================
+
+    #[test]
+    fn test_mock_sigmoid_range() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[-10.0, -1.0, 0.0, 1.0, 10.0]]
+            .into_shape_with_order((1, 5))
+            .unwrap();
+        let result = backend.sigmoid(&x).unwrap();
+        for val in result.iter() {
+            assert!(*val > 0.0 && *val < 1.0);
+        }
+    }
+
+    #[test]
+    fn test_mock_sigmoid_zero() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[0.0]];
+        let result = backend.sigmoid(&x).unwrap();
+        assert!((result[[0, 0]] - 0.5).abs() < 1e-12);
+    }
+
+    // ========================================================================
+    // Mock backend: softmax tests
+    // ========================================================================
+
+    #[test]
+    fn test_mock_softmax_rows_sum_to_one() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+        let result = backend.softmax(&x).unwrap();
+        for i in 0..2 {
+            let row_sum: f64 = result.row(i).sum();
+            assert!((row_sum - 1.0).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_mock_softmax_values() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[0.0, 0.0, 0.0]];
+        let result = backend.softmax(&x).unwrap();
+        // Uniform input -> uniform output
+        for j in 0..3 {
+            assert!((result[[0, j]] - 1.0 / 3.0).abs() < 1e-12);
+        }
+    }
+
+    // ========================================================================
+    // Mock backend: row_sum / row_max tests
+    // ========================================================================
+
+    #[test]
+    fn test_mock_row_sum_known() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+        let result = backend.row_sum(&x).unwrap();
+        assert!((result[0] - 6.0).abs() < 1e-12);
+        assert!((result[1] - 15.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_mock_row_max_known() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[1.0, 5.0, 3.0], [4.0, 2.0, 6.0]];
+        let result = backend.row_max(&x).unwrap();
+        assert!((result[0] - 5.0).abs() < 1e-12);
+        assert!((result[1] - 6.0).abs() < 1e-12);
+    }
+
+    // ========================================================================
+    // Mock backend: bias_add tests
+    // ========================================================================
+
+    #[test]
+    fn test_mock_bias_add_known() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[1.0, 2.0], [3.0, 4.0]];
+        let bias = ndarray::array![10.0, 20.0];
+        let result = backend.bias_add(&x, &bias).unwrap();
+        assert!((result[[0, 0]] - 11.0).abs() < 1e-12);
+        assert!((result[[0, 1]] - 22.0).abs() < 1e-12);
+        assert!((result[[1, 0]] - 13.0).abs() < 1e-12);
+        assert!((result[[1, 1]] - 24.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_mock_bias_add_shape_mismatch() {
+        let backend = MockGpuBackend::new();
+        let x = ndarray::array![[1.0, 2.0], [3.0, 4.0]];
+        let bias = ndarray::array![10.0, 20.0, 30.0]; // 3 != 2 cols
+        let result = backend.bias_add(&x, &bias);
+        assert!(result.is_err());
+    }
+
+    // ========================================================================
+    // Mock backend: relu_grad tests
+    // ========================================================================
+
+    #[test]
+    fn test_mock_relu_grad_positive() {
+        let backend = MockGpuBackend::new();
+        let z = ndarray::array![[1.0, 2.0], [0.5, 3.0]];
+        let result = backend.relu_grad(&z).unwrap();
+        for val in result.iter() {
+            assert!((val - 1.0).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_mock_relu_grad_negative() {
+        let backend = MockGpuBackend::new();
+        let z = ndarray::array![[-1.0, -2.0], [-0.5, 0.0]];
+        let result = backend.relu_grad(&z).unwrap();
+        for val in result.iter() {
+            assert!(val.abs() < 1e-12);
+        }
+    }
+
+    // ========================================================================
+    // Mock backend: sigmoid_grad tests
+    // ========================================================================
+
+    #[test]
+    fn test_mock_sigmoid_grad_known() {
+        let backend = MockGpuBackend::new();
+        // sigmoid(0) = 0.5, grad at output=0.5 is 0.5*0.5 = 0.25
+        let output = ndarray::array![[0.5]];
+        let result = backend.sigmoid_grad(&output).unwrap();
+        assert!((result[[0, 0]] - 0.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_mock_sigmoid_grad_boundary() {
+        let backend = MockGpuBackend::new();
+        // At output ~0 or ~1, gradient should be ~0
+        let output = ndarray::array![[0.0, 1.0]];
+        let result = backend.sigmoid_grad(&output).unwrap();
+        assert!(result[[0, 0]].abs() < 1e-12);
+        assert!(result[[0, 1]].abs() < 1e-12);
+    }
+
+    // ========================================================================
+    // Mock backend: elementwise_mul tests
+    // ========================================================================
+
+    #[test]
+    fn test_mock_elementwise_mul_known() {
+        let backend = MockGpuBackend::new();
+        let a = ndarray::array![[1.0, 2.0], [3.0, 4.0]];
+        let b = ndarray::array![[5.0, 6.0], [7.0, 8.0]];
+        let result = backend.elementwise_mul(&a, &b).unwrap();
+        assert!((result[[0, 0]] - 5.0).abs() < 1e-12);
+        assert!((result[[0, 1]] - 12.0).abs() < 1e-12);
+        assert!((result[[1, 0]] - 21.0).abs() < 1e-12);
+        assert!((result[[1, 1]] - 32.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_mock_elementwise_mul_shape_mismatch() {
+        let backend = MockGpuBackend::new();
+        let a = ndarray::array![[1.0, 2.0]];
+        let b = ndarray::array![[1.0, 2.0, 3.0]];
+        let result = backend.elementwise_mul(&a, &b);
+        assert!(result.is_err());
+    }
+
+    // ========================================================================
     // WgpuBackend graceful degradation tests (no GPU required)
     // ========================================================================
+
+    // ========================================================================
+    // GpuDispatchPolicy and GpuMemoryInfo compile-time tests
+    // ========================================================================
+
+    #[test]
+    fn test_dispatch_policy_default() {
+        let policy = GpuDispatchPolicy::default();
+        match policy {
+            GpuDispatchPolicy::Auto { min_elements } => assert_eq!(min_elements, 4096),
+            _ => panic!("Default should be Auto {{ min_elements: 4096 }}"),
+        }
+    }
+
+    #[test]
+    fn test_dispatch_policy_debug() {
+        let _ = format!("{:?}", GpuDispatchPolicy::Always);
+        let _ = format!("{:?}", GpuDispatchPolicy::Never);
+        let _ = format!("{:?}", GpuDispatchPolicy::Auto { min_elements: 100 });
+    }
+
+    #[test]
+    fn test_dispatch_policy_clone() {
+        let p = GpuDispatchPolicy::Auto { min_elements: 42 };
+        let p2 = p.clone();
+        match p2 {
+            GpuDispatchPolicy::Auto { min_elements } => assert_eq!(min_elements, 42),
+            _ => panic!("Clone failed"),
+        }
+    }
+
+    #[test]
+    fn test_memory_info_struct() {
+        let info = GpuMemoryInfo {
+            max_buffer_size: 1 << 28,
+            max_storage_buffer_binding_size: 1 << 27,
+        };
+        assert_eq!(info.max_buffer_size, 268_435_456);
+        assert_eq!(info.max_storage_buffer_binding_size, 134_217_728);
+        let debug = format!("{:?}", info);
+        assert!(debug.contains("GpuMemoryInfo"));
+    }
+
+    #[test]
+    fn test_memory_info_clone() {
+        let info = GpuMemoryInfo {
+            max_buffer_size: 100,
+            max_storage_buffer_binding_size: 50,
+        };
+        let info2 = info.clone();
+        assert_eq!(info2.max_buffer_size, 100);
+        assert_eq!(info2.max_storage_buffer_binding_size, 50);
+    }
+
+    #[test]
+    fn test_preflight_check_wgpu() {
+        // If GPU is available, verify memory_info is populated and preflight works
+        if let Some(backend) = WgpuBackend::try_new() {
+            let info = backend.memory_info();
+            // max_buffer_size should be > 0 on any real GPU
+            assert!(info.max_buffer_size > 0);
+            assert!(info.max_storage_buffer_binding_size > 0);
+        }
+    }
 
     #[test]
     fn test_wgpu_try_new_returns_option() {

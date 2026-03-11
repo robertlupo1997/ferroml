@@ -243,6 +243,58 @@ impl CsrMatrix {
         self.sparsity() < 0.5
     }
 
+    /// Compute X^T @ y efficiently (sparse transpose-vector product).
+    ///
+    /// For each row i, for each nnz (col, val) in row i: result[col] += val * y[i]
+    pub fn transpose_dot(&self, y: &Array1<f64>) -> Array1<f64> {
+        let mut result = Array1::zeros(self.ncols());
+        for (i, row) in self.inner.outer_iterator().enumerate() {
+            for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                result[col] += val * y[i];
+            }
+        }
+        result
+    }
+
+    /// Compute X^T @ X (Gram matrix) — returns dense matrix.
+    ///
+    /// Native O(nnz * avg_nnz_per_row) implementation that avoids densifying the matrix.
+    /// For each row, computes the outer product of its sparse entries and accumulates.
+    pub fn gram_matrix(&self) -> Array2<f64> {
+        let p = self.ncols();
+        let mut result = Array2::zeros((p, p));
+        for row in self.inner.outer_iterator() {
+            let indices = row.indices();
+            let data = row.data();
+            for (a, &col_a) in indices.iter().enumerate() {
+                for (b, &col_b) in indices.iter().enumerate() {
+                    result[[col_a, col_b]] += data[a] * data[b];
+                }
+            }
+        }
+        result
+    }
+
+    /// Compute X^T @ diag(w) @ X (weighted Gram matrix).
+    ///
+    /// Native O(nnz * avg_nnz_per_row) implementation that avoids densifying the matrix.
+    /// For each row i, multiplies the outer product of its sparse entries by w[i].
+    pub fn weighted_gram(&self, w: &Array1<f64>) -> Array2<f64> {
+        let p = self.ncols();
+        let mut result = Array2::zeros((p, p));
+        for (i, row) in self.inner.outer_iterator().enumerate() {
+            let wi = w[i];
+            let indices = row.indices();
+            let data = row.data();
+            for (a, &col_a) in indices.iter().enumerate() {
+                for (b, &col_b) in indices.iter().enumerate() {
+                    result[[col_a, col_b]] += data[a] * data[b] * wi;
+                }
+            }
+        }
+        result
+    }
+
     /// Transpose the matrix (returns CSC, which is CSR of transpose).
     pub fn transpose(&self) -> CscMatrix {
         CscMatrix {

@@ -3173,6 +3173,158 @@ impl PyRFE {
 }
 
 // =============================================================================
+// TfidfTransformer
+// =============================================================================
+
+/// Transform a count matrix to a TF-IDF representation.
+///
+/// TF-IDF (Term Frequency-Inverse Document Frequency) is a statistical measure
+/// used to evaluate the importance of a word in a document relative to a
+/// collection of documents (corpus).
+///
+/// Parameters
+/// ----------
+/// norm : str, optional (default='l2')
+///     Normalization to apply: 'l1', 'l2', or 'none'.
+/// use_idf : bool, optional (default=True)
+///     Enable inverse-document-frequency reweighting.
+/// smooth_idf : bool, optional (default=True)
+///     Smooth IDF weights by adding one to document frequencies.
+/// sublinear_tf : bool, optional (default=False)
+///     Apply sublinear TF scaling: replace tf with 1 + log(tf).
+///
+/// Attributes
+/// ----------
+/// idf_ : ndarray of shape (n_features,)
+///     The inverse document frequency vector (only if use_idf=True).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import TfidfTransformer
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 0, 2], [0, 1, 1], [1, 1, 0]], dtype=np.float64)
+/// >>> tfidf = TfidfTransformer()
+/// >>> X_tfidf = tfidf.fit_transform(X)
+#[pyclass(name = "TfidfTransformer", module = "ferroml.preprocessing")]
+pub struct PyTfidfTransformer {
+    inner: ferroml_core::preprocessing::tfidf::TfidfTransformer,
+}
+
+#[pymethods]
+impl PyTfidfTransformer {
+    /// Create a new TfidfTransformer.
+    #[new]
+    #[pyo3(signature = (norm="l2", use_idf=true, smooth_idf=true, sublinear_tf=false))]
+    fn new(norm: &str, use_idf: bool, smooth_idf: bool, sublinear_tf: bool) -> PyResult<Self> {
+        use ferroml_core::preprocessing::tfidf::TfidfNorm;
+
+        let norm_enum = match norm {
+            "l1" => TfidfNorm::L1,
+            "l2" => TfidfNorm::L2,
+            "none" | "" => TfidfNorm::None,
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "norm must be 'l1', 'l2', or 'none'",
+                ))
+            }
+        };
+
+        Ok(Self {
+            inner: ferroml_core::preprocessing::tfidf::TfidfTransformer::new()
+                .with_norm(norm_enum)
+                .with_use_idf(use_idf)
+                .with_smooth_idf(smooth_idf)
+                .with_sublinear_tf(sublinear_tf),
+        })
+    }
+
+    /// Fit the transformer to a count matrix.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Term-count matrix.
+    ///
+    /// Returns
+    /// -------
+    /// self : TfidfTransformer
+    ///     Fitted transformer.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Transform a count matrix to TF-IDF representation.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Term-count matrix.
+    ///
+    /// Returns
+    /// -------
+    /// X_new : ndarray of shape (n_samples, n_features)
+    ///     TF-IDF weighted matrix.
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Fit and transform in one step.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : array-like of shape (n_samples, n_features)
+    ///     Term-count matrix.
+    ///
+    /// Returns
+    /// -------
+    /// X_new : ndarray of shape (n_samples, n_features)
+    ///     TF-IDF weighted matrix.
+    fn fit_transform<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = slf
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// The inverse document frequency vector.
+    ///
+    /// Returns
+    /// -------
+    /// idf : ndarray of shape (n_features,) or None
+    ///     IDF weights, or None if use_idf=False or not fitted.
+    #[getter]
+    fn idf_<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyArray1<f64>>>> {
+        Ok(self.inner.idf().map(|idf| idf.clone().into_pyarray(py)))
+    }
+
+    fn __repr__(&self) -> String {
+        "TfidfTransformer()".to_string()
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -3219,6 +3371,9 @@ pub fn register_preprocessing_module(parent_module: &Bound<'_, PyModule>) -> PyR
 
     // Recursive Feature Elimination (factory pattern)
     preprocessing_module.add_class::<PyRFE>()?;
+
+    // TF-IDF
+    preprocessing_module.add_class::<PyTfidfTransformer>()?;
 
     parent_module.add_submodule(&preprocessing_module)?;
 

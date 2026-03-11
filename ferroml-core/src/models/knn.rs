@@ -1662,6 +1662,354 @@ impl Model for NearestCentroid {
 }
 
 // =============================================================================
+// Sparse Model Implementations
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+use crate::sparse::{
+    sparse_euclidean_distance, sparse_manhattan_distance, sparse_pairwise_distances, CsrMatrix,
+    SparseDistanceMetric,
+};
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for KNeighborsClassifier {
+    fn fit_sparse(&mut self, x: &CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n_samples = x.nrows();
+        if y.len() != n_samples {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} labels", n_samples),
+                actual: format!("{} labels", y.len()),
+            });
+        }
+        if self.n_neighbors > n_samples {
+            return Err(FerroError::invalid_input(format!(
+                "n_neighbors ({}) cannot be greater than n_samples ({})",
+                self.n_neighbors, n_samples
+            )));
+        }
+
+        let classes_vec = super::get_unique_classes(y);
+
+        // Store dense copy for training data (needed by sparse predict)
+        // We store the sparse matrix as dense because we need to access rows by index
+        self.x_train = Some(x.to_dense());
+        self.y_train = Some(y.clone());
+        self.classes = Some(classes_vec);
+        self.n_features = Some(x.ncols());
+        // Force brute force for sparse — no KDTree/BallTree
+        self.effective_algorithm = Some(KNNAlgorithm::BruteForce);
+        self.kdtree = None;
+        self.balltree = None;
+
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &CsrMatrix) -> Result<Array1<f64>> {
+        check_is_fitted(&self.x_train, "predict_sparse")?;
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        if x.ncols() != n_features {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} features", n_features),
+                actual: format!("{} features", x.ncols()),
+            });
+        }
+
+        let y_train = self
+            .y_train
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let x_train = self
+            .x_train
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+
+        // Build a sparse version of training data for distance computation
+        let x_train_sparse = CsrMatrix::from_dense(x_train);
+
+        let n_samples = x.nrows();
+        let k = self.n_neighbors.min(x_train.nrows());
+        let classes_slice = classes.as_slice().unwrap();
+
+        let metric = match self.metric {
+            DistanceMetric::Euclidean => SparseDistanceMetric::Euclidean,
+            DistanceMetric::Manhattan => SparseDistanceMetric::Manhattan,
+            _ => SparseDistanceMetric::Euclidean,
+        };
+
+        let mut predictions = Array1::zeros(n_samples);
+        for i in 0..n_samples {
+            let query_row = x.row(i);
+            let distances = sparse_pairwise_distances(&query_row, &x_train_sparse, metric);
+
+            // Find k nearest
+            let mut indexed_dists: Vec<(usize, f64)> =
+                distances.iter().enumerate().map(|(j, &d)| (j, d)).collect();
+            indexed_dists.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
+            indexed_dists.truncate(k);
+
+            // Compute weights
+            let weights: Vec<f64> = match self.weights {
+                KNNWeights::Uniform => vec![1.0; indexed_dists.len()],
+                KNNWeights::Distance => {
+                    const EPS: f64 = 1e-10;
+                    indexed_dists.iter().map(|(_, d)| 1.0 / (d + EPS)).collect()
+                }
+            };
+
+            // Majority vote
+            let mut cw = vec![0.0; classes.len()];
+            for ((idx, _), w) in indexed_dists.iter().zip(weights.iter()) {
+                let label = y_train[*idx];
+                if let Ok(ci) = classes_slice
+                    .binary_search_by(|c| c.partial_cmp(&label).unwrap_or(Ordering::Equal))
+                {
+                    cw[ci] += w;
+                }
+            }
+
+            let best_class_idx = cw
+                .iter()
+                .enumerate()
+                .max_by(|(ia, a), (ib, b)| {
+                    a.partial_cmp(b).unwrap_or(Ordering::Equal).then(ib.cmp(ia))
+                })
+                .map(|(idx, _)| idx)
+                .unwrap_or(0);
+
+            predictions[i] = classes[best_class_idx];
+        }
+
+        Ok(predictions)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for KNeighborsRegressor {
+    fn fit_sparse(&mut self, x: &CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n_samples = x.nrows();
+        if y.len() != n_samples {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} labels", n_samples),
+                actual: format!("{} labels", y.len()),
+            });
+        }
+        if self.n_neighbors > n_samples {
+            return Err(FerroError::invalid_input(format!(
+                "n_neighbors ({}) cannot be greater than n_samples ({})",
+                self.n_neighbors, n_samples
+            )));
+        }
+
+        self.x_train = Some(x.to_dense());
+        self.y_train = Some(y.clone());
+        self.n_features = Some(x.ncols());
+        self.effective_algorithm = Some(KNNAlgorithm::BruteForce);
+        self.kdtree = None;
+        self.balltree = None;
+
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &CsrMatrix) -> Result<Array1<f64>> {
+        check_is_fitted(&self.x_train, "predict_sparse")?;
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        if x.ncols() != n_features {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} features", n_features),
+                actual: format!("{} features", x.ncols()),
+            });
+        }
+
+        let y_train = self
+            .y_train
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let x_train = self
+            .x_train
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
+        let y_mean = y_train.mean().unwrap_or(0.0);
+
+        let x_train_sparse = CsrMatrix::from_dense(x_train);
+
+        let n_samples = x.nrows();
+        let k = self.n_neighbors.min(x_train.nrows());
+
+        let metric = match self.metric {
+            DistanceMetric::Euclidean => SparseDistanceMetric::Euclidean,
+            DistanceMetric::Manhattan => SparseDistanceMetric::Manhattan,
+            _ => SparseDistanceMetric::Euclidean,
+        };
+
+        let mut predictions = Array1::zeros(n_samples);
+        for i in 0..n_samples {
+            let query_row = x.row(i);
+            let distances = sparse_pairwise_distances(&query_row, &x_train_sparse, metric);
+
+            let mut indexed_dists: Vec<(usize, f64)> =
+                distances.iter().enumerate().map(|(j, &d)| (j, d)).collect();
+            indexed_dists.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
+            indexed_dists.truncate(k);
+
+            let weights: Vec<f64> = match self.weights {
+                KNNWeights::Uniform => vec![1.0; indexed_dists.len()],
+                KNNWeights::Distance => {
+                    const EPS: f64 = 1e-10;
+                    indexed_dists.iter().map(|(_, d)| 1.0 / (d + EPS)).collect()
+                }
+            };
+
+            let mut weighted_sum = 0.0;
+            let mut weight_sum = 0.0;
+            for ((idx, _), w) in indexed_dists.iter().zip(weights.iter()) {
+                weighted_sum += y_train[*idx] * w;
+                weight_sum += w;
+            }
+
+            predictions[i] = if weight_sum > 0.0 {
+                weighted_sum / weight_sum
+            } else {
+                y_mean
+            };
+        }
+
+        Ok(predictions)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for NearestCentroid {
+    fn fit_sparse(&mut self, x: &CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n_samples = x.nrows();
+        if y.len() != n_samples {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} labels", n_samples),
+                actual: format!("{} labels", y.len()),
+            });
+        }
+
+        let classes = super::get_unique_classes(y);
+        let n_classes = classes.len();
+        if n_classes < 2 {
+            return Err(FerroError::invalid_input(
+                "NearestCentroid requires at least 2 classes",
+            ));
+        }
+
+        let n_features = x.ncols();
+        let mut centroids = Array2::zeros((n_classes, n_features));
+
+        // Compute centroid for each class by accumulating sparse rows
+        for (ci, &c) in classes.iter().enumerate() {
+            let mask: Vec<usize> = y
+                .iter()
+                .enumerate()
+                .filter(|(_, &v)| (v - c).abs() < 1e-10)
+                .map(|(i, _)| i)
+                .collect();
+
+            if mask.is_empty() {
+                return Err(FerroError::invalid_input(format!(
+                    "No samples for class {}",
+                    c
+                )));
+            }
+
+            let mut centroid = Array1::zeros(n_features);
+            for &idx in &mask {
+                let row = x.row(idx);
+                // Add sparse row to dense centroid
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    centroid[col] += val;
+                }
+            }
+            centroid /= mask.len() as f64;
+            centroids.row_mut(ci).assign(&centroid);
+        }
+
+        // Optional centroid shrinkage
+        if let Some(threshold) = self.shrink_threshold {
+            // Compute overall centroid from sparse data
+            let mut overall_centroid = Array1::zeros(n_features);
+            for i in 0..n_samples {
+                let row = x.row(i);
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    overall_centroid[col] += val;
+                }
+            }
+            overall_centroid /= n_samples as f64;
+
+            for mut row in centroids.rows_mut() {
+                let diff = &row.to_owned() - &overall_centroid;
+                let shrunk: Array1<f64> = diff
+                    .iter()
+                    .map(|&d| {
+                        let sign = d.signum();
+                        let abs_d = d.abs();
+                        sign * (abs_d - threshold).max(0.0)
+                    })
+                    .collect();
+                row.assign(&(&overall_centroid + &shrunk));
+            }
+        }
+
+        self.classes = Some(classes);
+        self.centroids = Some(centroids);
+        self.n_features = Some(n_features);
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &CsrMatrix) -> Result<Array1<f64>> {
+        check_is_fitted(&self.centroids, "predict_sparse")?;
+        let n_features = self.n_features.unwrap();
+        if x.ncols() != n_features {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} features", n_features),
+                actual: format!("{} features", x.ncols()),
+            });
+        }
+
+        let classes = self.classes.as_ref().unwrap();
+        let centroids = self.centroids.as_ref().unwrap();
+        let n_samples = x.nrows();
+
+        // Convert centroids to sparse for distance calculation
+        let centroids_sparse = CsrMatrix::from_dense(centroids);
+
+        let mut predictions = Array1::zeros(n_samples);
+        for i in 0..n_samples {
+            let sample = x.row(i);
+            let mut best_dist = f64::INFINITY;
+            let mut best_class = classes[0];
+
+            for ci in 0..centroids.nrows() {
+                let centroid_row = centroids_sparse.row(ci);
+                let dist = match self.metric {
+                    DistanceMetric::Manhattan => sparse_manhattan_distance(&sample, &centroid_row),
+                    _ => sparse_euclidean_distance(&sample, &centroid_row),
+                };
+                if dist < best_dist {
+                    best_dist = dist;
+                    best_class = classes[ci];
+                }
+            }
+
+            predictions[i] = best_class;
+        }
+
+        Ok(predictions)
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 

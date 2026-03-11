@@ -53,13 +53,17 @@ pub trait WeightedModel: super::Model {
 }
 
 /// Trait for models that support sparse input (requires sparse feature)
+///
+/// Uses the `CsrMatrix` wrapper instead of raw sprs types for a cleaner API.
+/// This trait is standalone (no Model supertrait) so clustering models that
+/// don't implement Model can still support sparse data.
 #[cfg(feature = "sparse")]
-pub trait SparseModel: super::Model {
+pub trait SparseModel {
     /// Fit on sparse CSR matrix
-    fn fit_sparse(&mut self, x: &sprs::CsMat<f64>, y: &Array1<f64>) -> Result<()>;
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()>;
 
     /// Predict from sparse CSR matrix
-    fn predict_sparse(&self, x: &sprs::CsMat<f64>) -> Result<Array1<f64>>;
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>>;
 }
 
 /// Trait for tree-based models with feature importance

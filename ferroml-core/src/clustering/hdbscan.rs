@@ -67,6 +67,10 @@ pub struct HDBSCAN {
     /// Whether to allow a single cluster as output
     allow_single_cluster: bool,
 
+    /// Optional GPU backend for accelerated pairwise distance computation
+    #[cfg(feature = "gpu")]
+    gpu_backend: Option<std::sync::Arc<dyn crate::gpu::GpuBackend>>,
+
     // Fitted state
     /// Cluster labels for each point (-1 for noise)
     labels_: Option<Array1<i32>>,
@@ -154,10 +158,19 @@ impl HDBSCAN {
             min_samples: None,
             cluster_selection_epsilon: 0.0,
             allow_single_cluster: false,
+            #[cfg(feature = "gpu")]
+            gpu_backend: None,
             labels_: None,
             probabilities_: None,
             n_clusters_: None,
         }
+    }
+
+    /// Set GPU backend for accelerated pairwise distance computation.
+    #[cfg(feature = "gpu")]
+    pub fn with_gpu(mut self, backend: std::sync::Arc<dyn crate::gpu::GpuBackend>) -> Self {
+        self.gpu_backend = Some(backend);
+        self
     }
 
     /// Set the number of neighbors used for core distance computation.
@@ -253,6 +266,74 @@ fn mutual_reachability_distance(
 ) -> f64 {
     let d = euclidean_distance(&x.row(a), &x.row(b));
     d.max(core_dists[a]).max(core_dists[b])
+}
+
+#[cfg(feature = "gpu")]
+/// Build MST from a precomputed squared-Euclidean distance matrix and core distances.
+///
+/// The distance matrix contains squared Euclidean distances; this function takes
+/// the square root before computing mutual reachability.
+///
+/// Returns edges as (source, target, weight) sorted by weight ascending.
+fn build_mst_from_precomputed(
+    sq_dist_matrix: &Array2<f64>,
+    core_dists: &Array1<f64>,
+) -> Vec<(usize, usize, f64)> {
+    let n = sq_dist_matrix.nrows();
+    if n <= 1 {
+        return Vec::new();
+    }
+
+    let mut in_tree = vec![false; n];
+    let mut min_edge = vec![f64::INFINITY; n];
+    let mut min_source = vec![0usize; n];
+    let mut mst = Vec::with_capacity(n - 1);
+
+    // Start from node 0
+    in_tree[0] = true;
+    for j in 1..n {
+        let d = sq_dist_matrix[[0, j]].sqrt();
+        min_edge[j] = d.max(core_dists[0]).max(core_dists[j]);
+        min_source[j] = 0;
+    }
+
+    for _ in 0..(n - 1) {
+        let mut next = usize::MAX;
+        let mut next_dist = f64::INFINITY;
+        for j in 0..n {
+            if !in_tree[j] && min_edge[j] < next_dist {
+                next_dist = min_edge[j];
+                next = j;
+            }
+        }
+
+        if next == usize::MAX {
+            for j in 0..n {
+                if !in_tree[j] {
+                    next = j;
+                    next_dist = min_edge[j];
+                    break;
+                }
+            }
+        }
+
+        in_tree[next] = true;
+        mst.push((min_source[next], next, next_dist));
+
+        for j in 0..n {
+            if !in_tree[j] {
+                let d = sq_dist_matrix[[next, j]].sqrt();
+                let mreach = d.max(core_dists[next]).max(core_dists[j]);
+                if mreach < min_edge[j] {
+                    min_edge[j] = mreach;
+                    min_source[j] = next;
+                }
+            }
+        }
+    }
+
+    mst.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+    mst
 }
 
 /// Build minimum spanning tree using dense Prim's algorithm on mutual reachability distances.
@@ -847,6 +928,21 @@ impl ClusteringModel for HDBSCAN {
         let core_dists = compute_core_distances(x, effective_min_samples);
 
         // 2-3. Build MST via dense Prim's with mutual reachability
+        // GPU path: precompute full pairwise squared distance matrix
+        #[cfg(feature = "gpu")]
+        let mst = {
+            let gpu_dist_matrix = self
+                .gpu_backend
+                .as_ref()
+                .and_then(|gpu| gpu.pairwise_distances(x, x).ok());
+            if let Some(ref dist_matrix) = gpu_dist_matrix {
+                build_mst_from_precomputed(dist_matrix, &core_dists)
+            } else {
+                build_mst_mutual_reachability(x, &core_dists)
+            }
+        };
+
+        #[cfg(not(feature = "gpu"))]
         let mst = build_mst_mutual_reachability(x, &core_dists);
 
         // 4. Build condensed cluster tree

@@ -362,6 +362,11 @@ pub struct GradientBoostingRegressor {
     /// Enable warm start to add estimators incrementally
     pub warm_start: bool,
 
+    /// Optional GPU backend for accelerated batch computation
+    #[cfg(feature = "gpu")]
+    #[serde(skip)]
+    gpu_backend: Option<std::sync::Arc<dyn crate::gpu::GpuBackend>>,
+
     // Fitted parameters
     estimators: Option<Vec<DecisionTreeRegressor>>,
     init_prediction: Option<f64>,
@@ -393,12 +398,22 @@ impl GradientBoostingRegressor {
             alpha: 0.9,
             random_state: None,
             warm_start: false,
+            #[cfg(feature = "gpu")]
+            gpu_backend: None,
             estimators: None,
             init_prediction: None,
             n_features: None,
             feature_importances: None,
             training_history: None,
         }
+    }
+
+    /// Set GPU backend for accelerated batch computation.
+    #[cfg(feature = "gpu")]
+    #[must_use]
+    pub fn with_gpu(mut self, backend: std::sync::Arc<dyn crate::gpu::GpuBackend>) -> Self {
+        self.gpu_backend = Some(backend);
+        self
     }
 
     /// Set the number of estimators
@@ -890,6 +905,11 @@ pub struct GradientBoostingClassifier {
     /// Enable warm start to add estimators incrementally
     pub warm_start: bool,
 
+    /// Optional GPU backend for accelerated batch computation
+    #[cfg(feature = "gpu")]
+    #[serde(skip)]
+    gpu_backend: Option<std::sync::Arc<dyn crate::gpu::GpuBackend>>,
+
     // Fitted parameters
     estimators: Option<Vec<Vec<DecisionTreeRegressor>>>, // [n_estimators][n_classes]
     init_predictions: Option<Array1<f64>>,               // [n_classes] for multiclass
@@ -923,6 +943,8 @@ impl GradientBoostingClassifier {
             random_state: None,
             class_weight: ClassWeight::Uniform,
             warm_start: false,
+            #[cfg(feature = "gpu")]
+            gpu_backend: None,
             estimators: None,
             init_predictions: None,
             classes: None,
@@ -931,6 +953,14 @@ impl GradientBoostingClassifier {
             feature_importances: None,
             training_history: None,
         }
+    }
+
+    /// Set GPU backend for accelerated batch computation.
+    #[cfg(feature = "gpu")]
+    #[must_use]
+    pub fn with_gpu(mut self, backend: std::sync::Arc<dyn crate::gpu::GpuBackend>) -> Self {
+        self.gpu_backend = Some(backend);
+        self
     }
 
     /// Set the number of estimators

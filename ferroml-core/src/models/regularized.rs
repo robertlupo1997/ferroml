@@ -2440,6 +2440,210 @@ fn ln_gamma(x: f64) -> f64 {
     -tmp + (2.506_628_274_631_000_5 * ser / x).ln()
 }
 
+// =============================================================================
+// SparseModel implementation
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for RidgeRegression {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n = x.nrows();
+        let p = x.ncols();
+
+        if n != y.len() {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} samples", n),
+                actual: format!("{} targets", y.len()),
+            });
+        }
+
+        if self.alpha < 0.0 {
+            return Err(FerroError::invalid_input("alpha must be non-negative"));
+        }
+
+        // Center data if fitting intercept
+        // For sparse, compute means via sparse traversal
+        let (x_mean, y_mean) = if self.fit_intercept {
+            // x_mean[j] = sum of column j / n
+            let mut col_sums = Array1::zeros(p);
+            for i in 0..n {
+                let row = x.row(i);
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    col_sums[col] += val;
+                }
+            }
+            let x_mean = col_sums / n as f64;
+            let y_mean = y.mean().unwrap_or(0.0);
+            (x_mean, y_mean)
+        } else {
+            (Array1::zeros(p), 0.0)
+        };
+
+        let y_centered = if self.fit_intercept {
+            y - y_mean
+        } else {
+            y.clone()
+        };
+
+        // Ridge closed-form: beta = (X'X + alpha*I)^{-1} X'y
+        // where X is centered.
+        //
+        // For sparse with centering: X_c = X - 1*x_mean'
+        // X_c'X_c = X'X - n * x_mean * x_mean'
+        // X_c'y_c = X'y_c - x_mean * sum(y_c)  [sum(y_c) = 0 when fit_intercept]
+        //
+        // X'X via sparse gram_matrix, X'y_c via sparse transpose_dot
+
+        let mut xtx = x.gram_matrix(); // sparse O(nnz * avg_nnz_per_row)
+
+        if self.fit_intercept {
+            // Subtract centering: X_c'X_c = X'X - n * x_mean * x_mean'
+            for j in 0..p {
+                for k in 0..p {
+                    xtx[[j, k]] -= n as f64 * x_mean[j] * x_mean[k];
+                }
+            }
+        }
+
+        let mut xty = x.transpose_dot(&y_centered); // sparse O(nnz)
+
+        if self.fit_intercept {
+            // X_c'y_c = X'y_c - x_mean * sum(y_c)
+            // sum(y_c) = sum(y) - n*y_mean = 0, so this term vanishes
+            // But let's be precise in case of floating point:
+            let y_c_sum: f64 = y_centered.sum();
+            for j in 0..p {
+                xty[j] -= x_mean[j] * y_c_sum;
+            }
+        }
+
+        // Add regularization
+        for i in 0..p {
+            xtx[[i, i]] += self.alpha;
+        }
+
+        // Solve via Cholesky
+        let coefficients = solve_symmetric_positive_definite(&xtx, &xty)?;
+
+        // Compute intercept
+        let intercept = if self.fit_intercept {
+            y_mean - x_mean.dot(&coefficients)
+        } else {
+            0.0
+        };
+
+        // Compute fitted values: X @ coef + intercept (sparse mat-vec)
+        let mut fitted_values = x.dot(&coefficients)?;
+        fitted_values.mapv_inplace(|v| v + intercept);
+
+        let residuals = y - &fitted_values;
+
+        // Statistics
+        let tss: f64 = y.iter().map(|yi| (yi - y_mean).powi(2)).sum();
+        let rss: f64 = residuals.iter().map(|r| r.powi(2)).sum();
+
+        // Effective degrees of freedom: tr(H) where H = X(X'X + alpha*I)^{-1}X'
+        // Compute (X'X + alpha*I)^{-1} (already have xtx with regularization)
+        let xtx_inv = invert_symmetric(&xtx)?;
+
+        // Hat diagonal: h_ii = x_i' (X'X + alpha*I)^{-1} x_i
+        // For sparse x_i, compute xtx_inv @ x_i using only nonzero entries
+        let mut h_sum = 0.0;
+        for i in 0..n {
+            let row = x.row(i);
+            // Compute (X'X_inv) @ (x_i - x_mean) for centered version
+            let mut xtx_inv_xi = Array1::zeros(p);
+            if self.fit_intercept {
+                // x_c_i = x_i - x_mean
+                // xtx_inv @ x_c_i = sum over nonzero j of xtx_inv[:,j] * x_ij - xtx_inv @ x_mean
+                // Precompute xtx_inv @ x_mean once would be better but this is p x p work anyway
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    for k in 0..p {
+                        xtx_inv_xi[k] += xtx_inv[[k, col]] * val;
+                    }
+                }
+                // Subtract xtx_inv @ x_mean
+                let xtx_inv_xmean = xtx_inv.dot(&x_mean);
+                xtx_inv_xi -= &xtx_inv_xmean;
+                // h_ii = x_c_i' @ xtx_inv @ x_c_i
+                let mut h_ii = 0.0;
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    h_ii += (val - x_mean[col]) * xtx_inv_xi[col];
+                }
+                // Also the dense part from -x_mean
+                for k in 0..p {
+                    h_ii -= x_mean[k] * xtx_inv_xi[k];
+                }
+                // Avoid double counting: the sparse loop already handles nonzero cols
+                // Re-add the mean contribution for nonzero cols (they were subtracted in the dense loop)
+                for (&col, _) in row.indices().iter().zip(row.data().iter()) {
+                    h_ii += x_mean[col] * xtx_inv_xi[col];
+                }
+                h_sum += h_ii;
+            } else {
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    for k in 0..p {
+                        xtx_inv_xi[k] += xtx_inv[[k, col]] * val;
+                    }
+                }
+                let mut h_ii = 0.0;
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    h_ii += val * xtx_inv_xi[col];
+                }
+                h_sum += h_ii;
+            }
+        }
+
+        let effective_df = h_sum.min(n as f64 - 1.0).max(1.0);
+        let df_residuals = n.saturating_sub(effective_df.round() as usize).max(1);
+
+        // Coefficient standard errors
+        let mse = rss / df_residuals as f64;
+        let coef_var = &xtx_inv * mse;
+        let mut coef_std_errors = Array1::zeros(p);
+        for i in 0..p {
+            coef_std_errors[i] = coef_var[[i, i]].sqrt();
+        }
+
+        self.coefficients = Some(coefficients);
+        self.intercept = Some(intercept);
+        self.n_features = Some(p);
+        self.fitted_data = Some(RidgeFittedData {
+            n_samples: n,
+            n_features: p,
+            residuals,
+            fitted_values,
+            y_mean,
+            tss,
+            rss,
+            coef_std_errors,
+            df_residuals,
+            effective_df,
+        });
+
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        check_is_fitted(&self.coefficients, "predict")?;
+        let n_features = self.n_features.unwrap();
+        if x.ncols() != n_features {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} features", n_features),
+                actual: format!("{} features", x.ncols()),
+            });
+        }
+
+        let coef = self.coefficients.as_ref().unwrap();
+        let intercept = self.intercept.unwrap_or(0.0);
+
+        // Sparse mat-vec: X @ coef + intercept
+        let mut predictions = x.dot(coef)?;
+        predictions.mapv_inplace(|v| v + intercept);
+        Ok(predictions)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

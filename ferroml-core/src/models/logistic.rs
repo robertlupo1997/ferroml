@@ -1189,6 +1189,269 @@ impl PipelineModel for LogisticRegression {
     }
 }
 
+// =============================================================================
+// SparseModel implementation
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for LogisticRegression {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n = x.nrows();
+        let p_orig = x.ncols();
+
+        if n != y.len() {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} samples", n),
+                actual: format!("{} targets", y.len()),
+            });
+        }
+
+        // Validate binary labels
+        for &yi in y {
+            if !(yi == 0.0 || yi == 1.0 || (yi - 0.0).abs() < 1e-10 || (yi - 1.0).abs() < 1e-10) {
+                return Err(FerroError::invalid_input(
+                    "LogisticRegression requires binary labels (0 or 1)",
+                ));
+            }
+        }
+
+        let n_pos = y.iter().filter(|&&yi| yi > 0.5).count();
+        let n_neg = y.len() - n_pos;
+        if n_pos == 0 || n_neg == 0 {
+            return Err(FerroError::invalid_input(
+                "LogisticRegression requires both positive and negative samples",
+            ));
+        }
+
+        // Compute sample weights
+        let classes = get_unique_classes(y);
+        let sample_weights = compute_sample_weights(y, &classes, &self.class_weight);
+
+        // Dimension of the parameter vector (intercept is stored separately for sparse)
+        let p = p_orig;
+
+        // Initialize coefficients (no intercept augmentation — handle separately)
+        let mut beta = Array1::zeros(p);
+        let mut intercept = 0.0;
+
+        // IRLS iterations using sparse operations
+        let mut converged = false;
+        let mut n_iter = 0;
+
+        for iter in 0..self.max_iter {
+            n_iter = iter + 1;
+
+            // Compute linear predictor: eta = X @ beta + intercept
+            let mut eta = x.dot(&beta)?;
+            if self.fit_intercept {
+                eta.mapv_inplace(|v| v + intercept);
+            }
+
+            let mu = eta.mapv(sigmoid);
+
+            // Weights: w_i = mu_i * (1 - mu_i) * sample_weight_i
+            let w = &mu * &(1.0 - &mu) * &sample_weights;
+            let w_clamped: Array1<f64> = w.mapv(|wi| wi.clamp(1e-10, 0.25));
+
+            // Working response: z = eta + (y - mu) / variance
+            let variance_part: Array1<f64> = (&mu * &(1.0 - &mu)).mapv(|v| v.clamp(1e-10, 0.25));
+            let z: Array1<f64> = &eta + &((y - &mu) / &variance_part);
+
+            // Weighted least squares: solve (X'WX + lambda*I) beta = X'Wz
+            // X'WX via sparse weighted gram matrix
+            let mut xtwx = x.weighted_gram(&w_clamped);
+
+            // Add L2 regularization
+            if self.l2_penalty > 0.0 {
+                for i in 0..p {
+                    xtwx[[i, i]] += self.l2_penalty;
+                }
+            }
+
+            // X'Wz: X^T @ (w .* z)
+            let wz: Array1<f64> = &w_clamped * &z;
+            let xtwz = x.transpose_dot(&wz);
+
+            // Handle intercept: add intercept row/col to the normal equations
+            if self.fit_intercept {
+                // The intercept augments the system. We solve the (p+1) system:
+                // [X'WX   X'W1] [beta     ]   [X'Wz         ]
+                // [1'WX   1'W1] [intercept ] = [1'Wz         ]
+                // But for simplicity, use the Schur complement approach:
+                // Or just augment xtwx to (p+1)x(p+1)
+
+                let w1: f64 = w_clamped.sum(); // 1'W1
+                let xw1 = x.transpose_dot(&w_clamped); // X'W1
+                let wz_sum: f64 = wz.sum(); // 1'Wz
+
+                let mut xtwx_aug = Array2::zeros((p + 1, p + 1));
+                xtwx_aug.slice_mut(ndarray::s![..p, ..p]).assign(&xtwx);
+                for j in 0..p {
+                    xtwx_aug[[j, p]] = xw1[j];
+                    xtwx_aug[[p, j]] = xw1[j];
+                }
+                xtwx_aug[[p, p]] = w1;
+
+                let mut xtwz_aug = Array1::zeros(p + 1);
+                xtwz_aug.slice_mut(ndarray::s![..p]).assign(&xtwz);
+                xtwz_aug[p] = wz_sum;
+
+                let beta_aug = solve_symmetric_positive_definite(&xtwx_aug, &xtwz_aug)?;
+
+                let beta_new = beta_aug.slice(ndarray::s![..p]).to_owned();
+                let intercept_new = beta_aug[p];
+
+                let delta: f64 = (&beta_new - &beta).mapv(|x| x.powi(2)).sum()
+                    + (intercept_new - intercept).powi(2);
+                let beta_norm: f64 = beta.mapv(|x| x.powi(2)).sum() + intercept.powi(2);
+
+                beta = beta_new;
+                intercept = intercept_new;
+
+                if delta < self.tol * (beta_norm + self.tol) {
+                    converged = true;
+                    break;
+                }
+            } else {
+                let beta_new = solve_symmetric_positive_definite(&xtwx, &xtwz)?;
+
+                let delta: f64 = (&beta_new - &beta).mapv(|x| x.powi(2)).sum();
+                let beta_norm: f64 = beta.mapv(|x| x.powi(2)).sum();
+
+                beta = beta_new;
+
+                if delta < self.tol * (beta_norm + self.tol) {
+                    converged = true;
+                    break;
+                }
+            }
+        }
+
+        // Compute final probabilities for diagnostics
+        let mut eta = x.dot(&beta)?;
+        if self.fit_intercept {
+            eta.mapv_inplace(|v| v + intercept);
+        }
+        let mu = eta.mapv(sigmoid);
+
+        // Compute weighted log-likelihood
+        let log_likelihood = compute_weighted_log_likelihood(y, &mu, &sample_weights);
+
+        // Null log-likelihood
+        let total_weight: f64 = sample_weights.sum();
+        let p_bar = if total_weight > 0.0 {
+            y.iter()
+                .zip(sample_weights.iter())
+                .map(|(&yi, &wi)| yi * wi)
+                .sum::<f64>()
+                / total_weight
+        } else {
+            y.mean().unwrap_or(0.5)
+        };
+        let null_log_likelihood = y
+            .iter()
+            .zip(sample_weights.iter())
+            .map(|(&yi, &wi)| {
+                wi * if yi > 0.5 {
+                    p_bar.max(1e-15).ln()
+                } else {
+                    (1.0 - p_bar).max(1e-15).ln()
+                }
+            })
+            .sum::<f64>();
+
+        let deviance = -2.0 * log_likelihood;
+        let null_deviance = -2.0 * null_log_likelihood;
+
+        // Fisher information: X'WX at convergence (using sparse weighted gram)
+        let w_final = &mu * &(1.0 - &mu) * &sample_weights;
+        let w_final_clamped: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
+
+        let p_design = if self.fit_intercept { p + 1 } else { p };
+
+        // Build Fisher info matrix
+        let fisher_feature = x.weighted_gram(&w_final_clamped);
+        let mut fisher_info = if self.fit_intercept {
+            let mut fi = Array2::zeros((p_design, p_design));
+            fi.slice_mut(ndarray::s![1.., 1..]).assign(&fisher_feature);
+            let xw1 = x.transpose_dot(&w_final_clamped);
+            for j in 0..p {
+                fi[[0, j + 1]] = xw1[j];
+                fi[[j + 1, 0]] = xw1[j];
+            }
+            fi[[0, 0]] = w_final_clamped.sum();
+            fi
+        } else {
+            fisher_feature
+        };
+
+        // Add L2 regularization to Fisher info for proper covariance
+        if self.l2_penalty > 0.0 {
+            let start = usize::from(self.fit_intercept);
+            for i in start..p_design {
+                fisher_info[[i, i]] += self.l2_penalty;
+            }
+        }
+
+        let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
+
+        let mut coef_std_errors = Array1::zeros(p_design);
+        for i in 0..p_design {
+            coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
+        }
+
+        let deviance_residuals = compute_deviance_residuals(y, &mu);
+        let pearson_residuals = compute_pearson_residuals(y, &mu);
+
+        // Store coefficients
+        self.coefficients = Some(beta);
+        self.intercept = Some(if self.fit_intercept { intercept } else { 0.0 });
+        self.n_features = Some(p_orig);
+
+        self.fitted_data = Some(FittedLogisticData {
+            n_samples: n,
+            n_features: p_orig,
+            n_iterations: n_iter,
+            converged,
+            fitted_probabilities: mu,
+            y: y.clone(),
+            deviance_residuals,
+            pearson_residuals,
+            coef_std_errors,
+            coef_covariance,
+            log_likelihood,
+            null_log_likelihood,
+            deviance,
+            null_deviance,
+            df_residuals: n.saturating_sub(p_design),
+            df_null: n.saturating_sub(1),
+        });
+
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        check_is_fitted(&self.coefficients, "predict")?;
+        let n_features = self.n_features.unwrap();
+        if x.ncols() != n_features {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} features", n_features),
+                actual: format!("{} features", x.ncols()),
+            });
+        }
+
+        let coef = self.coefficients.as_ref().unwrap();
+        let intercept = self.intercept.unwrap_or(0.0);
+
+        // Sparse mat-vec: X @ coef + intercept
+        let mut linear_pred = x.dot(coef)?;
+        linear_pred.mapv_inplace(|v| v + intercept);
+        let probas_class1 = linear_pred.mapv(sigmoid);
+
+        Ok(probas_class1.mapv(|p| if p >= 0.5 { 1.0 } else { 0.0 }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -2616,6 +2616,360 @@ fn dot_product_array(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
 }
 
 // =============================================================================
+// SparseModel implementations
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for LinearSVC {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        if n_samples != y.len() {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} samples", n_samples),
+                actual: format!("{} targets", y.len()),
+            });
+        }
+
+        // Extract unique classes
+        let classes_vec = super::get_unique_classes(y);
+        if classes_vec.len() < 2 {
+            return Err(FerroError::invalid_input(
+                "Need at least 2 classes for classification",
+            ));
+        }
+
+        self.classes = Some(classes_vec.clone());
+        self.n_features = Some(n_features);
+        self.compute_class_weights(y);
+
+        let n_classes = classes_vec.len();
+        let mut weights = Vec::with_capacity(n_classes);
+        let mut intercepts = Vec::with_capacity(n_classes);
+
+        // Augmented dimensionality for intercept
+        let d = if self.fit_intercept {
+            n_features + 1
+        } else {
+            n_features
+        };
+
+        // Precompute row norms squared (sparse O(nnz))
+        let x_sq_norm = x.row_norms_squared();
+
+        // Helper closure: fit one binary classifier using sparse dual CD
+        let fit_one = |y_binary: &Array1<f64>,
+                       sample_weights: &Array1<f64>|
+         -> (Array1<f64>, f64) {
+            let c_eff: Vec<f64> = sample_weights.iter().map(|&sw| self.c * sw).collect();
+
+            let x_aug_norm_sq: Vec<f64> = (0..n_samples)
+                .map(|i| x_sq_norm[i] + if self.fit_intercept { 1.0 } else { 0.0 })
+                .collect();
+
+            let q_diag: Vec<f64> = match self.loss {
+                LinearSVCLoss::SquaredHinge => (0..n_samples)
+                    .map(|i| x_aug_norm_sq[i] + 1.0 / (2.0 * c_eff[i]))
+                    .collect(),
+                LinearSVCLoss::Hinge => x_aug_norm_sq.clone(),
+            };
+
+            let mut alpha = vec![0.0f64; n_samples];
+            let mut w_aug = vec![0.0f64; d];
+            let mut perm: Vec<usize> = (0..n_samples).collect();
+
+            for iter in 0..self.max_iter {
+                let mut max_change = 0.0f64;
+
+                let seed = (iter as u64)
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1);
+                for i in (1..n_samples).rev() {
+                    let j = ((seed.wrapping_mul((i + 1) as u64).wrapping_add(iter as u64))
+                        % (i as u64 + 1)) as usize;
+                    perm.swap(i, j);
+                }
+
+                for &i in &perm {
+                    if q_diag[i] < 1e-12 {
+                        continue;
+                    }
+
+                    // Sparse dot: w^T x_i (only over nonzero entries)
+                    let row = x.row(i);
+                    let mut wt_xi: f64 = row
+                        .indices()
+                        .iter()
+                        .zip(row.data().iter())
+                        .map(|(&col, &val)| w_aug[col] * val)
+                        .sum();
+                    if self.fit_intercept {
+                        wt_xi += w_aug[n_features]; // intercept term
+                    }
+
+                    let g = match self.loss {
+                        LinearSVCLoss::SquaredHinge => {
+                            y_binary[i] * wt_xi + alpha[i] / (2.0 * c_eff[i]) - 1.0
+                        }
+                        LinearSVCLoss::Hinge => y_binary[i] * wt_xi - 1.0,
+                    };
+
+                    let alpha_new = match self.loss {
+                        LinearSVCLoss::SquaredHinge => (alpha[i] - g / q_diag[i]).max(0.0),
+                        LinearSVCLoss::Hinge => (alpha[i] - g / q_diag[i]).max(0.0).min(c_eff[i]),
+                    };
+
+                    let delta = alpha_new - alpha[i];
+                    if delta.abs() < 1e-15 {
+                        continue;
+                    }
+
+                    alpha[i] = alpha_new;
+
+                    // Sparse weight update: only touch nonzero features
+                    let scale = delta * y_binary[i];
+                    for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                        w_aug[col] += scale * val;
+                    }
+                    if self.fit_intercept {
+                        w_aug[n_features] += scale; // intercept augmented feature = 1.0
+                    }
+
+                    max_change = max_change.max(delta.abs());
+                }
+
+                if max_change < self.tol {
+                    break;
+                }
+            }
+
+            let w = Array1::from_vec(w_aug[..n_features].to_vec());
+            let b = if self.fit_intercept {
+                w_aug[n_features]
+            } else {
+                0.0
+            };
+            (w, b)
+        };
+
+        if n_classes == 2 {
+            let positive_class = classes_vec[1];
+            let y_binary: Array1<f64> = y
+                .iter()
+                .map(|&label| {
+                    if (label - positive_class).abs() < 1e-10 {
+                        1.0
+                    } else {
+                        -1.0
+                    }
+                })
+                .collect();
+            let sample_weights: Array1<f64> = y
+                .iter()
+                .map(|&label| self.get_class_weight(label))
+                .collect();
+            let (w, b) = fit_one(&y_binary, &sample_weights);
+            weights.push(w);
+            intercepts.push(b);
+        } else {
+            for &class in &classes_vec {
+                let y_binary: Array1<f64> = y
+                    .iter()
+                    .map(|&label| {
+                        if (label - class).abs() < 1e-10 {
+                            1.0
+                        } else {
+                            -1.0
+                        }
+                    })
+                    .collect();
+                let sample_weights: Array1<f64> = y
+                    .iter()
+                    .map(|&label| self.get_class_weight(label))
+                    .collect();
+                let (w, b) = fit_one(&y_binary, &sample_weights);
+                weights.push(w);
+                intercepts.push(b);
+            }
+        }
+
+        self.weights = Some(weights);
+        self.intercepts = Some(intercepts);
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        check_is_fitted(&self.classes, "predict")?;
+        let n_features = self.n_features.unwrap();
+        if x.ncols() != n_features {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} features", n_features),
+                actual: format!("{} features", x.ncols()),
+            });
+        }
+
+        let classes = self.classes.as_ref().unwrap();
+        let weights_vec = self.weights.as_ref().unwrap();
+        let intercepts = self.intercepts.as_ref().unwrap();
+        let n_samples = x.nrows();
+        let mut predictions = Array1::zeros(n_samples);
+
+        if classes.len() == 2 {
+            // Binary: sparse mat-vec X @ w + b
+            let decisions = x.dot(&weights_vec[0])?.mapv(|v| v + intercepts[0]);
+            for i in 0..n_samples {
+                predictions[i] = if decisions[i] >= 0.0 {
+                    classes[1]
+                } else {
+                    classes[0]
+                };
+            }
+        } else {
+            // Multiclass: one-vs-rest, highest decision value wins
+            let n_classes = classes.len();
+            let mut decision_values = Array2::zeros((n_samples, n_classes));
+            for (class_idx, (w, &b)) in weights_vec.iter().zip(intercepts.iter()).enumerate() {
+                let decisions = x.dot(w)?.mapv(|v| v + b);
+                for i in 0..n_samples {
+                    decision_values[[i, class_idx]] = decisions[i];
+                }
+            }
+            for i in 0..n_samples {
+                let best_class_idx = decision_values
+                    .row(i)
+                    .iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+                    .map(|(idx, _)| idx)
+                    .unwrap_or(0);
+                predictions[i] = classes[best_class_idx];
+            }
+        }
+
+        Ok(predictions)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::models::traits::SparseModel for LinearSVR {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        if n_samples != y.len() {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} samples", n_samples),
+                actual: format!("{} targets", y.len()),
+            });
+        }
+
+        self.n_features = Some(n_features);
+
+        let mut w = Array1::zeros(n_features);
+        let mut b = 0.0;
+
+        // Precompute ||x_i||^2 for each sample (sparse O(nnz))
+        let x_norm_sq = x.row_norms_squared();
+
+        // Coordinate descent (same algorithm as dense, but sparse inner products)
+        for _iter in 0..self.max_iter {
+            let mut max_delta: f64 = 0.0;
+
+            for i in 0..n_samples {
+                // Sparse dot product: w^T x_i
+                let row = x.row(i);
+                let f_i: f64 = row
+                    .indices()
+                    .iter()
+                    .zip(row.data().iter())
+                    .map(|(&col, &val)| w[col] * val)
+                    .sum::<f64>()
+                    + b;
+                let residual = y[i] - f_i;
+
+                let (delta_scale, update) = match self.loss {
+                    LinearSVRLoss::EpsilonInsensitive => {
+                        if residual > self.epsilon {
+                            let denom = x_norm_sq[i] + if self.fit_intercept { 1.0 } else { 0.0 };
+                            if denom > 1e-10 {
+                                let step = ((residual - self.epsilon) / denom).min(self.c);
+                                (step, true)
+                            } else {
+                                (0.0, false)
+                            }
+                        } else if residual < -self.epsilon {
+                            let denom = x_norm_sq[i] + if self.fit_intercept { 1.0 } else { 0.0 };
+                            if denom > 1e-10 {
+                                let step = ((residual + self.epsilon) / denom).max(-self.c);
+                                (step, true)
+                            } else {
+                                (0.0, false)
+                            }
+                        } else {
+                            (0.0, false)
+                        }
+                    }
+                    LinearSVRLoss::SquaredEpsilonInsensitive => {
+                        if residual.abs() > self.epsilon {
+                            let sign = if residual > 0.0 { 1.0 } else { -1.0 };
+                            let loss_grad = 2.0 * sign * (residual.abs() - self.epsilon);
+                            let denom = (2.0 * self.c).mul_add(
+                                x_norm_sq[i] + if self.fit_intercept { 1.0 } else { 0.0 },
+                                1.0,
+                            );
+                            let step = (self.c * loss_grad) / denom;
+                            (step, true)
+                        } else {
+                            (0.0, false)
+                        }
+                    }
+                };
+
+                if update && delta_scale.abs() > 1e-12 {
+                    // Sparse weight update: only touch nonzero features
+                    for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                        w[col] += delta_scale * val;
+                    }
+                    if self.fit_intercept {
+                        b += delta_scale;
+                    }
+                    max_delta = max_delta.max(delta_scale.abs());
+                }
+            }
+
+            // L2 regularization shrinkage
+            let shrink_factor = 1.0 / (1.0 + 1.0 / (self.c * n_samples as f64));
+            w *= shrink_factor;
+
+            if max_delta < self.tol {
+                break;
+            }
+        }
+
+        self.weights = Some(w);
+        self.intercept = b;
+        Ok(())
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        check_is_fitted(&self.weights, "predict")?;
+        let n_features = self.n_features.unwrap();
+        if x.ncols() != n_features {
+            return Err(FerroError::ShapeMismatch {
+                expected: format!("{} features", n_features),
+                actual: format!("{} features", x.ncols()),
+            });
+        }
+
+        let w = self.weights.as_ref().unwrap();
+        let mut predictions = x.dot(w)?;
+        predictions.mapv_inplace(|v| v + self.intercept);
+        Ok(predictions)
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 

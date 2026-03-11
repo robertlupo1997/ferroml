@@ -127,6 +127,11 @@ pub struct TSNE {
     method: Option<TsneMethod>,
     theta: f64,
 
+    /// Optional GPU backend for accelerated pairwise distance computation
+    #[cfg(feature = "gpu")]
+    #[serde(skip)]
+    gpu_backend: Option<std::sync::Arc<dyn crate::gpu::GpuBackend>>,
+
     // Fitted state
     embedding_: Option<Array2<f64>>,
     kl_divergence_: Option<f64>,
@@ -155,11 +160,20 @@ impl TSNE {
             random_state: None,
             method: None,
             theta: 0.5,
+            #[cfg(feature = "gpu")]
+            gpu_backend: None,
             embedding_: None,
             kl_divergence_: None,
             n_iter_final_: None,
             n_features_in_: None,
         }
+    }
+
+    /// Set GPU backend for accelerated pairwise distance computation (exact method only).
+    #[cfg(feature = "gpu")]
+    pub fn with_gpu(mut self, backend: std::sync::Arc<dyn crate::gpu::GpuBackend>) -> Self {
+        self.gpu_backend = Some(backend);
+        self
     }
 
     /// Set the number of output dimensions.
@@ -975,7 +989,20 @@ impl Transformer for TSNE {
         // Step 2+3: Compute probabilities and optimize
         let (embedding, kl, n_iter) = match method {
             TsneMethod::Exact => {
+                // GPU-accelerated path for Euclidean metric: use GPU pairwise_distances
+                #[cfg(feature = "gpu")]
+                let distances = if self.metric == TsneMetric::Euclidean {
+                    self.gpu_backend
+                        .as_ref()
+                        .and_then(|gpu| gpu.pairwise_distances(x, x).ok())
+                        .unwrap_or_else(|| self.compute_pairwise_distances(x))
+                } else {
+                    self.compute_pairwise_distances(x)
+                };
+
+                #[cfg(not(feature = "gpu"))]
                 let distances = self.compute_pairwise_distances(x);
+
                 let p = self.compute_joint_probabilities(&distances);
                 self.run_optimization(&p, y_init)?
             }

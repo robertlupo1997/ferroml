@@ -56,6 +56,11 @@ pub struct DBSCAN {
     /// Minimum samples in neighborhood to form core point
     min_samples: usize,
 
+    /// Optional GPU backend for accelerated pairwise distance computation
+    #[cfg(feature = "gpu")]
+    #[serde(skip)]
+    gpu_backend: Option<std::sync::Arc<dyn crate::gpu::GpuBackend>>,
+
     // Fitted state
     /// Labels for each point (-1 for noise)
     labels_: Option<Array1<i32>>,
@@ -81,10 +86,19 @@ impl DBSCAN {
         Self {
             eps,
             min_samples,
+            #[cfg(feature = "gpu")]
+            gpu_backend: None,
             labels_: None,
             core_sample_indices_: None,
             components_: None,
         }
+    }
+
+    /// Set GPU backend for accelerated pairwise distance computation.
+    #[cfg(feature = "gpu")]
+    pub fn with_gpu(mut self, backend: std::sync::Arc<dyn crate::gpu::GpuBackend>) -> Self {
+        self.gpu_backend = Some(backend);
+        self
     }
 
     /// Set eps (maximum neighborhood distance)
@@ -292,6 +306,134 @@ impl DBSCAN {
 
         Ok((noise_ratio, centroid, std))
     }
+
+    /// Fit DBSCAN on sparse CSR matrix data.
+    ///
+    /// This uses native sparse distance computations, which are efficient
+    /// for high-dimensional sparse data (e.g., text/NLP features).
+    ///
+    /// # Arguments
+    /// * `x` - Sparse CSR feature matrix
+    ///
+    /// # Returns
+    /// Cluster labels for each point (-1 for noise)
+    #[cfg(feature = "sparse")]
+    pub fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix) -> Result<Array1<i32>> {
+        let n_samples = x.nrows();
+
+        if self.eps <= 0.0 {
+            return Err(FerroError::InvalidInput("eps must be positive".to_string()));
+        }
+
+        if self.min_samples < 1 {
+            return Err(FerroError::InvalidInput(
+                "min_samples must be at least 1".to_string(),
+            ));
+        }
+
+        // Precompute all neighbors using sparse distances
+        let eps_sq = self.eps * self.eps;
+        let neighbors: Vec<Vec<usize>> = (0..n_samples)
+            .map(|i| {
+                let row_i = x.row(i);
+                let dists = crate::sparse::sparse_pairwise_distances(
+                    &row_i,
+                    x,
+                    crate::sparse::SparseDistanceMetric::SquaredEuclidean,
+                );
+                dists
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, &d)| d <= eps_sq)
+                    .map(|(j, _)| j)
+                    .collect()
+            })
+            .collect();
+
+        // Identify core points
+        let is_core: Vec<bool> = neighbors
+            .iter()
+            .map(|n| n.len() >= self.min_samples)
+            .collect();
+
+        // Initialize labels as unvisited (-2)
+        let mut labels = vec![-2i32; n_samples];
+        let mut cluster_id = 0i32;
+        let mut core_sample_indices = Vec::new();
+
+        for i in 0..n_samples {
+            if labels[i] != -2 {
+                continue;
+            }
+
+            let point_neighbors = &neighbors[i];
+
+            if !is_core[i] {
+                labels[i] = -1;
+                continue;
+            }
+
+            // Start new cluster
+            labels[i] = cluster_id;
+            core_sample_indices.push(i);
+
+            // Expand cluster using BFS
+            let mut seed_set: Vec<usize> = point_neighbors
+                .iter()
+                .filter(|&&j| j != i && labels[j] == -2)
+                .cloned()
+                .collect();
+
+            let mut idx = 0;
+            while idx < seed_set.len() {
+                let q = seed_set[idx];
+                idx += 1;
+
+                if labels[q] == -1 {
+                    labels[q] = cluster_id;
+                } else if labels[q] != -2 {
+                    continue;
+                } else {
+                    labels[q] = cluster_id;
+                }
+
+                if is_core[q] {
+                    core_sample_indices.push(q);
+                    for &neighbor in &neighbors[q] {
+                        if labels[neighbor] == -2 || labels[neighbor] == -1 {
+                            if labels[neighbor] == -2 {
+                                seed_set.push(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+
+            cluster_id += 1;
+        }
+
+        // Remove duplicates from core_sample_indices and sort
+        core_sample_indices.sort_unstable();
+        core_sample_indices.dedup();
+
+        // Extract core sample components as dense (needed for predict)
+        let n_core = core_sample_indices.len();
+        let n_features = x.ncols();
+        let mut components = Array2::zeros((n_core, n_features));
+        for (i, &ci) in core_sample_indices.iter().enumerate() {
+            let row = x.row(ci);
+            for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                components[[i, col]] = val;
+            }
+        }
+
+        let result = Array1::from_vec(labels);
+        self.labels_ = Some(result.clone());
+        self.core_sample_indices_ = Some(core_sample_indices);
+        self.components_ = Some(components);
+
+        Ok(result)
+    }
 }
 
 impl ClusteringModel for DBSCAN {
@@ -314,6 +456,28 @@ impl ClusteringModel for DBSCAN {
         let mut core_sample_indices = Vec::new();
 
         // Find all neighbors for each point (precompute for efficiency)
+        // GPU-accelerated path: compute full pairwise distance matrix on GPU
+        #[cfg(feature = "gpu")]
+        let gpu_dist_matrix = self
+            .gpu_backend
+            .as_ref()
+            .and_then(|gpu| gpu.pairwise_distances(x, x).ok());
+
+        #[cfg(feature = "gpu")]
+        let neighbors: Vec<Vec<usize>> = if let Some(ref dist_matrix) = gpu_dist_matrix {
+            let eps_sq = self.eps * self.eps;
+            (0..n_samples)
+                .map(|i| {
+                    (0..n_samples)
+                        .filter(|&j| dist_matrix[[i, j]] <= eps_sq)
+                        .collect()
+                })
+                .collect()
+        } else {
+            (0..n_samples).map(|i| self.region_query(x, i)).collect()
+        };
+
+        #[cfg(not(feature = "gpu"))]
         let neighbors: Vec<Vec<usize>> = (0..n_samples).map(|i| self.region_query(x, i)).collect();
 
         // Identify core points

@@ -869,6 +869,105 @@ impl PipelineTransformer for StandardScaler {
     }
 }
 
+#[cfg(feature = "sparse")]
+impl StandardScaler {
+    /// Fit the scaler from a sparse CSR matrix.
+    ///
+    /// Native O(nnz) implementation: computes column means and variances
+    /// directly from the sparse structure without densifying.
+    pub fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix) -> Result<()> {
+        let n = x.nrows();
+        if n == 0 || x.ncols() == 0 {
+            return Err(crate::FerroError::invalid_input(
+                "Input must have at least one sample and one feature",
+            ));
+        }
+
+        let n_f64 = n as f64;
+        let ncols = x.ncols();
+
+        // Column sums (only nnz contribute, zeros are implicit)
+        let col_sums = crate::sparse::sparse_column_sums(x);
+        let mean = &col_sums / n_f64;
+
+        // Variance via E[X^2] - E[X]^2 (population variance to match sklearn)
+        let mut col_sum_sq = Array1::zeros(ncols);
+        for i in 0..n {
+            let row = x.row(i);
+            for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                col_sum_sq[col] += val * val;
+            }
+        }
+        let variance = &col_sum_sq / n_f64 - &mean.mapv(|m| m * m);
+        let std = variance.mapv(f64::sqrt);
+
+        // Track constant features (zero variance)
+        self.constant_features = std
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &s)| if s < 1e-10 { Some(i) } else { None })
+            .collect();
+
+        self.mean = Some(mean);
+        self.std = Some(std);
+        self.n_features_in = Some(ncols);
+        self.n_samples_seen = Some(n);
+
+        Ok(())
+    }
+
+    /// Transform a sparse CSR matrix (returns dense).
+    ///
+    /// Builds the result from sparse entries. For zero entries, applies
+    /// -mean/std directly; for non-zero entries, applies (val - mean) / std.
+    pub fn transform_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array2<f64>> {
+        if !self.is_fitted() {
+            return Err(crate::FerroError::not_fitted("StandardScaler"));
+        }
+        let n_features_in = self.n_features_in.unwrap();
+        if x.ncols() != n_features_in {
+            return Err(crate::FerroError::shape_mismatch(
+                format!("(*, {})", n_features_in),
+                format!("(*, {})", x.ncols()),
+            ));
+        }
+
+        let mean = self.mean.as_ref().unwrap();
+        let std = self.std.as_ref().unwrap();
+
+        let mut result = Array2::zeros((x.nrows(), x.ncols()));
+
+        // Pre-fill with centered-and-scaled zero values for each column
+        for j in 0..x.ncols() {
+            let m = if self.with_mean { mean[j] } else { 0.0 };
+            let s = std[j];
+            let do_scale = self.with_std && s > 1e-10;
+
+            let base = if do_scale { -m / s } else { -m };
+            if base.abs() > 0.0 {
+                for i in 0..x.nrows() {
+                    result[[i, j]] = base;
+                }
+            }
+        }
+
+        // Overwrite non-zero entries with their correct transformed values
+        for i in 0..x.nrows() {
+            let row = x.row(i);
+            for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                let m = if self.with_mean { mean[col] } else { 0.0 };
+                let s = std[col];
+                let do_scale = self.with_std && s > 1e-10;
+
+                let transformed = if do_scale { (val - m) / s } else { val - m };
+                result[[i, col]] = transformed;
+            }
+        }
+
+        Ok(result)
+    }
+}
+
 impl PipelineTransformer for MinMaxScaler {
     fn clone_boxed(&self) -> Box<dyn PipelineTransformer> {
         Box::new(self.clone())
@@ -896,6 +995,79 @@ impl PipelineTransformer for MaxAbsScaler {
 
     fn name(&self) -> &str {
         "MaxAbsScaler"
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl MaxAbsScaler {
+    /// Fit the scaler from a sparse CSR matrix.
+    ///
+    /// Native O(nnz) implementation: finds max absolute value per column
+    /// directly from sparse entries. Implicit zeros cannot be the max absolute
+    /// value unless all entries are zero, which is handled correctly.
+    pub fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix) -> Result<()> {
+        let n = x.nrows();
+        if n == 0 || x.ncols() == 0 {
+            return Err(crate::FerroError::invalid_input(
+                "Input must have at least one sample and one feature",
+            ));
+        }
+
+        let ncols = x.ncols();
+        let mut max_abs = Array1::zeros(ncols);
+
+        for i in 0..n {
+            let row = x.row(i);
+            for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                let abs_val = val.abs();
+                if abs_val > max_abs[col] {
+                    max_abs[col] = abs_val;
+                }
+            }
+        }
+
+        // Track constant features (zero max_abs)
+        self.constant_features = max_abs
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &m)| if m.abs() < 1e-10 { Some(i) } else { None })
+            .collect();
+
+        self.max_abs = Some(max_abs);
+        self.n_features_in = Some(ncols);
+        self.n_samples_seen = Some(n);
+
+        Ok(())
+    }
+
+    /// Transform a sparse CSR matrix (returns dense).
+    ///
+    /// Native O(nnz) computation: only divides non-zero entries by max_abs.
+    /// Zero entries remain zero (division by max_abs preserves zeros).
+    pub fn transform_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array2<f64>> {
+        if !self.is_fitted() {
+            return Err(crate::FerroError::not_fitted("MaxAbsScaler"));
+        }
+        let n_features_in = self.n_features_in.unwrap();
+        if x.ncols() != n_features_in {
+            return Err(crate::FerroError::shape_mismatch(
+                format!("(*, {})", n_features_in),
+                format!("(*, {})", x.ncols()),
+            ));
+        }
+
+        let max_abs = self.max_abs.as_ref().unwrap();
+        let mut result = Array2::zeros((x.nrows(), x.ncols()));
+
+        for i in 0..x.nrows() {
+            let row = x.row(i);
+            for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                let m = max_abs[col];
+                result[[i, col]] = if m.abs() > 1e-10 { val / m } else { val };
+            }
+        }
+
+        Ok(result)
     }
 }
 
@@ -1009,6 +1181,65 @@ impl PipelineTransformer for Normalizer {
 
     fn name(&self) -> &str {
         "Normalizer"
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl Normalizer {
+    /// Fit the normalizer from a sparse CSR matrix.
+    ///
+    /// Normalizer is stateless (only stores n_features_in), so this is O(1).
+    pub fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix) -> Result<()> {
+        if x.nrows() == 0 || x.ncols() == 0 {
+            return Err(crate::FerroError::invalid_input(
+                "Input must have at least one sample and one feature",
+            ));
+        }
+        self.n_features_in = Some(x.ncols());
+        Ok(())
+    }
+
+    /// Transform a sparse CSR matrix (returns dense).
+    ///
+    /// Native O(nnz) computation: computes row norms from sparse entries only,
+    /// then divides non-zero values by the norm.
+    pub fn transform_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array2<f64>> {
+        if !self.is_fitted() {
+            return Err(crate::FerroError::not_fitted("Normalizer"));
+        }
+        let n_features_in = self.n_features_in.unwrap();
+        if x.ncols() != n_features_in {
+            return Err(crate::FerroError::shape_mismatch(
+                format!("(*, {})", n_features_in),
+                format!("(*, {})", x.ncols()),
+            ));
+        }
+
+        let mut result = Array2::zeros((x.nrows(), x.ncols()));
+
+        for i in 0..x.nrows() {
+            let row = x.row(i);
+
+            // Compute the norm from sparse data only
+            let norm = match self.norm {
+                NormType::L1 => row.l1_norm(),
+                NormType::L2 => row.norm(),
+                NormType::Max => row.data().iter().map(|v| v.abs()).fold(0.0f64, f64::max),
+            };
+
+            if norm > 1e-15 {
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    result[[i, col]] = val / norm;
+                }
+            } else {
+                // Zero-norm row: copy as-is (all zeros)
+                for (&col, &val) in row.indices().iter().zip(row.data().iter()) {
+                    result[[i, col]] = val;
+                }
+            }
+        }
+
+        Ok(result)
     }
 }
 
