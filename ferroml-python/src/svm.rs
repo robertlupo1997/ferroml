@@ -15,6 +15,11 @@ use ferroml_core::models::{Model, ProbabilisticModel};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 
+#[cfg(feature = "sparse")]
+use crate::sparse_utils::py_csr_to_ferro;
+#[cfg(feature = "sparse")]
+use ferroml_core::models::traits::SparseModel;
+
 // =============================================================================
 // LinearSVC
 // =============================================================================
@@ -139,6 +144,41 @@ impl PyLinearSVC {
             .decision_function(&x_arr)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(result.into_pyarray(py))
+    }
+
+    /// Fit the model from a scipy.sparse matrix (native sparse, no densification).
+    #[cfg(feature = "sparse")]
+    fn fit_sparse<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let csr = py_csr_to_ferro(x)?;
+        let y_arr = py_array_to_f64_1d(py, y)?;
+
+        slf.inner
+            .fit_sparse(&csr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Predict class labels using a scipy.sparse matrix (native sparse, no densification).
+    #[cfg(feature = "sparse")]
+    fn predict_sparse<'py>(
+        &self,
+        py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let csr = py_csr_to_ferro(x)?;
+
+        let predictions = self
+            .inner
+            .predict_sparse(&csr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
     }
 
     fn __repr__(&self) -> String {
@@ -286,6 +326,41 @@ impl PyLinearSVR {
     #[getter]
     fn intercept_(&self) -> f64 {
         self.inner.intercept()
+    }
+
+    /// Fit the model from a scipy.sparse matrix (native sparse, no densification).
+    #[cfg(feature = "sparse")]
+    fn fit_sparse<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        _py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let csr = py_csr_to_ferro(x)?;
+        let y_arr = to_owned_array_1d(y);
+
+        slf.inner
+            .fit_sparse(&csr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Predict using a scipy.sparse matrix (native sparse, no densification).
+    #[cfg(feature = "sparse")]
+    fn predict_sparse<'py>(
+        &self,
+        py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let csr = py_csr_to_ferro(x)?;
+
+        let predictions = self
+            .inner
+            .predict_sparse(&csr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
     }
 
     fn __repr__(&self) -> String {

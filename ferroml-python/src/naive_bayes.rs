@@ -6,11 +6,16 @@
 //! - BernoulliNB
 //! - CategoricalNB
 
-use crate::array_utils::{py_array_to_f64_1d, to_owned_array_2d};
+use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
 use ferroml_core::models::naive_bayes::{BernoulliNB, CategoricalNB, GaussianNB, MultinomialNB};
 use ferroml_core::models::{Model, ProbabilisticModel};
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2};
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
+
+#[cfg(feature = "sparse")]
+use crate::sparse_utils::py_csr_to_ferro;
+#[cfg(feature = "sparse")]
+use ferroml_core::models::traits::SparseModel;
 
 // ---------------------------------------------------------------------------
 // GaussianNB
@@ -322,6 +327,63 @@ impl PyMultinomialNB {
         Ok(classes.into_pyarray(py))
     }
 
+    /// Fit the model from a scipy.sparse matrix (native sparse, no densification).
+    ///
+    /// Parameters
+    /// ----------
+    /// X : scipy.sparse matrix (CSR or CSC)
+    ///     Sparse feature matrix (non-negative counts or frequencies).
+    /// y : array-like of shape (n_samples,)
+    ///     Target class labels.
+    ///
+    /// Returns
+    /// -------
+    /// self : MultinomialNB
+    ///     Fitted estimator.
+    #[cfg(feature = "sparse")]
+    fn fit_sparse<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        _py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let csr = py_csr_to_ferro(x)?;
+        let y_arr = to_owned_array_1d(y);
+
+        slf.inner
+            .fit_sparse(&csr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Predict class labels using a scipy.sparse matrix (native sparse, no densification).
+    ///
+    /// Parameters
+    /// ----------
+    /// X : scipy.sparse matrix (CSR or CSC)
+    ///     Sparse feature matrix.
+    ///
+    /// Returns
+    /// -------
+    /// y_pred : ndarray of shape (n_samples,)
+    ///     Predicted class labels.
+    #[cfg(feature = "sparse")]
+    fn predict_sparse<'py>(
+        &self,
+        py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let csr = py_csr_to_ferro(x)?;
+
+        let predictions = self
+            .inner
+            .predict_sparse(&csr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "MultinomialNB(alpha={}, fit_prior={})",
@@ -473,6 +535,41 @@ impl PyBernoulliNB {
             })?
             .clone();
         Ok(classes.into_pyarray(py))
+    }
+
+    /// Fit the model from a scipy.sparse matrix (native sparse, no densification).
+    #[cfg(feature = "sparse")]
+    fn fit_sparse<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        _py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let csr = py_csr_to_ferro(x)?;
+        let y_arr = to_owned_array_1d(y);
+
+        slf.inner
+            .fit_sparse(&csr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(slf)
+    }
+
+    /// Predict class labels using a scipy.sparse matrix (native sparse, no densification).
+    #[cfg(feature = "sparse")]
+    fn predict_sparse<'py>(
+        &self,
+        py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let csr = py_csr_to_ferro(x)?;
+
+        let predictions = self
+            .inner
+            .predict_sparse(&csr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(predictions.into_pyarray(py))
     }
 
     fn __repr__(&self) -> String {

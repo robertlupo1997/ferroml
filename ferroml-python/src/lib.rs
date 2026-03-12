@@ -47,7 +47,9 @@ mod decomposition;
 mod ensemble;
 pub(crate) mod errors;
 mod explainability;
+mod gaussian_process;
 mod linear;
+mod multioutput;
 mod naive_bayes;
 mod neighbors;
 mod neural;
@@ -85,6 +87,8 @@ fn ferroml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     svm::register_svm_module(m)?;
     calibration::register_calibration_module(m)?;
     anomaly::register_anomaly_module(m)?;
+    gaussian_process::register_gaussian_process_module(m)?;
+    multioutput::register_multioutput_module(m)?;
 
     Ok(())
 }

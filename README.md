@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/ferroml-core.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-4%2C351%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-4%2C700%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v0.1.0 Feature-Complete** — 50+ ML algorithms, 4,351 tests passing (2,933 Rust + 1,418 Python), validated against sklearn with 252+ correctness tests. Plans A-O complete. See [Project Status](#project-status) for details.
+> **Status: v0.2.0** — 55+ ML algorithms, 4,700+ tests passing (3,200+ Rust + 1,500+ Python), GPU acceleration, native sparse support, validated against sklearn with 252+ correctness tests. Plans A-R complete. See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -15,7 +15,7 @@ FerroML is a high-performance machine learning library that prioritizes statisti
 - **Statistical Rigor First** — Confidence intervals on all predictions, hypothesis testing for model comparison, multiple testing correction (Bonferroni, Holm, Benjamini-Hochberg)
 - **Transparent Assumptions** — All statistical assumptions are documented and tested. No hidden magic.
 - **Reproducible Results** — Deterministic by default with explicit randomness control
-- **High Performance** — Written in Rust with SIMD acceleration, parallel processing via Rayon, and optional sparse matrix support
+- **High Performance** — Written in Rust with SIMD acceleration, parallel processing via Rayon, GPU acceleration via wgpu, and native sparse matrix support
 - **Python Bindings** — Seamless NumPy/Polars integration via PyO3
 
 ## Installation
@@ -24,7 +24,7 @@ FerroML is a high-performance machine learning library that prioritizes statisti
 
 ```toml
 [dependencies]
-ferroml-core = "0.1"
+ferroml-core = "0.2"
 ```
 
 ### Python
@@ -99,6 +99,20 @@ print(f"Score: {best.cv_score:.4f} ± {best.cv_std:.4f}")
 print(f"95% CI: [{best.ci_lower:.4f}, {best.ci_upper:.4f}]")
 ```
 
+### Text Classification Pipeline (Python)
+
+```python
+from ferroml.preprocessing import CountVectorizer, TfidfTransformer
+from ferroml.naive_bayes import MultinomialNB
+
+cv = CountVectorizer()
+X_counts = cv.fit_transform(documents)
+tfidf = TfidfTransformer()
+X_tfidf = tfidf.fit_transform(X_counts)
+clf = MultinomialNB()
+clf.fit(X_tfidf, y)
+```
+
 ## Architecture
 
 ```
@@ -142,10 +156,10 @@ print(f"95% CI: [{best.ci_lower:.4f}, {best.ci_upper:.4f}]")
 | Module | Description |
 |--------|-------------|
 | `stats` | Hypothesis testing, confidence intervals, effect sizes, multiple testing correction |
-| `models` | Linear, logistic, ridge, lasso, elastic net, decision trees, random forests, gradient boosting, SVM (kernel + linear), KNN, naive bayes (Gaussian/Multinomial/Bernoulli), extra trees, AdaBoost, SGD, QDA, isotonic regression, isolation forest, LOF |
+| `models` | Linear, logistic, ridge, lasso, elastic net, decision trees, random forests, gradient boosting, SVM (kernel + linear), KNN, naive bayes (Gaussian/Multinomial/Bernoulli/Categorical), extra trees, AdaBoost, SGD, QDA, isotonic regression, isolation forest, LOF, Gaussian processes |
 | `ensemble` | Bagging, stacking, voting classifiers with diversity-weighted selection |
 | `hpo` | Bayesian optimization, Hyperband, ASHA, random/grid search |
-| `preprocessing` | Imputation, one-hot/target encoding, standard/robust scaling, feature selection, SMOTE/ADASYN resampling |
+| `preprocessing` | Imputation, one-hot/target encoding, standard/robust scaling, feature selection, SMOTE/ADASYN resampling, CountVectorizer, TfidfTransformer |
 | `clustering` | KMeans (k-means++), DBSCAN, HDBSCAN, AgglomerativeClustering (Ward/complete/average/single), GaussianMixture (EM, 4 covariance types) |
 | `neural` | MLPClassifier, MLPRegressor with training diagnostics, MC Dropout uncertainty |
 | `decomposition` | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis, t-SNE |
@@ -183,7 +197,7 @@ cargo run --example pipeline
 
 ```toml
 [dependencies]
-ferroml-core = { version = "0.1", features = ["simd", "sparse", "onnx"] }
+ferroml-core = { version = "0.2", features = ["simd", "sparse", "onnx"] }
 ```
 
 | Feature | Description |
@@ -208,6 +222,8 @@ FerroML leverages Rust's performance characteristics:
 - **Rayon parallelism** — Automatic parallel iteration
 - **SIMD operations** — Vectorized distance calculations
 - **Memory-mapped files** — Efficient handling of large datasets
+- **GPU acceleration** — wgpu-based GEMM, distance matrices, MLP forward/backward, 8 WGSL shaders with auto CPU/GPU dispatch
+- **Native sparse support** — CsrMatrix operations for 12 models, TfidfTransformer, sparse scalers
 - **faer-backend** — BLAS-accelerated linear algebra (Cholesky, matrix solve) via faer
 - **Barnes-Hut t-SNE** — O(N log N) visualization with VP-tree and QuadTree
 - **LTO optimization** — Link-time optimization in release builds
@@ -223,18 +239,20 @@ at your option.
 
 ## Project Status
 
-### Current State (v0.1.0)
+### Current State (v0.2.0)
 
-FerroML is **feature-complete for v0.1.0**, hardened through 21 plans (1-6, A-O) of correctness and quality work:
+FerroML is **v0.2.0**, hardened through 24 plans (1-6, A-R) of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 4,351 passing (2,933 Rust + 1,418 Python), 0 failing, 22 ignored (slow AutoML system tests) |
+| **Tests** | 4,700+ passing (3,200+ Rust + 1,500+ Python), 0 failing, 26 ignored (slow AutoML system tests) |
 | **Correctness Tests** | 252+ (clustering: 102, neural: 49, preprocessing: 101) |
 | **Sklearn Match** | 58 comparisons passing (32 models + preprocessing) |
-| **Python Test Files** | 36 end-to-end test files |
-| **Python Bindings** | ~99% coverage (50+ models, 21 preprocessors, 6 decomposition, 37 explainability) |
+| **Python Test Files** | 37+ end-to-end test files |
+| **Python Bindings** | ~99% coverage (55+ models, 23 preprocessors, 6 decomposition, 37 explainability) |
 | **Benchmarks** | 86+ Criterion benchmarks with CI regression baseline |
+| **GPU Tests** | ~188 tests for wgpu shader acceleration |
+| **Sparse Tests** | ~55 sparse model tests + 90 sparse infrastructure tests |
 
 ### What's Implemented
 
@@ -243,13 +261,15 @@ FerroML is **feature-complete for v0.1.0**, hardened through 21 plans (1-6, A-O)
 - **Instance-Based**: KNN (classifier + regressor) with KD-Tree/Ball-Tree acceleration, NearestCentroid
 - **SVM**: SVC, SVR (kernel), LinearSVC, LinearSVR
 - **Probabilistic**: Gaussian/Multinomial/Bernoulli/Categorical Naive Bayes, QuadraticDiscriminantAnalysis (QDA)
+- **Gaussian Processes**: GaussianProcessRegressor, GaussianProcessClassifier (RBF, Matern, Constant, White kernels)
+- **Multi-Output**: MultiOutputRegressor, MultiOutputClassifier wrappers
 - **Anomaly Detection**: IsolationForest, LocalOutlierFactor (LOF)
 - **Clustering**: KMeans (k-means++), DBSCAN, HDBSCAN, AgglomerativeClustering (4 linkage methods), GaussianMixture (EM, 4 covariance types, BIC/AIC)
 - **Calibration**: TemperatureScaling, Sigmoid (Platt), Isotonic
 - **Regression**: IsotonicRegression (monotonic constraints)
 - **Neural Networks**: MLPClassifier, MLPRegressor with training diagnostics, MC Dropout
 - **Decomposition**: PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis, t-SNE
-- **Preprocessing**: 23+ transformers (scalers, encoders, imputers, SMOTE variants, RFE)
+- **Preprocessing**: 25+ transformers (scalers, encoders, imputers, SMOTE variants, RFE, CountVectorizer, TfidfTransformer)
 - **Explainability**: TreeSHAP (Lundberg 2018), KernelSHAP (10 typed variants), PDP, ICE, H-statistic
 - **HPO**: TPE, Hyperband, ASHA, BOHB, Bayesian optimization
 

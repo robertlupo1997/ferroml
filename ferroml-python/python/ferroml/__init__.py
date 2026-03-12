@@ -37,6 +37,10 @@ pipeline
     Pipeline construction (Pipeline, ColumnTransformer, FeatureUnion)
 datasets
     Built-in datasets (Iris, Diabetes, Wine) and synthetic generators
+gaussian_process
+    Gaussian Process models (GaussianProcessRegressor, GaussianProcessClassifier)
+multioutput
+    Multi-output wrappers (MultiOutputRegressor, MultiOutputClassifier)
 automl
     Automated Machine Learning with statistical testing
 
@@ -79,6 +83,7 @@ from ferroml import neural
 from ferroml import svm
 from ferroml import calibration
 from ferroml import anomaly
+from ferroml import multioutput
 
 __all__ = [
     "__version__",
@@ -98,4 +103,5 @@ __all__ = [
     "svm",
     "calibration",
     "anomaly",
+    "multioutput",
 ]

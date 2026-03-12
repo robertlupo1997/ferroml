@@ -65,6 +65,7 @@ RandomUnderSampler = _native.preprocessing.RandomUnderSampler
 RandomOverSampler = _native.preprocessing.RandomOverSampler
 RecursiveFeatureElimination = _native.preprocessing.RecursiveFeatureElimination
 TfidfTransformer = _native.preprocessing.TfidfTransformer
+CountVectorizer = _native.preprocessing.CountVectorizer
 
 __all__ = [
     "StandardScaler",
@@ -90,4 +91,5 @@ __all__ = [
     "RandomOverSampler",
     "RecursiveFeatureElimination",
     "TfidfTransformer",
+    "CountVectorizer",
 ]

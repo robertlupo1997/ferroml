@@ -66,12 +66,14 @@ pub mod drift;
 pub mod ensemble_advanced;
 pub mod explainability;
 pub mod fairness;
+pub mod gaussian_process;
 pub mod gpu_fallback;
 pub mod hpo;
 pub mod incremental;
 pub mod metrics;
 pub mod metrics_custom;
 pub mod multioutput;
+pub mod multioutput_models;
 pub mod mutation;
 pub mod nan_inf_validation;
 pub mod onnx;
@@ -84,6 +86,8 @@ pub mod sparse_models;
 #[cfg(feature = "sparse")]
 pub mod sparse_tests;
 pub mod svm;
+#[cfg(feature = "sparse")]
+pub mod text_pipeline;
 pub mod transformer;
 pub mod utils;
 pub mod weights;

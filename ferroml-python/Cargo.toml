@@ -11,7 +11,7 @@ name = "ferroml"
 crate-type = ["cdylib"]
 
 [dependencies]
-ferroml-core = { path = "../ferroml-core" }
+ferroml-core = { path = "../ferroml-core", features = ["sparse"] }
 pyo3.workspace = true
 numpy.workspace = true
 ndarray.workspace = true

@@ -61,6 +61,9 @@ pub mod scalers;
 pub mod selection;
 pub mod tfidf;
 
+#[cfg(feature = "sparse")]
+pub mod count_vectorizer;
+
 #[cfg(test)]
 mod compliance_tests;
 

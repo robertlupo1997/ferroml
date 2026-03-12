@@ -36,6 +36,7 @@ pub mod boosting;
 pub mod calibration;
 pub mod extra_trees;
 pub mod forest;
+pub mod gaussian_process;
 pub mod hist_boosting;
 pub mod isolation_forest;
 pub mod isotonic;
@@ -43,6 +44,7 @@ pub mod knn;
 pub mod linear;
 pub mod lof;
 pub mod logistic;
+pub mod multioutput;
 pub mod naive_bayes;
 pub mod qda;
 pub mod quantile;
@@ -70,6 +72,10 @@ pub use extra_trees::{ExtraTreesClassifier, ExtraTreesRegressor};
 pub use forest::{
     FeatureImportanceWithCI, MaxFeatures, RandomForestClassifier, RandomForestRegressor,
 };
+pub use gaussian_process::{
+    ConstantKernel, GaussianProcessClassifier, GaussianProcessRegressor, Kernel as GPKernel,
+    Matern, ProductKernel, SumKernel, WhiteKernel, RBF,
+};
 pub use hist_boosting::{
     BinMapper, GrowthStrategy, HistEarlyStopping, HistGradientBoostingClassifier,
     HistGradientBoostingRegressor, HistLoss, HistRegressionLoss, HistTree, HistTreeNode,
@@ -84,6 +90,7 @@ pub use knn::{
 pub use linear::LinearRegression;
 pub use lof::LocalOutlierFactor;
 pub use logistic::{LogisticRegression, OddsRatioInfo};
+pub use multioutput::{MultiOutputClassifier, MultiOutputRegressor};
 pub use naive_bayes::{BernoulliNB, CategoricalNB, GaussianNB, MultinomialNB};
 pub use qda::QuadraticDiscriminantAnalysis;
 pub use quantile::{MultiQuantileResults, QuantileRegression};

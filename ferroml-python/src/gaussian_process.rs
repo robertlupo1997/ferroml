@@ -1,0 +1,350 @@
+//! Python bindings for Gaussian Process models.
+//!
+//! Provides:
+//! - GaussianProcessRegressor
+//! - GaussianProcessClassifier
+//! - Kernel classes: RBF, Matern, ConstantKernel, WhiteKernel
+
+use crate::array_utils::{py_array_to_f64_1d, to_owned_array_2d};
+use ferroml_core::models::gaussian_process::{
+    self, GaussianProcessClassifier, GaussianProcessRegressor, Kernel,
+};
+use ferroml_core::models::Model;
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2};
+use pyo3::prelude::*;
+
+// =============================================================================
+// Kernel wrappers
+// =============================================================================
+
+/// RBF (Radial Basis Function) kernel.
+///
+/// K(x, x') = exp(-||x - x'||^2 / (2 * length_scale^2))
+///
+/// Parameters
+/// ----------
+/// length_scale : float, optional (default=1.0)
+///     Length scale of the kernel.
+#[pyclass(name = "RBF", module = "ferroml.gaussian_process")]
+#[derive(Clone)]
+pub struct PyRBF {
+    length_scale: f64,
+}
+
+#[pymethods]
+impl PyRBF {
+    #[new]
+    #[pyo3(signature = (length_scale=1.0))]
+    fn new(length_scale: f64) -> Self {
+        Self { length_scale }
+    }
+}
+
+/// Matern kernel.
+///
+/// Supports nu = 0.5, 1.5, 2.5 only.
+///
+/// Parameters
+/// ----------
+/// length_scale : float, optional (default=1.0)
+///     Length scale of the kernel.
+/// nu : float, optional (default=1.5)
+///     Smoothness parameter. Must be 0.5, 1.5, or 2.5.
+#[pyclass(name = "Matern", module = "ferroml.gaussian_process")]
+#[derive(Clone)]
+pub struct PyMatern {
+    length_scale: f64,
+    nu: f64,
+}
+
+#[pymethods]
+impl PyMatern {
+    #[new]
+    #[pyo3(signature = (length_scale=1.0, nu=1.5))]
+    fn new(length_scale: f64, nu: f64) -> PyResult<Self> {
+        if !((nu - 0.5).abs() < 1e-10 || (nu - 1.5).abs() < 1e-10 || (nu - 2.5).abs() < 1e-10) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Matern kernel only supports nu = 0.5, 1.5, or 2.5",
+            ));
+        }
+        Ok(Self { length_scale, nu })
+    }
+}
+
+/// Constant kernel: K(x, x') = constant.
+///
+/// Parameters
+/// ----------
+/// constant : float, optional (default=1.0)
+///     The constant value of the kernel.
+#[pyclass(name = "ConstantKernel", module = "ferroml.gaussian_process")]
+#[derive(Clone)]
+pub struct PyConstantKernel {
+    constant: f64,
+}
+
+#[pymethods]
+impl PyConstantKernel {
+    #[new]
+    #[pyo3(signature = (constant=1.0))]
+    fn new(constant: f64) -> Self {
+        Self { constant }
+    }
+}
+
+/// White noise kernel: K(x, x') = noise_level * delta(x, x').
+///
+/// Parameters
+/// ----------
+/// noise_level : float, optional (default=1.0)
+///     The noise level.
+#[pyclass(name = "WhiteKernel", module = "ferroml.gaussian_process")]
+#[derive(Clone)]
+pub struct PyWhiteKernel {
+    noise_level: f64,
+}
+
+#[pymethods]
+impl PyWhiteKernel {
+    #[new]
+    #[pyo3(signature = (noise_level=1.0))]
+    fn new(noise_level: f64) -> Self {
+        Self { noise_level }
+    }
+}
+
+// =============================================================================
+// Helper to convert Python kernel to Rust kernel
+// =============================================================================
+
+fn parse_kernel(kernel: Option<&Bound<'_, PyAny>>) -> PyResult<Box<dyn Kernel>> {
+    match kernel {
+        None => Ok(Box::new(gaussian_process::RBF::new(1.0))),
+        Some(obj) => {
+            if let Ok(rbf) = obj.extract::<PyRef<PyRBF>>() {
+                Ok(Box::new(gaussian_process::RBF::new(rbf.length_scale)))
+            } else if let Ok(m) = obj.extract::<PyRef<PyMatern>>() {
+                Ok(Box::new(gaussian_process::Matern::new(
+                    m.length_scale,
+                    m.nu,
+                )))
+            } else if let Ok(c) = obj.extract::<PyRef<PyConstantKernel>>() {
+                Ok(Box::new(gaussian_process::ConstantKernel::new(c.constant)))
+            } else if let Ok(w) = obj.extract::<PyRef<PyWhiteKernel>>() {
+                Ok(Box::new(gaussian_process::WhiteKernel::new(w.noise_level)))
+            } else {
+                Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                    "Unknown kernel type. Supported: RBF, Matern, ConstantKernel, WhiteKernel",
+                ))
+            }
+        }
+    }
+}
+
+// =============================================================================
+// GaussianProcessRegressor
+// =============================================================================
+
+/// Gaussian Process Regressor.
+///
+/// Provides exact GP regression with uncertainty estimation.
+///
+/// Parameters
+/// ----------
+/// kernel : kernel object, optional (default=RBF(1.0))
+///     The kernel specifying the covariance function.
+/// alpha : float, optional (default=1e-10)
+///     Noise / regularization added to the diagonal of the kernel matrix.
+/// normalize_y : bool, optional (default=False)
+///     Whether to normalize the target values.
+///
+/// Example
+/// -------
+/// >>> from ferroml.gaussian_process import GaussianProcessRegressor, RBF
+/// >>> import numpy as np
+/// >>> X = np.linspace(0, 5, 20).reshape(-1, 1)
+/// >>> y = np.sin(X).ravel()
+/// >>> gpr = GaussianProcessRegressor(kernel=RBF(1.0))
+/// >>> gpr.fit(X, y)
+/// >>> mean, std = gpr.predict_with_std(X)
+#[pyclass(name = "GaussianProcessRegressor", module = "ferroml.gaussian_process")]
+pub struct PyGaussianProcessRegressor {
+    inner: GaussianProcessRegressor,
+}
+
+#[pymethods]
+impl PyGaussianProcessRegressor {
+    #[new]
+    #[pyo3(signature = (kernel=None, alpha=1e-10, normalize_y=false))]
+    fn new(kernel: Option<&Bound<'_, PyAny>>, alpha: f64, normalize_y: bool) -> PyResult<Self> {
+        let k = parse_kernel(kernel)?;
+        let inner = GaussianProcessRegressor::new(k)
+            .with_alpha(alpha)
+            .with_normalize_y(normalize_y);
+        Ok(Self { inner })
+    }
+
+    /// Fit the model to training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict target values.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let preds = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(preds.into_pyarray(py))
+    }
+
+    /// Predict with uncertainty estimates.
+    ///
+    /// Returns
+    /// -------
+    /// mean : ndarray of shape (n_samples,)
+    ///     Predicted mean values.
+    /// std : ndarray of shape (n_samples,)
+    ///     Predicted standard deviations.
+    #[allow(clippy::type_complexity)]
+    fn predict_with_std<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<(Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>)> {
+        let x_arr = to_owned_array_2d(x);
+        let (mean, std) = self
+            .inner
+            .predict_with_std(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok((mean.into_pyarray(py), std.into_pyarray(py)))
+    }
+
+    /// Log marginal likelihood of the fitted model.
+    #[getter]
+    fn log_marginal_likelihood_(&self) -> PyResult<f64> {
+        self.inner
+            .log_marginal_likelihood()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+}
+
+// =============================================================================
+// GaussianProcessClassifier
+// =============================================================================
+
+/// Gaussian Process Classifier (binary, Laplace approximation).
+///
+/// Parameters
+/// ----------
+/// kernel : kernel object, optional (default=RBF(1.0))
+///     The kernel specifying the covariance function.
+/// max_iter : int, optional (default=50)
+///     Maximum number of Newton iterations for Laplace approximation.
+///
+/// Example
+/// -------
+/// >>> from ferroml.gaussian_process import GaussianProcessClassifier, RBF
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 1], [2, 1], [5, 5], [6, 5]])
+/// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> gpc = GaussianProcessClassifier(kernel=RBF(1.0))
+/// >>> gpc.fit(X, y)
+/// >>> preds = gpc.predict(X)
+#[pyclass(
+    name = "GaussianProcessClassifier",
+    module = "ferroml.gaussian_process"
+)]
+pub struct PyGaussianProcessClassifier {
+    inner: GaussianProcessClassifier,
+}
+
+#[pymethods]
+impl PyGaussianProcessClassifier {
+    #[new]
+    #[pyo3(signature = (kernel=None, max_iter=50))]
+    fn new(kernel: Option<&Bound<'_, PyAny>>, max_iter: usize) -> PyResult<Self> {
+        let k = parse_kernel(kernel)?;
+        let inner = GaussianProcessClassifier::new(k).with_max_iter(max_iter);
+        Ok(Self { inner })
+    }
+
+    /// Fit the model to training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict class labels.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let preds = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(preds.into_pyarray(py))
+    }
+
+    /// Predict class probabilities.
+    ///
+    /// Returns
+    /// -------
+    /// probas : ndarray of shape (n_samples, 2)
+    ///     Class probabilities [P(class=0), P(class=1)].
+    fn predict_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(probas.into_pyarray(py))
+    }
+}
+
+// =============================================================================
+// Module registration
+// =============================================================================
+
+pub fn register_gaussian_process_module(parent: &Bound<'_, PyModule>) -> PyResult<()> {
+    let m = PyModule::new(parent.py(), "gaussian_process")?;
+    m.add_class::<PyRBF>()?;
+    m.add_class::<PyMatern>()?;
+    m.add_class::<PyConstantKernel>()?;
+    m.add_class::<PyWhiteKernel>()?;
+    m.add_class::<PyGaussianProcessRegressor>()?;
+    m.add_class::<PyGaussianProcessClassifier>()?;
+    parent.add_submodule(&m)?;
+    Ok(())
+}

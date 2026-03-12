@@ -483,6 +483,131 @@ pub fn extract_sparse_x<'py>(
     Ok((x, info))
 }
 
+// =============================================================================
+// Native CsrMatrix round-trip (no densification)
+// =============================================================================
+
+/// Convert a scipy CSR matrix to FerroML CsrMatrix without densification.
+///
+/// Extracts .data, .indices, .indptr directly and constructs a CsrMatrix::new().
+/// Handles CSC and other formats by calling .tocsr() first.
+///
+/// # Arguments
+///
+/// * `sparse_matrix` - A scipy.sparse matrix (CSR preferred; others auto-convert)
+///
+/// # Returns
+///
+/// A native `CsrMatrix` ready for use with `SparseModel` trait methods.
+#[cfg(feature = "sparse")]
+pub fn py_csr_to_ferro(
+    sparse_matrix: &Bound<'_, PyAny>,
+) -> SparseResult<ferroml_core::sparse::CsrMatrix> {
+    // Ensure CSR format
+    let format_str = get_sparse_format(sparse_matrix)?;
+    let csr = if matches!(format_str.as_str(), "csr" | "csr_matrix" | "csr_array") {
+        sparse_matrix.clone()
+    } else {
+        sparse_matrix.call_method0("tocsr").map_err(|e| {
+            SparseConversionError::PythonError(format!(
+                "Failed to convert {} to CSR: {}",
+                format_str, e
+            ))
+        })?
+    };
+
+    // Get shape
+    let shape: (usize, usize) = csr.getattr("shape")?.extract()?;
+    let (n_rows, n_cols) = shape;
+
+    if n_rows == 0 || n_cols == 0 {
+        return Err(SparseConversionError::EmptyMatrix);
+    }
+
+    // Extract .data as Vec<f64>
+    let data_py = csr.getattr("data")?;
+    let data_float = data_py
+        .call_method1("astype", ("float64",))
+        .map_err(|e| SparseConversionError::NonNumericData(e.to_string()))?;
+    let data_arr: PyReadonlyArray1<f64> = data_float.extract()?;
+    let data: Vec<f64> = data_arr.as_array().to_vec();
+
+    // Extract .indices as Vec<usize>
+    let indices_py = csr.getattr("indices")?;
+    let indices: Vec<usize> = if let Ok(idx) = indices_py.extract::<PyReadonlyArray1<i64>>() {
+        idx.as_array().iter().map(|&x| x as usize).collect()
+    } else if let Ok(idx) = indices_py.extract::<PyReadonlyArray1<i32>>() {
+        idx.as_array().iter().map(|&x| x as usize).collect()
+    } else {
+        return Err(SparseConversionError::NonNumericData(
+            "indices array has unsupported dtype".to_string(),
+        ));
+    };
+
+    // Extract .indptr as Vec<usize>
+    let indptr_py = csr.getattr("indptr")?;
+    let indptr: Vec<usize> = if let Ok(ptr) = indptr_py.extract::<PyReadonlyArray1<i64>>() {
+        ptr.as_array().iter().map(|&x| x as usize).collect()
+    } else if let Ok(ptr) = indptr_py.extract::<PyReadonlyArray1<i32>>() {
+        ptr.as_array().iter().map(|&x| x as usize).collect()
+    } else {
+        return Err(SparseConversionError::NonNumericData(
+            "indptr array has unsupported dtype".to_string(),
+        ));
+    };
+
+    // Validate shapes
+    if indptr.len() != n_rows + 1 {
+        return Err(SparseConversionError::ShapeMismatch {
+            expected: format!("indptr length {}", n_rows + 1),
+            actual: format!("indptr length {}", indptr.len()),
+        });
+    }
+
+    ferroml_core::sparse::CsrMatrix::new((n_rows, n_cols), indptr, indices, data)
+        .map_err(|e| SparseConversionError::PythonError(e.to_string()))
+}
+
+/// Convert FerroML CsrMatrix back to scipy.sparse.csr_matrix.
+///
+/// Constructs a scipy.sparse.csr_matrix((data, indices, indptr), shape=shape).
+///
+/// # Arguments
+///
+/// * `matrix` - A FerroML CsrMatrix
+/// * `py` - Python GIL token
+///
+/// # Returns
+///
+/// A Python scipy.sparse.csr_matrix object.
+#[cfg(feature = "sparse")]
+pub fn ferro_csr_to_py(
+    matrix: &ferroml_core::sparse::CsrMatrix,
+    py: Python<'_>,
+) -> PyResult<PyObject> {
+    use numpy::IntoPyArray;
+
+    let data = matrix.data().to_vec();
+    let indices: Vec<i64> = matrix.indices().iter().map(|&x| x as i64).collect();
+    let indptr: Vec<i64> = matrix.indptr().iter().map(|&x| x as i64).collect();
+    let shape = matrix.shape();
+
+    let data_np = data.into_pyarray(py);
+    let indices_np = indices.into_pyarray(py);
+    let indptr_np = indptr.into_pyarray(py);
+
+    let scipy_sparse = py.import("scipy.sparse")?;
+    let csr_matrix_cls = scipy_sparse.getattr("csr_matrix")?;
+
+    // scipy.sparse.csr_matrix((data, indices, indptr), shape=(rows, cols))
+    let args = ((data_np, indices_np, indptr_np),);
+    let kwargs = pyo3::types::PyDict::new(py);
+    kwargs.set_item("shape", (shape.0, shape.1))?;
+
+    let result = csr_matrix_cls.call(args, Some(&kwargs))?;
+    Ok(result.unbind())
+}
+
 #[cfg(test)]
 mod tests {
     // Tests require PyO3/Python runtime which is typically done in integration tests

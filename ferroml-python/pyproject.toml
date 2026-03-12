@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "ferroml"
-version = "0.1.0"
+version = "0.2.0"
 description = "Statistically rigorous AutoML in Rust with Python bindings"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -70,10 +70,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/user/ferroml"
-Documentation = "https://github.com/user/ferroml#readme"
-Repository = "https://github.com/user/ferroml"
-Issues = "https://github.com/user/ferroml/issues"
+Homepage = "https://github.com/robertlupo1997/ferroml"
+Documentation = "https://github.com/robertlupo1997/ferroml#readme"
+Repository = "https://github.com/robertlupo1997/ferroml"
+Issues = "https://github.com/robertlupo1997/ferroml/issues"
 
 [tool.maturin]
 # Build configuration

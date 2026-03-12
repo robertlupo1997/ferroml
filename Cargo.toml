@@ -8,12 +8,12 @@ members = [
 default-members = ["ferroml-core"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["FerroML Contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/user/ferroml"
-homepage = "https://github.com/user/ferroml"
+repository = "https://github.com/robertlupo1997/ferroml"
+homepage = "https://github.com/robertlupo1997/ferroml"
 documentation = "https://docs.rs/ferroml-core"
 readme = "README.md"
 description = "Statistically rigorous AutoML in Rust with Python bindings"

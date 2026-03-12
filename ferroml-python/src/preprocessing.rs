@@ -42,6 +42,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::Py;
 
+#[cfg(feature = "sparse")]
+use crate::sparse_utils::py_csr_to_ferro;
+
 // =============================================================================
 // StandardScaler
 // =============================================================================
@@ -3319,8 +3322,261 @@ impl PyTfidfTransformer {
         Ok(self.inner.idf().map(|idf| idf.clone().into_pyarray(py)))
     }
 
+    /// Fit the transformer from a scipy.sparse matrix (native sparse, no densification).
+    ///
+    /// Parameters
+    /// ----------
+    /// X : scipy.sparse matrix (CSR or CSC)
+    ///     Sparse term-count matrix.
+    ///
+    /// Returns
+    /// -------
+    /// self : TfidfTransformer
+    ///     Fitted transformer.
+    #[cfg(feature = "sparse")]
+    fn fit_sparse<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let csr = py_csr_to_ferro(x)?;
+        slf.inner
+            .fit_sparse(&csr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Transform a scipy.sparse count matrix to TF-IDF (returns dense ndarray).
+    ///
+    /// Parameters
+    /// ----------
+    /// X : scipy.sparse matrix (CSR or CSC)
+    ///     Sparse term-count matrix.
+    ///
+    /// Returns
+    /// -------
+    /// X_new : ndarray of shape (n_samples, n_features)
+    ///     TF-IDF weighted matrix.
+    #[cfg(feature = "sparse")]
+    fn transform_sparse<'py>(
+        &self,
+        py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let csr = py_csr_to_ferro(x)?;
+        let result = self
+            .inner
+            .transform_sparse(&csr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Fit and transform a scipy.sparse count matrix in one step.
+    ///
+    /// Parameters
+    /// ----------
+    /// X : scipy.sparse matrix (CSR or CSC)
+    ///     Sparse term-count matrix.
+    ///
+    /// Returns
+    /// -------
+    /// X_new : ndarray of shape (n_samples, n_features)
+    ///     TF-IDF weighted matrix.
+    #[cfg(feature = "sparse")]
+    fn fit_transform_sparse<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let csr = py_csr_to_ferro(x)?;
+        slf.inner
+            .fit_sparse(&csr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let result = slf
+            .inner
+            .transform_sparse(&csr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         "TfidfTransformer()".to_string()
+    }
+}
+
+// =============================================================================
+// CountVectorizer
+// =============================================================================
+
+/// Convert text documents to a matrix of token counts.
+///
+/// CountVectorizer tokenizes text, builds a vocabulary from training data,
+/// and transforms documents into term-count matrices.
+///
+/// Parameters
+/// ----------
+/// max_features : int, optional (default=None)
+///     Build a vocabulary that only considers the top max_features ordered
+///     by term frequency across the corpus.
+/// min_df : int, optional (default=1)
+///     Ignore terms that appear in fewer than min_df documents (absolute count).
+/// max_df : float, optional (default=1.0)
+///     Ignore terms that appear in more than max_df fraction of documents.
+/// ngram_range : tuple (min_n, max_n), optional (default=(1, 1))
+///     The lower and upper boundary of the range of n-values for different
+///     n-grams to be extracted.
+/// binary : bool, optional (default=False)
+///     If True, all non-zero counts are set to 1.
+/// lowercase : bool, optional (default=True)
+///     Convert all characters to lowercase before tokenizing.
+/// stop_words : list of str, optional (default=None)
+///     List of stop words to remove during tokenization.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import CountVectorizer
+/// >>> corpus = ["the cat sat", "the dog sat"]
+/// >>> cv = CountVectorizer()
+/// >>> X = cv.fit_transform(corpus)
+#[pyclass(name = "CountVectorizer", module = "ferroml.preprocessing")]
+#[derive(Clone)]
+pub struct PyCountVectorizer {
+    inner: ferroml_core::preprocessing::count_vectorizer::CountVectorizer,
+}
+
+#[pymethods]
+impl PyCountVectorizer {
+    /// Create a new CountVectorizer.
+    #[new]
+    #[pyo3(signature = (max_features=None, min_df=1, max_df=1.0, ngram_range=(1,1), binary=false, lowercase=true, stop_words=None))]
+    fn new(
+        max_features: Option<usize>,
+        min_df: usize,
+        max_df: f64,
+        ngram_range: (usize, usize),
+        binary: bool,
+        lowercase: bool,
+        stop_words: Option<Vec<String>>,
+    ) -> Self {
+        use ferroml_core::preprocessing::count_vectorizer::{CountVectorizer, DocFrequency};
+
+        let mut cv = CountVectorizer::new()
+            .with_min_df(DocFrequency::Count(min_df))
+            .with_max_df(DocFrequency::Fraction(max_df))
+            .with_ngram_range(ngram_range)
+            .with_binary(binary)
+            .with_lowercase(lowercase);
+
+        if let Some(mf) = max_features {
+            cv = cv.with_max_features(mf);
+        }
+
+        if let Some(sw) = stop_words {
+            cv = cv.with_stop_words(sw);
+        }
+
+        Self { inner: cv }
+    }
+
+    /// Fit the vectorizer on a corpus of documents.
+    ///
+    /// Parameters
+    /// ----------
+    /// documents : list of str
+    ///     The text documents to learn vocabulary from.
+    ///
+    /// Returns
+    /// -------
+    /// self : CountVectorizer
+    ///     Fitted vectorizer.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        documents: Vec<String>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        use ferroml_core::preprocessing::count_vectorizer::TextTransformer;
+        slf.inner
+            .fit_text(&documents)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Transform documents into a term-count matrix.
+    ///
+    /// Parameters
+    /// ----------
+    /// documents : list of str
+    ///     The text documents to transform.
+    ///
+    /// Returns
+    /// -------
+    /// X : ndarray of shape (n_documents, n_features)
+    ///     Document-term matrix.
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        documents: Vec<String>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let result = self
+            .inner
+            .transform_text_dense(&documents)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Fit and transform in one step.
+    ///
+    /// Parameters
+    /// ----------
+    /// documents : list of str
+    ///     The text documents to fit on and transform.
+    ///
+    /// Returns
+    /// -------
+    /// X : ndarray of shape (n_documents, n_features)
+    ///     Document-term matrix.
+    fn fit_transform<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        documents: Vec<String>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let result = slf
+            .inner
+            .fit_transform_text_dense(&documents)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// The learned vocabulary mapping (term -> index).
+    ///
+    /// Returns
+    /// -------
+    /// vocabulary : dict
+    ///     Mapping from term to column index.
+    #[getter]
+    fn vocabulary_(&self) -> PyResult<std::collections::HashMap<String, usize>> {
+        self.inner.vocabulary().cloned().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("CountVectorizer is not fitted yet")
+        })
+    }
+
+    /// Get the feature names (sorted vocabulary terms).
+    ///
+    /// Returns
+    /// -------
+    /// feature_names : list of str
+    ///     Sorted list of vocabulary terms.
+    fn get_feature_names_out(&self) -> PyResult<Vec<String>> {
+        self.inner
+            .get_feature_names()
+            .map(|names| names.to_vec())
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "CountVectorizer is not fitted yet",
+                )
+            })
+    }
+
+    fn __repr__(&self) -> String {
+        "CountVectorizer()".to_string()
     }
 }
 
@@ -3374,6 +3630,9 @@ pub fn register_preprocessing_module(parent_module: &Bound<'_, PyModule>) -> PyR
 
     // TF-IDF
     preprocessing_module.add_class::<PyTfidfTransformer>()?;
+
+    // CountVectorizer
+    preprocessing_module.add_class::<PyCountVectorizer>()?;
 
     parent_module.add_submodule(&preprocessing_module)?;
 

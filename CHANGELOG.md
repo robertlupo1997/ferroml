@@ -4,9 +4,36 @@ All notable changes to FerroML are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.2.0] - 2026-03-11
 
 ### Added
+
+#### Plan R — Feature Completion & v0.2.0 Release (2026-03-11)
+
+- CountVectorizer with TextTransformer trait, n-gram support (unigrams through trigrams), min_df/max_df filtering
+- Python sparse round-trip: scipy.sparse <-> CsrMatrix without densification
+- GaussianProcessRegressor + GaussianProcessClassifier with RBF, Matern, Constant, White kernels
+- MultiOutputRegressor + MultiOutputClassifier wrappers
+- 84 new Rust tests + 64 new Python tests
+
+#### Plan Q — GPU Shader Expansion & Native Sparse (2026-03-10)
+
+- 8 new WGSL shaders (relu, sigmoid, softmax, row_reduce, bias_add, relu_grad, sigmoid_grad, elementwise_mul)
+- GpuBackend trait expanded to 12 methods
+- GPU integration in DBSCAN, HDBSCAN, t-SNE, GradientBoosting (`with_gpu()` builder, CPU fallback)
+- MLP full forward/backward on GPU (activation shaders, gradient shaders)
+- GpuDispatcher auto CPU/GPU dispatch with GpuDispatchPolicy (Always/Auto/Never)
+- SparseModel trait updated for CsrMatrix, implemented for 12 models (KNN, KNNRegressor, NearestCentroid, DBSCAN, GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB, LinearSVC, LinearSVR, LogisticRegression, Ridge)
+- TfidfTransformer + sparse StandardScaler/MaxAbsScaler/Normalizer
+- ~188 GPU tests, ~55 sparse model tests
+
+#### Plan P — SVM Polish (2026-03-09)
+
+- Public `decision_function()` on SVC, SVR, LinearSVC, LinearSVR (Rust + Python)
+- Loss parameter exposed on PyLinearSVC/PyLinearSVR
+- Custom class weights via dict on PySVC/PyLinearSVC
+- Dedicated Rust SVM test module (37 tests)
+- SVR docstring fixed
 
 #### Plans M-O: Validation & Optimization (2026-03-08 — 2026-03-09)
 

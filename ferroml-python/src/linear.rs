@@ -45,7 +45,9 @@ use crate::pandas_utils::{extract_x_from_pandas, extract_xy_from_pandas};
 #[cfg(feature = "polars")]
 use crate::polars_utils::{extract_x_from_pydf, extract_xy_from_pydf};
 #[cfg(feature = "sparse")]
-use crate::sparse_utils::{extract_sparse_x, extract_sparse_xy};
+use crate::sparse_utils::{extract_sparse_x, extract_sparse_xy, py_csr_to_ferro};
+#[cfg(feature = "sparse")]
+use ferroml_core::models::traits::SparseModel;
 #[cfg(feature = "polars")]
 use pyo3_polars::PyDataFrame;
 
@@ -1061,35 +1063,38 @@ impl PyLogisticRegression {
         Ok(probas.into_pyarray(py))
     }
 
-    /// Fit the model from a scipy.sparse matrix.
+    /// Fit the model from a scipy.sparse matrix (native sparse, no densification).
+    ///
+    /// Uses the SparseModel trait for O(nnz) fitting on sparse data.
     #[cfg(feature = "sparse")]
     fn fit_sparse<'py>(
         mut slf: PyRefMut<'py, Self>,
-        py: Python<'py>,
+        _py: Python<'py>,
         x: &Bound<'py, PyAny>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let data = extract_sparse_xy(py, x, y)?;
+        let csr = py_csr_to_ferro(x)?;
+        let y_arr = to_owned_array_1d(y);
 
         slf.inner
-            .fit(&data.x, &data.y)
+            .fit_sparse(&csr, &y_arr)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(slf)
     }
 
-    /// Predict class labels using a scipy.sparse matrix.
+    /// Predict class labels using a scipy.sparse matrix (native sparse, no densification).
     #[cfg(feature = "sparse")]
     fn predict_sparse<'py>(
         &self,
         py: Python<'py>,
         x: &Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let (x_arr, _) = extract_sparse_x(py, x)?;
+        let csr = py_csr_to_ferro(x)?;
 
         let predictions = self
             .inner
-            .predict(&x_arr)
+            .predict_sparse(&csr)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(predictions.into_pyarray(py))
@@ -1340,35 +1345,36 @@ impl PyRidgeRegression {
         Ok(predictions.into_pyarray(py))
     }
 
-    /// Fit the model from a scipy.sparse matrix.
+    /// Fit the model from a scipy.sparse matrix (native sparse, no densification).
     #[cfg(feature = "sparse")]
     fn fit_sparse<'py>(
         mut slf: PyRefMut<'py, Self>,
-        py: Python<'py>,
+        _py: Python<'py>,
         x: &Bound<'py, PyAny>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let data = extract_sparse_xy(py, x, y)?;
+        let csr = py_csr_to_ferro(x)?;
+        let y_arr = to_owned_array_1d(y);
 
         slf.inner
-            .fit(&data.x, &data.y)
+            .fit_sparse(&csr, &y_arr)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(slf)
     }
 
-    /// Predict using a scipy.sparse matrix.
+    /// Predict using a scipy.sparse matrix (native sparse, no densification).
     #[cfg(feature = "sparse")]
     fn predict_sparse<'py>(
         &self,
         py: Python<'py>,
         x: &Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let (x_arr, _) = extract_sparse_x(py, x)?;
+        let csr = py_csr_to_ferro(x)?;
 
         let predictions = self
             .inner
-            .predict(&x_arr)
+            .predict_sparse(&csr)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(predictions.into_pyarray(py))
