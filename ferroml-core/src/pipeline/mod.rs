@@ -51,6 +51,15 @@
 //! # }
 //! ```
 
+#[cfg(feature = "sparse")]
+pub mod text_pipeline;
+
+#[cfg(feature = "sparse")]
+pub use text_pipeline::{
+    PipelineSparseModel, PipelineSparseTransformer, PipelineTextTransformer, TextPipeline,
+    TextPipelineStep,
+};
+
 use crate::hpo::{ParameterValue, SearchSpace};
 use crate::models::Model;
 use crate::preprocessing::Transformer;
