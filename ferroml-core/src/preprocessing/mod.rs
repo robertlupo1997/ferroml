@@ -63,6 +63,8 @@ pub mod tfidf;
 
 #[cfg(feature = "sparse")]
 pub mod count_vectorizer;
+#[cfg(feature = "sparse")]
+pub mod tfidf_vectorizer;
 
 #[cfg(test)]
 mod compliance_tests;
@@ -224,6 +226,34 @@ pub trait Transformer: Send + Sync {
     /// Get the number of output features produced.
     ///
     /// Returns `None` if not fitted.
+    fn n_features_out(&self) -> Option<usize>;
+}
+
+/// Trait for transformers that operate on sparse matrices natively.
+///
+/// Unlike `Transformer` (Array2 -> Array2), SparseTransformer operates
+/// in the sparse domain: CsrMatrix -> CsrMatrix, preserving sparsity.
+#[cfg(feature = "sparse")]
+pub trait SparseTransformer: Send + Sync {
+    /// Fit the transformer from a sparse CSR matrix.
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix) -> Result<()>;
+
+    /// Transform a sparse CSR matrix, returning a sparse CSR matrix.
+    fn transform_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<crate::sparse::CsrMatrix>;
+
+    /// Fit and transform in one step.
+    fn fit_transform_sparse(
+        &mut self,
+        x: &crate::sparse::CsrMatrix,
+    ) -> Result<crate::sparse::CsrMatrix> {
+        self.fit_sparse(x)?;
+        self.transform_sparse(x)
+    }
+
+    /// Check if the transformer has been fitted.
+    fn is_fitted(&self) -> bool;
+
+    /// Get the number of output features produced.
     fn n_features_out(&self) -> Option<usize>;
 }
 
