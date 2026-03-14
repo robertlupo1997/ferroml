@@ -390,10 +390,6 @@ class TestNaiveBayesRoundtrip:
         from ferroml.naive_bayes import MultinomialNB
         assert_classifier_label_roundtrip(MultinomialNB(), *positive_data)
 
-    @pytest.mark.xfail(
-        reason="BernoulliNB ONNX export produces incorrect class labels",
-        strict=True,
-    )
     def test_bernoulli_nb(self, binary_feature_data):
         from ferroml.naive_bayes import BernoulliNB
         assert_classifier_label_roundtrip(BernoulliNB(), *binary_feature_data)
