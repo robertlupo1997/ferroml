@@ -9,9 +9,9 @@ use crate::models::forest::{RandomForestClassifier, RandomForestRegressor};
 use crate::models::tree::{DecisionTreeClassifier, DecisionTreeRegressor, TreeStructure};
 use crate::models::Model;
 use crate::onnx::{
-    create_model_proto, create_tensor_input, create_tensor_output_1d, AttributeProto,
-    AttributeProtoType, GraphProto, NodeProto, OnnxConfig, OnnxExportable, TensorProtoDataType,
-    ValueInfoProto,
+    create_model_proto, create_tensor_input, create_tensor_output, create_tensor_output_1d,
+    AttributeProto, AttributeProtoType, GraphProto, NodeProto, OnnxConfig, OnnxExportable,
+    TensorProtoDataType,
 };
 use crate::{FerroError, Result};
 use prost::Message;
@@ -361,9 +361,13 @@ fn create_tree_classifier_graph(
         TensorProtoDataType::Int64,
     );
 
-    // For probabilities output, create a map or sequence type
-    // Using simpler tensor output for compatibility
-    let proba_output = create_proba_output(&config.output_name, n_classes, batch_size);
+    // Probabilities output: tensor(float) with shape [N, n_classes]
+    let proba_output = create_tensor_output(
+        &config.output_name,
+        n_classes,
+        batch_size,
+        TensorProtoDataType::Float,
+    );
 
     // Build tree ensemble attributes
     let mut builder = TreeEnsembleBuilder::new();
@@ -395,40 +399,6 @@ fn create_tree_classifier_graph(
         input: vec![input],
         output: vec![label_output, proba_output],
         ..Default::default()
-    }
-}
-
-/// Create probability output for classifier (ZipMap in ONNX-ML returns a map)
-fn create_proba_output(name: &str, _n_classes: usize, _batch_size: Option<i64>) -> ValueInfoProto {
-    use crate::onnx::{type_proto, TypeProto, TypeProtoMap, TypeProtoSequence};
-
-    // TreeEnsembleClassifier outputs a sequence of maps: sequence<map<int64, float>>
-    // This is the proper ONNX-ML classifier output format
-    ValueInfoProto {
-        name: name.to_string(),
-        r#type: Some(TypeProto {
-            value: Some(type_proto::Value::SequenceType(Box::new(
-                TypeProtoSequence {
-                    elem_type: Some(Box::new(TypeProto {
-                        value: Some(type_proto::Value::MapType(Box::new(TypeProtoMap {
-                            key_type: TensorProtoDataType::Int64 as i32,
-                            value_type: Some(Box::new(TypeProto {
-                                value: Some(type_proto::Value::TensorType(
-                                    crate::onnx::TypeProtoTensor {
-                                        elem_type: TensorProtoDataType::Float as i32,
-                                        shape: None,
-                                    },
-                                )),
-                                denotation: String::new(),
-                            })),
-                        }))),
-                        denotation: String::new(),
-                    })),
-                },
-            ))),
-            denotation: String::new(),
-        }),
-        doc_string: String::new(),
     }
 }
 
