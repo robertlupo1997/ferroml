@@ -233,10 +233,6 @@ class TestTreeRegressorRoundtrip:
             GradientBoostingRegressor(n_estimators=10), *regression_data,
         )
 
-    @pytest.mark.xfail(
-        reason="HistGradientBoosting ONNX bin-threshold mapping has edge-case mismatches",
-        strict=True,
-    )
     def test_hist_gradient_boosting_regressor(self, regression_data):
         from ferroml.trees import HistGradientBoostingRegressor
         assert_regressor_roundtrip(
@@ -276,10 +272,6 @@ class TestTreeClassifierRoundtrip:
             GradientBoostingClassifier(n_estimators=10), *binary_data,
         )
 
-    @pytest.mark.xfail(
-        reason="HistGradientBoosting ONNX bin-threshold mapping has edge-case mismatches",
-        strict=True,
-    )
     def test_hist_gradient_boosting_classifier(self, binary_data):
         from ferroml.trees import HistGradientBoostingClassifier
         assert_classifier_proba_roundtrip(
