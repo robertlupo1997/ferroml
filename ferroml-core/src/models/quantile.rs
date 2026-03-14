@@ -382,7 +382,7 @@ impl QuantileRegression {
             // X'WX = (W^½X)' @ (W^½X)
             let mut scaled_x = x_design.to_owned();
             for i in 0..n {
-                let w_sqrt = weights[i].sqrt();
+                let w_sqrt = weights[i].max(0.0).sqrt();
                 scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
             }
             let xtwx = scaled_x.t().dot(&scaled_x);

@@ -525,6 +525,12 @@ impl GradientBoostingRegressor {
         self.init_prediction
     }
 
+    /// Get the learning rate for a given iteration
+    pub fn learning_rate_at(&self, iteration: usize) -> f64 {
+        self.learning_rate_schedule
+            .get_lr(iteration, self.n_estimators)
+    }
+
     /// Staged predictions - yields predictions after each stage
     pub fn staged_predict<'a>(
         &'a self,
@@ -1067,6 +1073,30 @@ impl GradientBoostingClassifier {
     #[must_use]
     pub fn n_estimators_actual(&self) -> Option<usize> {
         self.estimators.as_ref().map(|e| e.len())
+    }
+
+    /// Get the individual estimators (per-iteration, per-class tree arrays)
+    #[must_use]
+    pub fn estimators(&self) -> Option<&[Vec<DecisionTreeRegressor>]> {
+        self.estimators.as_deref()
+    }
+
+    /// Get the initial predictions (one per class for multiclass, one for binary)
+    #[must_use]
+    pub fn init_predictions(&self) -> Option<&Array1<f64>> {
+        self.init_predictions.as_ref()
+    }
+
+    /// Get the number of classes
+    #[must_use]
+    pub fn n_classes(&self) -> Option<usize> {
+        self.n_classes
+    }
+
+    /// Get the learning rate for a given iteration
+    pub fn learning_rate_at(&self, iteration: usize) -> f64 {
+        self.learning_rate_schedule
+            .get_lr(iteration, self.n_estimators)
     }
 
     /// Predict class probabilities

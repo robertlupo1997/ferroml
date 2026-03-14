@@ -164,10 +164,10 @@ impl QuadraticDiscriminantAnalysis {
             let scaling = &scalings[c];
 
             // log determinant = sum of log(eigenvalues)
-            let log_det: f64 = scaling.iter().map(|&s| s.ln()).sum();
+            let log_det: f64 = scaling.iter().map(|&s| s.max(1e-300).ln()).sum();
 
             // log prior
-            let log_prior = priors[c].ln();
+            let log_prior = priors[c].max(1e-300).ln();
 
             for i in 0..n_samples {
                 // Compute (x - mu) in rotated space

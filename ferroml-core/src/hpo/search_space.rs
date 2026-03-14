@@ -111,6 +111,12 @@ pub enum ParameterDefault {
 impl Parameter {
     /// Create integer parameter
     pub fn int(low: i64, high: i64) -> Self {
+        assert!(
+            low <= high,
+            "search space: low ({}) must be <= high ({})",
+            low,
+            high
+        );
         Self {
             param_type: ParameterType::Int { low, high },
             log_scale: false,
@@ -120,6 +126,12 @@ impl Parameter {
 
     /// Create log-scale integer parameter
     pub fn int_log(low: i64, high: i64) -> Self {
+        assert!(
+            low <= high,
+            "search space: low ({}) must be <= high ({})",
+            low,
+            high
+        );
         assert!(low > 0 && high > 0, "log-scale bounds must be > 0");
         Self {
             param_type: ParameterType::Int { low, high },
@@ -130,6 +142,12 @@ impl Parameter {
 
     /// Create float parameter
     pub fn float(low: f64, high: f64) -> Self {
+        assert!(
+            low <= high,
+            "search space: low ({}) must be <= high ({})",
+            low,
+            high
+        );
         Self {
             param_type: ParameterType::Float { low, high },
             log_scale: false,
@@ -139,6 +157,12 @@ impl Parameter {
 
     /// Create log-scale float parameter
     pub fn float_log(low: f64, high: f64) -> Self {
+        assert!(
+            low <= high,
+            "search space: low ({}) must be <= high ({})",
+            low,
+            high
+        );
         assert!(low > 0.0 && high > 0.0, "log-scale bounds must be > 0");
         Self {
             param_type: ParameterType::Float { low, high },
@@ -278,5 +302,38 @@ mod tests {
     #[should_panic(expected = "log-scale bounds must be > 0")]
     fn test_int_log_zero_low_panics() {
         let _ = Parameter::int_log(0, 100);
+    }
+
+    #[test]
+    #[should_panic(expected = "search space: low (10) must be <= high (1)")]
+    fn test_int_low_gt_high_panics() {
+        let _ = Parameter::int(10, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "search space: low (5) must be <= high (2)")]
+    fn test_int_log_low_gt_high_panics() {
+        let _ = Parameter::int_log(5, 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "must be <= high")]
+    fn test_float_low_gt_high_panics() {
+        let _ = Parameter::float(1.0, 0.5);
+    }
+
+    #[test]
+    #[should_panic(expected = "must be <= high")]
+    fn test_float_log_low_gt_high_panics() {
+        let _ = Parameter::float_log(10.0, 1.0);
+    }
+
+    #[test]
+    fn test_equal_bounds_ok() {
+        // low == high should be allowed (single-value parameter)
+        let _ = Parameter::int(5, 5);
+        let _ = Parameter::float(1.0, 1.0);
+        let _ = Parameter::int_log(3, 3);
+        let _ = Parameter::float_log(2.0, 2.0);
     }
 }

@@ -6,19 +6,42 @@
 //! ## Supported Models
 //!
 //! ### Linear Models
-//! - `LinearRegression` - Exported using MatMul + Add ops
-//! - `LogisticRegression` - Exported using MatMul + Add + Sigmoid ops (binary) or Softmax (multiclass)
-//! - `RidgeRegression` - Exported using MatMul + Add ops
-//! - `LassoRegression` - Exported using MatMul + Add ops
-//! - `ElasticNet` - Exported using MatMul + Add ops
+//! - `LinearRegression` - MatMul + Add + Squeeze
+//! - `RidgeRegression` - MatMul + Add + Squeeze
+//! - `LassoRegression` - MatMul + Add + Squeeze
+//! - `ElasticNet` - MatMul + Add + Squeeze
+//! - `RobustRegression` - MatMul + Add + Squeeze
+//! - `QuantileRegression` - MatMul + Add + Squeeze
+//! - `SGDRegressor` - MatMul + Add + Squeeze
+//! - `LogisticRegression` - MatMul + Add + Sigmoid (binary)
+//! - `RidgeClassifier` - Gemm + ArgMax (multi-class) or Gemm + Sign (binary)
+//! - `SGDClassifier` - Gemm + Sigmoid (binary) or Gemm + ArgMax (multi-class)
+//! - `PassiveAggressiveClassifier` - Gemm + ArgMax
+//! - `LinearSVC` - Gemm + ArgMax
+//! - `LinearSVR` - MatMul + Add + Squeeze
 //!
-//! ### Tree Models
-//! - `DecisionTreeClassifier` - Exported using TreeEnsembleClassifier (ML domain)
-//! - `DecisionTreeRegressor` - Exported using TreeEnsembleRegressor (ML domain)
-//! - `RandomForestClassifier` - Exported using TreeEnsembleClassifier (ML domain)
-//! - `RandomForestRegressor` - Exported using TreeEnsembleRegressor (ML domain)
-//! - `GradientBoostingClassifier` - Exported using TreeEnsembleClassifier (ML domain)
-//! - `GradientBoostingRegressor` - Exported using TreeEnsembleRegressor (ML domain)
+//! ### Tree Ensemble Models
+//! - `DecisionTreeClassifier` - TreeEnsembleClassifier (ML domain)
+//! - `DecisionTreeRegressor` - TreeEnsembleRegressor (ML domain)
+//! - `RandomForestClassifier` - TreeEnsembleClassifier (ML domain)
+//! - `RandomForestRegressor` - TreeEnsembleRegressor (ML domain)
+//! - `ExtraTreesClassifier` - TreeEnsembleClassifier (ML domain)
+//! - `ExtraTreesRegressor` - TreeEnsembleRegressor (ML domain)
+//! - `GradientBoostingClassifier` - TreeEnsembleRegressor + Sigmoid/ArgMax
+//! - `GradientBoostingRegressor` - TreeEnsembleRegressor with scaled leaves
+//! - `AdaBoostClassifier` - TreeEnsembleClassifier with weighted votes
+//! - `AdaBoostRegressor` - TreeEnsembleRegressor with weighted sum
+//!
+//! ### Naive Bayes Models
+//! - `MultinomialNB` - MatMul + Add + ArgMax
+//! - `BernoulliNB` - MatMul + Add + ArgMax
+//! - `GaussianNB` - Quadratic form (Mul + MatMul + Add + ArgMax)
+//!
+//! ### Preprocessing Transformers
+//! - `StandardScaler` - Sub + Div
+//! - `MinMaxScaler` - Sub + Div + Mul + Add
+//! - `RobustScaler` - Sub + Div
+//! - `MaxAbsScaler` - Div
 //!
 //! ## Example
 //!
@@ -43,8 +66,13 @@
 //! # }
 //! ```
 
+mod hist_boosting;
 mod linear;
+mod naive_bayes;
+mod preprocessing;
 mod protos;
+mod sgd;
+mod svm;
 mod tree;
 
 pub use protos::*;
@@ -160,11 +188,29 @@ pub trait OnnxExportable {
     /// # Errors
     /// Returns an error if the model is not fitted or if file writing fails
     fn export_onnx<P: AsRef<Path>>(&self, path: P, config: &OnnxConfig) -> Result<()> {
+        self.validate_onnx_config(config)?;
         let bytes = self.to_onnx(config)?;
         let file = File::create(path.as_ref()).map_err(FerroError::IoError)?;
         let mut writer = BufWriter::new(file);
         writer.write_all(&bytes).map_err(FerroError::IoError)?;
         writer.flush().map_err(FerroError::IoError)?;
+        Ok(())
+    }
+
+    /// Validate that the ONNX config is compatible with the model
+    ///
+    /// Checks that `input_shape` n_features matches the model's expected features.
+    fn validate_onnx_config(&self, config: &OnnxConfig) -> Result<()> {
+        if let Some((_, n_features)) = config.input_shape {
+            if let Some(model_features) = self.onnx_n_features() {
+                if n_features as usize != model_features {
+                    return Err(FerroError::invalid_input(format!(
+                        "ONNX config input_shape specifies {} features but model expects {}",
+                        n_features, model_features
+                    )));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -510,6 +556,124 @@ pub fn create_int64_tensor(name: &str, dims: &[i64], data: Vec<i64>) -> TensorPr
     }
 }
 
+/// Create a Sub node: Y = A - B
+pub fn create_sub_node(input_a: &str, input_b: &str, output: &str, name: &str) -> NodeProto {
+    NodeProto {
+        input: vec![input_a.to_string(), input_b.to_string()],
+        output: vec![output.to_string()],
+        name: name.to_string(),
+        op_type: "Sub".to_string(),
+        domain: String::new(),
+        attribute: Vec::new(),
+        doc_string: String::new(),
+    }
+}
+
+/// Create a Div node: Y = A / B
+pub fn create_div_node(input_a: &str, input_b: &str, output: &str, name: &str) -> NodeProto {
+    NodeProto {
+        input: vec![input_a.to_string(), input_b.to_string()],
+        output: vec![output.to_string()],
+        name: name.to_string(),
+        op_type: "Div".to_string(),
+        domain: String::new(),
+        attribute: Vec::new(),
+        doc_string: String::new(),
+    }
+}
+
+/// Create a Mul node: Y = A * B
+pub fn create_mul_node(input_a: &str, input_b: &str, output: &str, name: &str) -> NodeProto {
+    NodeProto {
+        input: vec![input_a.to_string(), input_b.to_string()],
+        output: vec![output.to_string()],
+        name: name.to_string(),
+        op_type: "Mul".to_string(),
+        domain: String::new(),
+        attribute: Vec::new(),
+        doc_string: String::new(),
+    }
+}
+
+/// Create an ArgMax node: Y = argmax(X, axis)
+pub fn create_argmax_node(
+    input: &str,
+    output: &str,
+    name: &str,
+    axis: i64,
+    keepdims: i64,
+) -> NodeProto {
+    NodeProto {
+        input: vec![input.to_string()],
+        output: vec![output.to_string()],
+        name: name.to_string(),
+        op_type: "ArgMax".to_string(),
+        domain: String::new(),
+        attribute: vec![
+            AttributeProto {
+                name: "axis".to_string(),
+                i: axis,
+                r#type: AttributeProtoType::Int as i32,
+                ..Default::default()
+            },
+            AttributeProto {
+                name: "keepdims".to_string(),
+                i: keepdims,
+                r#type: AttributeProtoType::Int as i32,
+                ..Default::default()
+            },
+        ],
+        doc_string: String::new(),
+    }
+}
+
+/// Create a Cast node to change tensor data type
+pub fn create_cast_node(
+    input: &str,
+    output: &str,
+    name: &str,
+    to_type: TensorProtoDataType,
+) -> NodeProto {
+    NodeProto {
+        input: vec![input.to_string()],
+        output: vec![output.to_string()],
+        name: name.to_string(),
+        op_type: "Cast".to_string(),
+        domain: String::new(),
+        attribute: vec![AttributeProto {
+            name: "to".to_string(),
+            i: to_type as i64,
+            r#type: AttributeProtoType::Int as i32,
+            ..Default::default()
+        }],
+        doc_string: String::new(),
+    }
+}
+
+/// Create a ReduceSum node
+pub fn create_reduce_sum_node(
+    input: &str,
+    axes_input: &str,
+    output: &str,
+    name: &str,
+    keepdims: i64,
+) -> NodeProto {
+    NodeProto {
+        input: vec![input.to_string(), axes_input.to_string()],
+        output: vec![output.to_string()],
+        name: name.to_string(),
+        op_type: "ReduceSum".to_string(),
+        domain: String::new(),
+        attribute: vec![AttributeProto {
+            name: "keepdims".to_string(),
+            i: keepdims,
+            r#type: AttributeProtoType::Int as i32,
+            ..Default::default()
+        }],
+        doc_string: String::new(),
+    }
+}
+
 /// Serialize a ModelProto to bytes
 pub fn serialize_model(model: &ModelProto) -> Vec<u8> {
     model.encode_to_vec()
@@ -592,5 +756,62 @@ mod tests {
             .opset_import
             .iter()
             .any(|op| op.domain == "ai.onnx.ml"));
+    }
+
+    /// A minimal OnnxExportable implementor for testing validation
+    struct MockOnnxModel {
+        n_features: Option<usize>,
+    }
+
+    impl OnnxExportable for MockOnnxModel {
+        fn to_onnx(&self, _config: &OnnxConfig) -> Result<Vec<u8>> {
+            Ok(vec![])
+        }
+
+        fn onnx_n_features(&self) -> Option<usize> {
+            self.n_features
+        }
+    }
+
+    #[test]
+    fn test_validate_onnx_config_matching_features() {
+        let model = MockOnnxModel {
+            n_features: Some(5),
+        };
+        let config = OnnxConfig::new("test").with_input_shape(1, 5);
+        assert!(model.validate_onnx_config(&config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_onnx_config_mismatched_features() {
+        let model = MockOnnxModel {
+            n_features: Some(5),
+        };
+        let config = OnnxConfig::new("test").with_input_shape(1, 10);
+        let err = model.validate_onnx_config(&config).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("10") && msg.contains("5"),
+            "Error should mention both feature counts: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_validate_onnx_config_no_input_shape() {
+        let model = MockOnnxModel {
+            n_features: Some(5),
+        };
+        let config = OnnxConfig::new("test");
+        // No input_shape set — validation should pass
+        assert!(model.validate_onnx_config(&config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_onnx_config_no_model_features() {
+        let model = MockOnnxModel { n_features: None };
+        let config = OnnxConfig::new("test").with_input_shape(1, 10);
+        // Model doesn't report n_features — validation should pass
+        assert!(model.validate_onnx_config(&config).is_ok());
     }
 }

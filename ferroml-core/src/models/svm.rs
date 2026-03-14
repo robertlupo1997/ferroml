@@ -75,6 +75,18 @@ use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
+/// Numerically stable sigmoid: 1 / (1 + exp(-z)).
+/// Avoids overflow by branching on the sign of z.
+#[inline]
+fn stable_sigmoid(z: f64) -> f64 {
+    if z >= 0.0 {
+        1.0 / (1.0 + (-z).exp())
+    } else {
+        let e = z.exp();
+        e / (1.0 + e)
+    }
+}
+
 /// Kernel function for SVM.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Kernel {
@@ -158,7 +170,7 @@ impl Kernel {
     }
 
     /// Set gamma to auto (1 / n_features) if it's currently 0.
-    fn with_auto_gamma(self, n_features: usize) -> Self {
+    pub fn with_auto_gamma(self, n_features: usize) -> Self {
         let auto_gamma = 1.0 / n_features as f64;
         match self {
             Kernel::Rbf { gamma } if gamma <= 0.0 => Kernel::Rbf { gamma: auto_gamma },
@@ -220,7 +232,7 @@ impl Default for ClassWeight {
 
 /// Binary Support Vector Classifier using SMO algorithm.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct BinarySVC {
+pub(crate) struct BinarySVC {
     /// Regularization parameter (penalty for misclassification)
     c: f64,
     /// Kernel function
@@ -271,6 +283,33 @@ impl BinarySVC {
             platt_b: 0.0,
             probability_fitted: false,
         }
+    }
+
+    /// Get support vectors.
+    pub(crate) fn support_vectors(&self) -> Option<&Array2<f64>> {
+        self.support_vectors.as_ref()
+    }
+
+    /// Get dual coefficients.
+    pub(crate) fn dual_coef(&self) -> Option<&Array1<f64>> {
+        self.dual_coef.as_ref()
+    }
+
+    /// Get the intercept (rho).
+    pub(crate) fn intercept(&self) -> f64 {
+        self.intercept
+    }
+
+    /// Get the positive class label.
+    #[allow(dead_code)]
+    pub(crate) fn positive_class(&self) -> f64 {
+        self.positive_class
+    }
+
+    /// Get the negative class label.
+    #[allow(dead_code)]
+    pub(crate) fn negative_class(&self) -> f64 {
+        self.negative_class
     }
 
     /// Fit the binary SVC using SMO algorithm.
@@ -653,7 +692,7 @@ impl BinarySVC {
             for i in 0..n_samples {
                 let f = decisions[i];
                 let t = targets[i];
-                let p = 1.0 / (1.0 + (a * f + b).exp());
+                let p = stable_sigmoid(-(a * f + b));
                 let d = p - t;
 
                 g1 += f * d;
@@ -698,7 +737,7 @@ impl BinarySVC {
         }
 
         let decisions = self.decision_function(x)?;
-        Ok(decisions.mapv(|f| 1.0 / (1.0 + self.platt_a.mul_add(f, self.platt_b).exp())))
+        Ok(decisions.mapv(|f| stable_sigmoid(-self.platt_a.mul_add(f, self.platt_b))))
     }
 }
 
@@ -855,6 +894,16 @@ impl SVC {
     #[must_use]
     pub fn classes(&self) -> Option<&Array1<f64>> {
         self.classes.as_ref()
+    }
+
+    /// Get the binary classifiers.
+    pub(crate) fn classifiers(&self) -> &[BinarySVC] {
+        &self.classifiers
+    }
+
+    /// Get the class pairs for OvO.
+    pub(crate) fn class_pairs(&self) -> &[(f64, f64)] {
+        &self.class_pairs
     }
 
     /// Get the number of support vectors for each classifier.
@@ -1413,6 +1462,12 @@ impl SVR {
     #[must_use]
     pub fn n_support_vectors(&self) -> usize {
         self.support_indices.as_ref().map(|v| v.len()).unwrap_or(0)
+    }
+
+    /// Get the support vectors.
+    #[must_use]
+    pub fn support_vectors(&self) -> Option<&Array2<f64>> {
+        self.support_vectors.as_ref()
     }
 
     /// Get the support vector indices.
@@ -2966,6 +3021,122 @@ impl crate::models::traits::SparseModel for LinearSVR {
         let mut predictions = x.dot(w)?;
         predictions.mapv_inplace(|v| v + self.intercept);
         Ok(predictions)
+    }
+}
+
+// =============================================================================
+// PipelineSparseModel Implementations
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for LinearSVC {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> Result<()> {
+        match name {
+            "C" | "c" => {
+                if let Some(v) = value.as_f64() {
+                    self.c = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("C must be a number"))
+                }
+            }
+            "max_iter" => {
+                if let Some(v) = value.as_i64() {
+                    self.max_iter = v as usize;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("max_iter must be an integer"))
+                }
+            }
+            _ => Err(FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "LinearSVC"
+    }
+
+    fn is_fitted(&self) -> bool {
+        Model::is_fitted(self)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for LinearSVR {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> Result<()> {
+        match name {
+            "C" | "c" => {
+                if let Some(v) = value.as_f64() {
+                    self.c = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("C must be a number"))
+                }
+            }
+            "epsilon" => {
+                if let Some(v) = value.as_f64() {
+                    self.epsilon = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("epsilon must be a number"))
+                }
+            }
+            "max_iter" => {
+                if let Some(v) = value.as_i64() {
+                    self.max_iter = v as usize;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("max_iter must be an integer"))
+                }
+            }
+            _ => Err(FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "LinearSVR"
+    }
+
+    fn is_fitted(&self) -> bool {
+        Model::is_fitted(self)
     }
 }
 

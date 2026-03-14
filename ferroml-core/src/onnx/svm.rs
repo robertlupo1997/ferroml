@@ -245,8 +245,11 @@ impl OnnxExportable for SVR {
         let coefs: Vec<f32> = dual_coef.iter().map(|&v| v as f32).collect();
         let rho = vec![-(self.intercept() as f32)]; // ONNX uses negative rho
 
-        let (gamma, coef0, degree) = kernel_params(&self.kernel);
-        let kernel_type = kernel_type_str(&self.kernel);
+        // Resolve auto-gamma: self.kernel may have gamma=0 (auto),
+        // but fit resolves it to 1/n_features internally.
+        let resolved_kernel = self.kernel.with_auto_gamma(n_features);
+        let (gamma, coef0, degree) = kernel_params(&resolved_kernel);
+        let kernel_type = kernel_type_str(&resolved_kernel);
 
         let input = create_tensor_input(
             &config.input_name,
@@ -350,14 +353,17 @@ impl OnnxExportable for SVC {
             return Err(FerroError::not_fitted("No classifiers found in SVC"));
         }
 
-        let (gamma, coef0, degree) = kernel_params(&self.kernel);
-        let kernel_type = kernel_type_str(&self.kernel);
+        // Resolve auto-gamma: self.kernel may have gamma=0 (auto),
+        // but fit resolves it to 1/n_features internally.
+        let resolved_kernel = self.kernel.with_auto_gamma(n_features);
+        let (gamma, coef0, degree) = kernel_params(&resolved_kernel);
+        let kernel_type = kernel_type_str(&resolved_kernel);
 
         // Build SVMClassifier attributes
         // For OvO: one set of support vectors per binary classifier
         // For OvR: one set of support vectors per class
         let mut all_sv: Vec<f32> = Vec::new();
-        let mut all_coefs: Vec<f32> = Vec::new();
+        let mut all_coefs: Vec<f32>;
         let mut all_rho: Vec<f32> = Vec::new();
         let mut vectors_per_class: Vec<i64> = vec![0; n_classes];
 
@@ -424,8 +430,22 @@ impl OnnxExportable for SVC {
                 let total_sv: usize = vectors_per_class.iter().sum::<i64>() as usize;
                 let n_pairs = n_classes * (n_classes - 1) / 2;
 
+                // Guard against integer overflow / unreasonable allocation
+                let coef_size = n_pairs.checked_mul(total_sv).ok_or_else(|| {
+                    FerroError::invalid_input(
+                        "SVC ONNX export: coefficient matrix too large (integer overflow)",
+                    )
+                })?;
+                if coef_size > 100_000_000 {
+                    return Err(FerroError::invalid_input(format!(
+                        "SVC ONNX export: coefficient matrix too large ({} elements). \
+                         Reduce number of classes or support vectors.",
+                        coef_size
+                    )));
+                }
+
                 // Initialize coefficients to zero
-                all_coefs = vec![0.0_f32; n_pairs * total_sv];
+                all_coefs = vec![0.0_f32; coef_size];
 
                 // Fill in the coefficients for each pair
                 let mut pair_idx = 0;
@@ -459,18 +479,29 @@ impl OnnxExportable for SVC {
                     let mut cj_count = 0usize;
 
                     for &coef in dual.iter() {
-                        let abs_coef = coef.abs() as f32;
+                        // Preserve the sign of dual coefficients (alpha * y).
+                        // The sign encodes which direction each SV pushes the
+                        // decision boundary — dropping it inverts predictions.
+                        let coef_f32 = coef as f32;
                         if coef >= 0.0 {
                             let sv_global_idx = sv_offsets[ci] + ci_count;
-                            if sv_global_idx < total_sv {
-                                all_coefs[pair_idx * total_sv + sv_global_idx] = abs_coef;
+                            if sv_global_idx >= total_sv {
+                                return Err(FerroError::invalid_input(format!(
+                                    "SVC ONNX export: support vector index {} exceeds total {} (class pair {}/{})",
+                                    sv_global_idx, total_sv, ci, cj
+                                )));
                             }
+                            all_coefs[pair_idx * total_sv + sv_global_idx] = coef_f32;
                             ci_count += 1;
                         } else {
                             let sv_global_idx = sv_offsets[cj] + cj_count;
-                            if sv_global_idx < total_sv {
-                                all_coefs[pair_idx * total_sv + sv_global_idx] = abs_coef;
+                            if sv_global_idx >= total_sv {
+                                return Err(FerroError::invalid_input(format!(
+                                    "SVC ONNX export: support vector index {} exceeds total {} (class pair {}/{})",
+                                    sv_global_idx, total_sv, ci, cj
+                                )));
                             }
+                            all_coefs[pair_idx * total_sv + sv_global_idx] = coef_f32;
                             cj_count += 1;
                         }
                     }
@@ -531,9 +562,13 @@ impl OnnxExportable for SVC {
 
                     for (sv_local, &coef) in dual.iter().enumerate() {
                         let sv_global = sv_offset + sv_local;
-                        if sv_global < total_sv {
-                            all_coefs[clf_idx * total_sv + sv_global] = coef.abs() as f32;
+                        if sv_global >= total_sv {
+                            return Err(FerroError::invalid_input(format!(
+                                "SVC ONNX export (OvR): support vector index {} exceeds total {} (classifier {})",
+                                sv_global, total_sv, clf_idx
+                            )));
                         }
+                        all_coefs[clf_idx * total_sv + sv_global] = coef as f32;
                     }
 
                     sv_offset += vectors_per_class[clf_idx] as usize;

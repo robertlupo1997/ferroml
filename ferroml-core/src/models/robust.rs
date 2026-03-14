@@ -574,7 +574,7 @@ impl RobustRegression {
                 })
                 .sum();
 
-            let sigma_new = (sum_rho / (n as f64 * delta)).sqrt() * sigma;
+            let sigma_new = (sum_rho / (n as f64 * delta)).max(0.0).sqrt() * sigma;
             let sigma_new = sigma_new.max(1e-10);
 
             if (sigma_new - sigma).abs() < 1e-6 * sigma {
@@ -701,7 +701,9 @@ impl RobustRegression {
         // Standard errors
         let mut se = Array1::zeros(p);
         for i in 0..p {
-            se[i] = (xtwx_inv[[i, i]] * correction * scale * scale).sqrt();
+            se[i] = (xtwx_inv[[i, i]] * correction * scale * scale)
+                .max(0.0)
+                .sqrt();
         }
 
         se

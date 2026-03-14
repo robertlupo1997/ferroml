@@ -40,9 +40,11 @@ from ferroml import ferroml as _native
 Pipeline = _native.pipeline.Pipeline
 ColumnTransformer = _native.pipeline.ColumnTransformer
 FeatureUnion = _native.pipeline.FeatureUnion
+TextPipeline = _native.pipeline.TextPipeline
 
 __all__ = [
     "Pipeline",
     "ColumnTransformer",
     "FeatureUnion",
+    "TextPipeline",
 ]

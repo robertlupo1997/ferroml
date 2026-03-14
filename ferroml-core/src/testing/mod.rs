@@ -88,6 +88,12 @@ pub mod sparse_tests;
 pub mod svm;
 #[cfg(feature = "sparse")]
 pub mod text_pipeline;
+#[cfg(feature = "sparse")]
+pub mod text_pipeline_correctness;
+#[cfg(feature = "sparse")]
+pub mod text_pipeline_integration;
+#[cfg(feature = "sparse")]
+pub mod text_pipeline_trait_impls;
 pub mod transformer;
 pub mod utils;
 pub mod weights;

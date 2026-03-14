@@ -183,6 +183,18 @@ impl ExtraTreesClassifier {
         self.feature_importances_with_ci.as_ref()
     }
 
+    /// Get the individual tree estimators
+    #[must_use]
+    pub fn estimators(&self) -> Option<&[DecisionTreeClassifier]> {
+        self.estimators.as_deref()
+    }
+
+    /// Get the unique class labels
+    #[must_use]
+    pub fn classes(&self) -> Option<&Array1<f64>> {
+        self.classes.as_ref()
+    }
+
     /// Predict class probabilities by averaging tree predictions
     pub fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.estimators, "predict_proba")?;
@@ -571,6 +583,12 @@ impl ExtraTreesRegressor {
     #[must_use]
     pub fn feature_importances_with_ci(&self) -> Option<&FeatureImportanceWithCI> {
         self.feature_importances_with_ci.as_ref()
+    }
+
+    /// Get the individual tree estimators
+    #[must_use]
+    pub fn estimators(&self) -> Option<&[DecisionTreeRegressor]> {
+        self.estimators.as_deref()
     }
 
     fn compute_feature_importances_with_ci(&mut self) {

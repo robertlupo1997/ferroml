@@ -25,6 +25,7 @@ use ferroml_core::models::{
     GradientBoostingClassifier, GradientBoostingRegressor, LinearRegression, LogisticRegression,
     Model, RandomForestClassifier, RandomForestRegressor, SVR,
 };
+use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
 use ferroml_core::preprocessing::{
     discretizers::KBinsDiscretizer,
     encoders::{LabelEncoder, OneHotEncoder, OrdinalEncoder, TargetEncoder},
@@ -226,6 +227,75 @@ impl PyStandardScaler {
         Ok(())
     }
 
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
     fn __repr__(&self) -> String {
         "StandardScaler()".to_string()
     }
@@ -379,6 +449,75 @@ impl PyMinMaxScaler {
         Ok(())
     }
 
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
     fn __repr__(&self) -> String {
         let (min, max) = self.inner.feature_range();
         format!("MinMaxScaler(feature_range=({}, {}))", min, max)
@@ -529,6 +668,75 @@ impl PyRobustScaler {
         Ok(())
     }
 
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
     fn __repr__(&self) -> String {
         "RobustScaler()".to_string()
     }
@@ -649,6 +857,75 @@ impl PyMaxAbsScaler {
     pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
         self.inner = setstate(state.as_bytes())?;
         Ok(())
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 
     fn __repr__(&self) -> String {
@@ -3581,6 +3858,241 @@ impl PyCountVectorizer {
 }
 
 // =============================================================================
+// TfidfVectorizer
+// =============================================================================
+
+/// Convert text documents to a TF-IDF weighted sparse matrix.
+///
+/// TfidfVectorizer combines CountVectorizer and TfidfTransformer into a single step.
+/// It tokenizes text, builds a vocabulary, computes term frequencies, and applies
+/// IDF weighting.
+///
+/// Parameters
+/// ----------
+/// max_features : int, optional (default=None)
+///     Build a vocabulary that only considers the top max_features.
+/// min_df : int, optional (default=1)
+///     Ignore terms appearing in fewer documents.
+/// max_df : float, optional (default=1.0)
+///     Ignore terms appearing in more than this fraction of documents.
+/// ngram_range : tuple (min_n, max_n), optional (default=(1, 1))
+///     Range of n-gram sizes.
+/// binary : bool, optional (default=False)
+///     If True, all non-zero counts are set to 1 before TF-IDF.
+/// lowercase : bool, optional (default=True)
+///     Convert text to lowercase before tokenizing.
+/// stop_words : list of str, optional (default=None)
+///     Stop words to remove.
+/// norm : str, optional (default='l2')
+///     Normalization: 'l1', 'l2', or 'none'.
+/// use_idf : bool, optional (default=True)
+///     Enable IDF weighting.
+/// smooth_idf : bool, optional (default=True)
+///     Smooth IDF weights.
+/// sublinear_tf : bool, optional (default=False)
+///     Apply sublinear TF scaling (1 + log(tf)).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import TfidfVectorizer
+/// >>> corpus = ["the cat sat", "the dog sat"]
+/// >>> tv = TfidfVectorizer()
+/// >>> X = tv.fit_transform(corpus)  # returns scipy.sparse.csr_matrix
+#[pyclass(name = "TfidfVectorizer", module = "ferroml.preprocessing")]
+#[derive(Clone)]
+pub struct PyTfidfVectorizer {
+    inner: ferroml_core::preprocessing::tfidf_vectorizer::TfidfVectorizer,
+}
+
+#[pymethods]
+impl PyTfidfVectorizer {
+    #[new]
+    #[pyo3(signature = (max_features=None, min_df=1, max_df=1.0, ngram_range=(1,1), binary=false, lowercase=true, stop_words=None, norm="l2", use_idf=true, smooth_idf=true, sublinear_tf=false))]
+    fn new(
+        max_features: Option<usize>,
+        min_df: usize,
+        max_df: f64,
+        ngram_range: (usize, usize),
+        binary: bool,
+        lowercase: bool,
+        stop_words: Option<Vec<String>>,
+        norm: &str,
+        use_idf: bool,
+        smooth_idf: bool,
+        sublinear_tf: bool,
+    ) -> PyResult<Self> {
+        use ferroml_core::preprocessing::count_vectorizer::DocFrequency;
+        use ferroml_core::preprocessing::tfidf::TfidfNorm;
+        use ferroml_core::preprocessing::tfidf_vectorizer::TfidfVectorizer;
+
+        let norm_enum = match norm {
+            "l1" => TfidfNorm::L1,
+            "l2" => TfidfNorm::L2,
+            "none" | "" => TfidfNorm::None,
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "norm must be 'l1', 'l2', or 'none'",
+                ))
+            }
+        };
+
+        let mut tv = TfidfVectorizer::new()
+            .with_min_df(DocFrequency::Count(min_df))
+            .with_max_df(DocFrequency::Fraction(max_df))
+            .with_ngram_range(ngram_range)
+            .with_binary(binary)
+            .with_lowercase(lowercase)
+            .with_norm(norm_enum)
+            .with_use_idf(use_idf)
+            .with_smooth_idf(smooth_idf)
+            .with_sublinear_tf(sublinear_tf);
+
+        if let Some(mf) = max_features {
+            tv = tv.with_max_features(mf);
+        }
+        if let Some(sw) = stop_words {
+            tv = tv.with_stop_words(sw);
+        }
+
+        Ok(Self { inner: tv })
+    }
+
+    /// Fit the vectorizer on a corpus of documents.
+    ///
+    /// Parameters
+    /// ----------
+    /// documents : list of str
+    ///     The text documents to learn vocabulary from.
+    ///
+    /// Returns
+    /// -------
+    /// self : TfidfVectorizer
+    ///     Fitted vectorizer.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        documents: Vec<String>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        use ferroml_core::preprocessing::count_vectorizer::TextTransformer;
+        slf.inner
+            .fit_text(&documents)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Transform documents to TF-IDF sparse matrix.
+    ///
+    /// Parameters
+    /// ----------
+    /// documents : list of str
+    ///     The text documents to transform.
+    ///
+    /// Returns
+    /// -------
+    /// X : scipy.sparse.csr_matrix
+    ///     TF-IDF weighted sparse matrix.
+    #[cfg(feature = "sparse")]
+    fn transform(&self, py: Python<'_>, documents: Vec<String>) -> PyResult<PyObject> {
+        use ferroml_core::preprocessing::count_vectorizer::TextTransformer;
+        let csr = self
+            .inner
+            .transform_text(&documents)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        crate::sparse_utils::ferro_csr_to_py(&csr, py)
+    }
+
+    /// Fit and transform in one step. Returns scipy.sparse.csr_matrix.
+    ///
+    /// Parameters
+    /// ----------
+    /// documents : list of str
+    ///     The text documents to fit on and transform.
+    ///
+    /// Returns
+    /// -------
+    /// X : scipy.sparse.csr_matrix
+    ///     TF-IDF weighted sparse matrix.
+    #[cfg(feature = "sparse")]
+    fn fit_transform<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        documents: Vec<String>,
+    ) -> PyResult<PyObject> {
+        use ferroml_core::preprocessing::count_vectorizer::TextTransformer;
+        slf.inner
+            .fit_text(&documents)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let csr = slf
+            .inner
+            .transform_text(&documents)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        crate::sparse_utils::ferro_csr_to_py(&csr, py)
+    }
+
+    /// Transform documents to a dense numpy array.
+    ///
+    /// Parameters
+    /// ----------
+    /// documents : list of str
+    ///     The text documents to transform.
+    ///
+    /// Returns
+    /// -------
+    /// X : ndarray of shape (n_documents, n_features)
+    ///     TF-IDF weighted dense matrix.
+    fn transform_dense<'py>(
+        &self,
+        py: Python<'py>,
+        documents: Vec<String>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let result = self
+            .inner
+            .transform_text_dense(&documents)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// The learned vocabulary mapping (term -> index).
+    ///
+    /// Returns
+    /// -------
+    /// vocabulary : dict
+    ///     Mapping from term to column index.
+    #[getter]
+    fn vocabulary_(&self) -> PyResult<std::collections::HashMap<String, usize>> {
+        self.inner.vocabulary().cloned().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("TfidfVectorizer is not fitted yet")
+        })
+    }
+
+    /// Get the feature names (sorted vocabulary terms).
+    ///
+    /// Returns
+    /// -------
+    /// feature_names : list of str
+    ///     Sorted list of vocabulary terms.
+    fn get_feature_names_out(&self) -> PyResult<Vec<String>> {
+        self.inner
+            .get_feature_names()
+            .map(|names| names.to_vec())
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    "TfidfVectorizer is not fitted yet",
+                )
+            })
+    }
+
+    /// The IDF weight vector.
+    #[getter]
+    fn idf_<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyArray1<f64>>>> {
+        Ok(self.inner.idf().map(|idf| idf.clone().into_pyarray(py)))
+    }
+
+    fn __repr__(&self) -> String {
+        "TfidfVectorizer()".to_string()
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -3633,6 +4145,9 @@ pub fn register_preprocessing_module(parent_module: &Bound<'_, PyModule>) -> PyR
 
     // CountVectorizer
     preprocessing_module.add_class::<PyCountVectorizer>()?;
+
+    // TfidfVectorizer
+    preprocessing_module.add_class::<PyTfidfVectorizer>()?;
 
     parent_module.add_submodule(&preprocessing_module)?;
 

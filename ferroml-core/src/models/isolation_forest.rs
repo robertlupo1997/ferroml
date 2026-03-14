@@ -383,8 +383,25 @@ impl OutlierDetector for IsolationForest {
             return Err(FerroError::InvalidInput("Cannot fit on empty data".into()));
         }
 
+        // Validate contamination bounds
+        if let Contamination::Proportion(c) = self.contamination {
+            if c <= 0.0 || c > 0.5 {
+                return Err(FerroError::InvalidInput(format!(
+                    "contamination must be in (0, 0.5], got {c}"
+                )));
+            }
+        }
+
         self.n_features_in_ = Some(n_features);
         let max_samples = self.resolve_max_samples(n_samples);
+
+        // max_samples must be at least 2 for meaningful isolation
+        if max_samples < 2 {
+            return Err(FerroError::InvalidInput(format!(
+                "max_samples must resolve to at least 2, got {max_samples}"
+            )));
+        }
+
         self.max_samples_ = Some(max_samples);
 
         let max_depth = (max_samples as f64).log2().ceil() as usize;

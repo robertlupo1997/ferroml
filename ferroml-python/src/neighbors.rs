@@ -210,6 +210,32 @@ impl PyKNeighborsClassifier {
         Ok(probas.into_pyarray(py))
     }
 
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, n_classes)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
+    }
+
     /// Get the number of features seen during fit.
     #[getter]
     fn n_features_in_(&self) -> PyResult<usize> {

@@ -74,6 +74,19 @@ memory-stats = "1.2"
 serde_json = "1"
 pollster = "0.4"
 
+# Cross-library validation (Plan S)
+linfa = "0.8"
+linfa-linear = "0.8"
+linfa-elasticnet = "0.8"
+linfa-logistic = "0.8"
+linfa-trees = "0.8"
+linfa-svm = "0.8"
+linfa-nn = "0.8"
+linfa-bayes = "0.8"
+linfa-reduction = "0.8"
+linfa-preprocessing = "0.8"
+linfa-clustering = "0.8"
+
 # Optional dependencies for advanced testing
 [dependencies.ort]
 version = "2.0.0-rc.11"
@@ -101,6 +114,10 @@ harness = false
 name = "gpu_benchmarks"
 harness = false
 required-features = ["gpu"]
+
+[[bench]]
+name = "gaussian_process"
+harness = false
 
 [[example]]
 name = "linear_regression"

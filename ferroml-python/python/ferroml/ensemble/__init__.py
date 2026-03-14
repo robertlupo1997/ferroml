@@ -24,20 +24,35 @@ BaggingClassifier
     Bootstrap aggregating classifier with factory constructors for base estimators
 BaggingRegressor
     Bootstrap aggregating regressor with factory constructors for base estimators
+VotingClassifier
+    Voting classifier combining multiple classifiers via hard or soft voting
+VotingRegressor
+    Voting regressor combining multiple regressors by averaging predictions
+StackingClassifier
+    Stacking classifier combining multiple classifiers with a meta-learner
+StackingRegressor
+    Stacking regressor combining multiple regressors with a meta-learner
 
 Example
 -------
->>> from ferroml.ensemble import ExtraTreesClassifier, SGDClassifier, BaggingClassifier, BaggingRegressor
+>>> from ferroml.ensemble import VotingClassifier, StackingRegressor
 >>> import numpy as np
 >>>
->>> model = ExtraTreesClassifier(n_estimators=100, random_state=42)
->>> model.fit(X_train, y_train)
->>> print(f"Feature importances: {model.feature_importances_}")
+>>> # Voting: combine classifiers with soft voting
+>>> voter = VotingClassifier(
+...     [("lr", "logistic_regression"), ("dt", "decision_tree"), ("nb", "gaussian_nb")],
+...     voting="soft",
+... )
+>>> voter.fit(X_train, y_train)
+>>> predictions = voter.predict(X_test)
 >>>
->>> # BaggingClassifier uses factory methods for different base estimators
->>> bag = BaggingClassifier.with_decision_tree(n_estimators=10, max_depth=5)
->>> bag.fit(X_train, y_train)
->>> predictions = bag.predict(X_test)
+>>> # Stacking: use cross-validation meta-features with a meta-learner
+>>> stacker = StackingRegressor(
+...     [("lr", "linear_regression"), ("dt", "decision_tree")],
+...     final_estimator="ridge",
+... )
+>>> stacker.fit(X_train, y_train)
+>>> predictions = stacker.predict(X_test)
 """
 
 # Import from the native extension's ensemble submodule
@@ -52,6 +67,10 @@ SGDRegressor = _native.ensemble.SGDRegressor
 PassiveAggressiveClassifier = _native.ensemble.PassiveAggressiveClassifier
 BaggingClassifier = _native.ensemble.BaggingClassifier
 BaggingRegressor = _native.ensemble.BaggingRegressor
+VotingClassifier = _native.ensemble.VotingClassifier
+VotingRegressor = _native.ensemble.VotingRegressor
+StackingClassifier = _native.ensemble.StackingClassifier
+StackingRegressor = _native.ensemble.StackingRegressor
 
 __all__ = [
     "ExtraTreesClassifier",
@@ -63,4 +82,8 @@ __all__ = [
     "PassiveAggressiveClassifier",
     "BaggingClassifier",
     "BaggingRegressor",
+    "VotingClassifier",
+    "VotingRegressor",
+    "StackingClassifier",
+    "StackingRegressor",
 ]

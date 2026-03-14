@@ -4,6 +4,29 @@ All notable changes to FerroML are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+#### Plan S — Sparse/Approximate GP, Text Pipeline, Voting & Stacking (2026-03-12 — 2026-03-13)
+
+- SparseGPRegressor: FITC and VFE sparse approximations with O(nm^2) complexity
+- SparseGPClassifier: sparse GP binary classification via Laplace approximation
+- SVGPRegressor: stochastic variational GP with mini-batch training and natural gradients
+- Inducing point selection: KMeans, GreedyVariance, RandomSubset strategies
+- Sparse GP performance benchmarks (Criterion + Python benchmark script)
+- 88 Rust + Python tests for sparse GP models
+
+#### Plan S — Voting & Stacking Ensemble Python Bindings (2026-03-12)
+
+- VotingClassifier Python bindings (hard/soft voting, weighted, 10 classifier types)
+- VotingRegressor Python bindings (weighted averaging, 10 regressor types)
+- StackingClassifier Python bindings (CV-based meta-features, passthrough, custom meta-learner)
+- StackingRegressor Python bindings (CV-based stacking, passthrough, custom meta-learner)
+- String-based estimator dispatch for multi-estimator ensembles
+- 71+ new Python tests including sklearn correctness comparisons
+- FerroML vs scikit-learn benchmark comparison documentation
+
 ## [0.2.0] - 2026-03-11
 
 ### Added

@@ -134,13 +134,27 @@ impl OnnxExportable for BernoulliNB {
         let mut diff_transposed: Vec<f32> = Vec::with_capacity(n_features * n_classes);
         let mut bias: Vec<f32> = Vec::with_capacity(n_classes);
 
+        // Numerically stable computation of log(1 - exp(flp)).
+        // When flp >= 0, exp(flp) >= 1 so log(1 - exp(flp)) is undefined.
+        // When flp is close to 0, 1 - exp(flp) is tiny and needs care.
+        // Strategy:
+        //   flp <= -1.0: ln_1p(-exp(flp)) is stable (exp(flp) is small)
+        //   -1.0 < flp < 0: use (1 - exp(flp)).ln() with a floor to avoid log(0)
+        //   flp >= 0: clamp to a small negative value
+        let stable_log1m_exp = |flp: f64| -> f64 {
+            let safe = flp.min(-1e-10);
+            if safe <= -1.0 {
+                (-safe.exp()).ln_1p()
+            } else {
+                (1.0 - safe.exp()).max(1e-300).ln()
+            }
+        };
+
         for c in 0..n_classes {
             let mut sum_neg: f64 = 0.0;
             for f in 0..n_features {
                 let flp = feature_log_prob[[c, f]];
-                // neg_prob = log(1 - exp(flp))
-                // Use log1p(-exp(flp)) for numerical stability when flp is very negative
-                let neg_prob = (-flp.exp()).ln_1p();
+                let neg_prob = stable_log1m_exp(flp);
                 sum_neg += neg_prob;
             }
             bias.push((sum_neg + class_log_prior[c]) as f32);
@@ -149,7 +163,7 @@ impl OnnxExportable for BernoulliNB {
         for f in 0..n_features {
             for c in 0..n_classes {
                 let flp = feature_log_prob[[c, f]];
-                let neg_prob = (-flp.exp()).ln_1p();
+                let neg_prob = stable_log1m_exp(flp);
                 diff_transposed.push((flp - neg_prob) as f32);
             }
         }
@@ -281,8 +295,9 @@ impl OnnxExportable for GaussianNB {
             let mut const_k: f64 = 0.0;
             for j in 0..n_features {
                 let var_kj = sigma[[k, j]];
-                const_k += -0.5 * (theta[[k, j]] * theta[[k, j]]) / var_kj
-                    - 0.5 * (2.0 * std::f64::consts::PI * var_kj).ln();
+                let safe_var = if var_kj.abs() < 1e-10 { 1e-10 } else { var_kj };
+                const_k += -0.5 * (theta[[k, j]] * theta[[k, j]]) / safe_var
+                    - 0.5 * (2.0 * std::f64::consts::PI * safe_var).ln();
             }
             const_k += class_prior[k].ln();
             c_data.push(const_k as f32);
@@ -290,8 +305,10 @@ impl OnnxExportable for GaussianNB {
 
         for j in 0..n_features {
             for k in 0..n_classes {
-                a_data.push((-0.5 / sigma[[k, j]]) as f32);
-                b_data.push((theta[[k, j]] / sigma[[k, j]]) as f32);
+                let var_kj = sigma[[k, j]];
+                let safe_var = if var_kj.abs() < 1e-10 { 1e-10 } else { var_kj };
+                a_data.push((-0.5 / safe_var) as f32);
+                b_data.push((theta[[k, j]] / safe_var) as f32);
             }
         }
 

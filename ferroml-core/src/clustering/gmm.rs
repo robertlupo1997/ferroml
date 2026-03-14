@@ -548,6 +548,16 @@ impl GaussianMixture {
         let total: f64 = nk.sum();
         self.weights_ = Some(&nk / total);
 
+        // Warn if any component has near-zero weight (possible collapse)
+        if let Some(ref w) = self.weights_ {
+            for (c, &wt) in w.iter().enumerate() {
+                if wt < 1e-6 {
+                    eprintln!("Warning: GMM component {} has near-zero weight ({:.2e}). Consider using fewer components.", c, wt);
+                    break; // Only warn once
+                }
+            }
+        }
+
         // Update means: mu_k = sum(resp_k * x) / nk
         let mut means = Array2::zeros((k, d));
         for c in 0..k {

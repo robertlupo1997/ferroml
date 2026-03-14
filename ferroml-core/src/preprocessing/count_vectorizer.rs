@@ -307,6 +307,12 @@ impl TextTransformer for CountVectorizer {
             .filter(|(_, df)| *df >= min_df_abs && *df <= max_df_abs)
             .collect();
 
+        if filtered.is_empty() {
+            return Err(FerroError::invalid_input(
+                "No features remain after min_df/max_df filtering. Try lower min_df or higher max_df.",
+            ));
+        }
+
         // Step 3: Apply max_features cap (keep top by document frequency)
         if let Some(max_features) = self.max_features {
             if filtered.len() > max_features {
@@ -367,6 +373,58 @@ impl TextTransformer for CountVectorizer {
         }
 
         CsrMatrix::from_triplets((n_docs, n_features), &rows, &cols, &values)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineTextTransformer for CountVectorizer {
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineTextTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> crate::Result<()> {
+        match name {
+            "max_features" => {
+                if let Some(v) = value.as_i64() {
+                    self.max_features = Some(v as usize);
+                    Ok(())
+                } else {
+                    Err(crate::FerroError::invalid_input(
+                        "max_features must be an integer",
+                    ))
+                }
+            }
+            "binary" => {
+                if let Some(v) = value.as_bool() {
+                    self.binary = v;
+                    Ok(())
+                } else {
+                    Err(crate::FerroError::invalid_input("binary must be a boolean"))
+                }
+            }
+            "lowercase" => {
+                if let Some(v) = value.as_bool() {
+                    self.lowercase = v;
+                    Ok(())
+                } else {
+                    Err(crate::FerroError::invalid_input(
+                        "lowercase must be a boolean",
+                    ))
+                }
+            }
+            _ => Err(crate::FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "CountVectorizer"
+    }
+
+    fn n_features_out(&self) -> Option<usize> {
+        self.vocabulary_.as_ref().map(|v| v.len())
     }
 }
 

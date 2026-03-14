@@ -375,6 +375,8 @@ pub fn check_single_sample<M: Model + Clone>(mut model: M) -> CheckResult {
 /// Check that a single feature can be handled
 ///
 /// Models should work correctly with datasets that have only one feature.
+/// Tries regression targets first, then binary classification targets
+/// (so classifiers that reject continuous labels still get tested).
 pub fn check_single_feature<M: Model + Clone>(mut model: M) -> CheckResult {
     run_check(
         "check_single_feature",
@@ -385,10 +387,32 @@ pub fn check_single_feature<M: Model + Clone>(mut model: M) -> CheckResult {
                 vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
             )
             .unwrap();
-            let y = Array1::from_vec(vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]);
+            let y_reg =
+                Array1::from_vec(vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]);
+            let y_clf = Array1::from_vec(vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
 
-            match model.fit(&x_single_feature, &y) {
+            // Try regression targets first
+            match model.fit(&x_single_feature, &y_reg) {
                 Ok(_) => match model.predict(&x_single_feature) {
+                    Ok(preds) if preds.len() == 10 => return (true, None),
+                    Ok(preds) => {
+                        return (
+                            false,
+                            Some(format!(
+                                "Prediction has wrong length: {} (expected 10)",
+                                preds.len()
+                            )),
+                        )
+                    }
+                    Err(e) => return (false, Some(format!("Predict failed: {:?}", e))),
+                },
+                Err(_) => {} // Regression targets rejected; try classification below
+            }
+
+            // Try binary classification targets (for classifiers that reject continuous y)
+            let mut model2 = model;
+            match model2.fit(&x_single_feature, &y_clf) {
+                Ok(_) => match model2.predict(&x_single_feature) {
                     Ok(preds) if preds.len() == 10 => (true, None),
                     Ok(preds) => (
                         false,
@@ -397,7 +421,10 @@ pub fn check_single_feature<M: Model + Clone>(mut model: M) -> CheckResult {
                             preds.len()
                         )),
                     ),
-                    Err(e) => (false, Some(format!("Predict failed: {:?}", e))),
+                    Err(e) => (
+                        false,
+                        Some(format!("Predict failed with binary labels: {:?}", e)),
+                    ),
                 },
                 Err(_) => (true, None), // Graceful rejection is acceptable
             }

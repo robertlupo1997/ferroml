@@ -893,6 +893,30 @@ impl PyGaussianMixture {
         Ok(proba.into_pyarray(py))
     }
 
+    /// Predict log-probabilities of each component given data.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, n_components)
+    ///     Log posterior probability of each component.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let proba = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(proba.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
+    }
+
     /// Compute per-sample log-likelihood.
     fn score_samples<'py>(
         &self,

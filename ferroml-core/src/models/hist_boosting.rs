@@ -34,7 +34,9 @@
 //! ```
 
 use crate::hpo::SearchSpace;
-use crate::models::{check_is_fitted, validate_fit_input, validate_predict_input, Model};
+use crate::models::{
+    check_is_fitted, validate_fit_input_allow_nan, validate_predict_input_allow_nan, Model,
+};
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
 use rand::prelude::*;
@@ -340,6 +342,23 @@ impl BinMapper {
             .copied()
             .unwrap_or(1)
             + 1 // +1 for missing bin
+    }
+
+    /// Get the real-valued threshold for a bin index.
+    ///
+    /// The threshold is the upper edge of the bin, so values <= threshold go left.
+    /// Returns the bin edge at position `bin + 1` (the upper boundary of the bin).
+    pub fn bin_threshold_to_real(&self, feature_idx: usize, bin: u8) -> f64 {
+        if let Some(edges) = self.bin_edges.get(feature_idx) {
+            let idx = (bin as usize) + 1;
+            if idx < edges.len() {
+                edges[idx]
+            } else {
+                f64::INFINITY
+            }
+        } else {
+            f64::INFINITY
+        }
     }
 }
 
@@ -1360,13 +1379,33 @@ impl HistGradientBoostingClassifier {
         self.trees.as_ref().map(|t| t.len())
     }
 
+    /// Get the trees (for ONNX export).
+    pub(crate) fn trees(&self) -> Option<&Vec<Vec<HistTree>>> {
+        self.trees.as_ref()
+    }
+
+    /// Get the bin mapper (for ONNX export).
+    pub(crate) fn categorical_bin_mapper(&self) -> Option<&CategoricalBinMapper> {
+        self.categorical_bin_mapper.as_ref()
+    }
+
+    /// Get the initial predictions (for ONNX export).
+    pub(crate) fn init_predictions(&self) -> Option<&Array1<f64>> {
+        self.init_predictions.as_ref()
+    }
+
+    /// Get the number of classes.
+    pub(crate) fn n_classes(&self) -> Option<usize> {
+        self.n_classes
+    }
+
     /// Predict class probabilities
     pub fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.trees, "predict_proba")?;
         let n_features = self
             .n_features
             .ok_or_else(|| FerroError::not_fitted("predict"))?;
-        validate_predict_input(x, n_features)?;
+        validate_predict_input_allow_nan(x, n_features)?;
 
         let n_samples = x.nrows();
         let n_classes = self
@@ -1476,7 +1515,7 @@ use super::sigmoid;
 
 impl Model for HistGradientBoostingClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
-        validate_fit_input(x, y)?;
+        validate_fit_input_allow_nan(x, y)?;
 
         let n_samples = x.nrows();
         let n_features = x.ncols();
@@ -2078,6 +2117,21 @@ impl HistGradientBoostingRegressor {
         self.trees.as_ref().map(|t| t.len())
     }
 
+    /// Get the trees (for ONNX export).
+    pub(crate) fn trees(&self) -> Option<&Vec<HistTree>> {
+        self.trees.as_ref()
+    }
+
+    /// Get the bin mapper (for ONNX export).
+    pub(crate) fn categorical_bin_mapper(&self) -> Option<&CategoricalBinMapper> {
+        self.categorical_bin_mapper.as_ref()
+    }
+
+    /// Get the initial prediction (for ONNX export).
+    pub(crate) fn init_prediction(&self) -> Option<f64> {
+        self.init_prediction
+    }
+
     /// Compute loss for a dataset
     fn compute_loss(&self, y: &Array1<f64>, predictions: &Array1<f64>) -> f64 {
         let n = y.len() as f64;
@@ -2099,7 +2153,7 @@ impl HistGradientBoostingRegressor {
         let n_features = self
             .n_features
             .ok_or_else(|| FerroError::not_fitted("predict"))?;
-        validate_predict_input(x, n_features)?;
+        validate_predict_input_allow_nan(x, n_features)?;
 
         let n_samples = x.nrows();
         let bin_mapper = self
@@ -2159,7 +2213,7 @@ impl HistGradientBoostingRegressor {
 
 impl Model for HistGradientBoostingRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
-        validate_fit_input(x, y)?;
+        validate_fit_input_allow_nan(x, y)?;
 
         let n_samples = x.nrows();
         let n_features = x.ncols();
@@ -2344,7 +2398,7 @@ impl Model for HistGradientBoostingRegressor {
         let n_features = self
             .n_features
             .ok_or_else(|| FerroError::not_fitted("predict"))?;
-        validate_predict_input(x, n_features)?;
+        validate_predict_input_allow_nan(x, n_features)?;
 
         let n_samples = x.nrows();
         let bin_mapper = self
@@ -2904,6 +2958,12 @@ impl CategoricalBinMapper {
     /// Get the categorical feature handler
     pub fn categorical_handler(&self) -> &CategoricalFeatureHandler {
         &self.categorical_handler
+    }
+
+    /// Get the real-valued threshold for a bin index on a given feature.
+    pub fn bin_threshold_to_real(&self, feature_idx: usize, bin: u8) -> f64 {
+        self.continuous_mapper
+            .bin_threshold_to_real(feature_idx, bin)
     }
 }
 

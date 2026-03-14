@@ -36,6 +36,7 @@ use ferroml_core::models::{
     ElasticNet, LassoRegression, LinearRegression, LogisticRegression, Model, ProbabilisticModel,
     RidgeRegression, StatisticalModel,
 };
+use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
@@ -670,6 +671,75 @@ impl PyLinearRegression {
             self.inner.fit_intercept, self.inner.confidence_level
         )
     }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
 }
 
 // =============================================================================
@@ -818,6 +888,32 @@ impl PyLogisticRegression {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(probas.into_pyarray(py))
+    }
+
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, 2)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
     /// Get the coefficient estimates.
@@ -1134,6 +1230,75 @@ impl PyLogisticRegression {
             self.inner.fit_intercept, self.inner.max_iter, self.inner.l2_penalty
         )
     }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
 }
 
 // =============================================================================
@@ -1396,6 +1561,75 @@ impl PyRidgeRegression {
             "RidgeRegression(alpha={}, fit_intercept={})",
             self.inner.alpha, self.inner.fit_intercept
         )
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 }
 
@@ -1667,6 +1901,75 @@ impl PyLassoRegression {
             self.inner.alpha, self.inner.fit_intercept, self.inner.max_iter
         )
     }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
 }
 
 // =============================================================================
@@ -1937,6 +2240,75 @@ impl PyElasticNet {
             self.inner.alpha, self.inner.l1_ratio, self.inner.fit_intercept
         )
     }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
 }
 
 // =============================================================================
@@ -2045,6 +2417,75 @@ impl PyRobustRegression {
             self.inner.estimator, self.inner.max_iter, self.inner.tol
         )
     }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
 }
 
 // =============================================================================
@@ -2142,6 +2583,75 @@ impl PyQuantileRegression {
             "QuantileRegression(quantile={}, max_iter={}, tol={})",
             self.inner.quantile, self.inner.max_iter, self.inner.tol
         )
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 }
 
@@ -2535,6 +3045,75 @@ impl PyRidgeClassifier {
             "RidgeClassifier(alpha={}, fit_intercept={})",
             self.inner.alpha, self.inner.fit_intercept
         )
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 }
 

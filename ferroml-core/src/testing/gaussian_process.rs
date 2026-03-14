@@ -520,4 +520,710 @@ mod tests {
             }
         }
     }
+
+    // =========================================================================
+    // Inducing point selection tests (Phase S.1)
+    // =========================================================================
+
+    #[test]
+    fn test_inducing_random_subset_shape() {
+        let x =
+            Array2::from_shape_vec((50, 2), (0..100).map(|i| i as f64 * 0.1).collect()).unwrap();
+        let kernel = RBF::new(1.0);
+        let z = select_inducing_points(
+            &x,
+            10,
+            &InducingPointMethod::RandomSubset { seed: Some(42) },
+            &kernel,
+        )
+        .unwrap();
+        assert_eq!(z.shape(), &[10, 2]);
+    }
+
+    #[test]
+    fn test_inducing_random_subset_from_data() {
+        let x = Array2::from_shape_vec((20, 2), (0..40).map(|i| i as f64).collect()).unwrap();
+        let kernel = RBF::new(1.0);
+        let z = select_inducing_points(
+            &x,
+            5,
+            &InducingPointMethod::RandomSubset { seed: Some(42) },
+            &kernel,
+        )
+        .unwrap();
+        // Each inducing point should be an actual row from X
+        for i in 0..5 {
+            let row = z.row(i);
+            let found = (0..20).any(|j| {
+                let xr = x.row(j);
+                (row[0] - xr[0]).abs() < 1e-12 && (row[1] - xr[1]).abs() < 1e-12
+            });
+            assert!(found, "inducing point {} not found in X", i);
+        }
+    }
+
+    #[test]
+    fn test_inducing_kmeans_shape() {
+        let x =
+            Array2::from_shape_vec((50, 2), (0..100).map(|i| i as f64 * 0.1).collect()).unwrap();
+        let kernel = RBF::new(1.0);
+        let z = select_inducing_points(
+            &x,
+            10,
+            &InducingPointMethod::KMeans {
+                max_iter: 100,
+                seed: Some(42),
+            },
+            &kernel,
+        )
+        .unwrap();
+        assert_eq!(z.shape(), &[10, 2]);
+    }
+
+    #[test]
+    fn test_inducing_kmeans_in_data_range() {
+        let x =
+            Array2::from_shape_vec((50, 2), (0..100).map(|i| i as f64 * 0.1).collect()).unwrap();
+        let kernel = RBF::new(1.0);
+        let z = select_inducing_points(
+            &x,
+            10,
+            &InducingPointMethod::KMeans {
+                max_iter: 100,
+                seed: Some(42),
+            },
+            &kernel,
+        )
+        .unwrap();
+        // Centers should be within the range of data
+        for i in 0..10 {
+            for j in 0..2 {
+                let min_x = x.column(j).iter().cloned().fold(f64::INFINITY, f64::min);
+                let max_x = x
+                    .column(j)
+                    .iter()
+                    .cloned()
+                    .fold(f64::NEG_INFINITY, f64::max);
+                assert!(
+                    z[[i, j]] >= min_x - 1.0 && z[[i, j]] <= max_x + 1.0,
+                    "center [{},{}] = {} outside range [{}, {}]",
+                    i,
+                    j,
+                    z[[i, j]],
+                    min_x,
+                    max_x
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_inducing_greedy_variance_shape() {
+        let x =
+            Array2::from_shape_vec((50, 2), (0..100).map(|i| i as f64 * 0.1).collect()).unwrap();
+        let kernel = RBF::new(1.0);
+        let z = select_inducing_points(
+            &x,
+            10,
+            &InducingPointMethod::GreedyVariance { seed: Some(42) },
+            &kernel,
+        )
+        .unwrap();
+        assert_eq!(z.shape(), &[10, 2]);
+    }
+
+    #[test]
+    fn test_inducing_greedy_variance_spread() {
+        // Greedy variance should pick spread-out points
+        let x = Array2::from_shape_vec((50, 1), (0..50).map(|i| i as f64 * 0.2).collect()).unwrap();
+        let kernel = RBF::new(1.0);
+        let z = select_inducing_points(
+            &x,
+            5,
+            &InducingPointMethod::GreedyVariance { seed: Some(42) },
+            &kernel,
+        )
+        .unwrap();
+        // Check minimum pairwise distance is reasonable
+        let mut min_dist = f64::INFINITY;
+        for i in 0..5 {
+            for j in (i + 1)..5 {
+                let d = (z[[i, 0]] - z[[j, 0]]).abs();
+                if d < min_dist {
+                    min_dist = d;
+                }
+            }
+        }
+        // With 5 points over range [0, 9.8], min distance should be > 1
+        assert!(
+            min_dist > 0.5,
+            "greedy variance points too close: min_dist = {}",
+            min_dist
+        );
+    }
+
+    #[test]
+    fn test_inducing_m_greater_than_n_clamped() {
+        let x = Array2::from_shape_vec((5, 2), (0..10).map(|i| i as f64).collect()).unwrap();
+        let kernel = RBF::new(1.0);
+        let z = select_inducing_points(
+            &x,
+            100, // m > n
+            &InducingPointMethod::RandomSubset { seed: Some(42) },
+            &kernel,
+        )
+        .unwrap();
+        assert_eq!(z.nrows(), 5); // clamped to n
+    }
+
+    // =========================================================================
+    // SparseGPRegressor tests (Phase S.2 / S.3)
+    // =========================================================================
+
+    fn make_sin_data_100() -> (Array2<f64>, Array1<f64>) {
+        let xs: Vec<f64> = (0..100).map(|i| i as f64 * 0.06).collect();
+        let x = Array2::from_shape_vec((100, 1), xs.clone()).unwrap();
+        let y = Array1::from_vec(xs.iter().map(|&v| v.sin()).collect());
+        (x, y)
+    }
+
+    fn r_squared(y_true: &Array1<f64>, y_pred: &Array1<f64>) -> f64 {
+        let mean = y_true.mean().unwrap();
+        let ss_res: f64 = y_true
+            .iter()
+            .zip(y_pred.iter())
+            .map(|(&t, &p)| (t - p).powi(2))
+            .sum();
+        let ss_tot: f64 = y_true.iter().map(|&v| (v - mean).powi(2)).sum();
+        1.0 - ss_res / ss_tot
+    }
+
+    #[test]
+    fn test_sgpr_fitc_matches_exact_small_data() {
+        // With m=n, FITC should closely match exact GP
+        let (x, y) = make_sin_data();
+        let n = x.nrows();
+
+        let mut gpr = GaussianProcessRegressor::new(Box::new(RBF::new(1.0))).with_alpha(0.01);
+        gpr.fit(&x, &y).unwrap();
+        let exact_preds = gpr.predict(&x).unwrap();
+
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(n)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y).unwrap();
+        let sparse_preds = sgpr.predict(&x).unwrap();
+
+        for i in 0..n {
+            assert!(
+                (exact_preds[i] - sparse_preds[i]).abs() < 0.5,
+                "at i={}: exact={}, sparse={}",
+                i,
+                exact_preds[i],
+                sparse_preds[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_sgpr_fitc_prediction_mean_reasonable() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(20)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y).unwrap();
+        let preds = sgpr.predict(&x).unwrap();
+        let r2 = r_squared(&y, &preds);
+        assert!(r2 > 0.8, "R^2 = {} (expected > 0.8)", r2);
+    }
+
+    #[test]
+    fn test_sgpr_fitc_uncertainty_near_training_small() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(20)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y).unwrap();
+        let (_mean, std) = sgpr.predict_with_std(&x).unwrap();
+        let mean_std = std.mean().unwrap();
+        assert!(
+            mean_std < 1.0,
+            "mean std at training points = {} (expected < 1.0)",
+            mean_std
+        );
+    }
+
+    #[test]
+    fn test_sgpr_fitc_uncertainty_far_away_large() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(20)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y).unwrap();
+        let x_far = Array2::from_shape_vec((1, 1), vec![100.0]).unwrap();
+        let (_mean, std) = sgpr.predict_with_std(&x_far).unwrap();
+        assert!(
+            std[0] > 0.3,
+            "std far from data = {} (expected > 0.3)",
+            std[0]
+        );
+    }
+
+    #[test]
+    fn test_sgpr_fitc_normalize_y() {
+        let (x, y) = make_sin_data_100();
+        let y_shifted = &y + 1000.0;
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(20)
+            .with_normalize_y(true)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y_shifted).unwrap();
+        let preds = sgpr.predict(&x).unwrap();
+        let r2 = r_squared(&y_shifted, &preds);
+        assert!(r2 > 0.8, "R^2 with normalize_y = {} (expected > 0.8)", r2);
+    }
+
+    #[test]
+    fn test_sgpr_fitc_log_marginal_likelihood_finite() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(20)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y).unwrap();
+        let lml = sgpr.log_marginal_likelihood().unwrap();
+        assert!(lml.is_finite(), "LML is not finite: {}", lml);
+    }
+
+    #[test]
+    fn test_sgpr_fitc_different_kernels() {
+        let (x, y) = make_sin_data_100();
+        for kernel in [
+            Box::new(RBF::new(1.0)) as Box<dyn Kernel>,
+            Box::new(Matern::new(1.0, 2.5)) as Box<dyn Kernel>,
+        ] {
+            let mut sgpr = SparseGPRegressor::new(kernel)
+                .with_alpha(0.01)
+                .with_n_inducing(20)
+                .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+                .with_approximation(SparseApproximation::FITC);
+            sgpr.fit(&x, &y).unwrap();
+            let preds = sgpr.predict(&x).unwrap();
+            let r2 = r_squared(&y, &preds);
+            assert!(r2 > 0.5, "R^2 with different kernel = {}", r2);
+        }
+    }
+
+    #[test]
+    fn test_sgpr_fitc_fewer_inducing_still_works() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(5)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y).unwrap();
+        let preds = sgpr.predict(&x).unwrap();
+        let r2 = r_squared(&y, &preds);
+        assert!(r2 > 0.3, "R^2 with m=5 = {} (expected > 0.3)", r2);
+    }
+
+    #[test]
+    fn test_sgpr_vfe_matches_exact_small_data() {
+        let (x, y) = make_sin_data();
+        let n = x.nrows();
+
+        let mut gpr = GaussianProcessRegressor::new(Box::new(RBF::new(1.0))).with_alpha(0.01);
+        gpr.fit(&x, &y).unwrap();
+        let exact_preds = gpr.predict(&x).unwrap();
+
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(n)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::VFE);
+        sgpr.fit(&x, &y).unwrap();
+        let sparse_preds = sgpr.predict(&x).unwrap();
+
+        for i in 0..n {
+            assert!(
+                (exact_preds[i] - sparse_preds[i]).abs() < 0.5,
+                "VFE at i={}: exact={}, sparse={}",
+                i,
+                exact_preds[i],
+                sparse_preds[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_sgpr_vfe_prediction_reasonable() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(20)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::VFE);
+        sgpr.fit(&x, &y).unwrap();
+        let preds = sgpr.predict(&x).unwrap();
+        let r2 = r_squared(&y, &preds);
+        assert!(r2 > 0.8, "VFE R^2 = {} (expected > 0.8)", r2);
+    }
+
+    #[test]
+    fn test_sgpr_vfe_more_inducing_better_lml() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr10 = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(10)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::VFE);
+        sgpr10.fit(&x, &y).unwrap();
+        let lml10 = sgpr10.log_marginal_likelihood().unwrap();
+
+        let mut sgpr30 = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(30)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::VFE);
+        sgpr30.fit(&x, &y).unwrap();
+        let lml30 = sgpr30.log_marginal_likelihood().unwrap();
+
+        assert!(
+            lml30 > lml10,
+            "more inducing should give higher LML: lml30={}, lml10={}",
+            lml30,
+            lml10
+        );
+    }
+
+    #[test]
+    fn test_sgpr_single_inducing_point() {
+        let (x, y) = make_sin_data();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(1)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        // Should not crash
+        sgpr.fit(&x, &y).unwrap();
+        let preds = sgpr.predict(&x).unwrap();
+        assert_eq!(preds.len(), 20);
+    }
+
+    #[test]
+    fn test_sgpr_not_fitted_error() {
+        let sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)));
+        let x = Array2::from_shape_vec((1, 1), vec![0.0]).unwrap();
+        assert!(sgpr.predict(&x).is_err());
+        assert!(sgpr.predict_with_std(&x).is_err());
+        assert!(sgpr.log_marginal_likelihood().is_err());
+    }
+
+    #[test]
+    fn test_sgpr_empty_data_error() {
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)));
+        let x = Array2::zeros((0, 1));
+        let y = Array1::zeros(0);
+        assert!(sgpr.fit(&x, &y).is_err());
+    }
+
+    #[test]
+    fn test_sgpr_shape_mismatch() {
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)));
+        let x = Array2::from_shape_vec((5, 1), vec![0.0, 1.0, 2.0, 3.0, 4.0]).unwrap();
+        let y = Array1::from_vec(vec![0.0, 1.0, 2.0]); // wrong length
+        assert!(sgpr.fit(&x, &y).is_err());
+    }
+
+    #[test]
+    fn test_sgpr_random_subset_method() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(15)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(123) })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y).unwrap();
+        let preds = sgpr.predict(&x).unwrap();
+        let r2 = r_squared(&y, &preds);
+        assert!(r2 > 0.5, "random subset R^2 = {}", r2);
+    }
+
+    #[test]
+    fn test_sgpr_kmeans_method() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(15)
+            .with_inducing_method(InducingPointMethod::KMeans {
+                max_iter: 100,
+                seed: Some(42),
+            })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y).unwrap();
+        let preds = sgpr.predict(&x).unwrap();
+        let r2 = r_squared(&y, &preds);
+        assert!(r2 > 0.5, "kmeans R^2 = {}", r2);
+    }
+
+    #[test]
+    fn test_sgpr_greedy_variance_method() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(15)
+            .with_inducing_method(InducingPointMethod::GreedyVariance { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        sgpr.fit(&x, &y).unwrap();
+        let preds = sgpr.predict(&x).unwrap();
+        let r2 = r_squared(&y, &preds);
+        assert!(r2 > 0.5, "greedy variance R^2 = {}", r2);
+    }
+
+    #[test]
+    fn test_sgpr_inducing_points_accessible() {
+        let (x, y) = make_sin_data_100();
+        let mut sgpr = SparseGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_alpha(0.01)
+            .with_n_inducing(15)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) })
+            .with_approximation(SparseApproximation::FITC);
+        assert!(sgpr.inducing_points().is_none());
+        sgpr.fit(&x, &y).unwrap();
+        let z = sgpr.inducing_points().unwrap();
+        assert_eq!(z.shape(), &[15, 1]);
+    }
+
+    // =========================================================================
+    // SparseGPClassifier tests (Phase S.4)
+    // =========================================================================
+
+    #[test]
+    fn test_sgpc_linearly_separable() {
+        let (x, y) = make_linearly_separable();
+        let mut sgpc = SparseGPClassifier::new(Box::new(RBF::new(1.0)))
+            .with_n_inducing(10)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) });
+        sgpc.fit(&x, &y).unwrap();
+        let preds = sgpc.predict(&x).unwrap();
+        let correct: usize = (0..y.len())
+            .filter(|&i| (preds[i] - y[i]).abs() < 1e-6)
+            .count();
+        assert!(
+            correct >= 8,
+            "Expected at least 8/10 correct, got {}",
+            correct
+        );
+    }
+
+    #[test]
+    fn test_sgpc_predict_proba_valid() {
+        let (x, y) = make_linearly_separable();
+        let mut sgpc = SparseGPClassifier::new(Box::new(RBF::new(1.0)))
+            .with_n_inducing(10)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) });
+        sgpc.fit(&x, &y).unwrap();
+        let probas = sgpc.predict_proba(&x).unwrap();
+        assert_eq!(probas.shape(), &[10, 2]);
+        for i in 0..10 {
+            let sum = probas[[i, 0]] + probas[[i, 1]];
+            assert!((sum - 1.0).abs() < 1e-6, "row {} sums to {}", i, sum);
+            assert!(probas[[i, 0]] >= 0.0 && probas[[i, 0]] <= 1.0);
+            assert!(probas[[i, 1]] >= 0.0 && probas[[i, 1]] <= 1.0);
+        }
+    }
+
+    #[test]
+    fn test_sgpc_not_fitted_error() {
+        let sgpc = SparseGPClassifier::new(Box::new(RBF::new(1.0)));
+        let x = Array2::from_shape_vec((1, 2), vec![0.0, 0.0]).unwrap();
+        assert!(sgpc.predict(&x).is_err());
+        assert!(sgpc.predict_proba(&x).is_err());
+    }
+
+    #[test]
+    fn test_sgpc_requires_two_classes() {
+        let x = Array2::from_shape_vec((3, 1), vec![0.0, 1.0, 2.0]).unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0]);
+        let mut sgpc = SparseGPClassifier::new(Box::new(RBF::new(1.0)));
+        assert!(sgpc.fit(&x, &y).is_err());
+    }
+
+    #[test]
+    fn test_sgpc_different_inducing_methods() {
+        let (x, y) = make_linearly_separable();
+        for method in [
+            InducingPointMethod::RandomSubset { seed: Some(42) },
+            InducingPointMethod::KMeans {
+                max_iter: 50,
+                seed: Some(42),
+            },
+            InducingPointMethod::GreedyVariance { seed: Some(42) },
+        ] {
+            let mut sgpc = SparseGPClassifier::new(Box::new(RBF::new(1.0)))
+                .with_n_inducing(8)
+                .with_inducing_method(method);
+            sgpc.fit(&x, &y).unwrap();
+            let preds = sgpc.predict(&x).unwrap();
+            assert_eq!(preds.len(), 10);
+        }
+    }
+
+    #[test]
+    fn test_sgpc_inducing_points_accessible() {
+        let (x, y) = make_linearly_separable();
+        let mut sgpc = SparseGPClassifier::new(Box::new(RBF::new(1.0)))
+            .with_n_inducing(5)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) });
+        assert!(sgpc.inducing_points().is_none());
+        sgpc.fit(&x, &y).unwrap();
+        let z = sgpc.inducing_points().unwrap();
+        assert_eq!(z.shape(), &[5, 2]);
+    }
+
+    #[test]
+    fn test_sgpc_xor_pattern() {
+        let x = Array2::from_shape_vec(
+            (8, 2),
+            vec![
+                0.0, 0.0, 0.0, 0.1, 0.1, 0.0, 0.1, 0.1, 1.0, 0.0, 1.0, 0.1, 0.9, 0.0, 0.9, 0.1,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]);
+        let mut sgpc = SparseGPClassifier::new(Box::new(RBF::new(0.5)))
+            .with_n_inducing(8)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) });
+        sgpc.fit(&x, &y).unwrap();
+        let preds = sgpc.predict(&x).unwrap();
+        let correct: usize = (0..y.len())
+            .filter(|&i| (preds[i] - y[i]).abs() < 1e-6)
+            .count();
+        assert!(
+            correct >= 5,
+            "Expected at least 5/8 correct for XOR, got {}",
+            correct
+        );
+    }
+
+    // =========================================================================
+    // SVGPRegressor tests (Phase S.5)
+    // =========================================================================
+
+    #[test]
+    fn test_svgp_basic_sin_regression() {
+        let xs: Vec<f64> = (0..200).map(|i| i as f64 * 0.03).collect();
+        let x = Array2::from_shape_vec((200, 1), xs.clone()).unwrap();
+        let y = Array1::from_vec(xs.iter().map(|&v| v.sin()).collect());
+
+        let mut svgp = SVGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_noise_variance(0.01)
+            .with_n_inducing(30)
+            .with_n_epochs(50)
+            .with_batch_size(200)
+            .with_learning_rate(0.1)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) });
+        svgp.fit(&x, &y).unwrap();
+        let preds = svgp.predict(&x).unwrap();
+        let r2 = r_squared(&y, &preds);
+        assert!(r2 > 0.5, "SVGP R^2 = {} (expected > 0.5)", r2);
+    }
+
+    #[test]
+    fn test_svgp_predict_with_std_shapes() {
+        let (x, y) = make_sin_data_100();
+        let mut svgp = SVGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_noise_variance(0.01)
+            .with_n_inducing(15)
+            .with_n_epochs(20)
+            .with_batch_size(100)
+            .with_learning_rate(0.1)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) });
+        svgp.fit(&x, &y).unwrap();
+        let x_test = Array2::from_shape_vec((5, 1), vec![0.0, 1.0, 2.0, 3.0, 4.0]).unwrap();
+        let (mean, std) = svgp.predict_with_std(&x_test).unwrap();
+        assert_eq!(mean.len(), 5);
+        assert_eq!(std.len(), 5);
+        for i in 0..5 {
+            assert!(std[i] >= 0.0, "std[{}] = {}", i, std[i]);
+        }
+    }
+
+    #[test]
+    fn test_svgp_not_fitted_error() {
+        let svgp = SVGPRegressor::new(Box::new(RBF::new(1.0)));
+        let x = Array2::from_shape_vec((1, 1), vec![0.0]).unwrap();
+        assert!(svgp.predict(&x).is_err());
+        assert!(svgp.predict_with_std(&x).is_err());
+    }
+
+    #[test]
+    fn test_svgp_different_batch_sizes() {
+        let (x, y) = make_sin_data_100();
+        for bs in [32, 50, 100] {
+            let mut svgp = SVGPRegressor::new(Box::new(RBF::new(1.0)))
+                .with_noise_variance(0.01)
+                .with_n_inducing(15)
+                .with_n_epochs(20)
+                .with_batch_size(bs)
+                .with_learning_rate(0.1)
+                .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) });
+            svgp.fit(&x, &y).unwrap();
+            let preds = svgp.predict(&x).unwrap();
+            assert_eq!(preds.len(), 100);
+        }
+    }
+
+    #[test]
+    fn test_svgp_inducing_points_accessible() {
+        let (x, y) = make_sin_data_100();
+        let mut svgp = SVGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_noise_variance(0.01)
+            .with_n_inducing(15)
+            .with_n_epochs(10)
+            .with_batch_size(100)
+            .with_learning_rate(0.1)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) });
+        assert!(svgp.inducing_points().is_none());
+        svgp.fit(&x, &y).unwrap();
+        let z = svgp.inducing_points().unwrap();
+        assert_eq!(z.shape(), &[15, 1]);
+    }
+
+    #[test]
+    fn test_svgp_uncertainty_increases_away() {
+        let (x, y) = make_sin_data_100();
+        let mut svgp = SVGPRegressor::new(Box::new(RBF::new(1.0)))
+            .with_noise_variance(0.01)
+            .with_n_inducing(20)
+            .with_n_epochs(30)
+            .with_batch_size(100)
+            .with_learning_rate(0.1)
+            .with_inducing_method(InducingPointMethod::RandomSubset { seed: Some(42) });
+        svgp.fit(&x, &y).unwrap();
+
+        let x_near = Array2::from_shape_vec((1, 1), vec![3.0]).unwrap(); // within training range
+        let x_far = Array2::from_shape_vec((1, 1), vec![50.0]).unwrap(); // far from training
+        let (_, std_near) = svgp.predict_with_std(&x_near).unwrap();
+        let (_, std_far) = svgp.predict_with_std(&x_far).unwrap();
+
+        assert!(
+            std_far[0] > std_near[0],
+            "std far ({}) should be > std near ({})",
+            std_far[0],
+            std_near[0]
+        );
+    }
 }

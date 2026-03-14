@@ -422,6 +422,21 @@ impl LogisticRegression {
             .map(|d| d.deviance_residuals.clone())
     }
 
+    /// Compute the decision function (raw linear combination) for samples.
+    ///
+    /// Returns `X @ coef + intercept` — the raw values before the sigmoid transform.
+    /// Positive values predict class 1, negative values predict class 0.
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
+        check_is_fitted(&self.coefficients, "decision_function")?;
+        let n_features = self.n_features.unwrap();
+        validate_predict_input(x, n_features)?;
+
+        let coef = self.coefficients.as_ref().unwrap();
+        let intercept = self.intercept.unwrap_or(0.0);
+
+        Ok(x.dot(coef) + intercept)
+    }
+
     fn get_feature_name(&self, idx: usize) -> String {
         super::get_feature_name(&self.feature_names, idx)
     }
@@ -441,6 +456,20 @@ impl LogisticRegression {
         let n = x_design.nrows();
         let p = x_design.ncols();
 
+        // Warn and auto-regularize when n < p (underdetermined system)
+        // X'WX will be rank-deficient without regularization, causing Cholesky failure
+        let l2_override = if n < p && self.l2_penalty < 1e-6 {
+            eprintln!(
+                "Warning: LogisticRegression has fewer samples ({}) than features ({}). \
+                 Auto-applying L2 regularization (1e-4) to prevent singular X'WX. \
+                 Consider setting penalty='l2' explicitly.",
+                n, p
+            );
+            1e-4
+        } else {
+            self.l2_penalty
+        };
+
         // Initialize coefficients to zero
         let mut beta = Array1::zeros(p);
 
@@ -458,7 +487,8 @@ impl LogisticRegression {
             // Check for numerical issues
             for &m in mu.iter() {
                 if m < 1e-10 || m > 1.0 - 1e-10 {
-                    // Probability too extreme, might have perfect separation
+                    eprintln!("Warning: LogisticRegression detected perfect or quasi-complete separation. Coefficients may be unstable. Consider adding regularization (penalty='l2').");
+                    break;
                 }
             }
 
@@ -483,10 +513,23 @@ impl LogisticRegression {
             let mut xtwx = scaled_x.t().dot(&scaled_x);
 
             // Add L2 regularization if specified (don't regularize intercept)
-            if self.l2_penalty > 0.0 {
+            if l2_override > 0.0 {
                 let start = usize::from(self.fit_intercept);
                 for i in start..p {
-                    xtwx[[i, i]] += self.l2_penalty;
+                    xtwx[[i, i]] += l2_override;
+                }
+            }
+
+            // Condition number guard: if the diagonal ratio is extreme, add
+            // a small ridge to prevent ill-conditioned solves producing garbage.
+            let diag_max = (0..p).map(|i| xtwx[[i, i]].abs()).fold(0.0_f64, f64::max);
+            let diag_min = (0..p)
+                .map(|i| xtwx[[i, i]].abs())
+                .fold(f64::INFINITY, f64::min);
+            if diag_max > 0.0 && diag_min / diag_max < 1e-12 {
+                let jitter = diag_max * 1e-10;
+                for i in 0..p {
+                    xtwx[[i, i]] += jitter;
                 }
             }
 
@@ -648,6 +691,68 @@ impl Model for LogisticRegression {
 
         // Fit using IRLS
         self.fit_irls(&x_design, y, &sample_weights)
+    }
+
+    fn fit_weighted(
+        &mut self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        sample_weight: &Array1<f64>,
+    ) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        if sample_weight.len() != x.nrows() {
+            return Err(FerroError::invalid_input(format!(
+                "sample_weight length {} does not match number of samples {}",
+                sample_weight.len(),
+                x.nrows()
+            )));
+        }
+
+        if sample_weight.iter().any(|&w| w < 0.0) {
+            return Err(FerroError::invalid_input(
+                "sample_weight must be non-negative",
+            ));
+        }
+
+        // Validate binary labels
+        for &yi in y {
+            if !(yi == 0.0 || yi == 1.0 || (yi - 0.0).abs() < 1e-10 || (yi - 1.0).abs() < 1e-10) {
+                return Err(FerroError::invalid_input(
+                    "LogisticRegression requires binary labels (0 or 1)",
+                ));
+            }
+        }
+
+        // Check for both classes
+        let n_pos = y.iter().filter(|&&yi| yi > 0.5).count();
+        let n_neg = y.len() - n_pos;
+        if n_pos == 0 || n_neg == 0 {
+            return Err(FerroError::invalid_input(
+                "LogisticRegression requires both positive and negative samples",
+            ));
+        }
+
+        let n = x.nrows();
+        let p_orig = x.ncols();
+
+        // Build design matrix with intercept if needed
+        let x_design = if self.fit_intercept {
+            let mut design = Array2::zeros((n, p_orig + 1));
+            design.column_mut(0).fill(1.0);
+            design.slice_mut(s![.., 1..]).assign(x);
+            design
+        } else {
+            x.clone()
+        };
+
+        // Compute class weights and combine with user-provided sample weights
+        let classes = get_unique_classes(y);
+        let class_weights = compute_sample_weights(y, &classes, &self.class_weight);
+        let combined = &class_weights * sample_weight;
+
+        // Fit using IRLS
+        self.fit_irls(&x_design, y, &combined)
     }
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
@@ -982,9 +1087,9 @@ fn compute_deviance_residuals(y: &Array1<f64>, mu: &Array1<f64>) -> Array1<f64> 
         .map(|(&yi, &mi)| {
             let mi_clamped = mi.clamp(1e-15, 1.0 - 1e-15);
             let d = if yi > 0.5 {
-                2.0 * (yi.ln() - mi_clamped.ln())
+                2.0 * (yi.max(1e-15).ln() - mi_clamped.ln())
             } else {
-                2.0 * ((1.0 - yi + 1e-15).ln() - (1.0 - mi_clamped).ln())
+                2.0 * ((1.0 - yi).max(1e-15).ln() - (1.0 - mi_clamped).ln())
             };
             d.max(0.0).sqrt().copysign(yi - mi_clamped)
         })
@@ -1230,6 +1335,19 @@ impl crate::models::traits::SparseModel for LogisticRegression {
         // Dimension of the parameter vector (intercept is stored separately for sparse)
         let p = p_orig;
 
+        // Warn and auto-regularize when n < p (underdetermined system)
+        let l2_override = if n < p && self.l2_penalty < 1e-6 {
+            eprintln!(
+                "Warning: LogisticRegression has fewer samples ({}) than features ({}). \
+                 Auto-applying L2 regularization (1e-4) to prevent singular X'WX. \
+                 Consider setting penalty='l2' explicitly.",
+                n, p
+            );
+            1e-4
+        } else {
+            self.l2_penalty
+        };
+
         // Initialize coefficients (no intercept augmentation — handle separately)
         let mut beta = Array1::zeros(p);
         let mut intercept = 0.0;
@@ -1262,9 +1380,9 @@ impl crate::models::traits::SparseModel for LogisticRegression {
             let mut xtwx = x.weighted_gram(&w_clamped);
 
             // Add L2 regularization
-            if self.l2_penalty > 0.0 {
+            if l2_override > 0.0 {
                 for i in 0..p {
-                    xtwx[[i, i]] += self.l2_penalty;
+                    xtwx[[i, i]] += l2_override;
                 }
             }
 
@@ -1386,10 +1504,10 @@ impl crate::models::traits::SparseModel for LogisticRegression {
         };
 
         // Add L2 regularization to Fisher info for proper covariance
-        if self.l2_penalty > 0.0 {
+        if l2_override > 0.0 {
             let start = usize::from(self.fit_intercept);
             for i in start..p_design {
-                fisher_info[[i, i]] += self.l2_penalty;
+                fisher_info[[i, i]] += l2_override;
             }
         }
 
@@ -1449,6 +1567,72 @@ impl crate::models::traits::SparseModel for LogisticRegression {
         let probas_class1 = linear_pred.mapv(sigmoid);
 
         Ok(probas_class1.mapv(|p| if p >= 0.5 { 1.0 } else { 0.0 }))
+    }
+}
+
+// =============================================================================
+// PipelineSparseModel Implementation
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for LogisticRegression {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> Result<()> {
+        match name {
+            "fit_intercept" => {
+                if let Some(v) = value.as_bool() {
+                    self.fit_intercept = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("fit_intercept must be a boolean"))
+                }
+            }
+            "l2_penalty" => {
+                if let Some(v) = value.as_f64() {
+                    self.l2_penalty = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input(
+                        "l2_penalty (regularization) must be a number",
+                    ))
+                }
+            }
+            "max_iter" => {
+                if let Some(v) = value.as_i64() {
+                    self.max_iter = v as usize;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("max_iter must be an integer"))
+                }
+            }
+            _ => Err(FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "LogisticRegression"
+    }
+
+    fn is_fitted(&self) -> bool {
+        Model::is_fitted(self)
     }
 }
 
@@ -1856,5 +2040,58 @@ mod tests {
         // z_0.95 ≈ 1.645
         let z = z_critical(0.95);
         assert!(z > 1.6 && z < 1.7);
+    }
+
+    #[test]
+    fn test_logistic_regression_n_less_than_p() {
+        // Underdetermined system: 4 samples, 10 features
+        // Without the auto-regularization fix, Cholesky would fail
+        let n = 4;
+        let p = 10;
+        let mut x = Array2::zeros((n, p));
+        // Make features distinguishable
+        for i in 0..n {
+            for j in 0..p {
+                x[[i, j]] = ((i * 7 + j * 3) % 11) as f64 / 11.0;
+            }
+        }
+        let y = array![0.0, 1.0, 0.0, 1.0];
+
+        let mut model = LogisticRegression::default();
+        // Should succeed with auto-applied L2 regularization instead of Cholesky failure
+        let result = model.fit(&x, &y);
+        assert!(
+            result.is_ok(),
+            "n < p should auto-regularize, not fail: {:?}",
+            result.err()
+        );
+
+        // Predictions should be valid probabilities
+        let preds = model.predict(&x).unwrap();
+        for &p in preds.iter() {
+            assert!(p == 0.0 || p == 1.0, "predictions should be class labels");
+        }
+    }
+
+    #[test]
+    fn test_logistic_regression_n_less_than_p_with_explicit_l2() {
+        // When user already set L2 penalty, should not override
+        let n = 4;
+        let p = 10;
+        let mut x = Array2::zeros((n, p));
+        for i in 0..n {
+            for j in 0..p {
+                x[[i, j]] = ((i * 7 + j * 3) % 11) as f64 / 11.0;
+            }
+        }
+        let y = array![0.0, 1.0, 0.0, 1.0];
+
+        let mut model = LogisticRegression::default().with_l2_penalty(1.0);
+        let result = model.fit(&x, &y);
+        assert!(
+            result.is_ok(),
+            "n < p with explicit L2 should work: {:?}",
+            result.err()
+        );
     }
 }

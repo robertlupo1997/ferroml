@@ -186,6 +186,10 @@ impl Model for RidgeRegression {
             return Err(FerroError::invalid_input("alpha must be non-negative"));
         }
 
+        if self.alpha <= 0.0 {
+            eprintln!("Warning: RidgeRegression with alpha=0 is equivalent to OLS without regularization. Consider using alpha > 0 for numerical stability.");
+        }
+
         let n = x.nrows();
         let p = x.ncols();
 
@@ -241,7 +245,7 @@ impl Model for RidgeRegression {
         let coef_var = &xtx_inv * mse;
         let mut coef_std_errors = Array1::zeros(p);
         for i in 0..p {
-            coef_std_errors[i] = coef_var[[i, i]].sqrt();
+            coef_std_errors[i] = coef_var[[i, i]].max(0.0).sqrt();
         }
 
         // Store results
@@ -661,6 +665,14 @@ impl Model for LassoRegression {
             }
         }
 
+        if n_iter == self.max_iter {
+            eprintln!(
+                "Warning: LassoRegression did not converge after {} iterations. \
+                 Consider increasing max_iter or scaling the data.",
+                self.max_iter
+            );
+        }
+
         // Compute intercept
         let intercept = if self.fit_intercept {
             y_mean - x_mean.dot(&coef)
@@ -1073,6 +1085,14 @@ impl Model for ElasticNet {
             if max_change < self.tol {
                 break;
             }
+        }
+
+        if n_iter == self.max_iter {
+            eprintln!(
+                "Warning: ElasticNet did not converge after {} iterations. \
+                 Consider increasing max_iter or scaling the data.",
+                self.max_iter
+            );
         }
 
         // Compute intercept
@@ -2045,6 +2065,12 @@ impl RidgeClassifier {
         self.classes.as_ref()
     }
 
+    /// Get the inner Ridge regression models (one per class for multiclass, one for binary).
+    #[must_use]
+    pub fn ridges(&self) -> Option<&[RidgeRegression]> {
+        self.ridges.as_deref()
+    }
+
     /// Compute decision function values for each class.
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.ridges, "decision_function")?;
@@ -2602,7 +2628,7 @@ impl crate::models::traits::SparseModel for RidgeRegression {
         let coef_var = &xtx_inv * mse;
         let mut coef_std_errors = Array1::zeros(p);
         for i in 0..p {
-            coef_std_errors[i] = coef_var[[i, i]].sqrt();
+            coef_std_errors[i] = coef_var[[i, i]].max(0.0).sqrt();
         }
 
         self.coefficients = Some(coefficients);
@@ -2641,6 +2667,54 @@ impl crate::models::traits::SparseModel for RidgeRegression {
         let mut predictions = x.dot(coef)?;
         predictions.mapv_inplace(|v| v + intercept);
         Ok(predictions)
+    }
+}
+
+// =============================================================================
+// PipelineSparseModel Implementation
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for RidgeRegression {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> Result<()> {
+        match name {
+            "alpha" => {
+                if let Some(v) = value.as_f64() {
+                    self.alpha = v;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("alpha must be a number"))
+                }
+            }
+            _ => Err(FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "RidgeRegression"
+    }
+
+    fn is_fitted(&self) -> bool {
+        Model::is_fitted(self)
     }
 }
 

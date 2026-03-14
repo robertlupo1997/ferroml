@@ -182,24 +182,36 @@ impl ClassificationReport {
         let accuracy = correct as f64 / total as f64;
 
         // Macro averages
-        let macro_precision = precision.iter().sum::<f64>() / n_classes as f64;
-        let macro_recall = recall.iter().sum::<f64>() / n_classes as f64;
-        let macro_f1 = f1.iter().sum::<f64>() / n_classes as f64;
+        let (macro_precision, macro_recall, macro_f1) = if n_classes == 0 {
+            (0.0, 0.0, 0.0)
+        } else {
+            (
+                precision.iter().sum::<f64>() / n_classes as f64,
+                recall.iter().sum::<f64>() / n_classes as f64,
+                f1.iter().sum::<f64>() / n_classes as f64,
+            )
+        };
 
         // Weighted averages
         let total_support: usize = support.iter().sum();
-        let weighted_precision = (0..n_classes)
-            .map(|i| precision[i] * support[i] as f64)
-            .sum::<f64>()
-            / total_support as f64;
-        let weighted_recall = (0..n_classes)
-            .map(|i| recall[i] * support[i] as f64)
-            .sum::<f64>()
-            / total_support as f64;
-        let weighted_f1 = (0..n_classes)
-            .map(|i| f1[i] * support[i] as f64)
-            .sum::<f64>()
-            / total_support as f64;
+        let (weighted_precision, weighted_recall, weighted_f1) = if total_support == 0 {
+            (0.0, 0.0, 0.0)
+        } else {
+            (
+                (0..n_classes)
+                    .map(|i| precision[i] * support[i] as f64)
+                    .sum::<f64>()
+                    / total_support as f64,
+                (0..n_classes)
+                    .map(|i| recall[i] * support[i] as f64)
+                    .sum::<f64>()
+                    / total_support as f64,
+                (0..n_classes)
+                    .map(|i| f1[i] * support[i] as f64)
+                    .sum::<f64>()
+                    / total_support as f64,
+            )
+        };
 
         Self {
             precision,

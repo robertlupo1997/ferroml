@@ -2010,6 +2010,132 @@ impl crate::models::traits::SparseModel for NearestCentroid {
 }
 
 // =============================================================================
+// PipelineSparseModel Implementations
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for KNeighborsClassifier {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> Result<()> {
+        match name {
+            "n_neighbors" => {
+                if let Some(v) = value.as_i64() {
+                    self.n_neighbors = v as usize;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("n_neighbors must be an integer"))
+                }
+            }
+            _ => Err(FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "KNeighborsClassifier"
+    }
+
+    fn is_fitted(&self) -> bool {
+        Model::is_fitted(self)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for KNeighborsRegressor {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> Result<()> {
+        match name {
+            "n_neighbors" => {
+                if let Some(v) = value.as_i64() {
+                    self.n_neighbors = v as usize;
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input("n_neighbors must be an integer"))
+                }
+            }
+            _ => Err(FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "KNeighborsRegressor"
+    }
+
+    fn is_fitted(&self) -> bool {
+        Model::is_fitted(self)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for NearestCentroid {
+    fn fit_sparse(&mut self, x: &crate::sparse::CsrMatrix, y: &Array1<f64>) -> Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, _value: &crate::hpo::ParameterValue) -> Result<()> {
+        Err(FerroError::invalid_input(format!(
+            "Unknown parameter '{}'",
+            name
+        )))
+    }
+
+    fn name(&self) -> &str {
+        "NearestCentroid"
+    }
+
+    fn is_fitted(&self) -> bool {
+        Model::is_fitted(self)
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 

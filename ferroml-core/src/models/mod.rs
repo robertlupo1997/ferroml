@@ -225,6 +225,30 @@ pub trait Model: Send + Sync {
     {
         self
     }
+
+    /// Score the model on test data.
+    ///
+    /// The default implementation computes accuracy (fraction of predictions
+    /// matching the true values within a tolerance of 1e-10), which is
+    /// appropriate for classifiers. Regression models should override this
+    /// to return R² (coefficient of determination).
+    ///
+    /// # Arguments
+    /// * `x` - Feature matrix of shape (n_samples, n_features)
+    /// * `y` - True target values of shape (n_samples,)
+    ///
+    /// # Errors
+    /// Returns an error if prediction fails (e.g., model not fitted).
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        let n = y.len() as f64;
+        let correct = predictions
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (*p - *t).abs() < 1e-10)
+            .count() as f64;
+        Ok(correct / n)
+    }
 }
 
 /// Extended trait for models with statistical diagnostics
@@ -1218,6 +1242,57 @@ pub fn validate_fit_input(x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
     if x.is_empty() || y.is_empty() {
         return Err(FerroError::invalid_input("Empty input data"));
     }
+    if x.iter().any(|v| !v.is_finite()) {
+        return Err(FerroError::invalid_input(
+            "X contains NaN or infinite values",
+        ));
+    }
+    if y.iter().any(|v| !v.is_finite()) {
+        return Err(FerroError::invalid_input(
+            "y contains NaN or infinite values",
+        ));
+    }
+    Ok(())
+}
+
+/// Validate input shapes for fit, allowing NaN in X (for models that support missing values).
+/// Still rejects infinity and NaN in y.
+pub fn validate_fit_input_allow_nan(x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+    if x.nrows() != y.len() {
+        return Err(FerroError::shape_mismatch(
+            format!("X has {} rows", x.nrows()),
+            format!("y has {} elements", y.len()),
+        ));
+    }
+    if x.is_empty() || y.is_empty() {
+        return Err(FerroError::invalid_input("Empty input data"));
+    }
+    // Allow NaN (missing values) but reject infinity
+    if x.iter().any(|v| v.is_infinite()) {
+        return Err(FerroError::invalid_input("X contains infinite values"));
+    }
+    if y.iter().any(|v| !v.is_finite()) {
+        return Err(FerroError::invalid_input(
+            "y contains NaN or infinite values",
+        ));
+    }
+    Ok(())
+}
+
+/// Validate input shapes for predict, allowing NaN in X (for models that support missing values).
+pub fn validate_predict_input_allow_nan(x: &Array2<f64>, expected_features: usize) -> Result<()> {
+    if x.ncols() != expected_features {
+        return Err(FerroError::shape_mismatch(
+            format!("{} features", expected_features),
+            format!("{} features", x.ncols()),
+        ));
+    }
+    if x.is_empty() {
+        return Err(FerroError::invalid_input("Empty input data"));
+    }
+    if x.iter().any(|v| v.is_infinite()) {
+        return Err(FerroError::invalid_input("X contains infinite values"));
+    }
     Ok(())
 }
 
@@ -1231,6 +1306,11 @@ pub fn validate_predict_input(x: &Array2<f64>, expected_features: usize) -> Resu
     }
     if x.is_empty() {
         return Err(FerroError::invalid_input("Empty input data"));
+    }
+    if x.iter().any(|v| !v.is_finite()) {
+        return Err(FerroError::invalid_input(
+            "X contains NaN or infinite values",
+        ));
     }
     Ok(())
 }

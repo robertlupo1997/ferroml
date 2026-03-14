@@ -113,6 +113,18 @@ impl AdaBoostClassifier {
     pub fn n_estimators_fitted(&self) -> usize {
         self.estimators.as_ref().map(|e| e.len()).unwrap_or(0)
     }
+
+    /// Get the individual tree estimators.
+    #[must_use]
+    pub fn estimators(&self) -> Option<&[DecisionTreeClassifier]> {
+        self.estimators.as_deref()
+    }
+
+    /// Get the unique class labels.
+    #[must_use]
+    pub fn classes(&self) -> Option<&Array1<f64>> {
+        self.classes.as_ref()
+    }
 }
 
 impl Model for AdaBoostClassifier {
@@ -360,6 +372,17 @@ impl AdaBoostRegressor {
     /// Get number of fitted estimators.
     pub fn n_estimators_fitted(&self) -> usize {
         self.estimators.as_ref().map(|e| e.len()).unwrap_or(0)
+    }
+
+    /// Get the individual tree estimators.
+    #[must_use]
+    pub fn estimators(&self) -> Option<&[DecisionTreeRegressor]> {
+        self.estimators.as_deref()
+    }
+
+    /// Get the estimator weights.
+    pub fn estimator_weights(&self) -> Option<&Array1<f64>> {
+        self.estimator_weights.as_ref()
     }
 
     /// Compute sample loss based on the loss function.

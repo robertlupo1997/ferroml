@@ -247,19 +247,14 @@ class TestTreeRegressorRoundtrip:
 class TestTreeClassifierRoundtrip:
     """Round-trip validation for tree-based classifiers.
 
-    DecisionTreeClassifier passes round-trip. RandomForestClassifier has a
-    prediction accuracy mismatch (separate from the output type fix).
-    GradientBoosting classifiers use TreeEnsembleRegressor internally.
+    All tree classifiers use TreeEnsembleRegressor + ArgMax internally,
+    which avoids ORT label-vs-proba inconsistencies with TreeEnsembleClassifier.
     """
 
     def test_decision_tree_classifier(self, binary_data):
         from ferroml.trees import DecisionTreeClassifier
         assert_classifier_label_roundtrip(DecisionTreeClassifier(), *binary_data)
 
-    @pytest.mark.xfail(
-        reason="RandomForest ONNX export has prediction mismatch vs native predict",
-        strict=True,
-    )
     def test_random_forest_classifier(self, binary_data):
         from ferroml.trees import RandomForestClassifier
         assert_classifier_label_roundtrip(
@@ -317,10 +312,6 @@ class TestEnsembleClassifierRoundtrip:
             ExtraTreesClassifier(n_estimators=10), *binary_data,
         )
 
-    @pytest.mark.xfail(
-        reason="AdaBoost ONNX export has prediction mismatch vs native predict",
-        strict=True,
-    )
     def test_adaboost_classifier(self, binary_data):
         from ferroml.ensemble import AdaBoostClassifier
         assert_classifier_label_roundtrip(
@@ -357,10 +348,6 @@ class TestSvmRoundtrip:
         # SVR with kernel ops has slightly larger f32 tolerance
         assert_regressor_roundtrip(SVR(), *regression_data, atol=1e-3)
 
-    @pytest.mark.xfail(
-        reason="SVMClassifier OvO coefficient encoding produces incorrect predictions",
-        strict=True,
-    )
     def test_svc(self, binary_data):
         from ferroml.svm import SVC
         assert_classifier_label_roundtrip(SVC(), *binary_data)

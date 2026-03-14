@@ -7,7 +7,8 @@
 
 use crate::array_utils::{py_array_to_f64_1d, to_owned_array_2d};
 use ferroml_core::models::gaussian_process::{
-    self, GaussianProcessClassifier, GaussianProcessRegressor, Kernel,
+    self, GaussianProcessClassifier, GaussianProcessRegressor, InducingPointMethod, Kernel,
+    SVGPRegressor, SparseApproximation, SparseGPClassifier, SparseGPRegressor,
 };
 use ferroml_core::models::Model;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2};
@@ -331,6 +332,343 @@ impl PyGaussianProcessClassifier {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(probas.into_pyarray(py))
     }
+
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, 2)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
+    }
+}
+
+// =============================================================================
+// Helper to parse inducing point method from string
+// =============================================================================
+
+fn parse_inducing_method(method: &str, seed: Option<u64>) -> PyResult<InducingPointMethod> {
+    match method {
+        "random" => Ok(InducingPointMethod::RandomSubset { seed }),
+        "kmeans" => Ok(InducingPointMethod::KMeans {
+            max_iter: 100,
+            seed,
+        }),
+        "greedy_variance" => Ok(InducingPointMethod::GreedyVariance { seed }),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown inducing method '{}'. Supported: 'random', 'kmeans', 'greedy_variance'",
+            method
+        ))),
+    }
+}
+
+fn parse_approximation(approx: &str) -> PyResult<SparseApproximation> {
+    match approx {
+        "fitc" => Ok(SparseApproximation::FITC),
+        "vfe" => Ok(SparseApproximation::VFE),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown approximation '{}'. Supported: 'fitc', 'vfe'",
+            approx
+        ))),
+    }
+}
+
+// =============================================================================
+// SparseGPRegressor
+// =============================================================================
+
+/// Sparse Gaussian Process Regressor using inducing points.
+#[pyclass(name = "SparseGPRegressor", module = "ferroml.gaussian_process")]
+pub struct PySparseGPRegressor {
+    inner: SparseGPRegressor,
+}
+
+#[pymethods]
+impl PySparseGPRegressor {
+    #[new]
+    #[pyo3(signature = (kernel=None, alpha=0.01, n_inducing=100, inducing_method="kmeans", approximation="fitc", normalize_y=false))]
+    fn new(
+        kernel: Option<&Bound<'_, PyAny>>,
+        alpha: f64,
+        n_inducing: usize,
+        inducing_method: &str,
+        approximation: &str,
+        normalize_y: bool,
+    ) -> PyResult<Self> {
+        let k = parse_kernel(kernel)?;
+        let method = parse_inducing_method(inducing_method, Some(42))?;
+        let approx = parse_approximation(approximation)?;
+        let inner = SparseGPRegressor::new(k)
+            .with_alpha(alpha)
+            .with_n_inducing(n_inducing)
+            .with_inducing_method(method)
+            .with_approximation(approx)
+            .with_normalize_y(normalize_y);
+        Ok(Self { inner })
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let preds = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(preds.into_pyarray(py))
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn predict_with_std<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<(Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>)> {
+        let x_arr = to_owned_array_2d(x);
+        let (mean, std) = self
+            .inner
+            .predict_with_std(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok((mean.into_pyarray(py), std.into_pyarray(py)))
+    }
+
+    #[getter]
+    fn log_marginal_likelihood_(&self) -> PyResult<f64> {
+        self.inner
+            .log_marginal_likelihood()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    #[getter]
+    fn inducing_points_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let z = self
+            .inner
+            .inducing_points()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Model not fitted"))?;
+        Ok(z.clone().into_pyarray(py))
+    }
+}
+
+// =============================================================================
+// SparseGPClassifier
+// =============================================================================
+
+/// Sparse Gaussian Process Classifier (binary, FITC + Laplace).
+#[pyclass(name = "SparseGPClassifier", module = "ferroml.gaussian_process")]
+pub struct PySparseGPClassifier {
+    inner: SparseGPClassifier,
+}
+
+#[pymethods]
+impl PySparseGPClassifier {
+    #[new]
+    #[pyo3(signature = (kernel=None, n_inducing=100, inducing_method="kmeans", max_iter=50))]
+    fn new(
+        kernel: Option<&Bound<'_, PyAny>>,
+        n_inducing: usize,
+        inducing_method: &str,
+        max_iter: usize,
+    ) -> PyResult<Self> {
+        let k = parse_kernel(kernel)?;
+        let method = parse_inducing_method(inducing_method, Some(42))?;
+        let inner = SparseGPClassifier::new(k)
+            .with_n_inducing(n_inducing)
+            .with_inducing_method(method)
+            .with_max_iter(max_iter);
+        Ok(Self { inner })
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let preds = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(preds.into_pyarray(py))
+    }
+
+    fn predict_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(probas.into_pyarray(py))
+    }
+
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, 2)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
+    }
+
+    #[getter]
+    fn inducing_points_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let z = self
+            .inner
+            .inducing_points()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Model not fitted"))?;
+        Ok(z.clone().into_pyarray(py))
+    }
+}
+
+// =============================================================================
+// SVGPRegressor
+// =============================================================================
+
+/// Sparse Variational Gaussian Process Regressor for large datasets.
+#[pyclass(name = "SVGPRegressor", module = "ferroml.gaussian_process")]
+pub struct PySVGPRegressor {
+    inner: SVGPRegressor,
+}
+
+#[pymethods]
+impl PySVGPRegressor {
+    #[new]
+    #[pyo3(signature = (kernel=None, noise_variance=1.0, n_inducing=100, inducing_method="kmeans", n_epochs=100, batch_size=256, learning_rate=0.01, normalize_y=false))]
+    fn new(
+        kernel: Option<&Bound<'_, PyAny>>,
+        noise_variance: f64,
+        n_inducing: usize,
+        inducing_method: &str,
+        n_epochs: usize,
+        batch_size: usize,
+        learning_rate: f64,
+        normalize_y: bool,
+    ) -> PyResult<Self> {
+        let k = parse_kernel(kernel)?;
+        let method = parse_inducing_method(inducing_method, Some(42))?;
+        let inner = SVGPRegressor::new(k)
+            .with_noise_variance(noise_variance)
+            .with_n_inducing(n_inducing)
+            .with_inducing_method(method)
+            .with_n_epochs(n_epochs)
+            .with_batch_size(batch_size)
+            .with_learning_rate(learning_rate)
+            .with_normalize_y(normalize_y);
+        Ok(Self { inner })
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let preds = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(preds.into_pyarray(py))
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn predict_with_std<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<(Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>)> {
+        let x_arr = to_owned_array_2d(x);
+        let (mean, std) = self
+            .inner
+            .predict_with_std(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok((mean.into_pyarray(py), std.into_pyarray(py)))
+    }
+
+    #[getter]
+    fn inducing_points_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let z = self
+            .inner
+            .inducing_points()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Model not fitted"))?;
+        Ok(z.clone().into_pyarray(py))
+    }
 }
 
 // =============================================================================
@@ -345,6 +683,9 @@ pub fn register_gaussian_process_module(parent: &Bound<'_, PyModule>) -> PyResul
     m.add_class::<PyWhiteKernel>()?;
     m.add_class::<PyGaussianProcessRegressor>()?;
     m.add_class::<PyGaussianProcessClassifier>()?;
+    m.add_class::<PySparseGPRegressor>()?;
+    m.add_class::<PySparseGPClassifier>()?;
+    m.add_class::<PySVGPRegressor>()?;
     parent.add_submodule(&m)?;
     Ok(())
 }

@@ -205,6 +205,46 @@ impl TextTransformer for TfidfVectorizer {
     }
 }
 
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineTextTransformer for TfidfVectorizer {
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineTextTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> crate::Result<()> {
+        match name {
+            // CountVectorizer params
+            "max_features" | "binary" | "lowercase" => {
+                crate::pipeline::PipelineTextTransformer::set_param(
+                    &mut self.count_vectorizer,
+                    name,
+                    value,
+                )
+            }
+            // TfidfTransformer params
+            "norm" | "use_idf" | "smooth_idf" | "sublinear_tf" => {
+                crate::pipeline::PipelineTransformer::set_param(
+                    &mut self.tfidf_transformer,
+                    name,
+                    value,
+                )
+            }
+            _ => Err(crate::FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "TfidfVectorizer"
+    }
+
+    fn n_features_out(&self) -> Option<usize> {
+        self.count_vectorizer.vocabulary().map(|v| v.len())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -17,16 +17,22 @@
 use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::ensemble::bagging::MaxFeatures as BaggingMaxFeatures;
-use ferroml_core::ensemble::voting::VotingClassifierEstimator;
-use ferroml_core::ensemble::{BaggingClassifier, BaggingRegressor, MaxSamples};
-use ferroml_core::models::{
-    AdaBoostClassifier, AdaBoostRegressor, DecisionTreeClassifier, DecisionTreeRegressor,
-    ExtraTreesClassifier, ExtraTreesRegressor, GaussianNB, GradientBoostingClassifier,
-    GradientBoostingRegressor, HistGradientBoostingClassifier, HistGradientBoostingRegressor,
-    KNeighborsClassifier, KNeighborsRegressor, LinearRegression, LogisticRegression, Model,
-    PassiveAggressiveClassifier, RandomForestClassifier, RandomForestRegressor, RidgeRegression,
-    SGDClassifier, SGDRegressor, SVC, SVR,
+use ferroml_core::ensemble::stacking::{StackMethod, StackingClassifier, StackingRegressor};
+use ferroml_core::ensemble::voting::{VotingClassifierEstimator, VotingRegressorEstimator};
+use ferroml_core::ensemble::{
+    BaggingClassifier, BaggingRegressor, MaxSamples, VotingClassifier, VotingMethod,
+    VotingRegressor,
 };
+use ferroml_core::models::{
+    AdaBoostClassifier, AdaBoostRegressor, BernoulliNB, DecisionTreeClassifier,
+    DecisionTreeRegressor, ElasticNet, ExtraTreesClassifier, ExtraTreesRegressor, GaussianNB,
+    GradientBoostingClassifier, GradientBoostingRegressor, HistGradientBoostingClassifier,
+    HistGradientBoostingRegressor, KNeighborsClassifier, KNeighborsRegressor, LassoRegression,
+    LinearRegression, LogisticRegression, Model, MultinomialNB, PassiveAggressiveClassifier,
+    RandomForestClassifier, RandomForestRegressor, RidgeRegression, SGDClassifier, SGDRegressor,
+    SVC, SVR,
+};
+use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -127,6 +133,75 @@ impl PyExtraTreesClassifier {
     pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
         self.inner = setstate(state.as_bytes())?;
         Ok(())
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 
     fn __repr__(&self) -> String {
@@ -232,6 +307,75 @@ impl PyExtraTreesRegressor {
         Ok(())
     }
 
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "ExtraTreesRegressor(n_estimators={})",
@@ -321,6 +465,75 @@ impl PyAdaBoostClassifier {
     pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
         self.inner = setstate(state.as_bytes())?;
         Ok(())
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 
     fn __repr__(&self) -> String {
@@ -428,6 +641,75 @@ impl PyAdaBoostRegressor {
     pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
         self.inner = setstate(state.as_bytes())?;
         Ok(())
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 
     fn __repr__(&self) -> String {
@@ -564,6 +846,75 @@ impl PySGDClassifier {
         Ok(())
     }
 
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
     fn __repr__(&self) -> String {
         "SGDClassifier()".to_string()
     }
@@ -691,6 +1042,75 @@ impl PySGDRegressor {
         Ok(())
     }
 
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
     fn __repr__(&self) -> String {
         "SGDRegressor()".to_string()
     }
@@ -773,6 +1193,75 @@ impl PyPassiveAggressiveClassifier {
     pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
         self.inner = setstate(state.as_bytes())?;
         Ok(())
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 
     fn __repr__(&self) -> String {
@@ -1425,6 +1914,30 @@ impl PyBaggingClassifier {
             .predict_proba(&x_arr)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(probas.into_pyarray(py))
+    }
+
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, n_classes)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
     /// Out-of-bag accuracy score (only available if ``oob_score=True``).
@@ -2244,6 +2757,683 @@ fn build_bagging_classifier(
 }
 
 // =============================================================================
+// Estimator construction helpers (shared by Voting and Stacking)
+// =============================================================================
+
+/// Build a Vec of named classifier estimators from Python string specs.
+fn build_classifier_estimators(
+    estimators: Vec<(String, String)>,
+) -> PyResult<Vec<(String, Box<dyn VotingClassifierEstimator>)>> {
+    if estimators.is_empty() {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "At least one estimator is required",
+        ));
+    }
+    let mut result: Vec<(String, Box<dyn VotingClassifierEstimator>)> = Vec::new();
+    for (name, est_type) in estimators {
+        let estimator: Box<dyn VotingClassifierEstimator> = match est_type.as_str() {
+            "logistic_regression" => Box::new(LogisticRegression::new()),
+            "decision_tree" => Box::new(DecisionTreeClassifier::new()),
+            "random_forest" => Box::new(RandomForestClassifier::new()),
+            "gaussian_nb" => Box::new(GaussianNB::new()),
+            "multinomial_nb" => Box::new(MultinomialNB::new()),
+            "bernoulli_nb" => Box::new(BernoulliNB::new()),
+            "knn" => Box::new(KNeighborsClassifier::new(5)),
+            "svc" => Box::new(SVC::new().with_probability(true)),
+            "gradient_boosting" => Box::new(GradientBoostingClassifier::new()),
+            "hist_gradient_boosting" => Box::new(HistGradientBoostingClassifier::new()),
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown classifier estimator type: '{}'. Supported: logistic_regression, \
+                     decision_tree, random_forest, gaussian_nb, multinomial_nb, bernoulli_nb, \
+                     knn, svc, gradient_boosting, hist_gradient_boosting",
+                    est_type
+                )));
+            }
+        };
+        result.push((name, estimator));
+    }
+    Ok(result)
+}
+
+/// Build a Vec of named regressor estimators from Python string specs.
+fn build_regressor_estimators(
+    estimators: Vec<(String, String)>,
+) -> PyResult<Vec<(String, Box<dyn VotingRegressorEstimator>)>> {
+    if estimators.is_empty() {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "At least one estimator is required",
+        ));
+    }
+    let mut result: Vec<(String, Box<dyn VotingRegressorEstimator>)> = Vec::new();
+    for (name, est_type) in estimators {
+        let estimator: Box<dyn VotingRegressorEstimator> = match est_type.as_str() {
+            "linear_regression" => Box::new(LinearRegression::new()),
+            "ridge" => Box::new(RidgeRegression::new(1.0)),
+            "lasso" => Box::new(LassoRegression::new(1.0)),
+            "elastic_net" => Box::new(ElasticNet::new(1.0, 0.5)),
+            "decision_tree" => Box::new(DecisionTreeRegressor::new()),
+            "random_forest" => Box::new(RandomForestRegressor::new()),
+            "knn" => Box::new(KNeighborsRegressor::new(5)),
+            "svr" => Box::new(SVR::new()),
+            "gradient_boosting" => Box::new(GradientBoostingRegressor::new()),
+            "hist_gradient_boosting" => Box::new(HistGradientBoostingRegressor::new()),
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown regressor estimator type: '{}'. Supported: linear_regression, \
+                     ridge, lasso, elastic_net, decision_tree, random_forest, knn, svr, \
+                     gradient_boosting, hist_gradient_boosting",
+                    est_type
+                )));
+            }
+        };
+        result.push((name, estimator));
+    }
+    Ok(result)
+}
+
+/// Build a classifier final estimator (meta-learner) from a string name.
+fn build_classifier_final_estimator(name: &str) -> PyResult<Box<dyn Model>> {
+    match name {
+        "logistic_regression" => Ok(Box::new(LogisticRegression::new())),
+        "decision_tree" => Ok(Box::new(DecisionTreeClassifier::new())),
+        "random_forest" => Ok(Box::new(RandomForestClassifier::new())),
+        "gaussian_nb" => Ok(Box::new(GaussianNB::new())),
+        "knn" => Ok(Box::new(KNeighborsClassifier::new(5))),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown classifier final estimator: '{}'. Supported: logistic_regression, \
+             decision_tree, random_forest, gaussian_nb, knn",
+            name
+        ))),
+    }
+}
+
+/// Build a regressor final estimator (meta-learner) from a string name.
+fn build_regressor_final_estimator(name: &str) -> PyResult<Box<dyn Model>> {
+    match name {
+        "linear_regression" => Ok(Box::new(LinearRegression::new())),
+        "ridge" => Ok(Box::new(RidgeRegression::new(1.0))),
+        "lasso" => Ok(Box::new(LassoRegression::new(1.0))),
+        "decision_tree" => Ok(Box::new(DecisionTreeRegressor::new())),
+        "random_forest" => Ok(Box::new(RandomForestRegressor::new())),
+        "knn" => Ok(Box::new(KNeighborsRegressor::new(5))),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown regressor final estimator: '{}'. Supported: linear_regression, \
+             ridge, lasso, decision_tree, random_forest, knn",
+            name
+        ))),
+    }
+}
+
+// =============================================================================
+// VotingClassifier
+// =============================================================================
+
+/// Voting classifier combining multiple classifiers via hard or soft voting.
+///
+/// Parameters
+/// ----------
+/// estimators : list of (str, str) tuples
+///     List of (name, estimator_type) pairs. Supported types:
+///     "logistic_regression", "decision_tree", "random_forest", "gaussian_nb",
+///     "multinomial_nb", "bernoulli_nb", "knn", "svc", "gradient_boosting",
+///     "hist_gradient_boosting"
+/// voting : str, optional (default="hard")
+///     Voting method: "hard" for majority vote, "soft" for probability averaging.
+/// weights : list of float, optional
+///     Weights for each estimator. Must match number of estimators.
+///
+/// Example
+/// -------
+/// >>> from ferroml.ensemble import VotingClassifier
+/// >>> model = VotingClassifier([("lr", "logistic_regression"), ("dt", "decision_tree")], voting="soft")
+/// >>> model.fit(X_train, y_train)
+/// >>> predictions = model.predict(X_test)
+#[pyclass(name = "VotingClassifier", module = "ferroml.ensemble")]
+pub struct PyVotingClassifier {
+    inner: VotingClassifier,
+    estimator_specs: Vec<(String, String)>,
+    voting_str: String,
+}
+
+#[pymethods]
+impl PyVotingClassifier {
+    #[new]
+    #[pyo3(signature = (estimators, voting="hard", weights=None))]
+    fn new(
+        estimators: Vec<(String, String)>,
+        voting: &str,
+        weights: Option<Vec<f64>>,
+    ) -> PyResult<Self> {
+        let specs = estimators.clone();
+        let built = build_classifier_estimators(estimators)?;
+        let mut voter = VotingClassifier::new(built);
+        match voting {
+            "hard" => voter = voter.with_hard_voting(),
+            "soft" => voter = voter.with_soft_voting(),
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown voting method: '{}'. Use 'hard' or 'soft'.",
+                    voting
+                )));
+            }
+        }
+        if let Some(w) = weights {
+            voter = voter.with_weights(w);
+        }
+        Ok(Self {
+            inner: voter,
+            estimator_specs: specs,
+            voting_str: voting.to_string(),
+        })
+    }
+
+    /// Fit the voting classifier on training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict class labels.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Predict class probabilities (soft voting only).
+    fn predict_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        if self.inner.voting_method() == VotingMethod::Hard {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "predict_proba is only available with soft voting. Use voting='soft'.",
+            ));
+        }
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Predict log-probabilities for each class (soft voting only).
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, n_classes)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        if self.inner.voting_method() == VotingMethod::Hard {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "predict_log_proba is only available with soft voting. Use voting='soft'.",
+            ));
+        }
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
+    }
+
+    /// Get estimator names.
+    #[getter]
+    fn estimator_names(&self) -> Vec<String> {
+        self.inner
+            .estimator_names()
+            .into_iter()
+            .map(String::from)
+            .collect()
+    }
+
+    /// Get the voting method.
+    #[getter]
+    fn voting(&self) -> String {
+        self.voting_str.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        let names: Vec<&str> = self
+            .estimator_specs
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        format!(
+            "VotingClassifier(estimators={:?}, voting='{}')",
+            names, self.voting_str
+        )
+    }
+}
+
+// =============================================================================
+// VotingRegressor
+// =============================================================================
+
+/// Voting regressor combining multiple regressors by averaging predictions.
+///
+/// Parameters
+/// ----------
+/// estimators : list of (str, str) tuples
+///     List of (name, estimator_type) pairs. Supported types:
+///     "linear_regression", "ridge", "lasso", "elastic_net", "decision_tree",
+///     "random_forest", "knn", "svr", "gradient_boosting", "hist_gradient_boosting"
+/// weights : list of float, optional
+///     Weights for each estimator. Must match number of estimators.
+///
+/// Example
+/// -------
+/// >>> from ferroml.ensemble import VotingRegressor
+/// >>> model = VotingRegressor([("lr", "linear_regression"), ("dt", "decision_tree")])
+/// >>> model.fit(X_train, y_train)
+/// >>> predictions = model.predict(X_test)
+#[pyclass(name = "VotingRegressor", module = "ferroml.ensemble")]
+pub struct PyVotingRegressor {
+    inner: VotingRegressor,
+    estimator_specs: Vec<(String, String)>,
+}
+
+#[pymethods]
+impl PyVotingRegressor {
+    #[new]
+    #[pyo3(signature = (estimators, weights=None))]
+    fn new(estimators: Vec<(String, String)>, weights: Option<Vec<f64>>) -> PyResult<Self> {
+        let specs = estimators.clone();
+        let built = build_regressor_estimators(estimators)?;
+        let mut voter = VotingRegressor::new(built);
+        if let Some(w) = weights {
+            voter = voter.with_weights(w);
+        }
+        Ok(Self {
+            inner: voter,
+            estimator_specs: specs,
+        })
+    }
+
+    /// Fit the voting regressor on training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict target values.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Get estimator names.
+    #[getter]
+    fn estimator_names(&self) -> Vec<String> {
+        self.inner
+            .estimator_names()
+            .into_iter()
+            .map(String::from)
+            .collect()
+    }
+
+    fn __repr__(&self) -> String {
+        let names: Vec<&str> = self
+            .estimator_specs
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        format!("VotingRegressor(estimators={:?})", names)
+    }
+}
+
+// =============================================================================
+// StackingClassifier
+// =============================================================================
+
+/// Stacking classifier combining multiple classifiers with a meta-learner.
+///
+/// Uses cross-validation to generate meta-features from base estimators,
+/// then trains a final estimator (meta-learner) on these features.
+///
+/// Parameters
+/// ----------
+/// estimators : list of (str, str) tuples
+///     List of (name, estimator_type) pairs for base estimators.
+/// final_estimator : str, optional (default="logistic_regression")
+///     Meta-learner type. Supported: "logistic_regression", "decision_tree",
+///     "random_forest", "gaussian_nb", "knn"
+/// cv : int, optional (default=5)
+///     Number of cross-validation folds.
+/// stack_method : str, optional (default="predict_proba")
+///     Method for generating meta-features: "predict" or "predict_proba".
+/// passthrough : bool, optional (default=False)
+///     Include original features alongside meta-features.
+///
+/// Example
+/// -------
+/// >>> from ferroml.ensemble import StackingClassifier
+/// >>> model = StackingClassifier(
+/// ...     [("dt", "decision_tree"), ("nb", "gaussian_nb")],
+/// ...     final_estimator="logistic_regression",
+/// ... )
+/// >>> model.fit(X_train, y_train)
+/// >>> predictions = model.predict(X_test)
+#[pyclass(name = "StackingClassifier", module = "ferroml.ensemble")]
+pub struct PyStackingClassifier {
+    inner: StackingClassifier,
+    estimator_specs: Vec<(String, String)>,
+    final_estimator_name: String,
+}
+
+#[pymethods]
+impl PyStackingClassifier {
+    #[new]
+    #[pyo3(signature = (
+        estimators,
+        final_estimator="logistic_regression",
+        cv=5,
+        stack_method="predict_proba",
+        passthrough=false,
+    ))]
+    fn new(
+        estimators: Vec<(String, String)>,
+        final_estimator: &str,
+        cv: usize,
+        stack_method: &str,
+        passthrough: bool,
+    ) -> PyResult<Self> {
+        let specs = estimators.clone();
+        let built = build_classifier_estimators(estimators)?;
+        let final_est = build_classifier_final_estimator(final_estimator)?;
+        let sm = match stack_method {
+            "predict" => StackMethod::Predict,
+            "predict_proba" => StackMethod::PredictProba,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown stack_method: '{}'. Use 'predict' or 'predict_proba'.",
+                    stack_method
+                )));
+            }
+        };
+        let stacker = StackingClassifier::new(built)
+            .with_final_estimator(final_est)
+            .with_n_folds(cv)
+            .with_stack_method(sm)
+            .with_passthrough(passthrough);
+        Ok(Self {
+            inner: stacker,
+            estimator_specs: specs,
+            final_estimator_name: final_estimator.to_string(),
+        })
+    }
+
+    /// Fit the stacking classifier on training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict class labels.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Predict class probabilities.
+    fn predict_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, n_classes)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
+    }
+
+    /// Get estimator names.
+    #[getter]
+    fn estimator_names(&self) -> Vec<String> {
+        self.inner
+            .estimator_names()
+            .into_iter()
+            .map(String::from)
+            .collect()
+    }
+
+    /// Get the stack method name.
+    #[getter]
+    fn stack_method_name(&self) -> String {
+        match self.inner.stack_method() {
+            StackMethod::Predict => "predict".to_string(),
+            StackMethod::PredictProba => "predict_proba".to_string(),
+        }
+    }
+
+    /// Get whether passthrough is enabled.
+    #[getter]
+    fn passthrough(&self) -> bool {
+        self.inner.passthrough()
+    }
+
+    fn __repr__(&self) -> String {
+        let names: Vec<&str> = self
+            .estimator_specs
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        format!(
+            "StackingClassifier(estimators={:?}, final_estimator='{}')",
+            names, self.final_estimator_name
+        )
+    }
+}
+
+// =============================================================================
+// StackingRegressor
+// =============================================================================
+
+/// Stacking regressor combining multiple regressors with a meta-learner.
+///
+/// Uses cross-validation to generate meta-features from base estimators,
+/// then trains a final estimator (meta-learner) on these features.
+///
+/// Parameters
+/// ----------
+/// estimators : list of (str, str) tuples
+///     List of (name, estimator_type) pairs for base estimators.
+/// final_estimator : str, optional (default="linear_regression")
+///     Meta-learner type. Supported: "linear_regression", "ridge", "lasso",
+///     "decision_tree", "random_forest", "knn"
+/// cv : int, optional (default=5)
+///     Number of cross-validation folds.
+/// passthrough : bool, optional (default=False)
+///     Include original features alongside meta-features.
+///
+/// Example
+/// -------
+/// >>> from ferroml.ensemble import StackingRegressor
+/// >>> model = StackingRegressor(
+/// ...     [("lr", "linear_regression"), ("dt", "decision_tree")],
+/// ...     final_estimator="ridge",
+/// ... )
+/// >>> model.fit(X_train, y_train)
+/// >>> predictions = model.predict(X_test)
+#[pyclass(name = "StackingRegressor", module = "ferroml.ensemble")]
+pub struct PyStackingRegressor {
+    inner: StackingRegressor,
+    estimator_specs: Vec<(String, String)>,
+    final_estimator_name: String,
+}
+
+#[pymethods]
+impl PyStackingRegressor {
+    #[new]
+    #[pyo3(signature = (
+        estimators,
+        final_estimator="linear_regression",
+        cv=5,
+        passthrough=false,
+    ))]
+    fn new(
+        estimators: Vec<(String, String)>,
+        final_estimator: &str,
+        cv: usize,
+        passthrough: bool,
+    ) -> PyResult<Self> {
+        let specs = estimators.clone();
+        let built = build_regressor_estimators(estimators)?;
+        let final_est = build_regressor_final_estimator(final_estimator)?;
+        let stacker = StackingRegressor::new(built)
+            .with_final_estimator(final_est)
+            .with_n_folds(cv)
+            .with_passthrough(passthrough);
+        Ok(Self {
+            inner: stacker,
+            estimator_specs: specs,
+            final_estimator_name: final_estimator.to_string(),
+        })
+    }
+
+    /// Fit the stacking regressor on training data.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        slf.inner
+            .fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Predict target values.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    /// Get estimator names.
+    #[getter]
+    fn estimator_names(&self) -> Vec<String> {
+        self.inner
+            .estimator_names()
+            .into_iter()
+            .map(String::from)
+            .collect()
+    }
+
+    /// Get whether passthrough is enabled.
+    #[getter]
+    fn passthrough(&self) -> bool {
+        self.inner.passthrough()
+    }
+
+    fn __repr__(&self) -> String {
+        let names: Vec<&str> = self
+            .estimator_specs
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        format!(
+            "StackingRegressor(estimators={:?}, final_estimator='{}')",
+            names, self.final_estimator_name
+        )
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -2260,6 +3450,10 @@ pub fn register_ensemble_module(parent_module: &Bound<'_, PyModule>) -> PyResult
     m.add_class::<PyPassiveAggressiveClassifier>()?;
     m.add_class::<PyBaggingClassifier>()?;
     m.add_class::<PyBaggingRegressor>()?;
+    m.add_class::<PyVotingClassifier>()?;
+    m.add_class::<PyVotingRegressor>()?;
+    m.add_class::<PyStackingClassifier>()?;
+    m.add_class::<PyStackingRegressor>()?;
 
     parent_module.add_submodule(&m)?;
 

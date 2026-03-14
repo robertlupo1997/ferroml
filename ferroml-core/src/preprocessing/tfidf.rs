@@ -518,6 +518,22 @@ impl super::SparseTransformer for TfidfTransformer {
     }
 }
 
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseTransformer for TfidfTransformer {
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseTransformer> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> crate::Result<()> {
+        // Delegate to existing PipelineTransformer impl which has the same set_param logic
+        crate::pipeline::PipelineTransformer::set_param(self, name, value)
+    }
+
+    fn name(&self) -> &str {
+        "TfidfTransformer"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

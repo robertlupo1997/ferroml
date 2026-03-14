@@ -424,7 +424,9 @@ impl GaussianNB {
         }
 
         // Compute epsilon (smoothing value based on largest variance)
-        let max_var = var.iter().copied().fold(0.0_f64, f64::max);
+        // Floor max_var to prevent epsilon=0 when all variances are zero
+        // (e.g., single-sample classes). Matches sklearn behavior.
+        let max_var = var.iter().copied().fold(0.0_f64, f64::max).max(1e-300);
         self.epsilon = Some(self.var_smoothing * max_var);
 
         // Apply variance smoothing
@@ -469,8 +471,8 @@ impl GaussianNB {
             // Gaussian log-likelihood:
             // log P(x_i | y) = -0.5 * (log(2π) + log(σ²) + (x - μ)² / σ²)
 
-            let log_prior = class_prior[class_idx].ln();
-            let log_det = var.mapv(|v| v.ln()).sum(); // sum of log variances
+            let log_prior = class_prior[class_idx].max(1e-300).ln();
+            let log_det = var.mapv(|v| v.max(1e-300).ln()).sum(); // sum of log variances
             let const_term =
                 -0.5 * (n_features as f64).mul_add((2.0 * std::f64::consts::PI).ln(), log_det);
 
@@ -965,7 +967,7 @@ impl MultinomialNB {
             for j in 0..n_features {
                 let count = feature_count[[class_idx, j]];
                 let prob = (count + self.alpha) / denominator;
-                feature_log_prob[[class_idx, j]] = prob.ln();
+                feature_log_prob[[class_idx, j]] = prob.max(1e-300).ln();
             }
         }
 
@@ -1468,8 +1470,8 @@ impl BernoulliNB {
                 let prob = (count + self.alpha) / denominator;
                 let prob_neg = 1.0 - prob;
 
-                feature_log_prob[[class_idx, j]] = prob.ln();
-                feature_log_prob_neg[[class_idx, j]] = prob_neg.ln();
+                feature_log_prob[[class_idx, j]] = prob.max(1e-300).ln();
+                feature_log_prob_neg[[class_idx, j]] = prob_neg.max(1e-300).ln();
             }
         }
 
@@ -2411,7 +2413,8 @@ impl crate::models::traits::SparseModel for GaussianNB {
         }
 
         // Compute epsilon and smoothed variance
-        let max_var = var.iter().copied().fold(0.0_f64, f64::max);
+        // Floor max_var to prevent epsilon=0 when all variances are zero
+        let max_var = var.iter().copied().fold(0.0_f64, f64::max).max(1e-300);
         let epsilon = self.var_smoothing * max_var;
         let var_smoothed = var.mapv(|v| v + epsilon);
 
@@ -3008,6 +3011,206 @@ impl crate::models::traits::SparseModel for CategoricalNB {
         }
 
         Ok(predictions)
+    }
+}
+
+// =============================================================================
+// PipelineSparseModel Implementations
+// =============================================================================
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for GaussianNB {
+    fn fit_sparse(
+        &mut self,
+        x: &crate::sparse::CsrMatrix,
+        y: &ndarray::Array1<f64>,
+    ) -> crate::Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> crate::Result<ndarray::Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        crate::models::Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, _value: &crate::hpo::ParameterValue) -> crate::Result<()> {
+        Err(crate::FerroError::invalid_input(format!(
+            "Unknown parameter '{}'",
+            name
+        )))
+    }
+
+    fn name(&self) -> &str {
+        "GaussianNB"
+    }
+
+    fn is_fitted(&self) -> bool {
+        crate::models::Model::is_fitted(self)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for MultinomialNB {
+    fn fit_sparse(
+        &mut self,
+        x: &crate::sparse::CsrMatrix,
+        y: &ndarray::Array1<f64>,
+    ) -> crate::Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> crate::Result<ndarray::Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        crate::models::Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> crate::Result<()> {
+        match name {
+            "alpha" => {
+                if let Some(v) = value.as_f64() {
+                    self.alpha = v;
+                    Ok(())
+                } else {
+                    Err(crate::FerroError::invalid_input("alpha must be a number"))
+                }
+            }
+            _ => Err(crate::FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "MultinomialNB"
+    }
+
+    fn is_fitted(&self) -> bool {
+        crate::models::Model::is_fitted(self)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for BernoulliNB {
+    fn fit_sparse(
+        &mut self,
+        x: &crate::sparse::CsrMatrix,
+        y: &ndarray::Array1<f64>,
+    ) -> crate::Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> crate::Result<ndarray::Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        crate::models::Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> crate::Result<()> {
+        match name {
+            "alpha" => {
+                if let Some(v) = value.as_f64() {
+                    self.alpha = v;
+                    Ok(())
+                } else {
+                    Err(crate::FerroError::invalid_input("alpha must be a number"))
+                }
+            }
+            "binarize" => {
+                if let Some(v) = value.as_f64() {
+                    if v < 0.0 {
+                        self.binarize = None;
+                    } else {
+                        self.binarize = Some(v);
+                    }
+                    Ok(())
+                } else {
+                    Err(crate::FerroError::invalid_input(
+                        "binarize must be a number",
+                    ))
+                }
+            }
+            _ => Err(crate::FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "BernoulliNB"
+    }
+
+    fn is_fitted(&self) -> bool {
+        crate::models::Model::is_fitted(self)
+    }
+}
+
+#[cfg(feature = "sparse")]
+impl crate::pipeline::PipelineSparseModel for CategoricalNB {
+    fn fit_sparse(
+        &mut self,
+        x: &crate::sparse::CsrMatrix,
+        y: &ndarray::Array1<f64>,
+    ) -> crate::Result<()> {
+        crate::models::traits::SparseModel::fit_sparse(self, x, y)
+    }
+
+    fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> crate::Result<ndarray::Array1<f64>> {
+        crate::models::traits::SparseModel::predict_sparse(self, x)
+    }
+
+    fn search_space(&self) -> crate::hpo::SearchSpace {
+        crate::models::Model::search_space(self)
+    }
+
+    fn clone_boxed(&self) -> Box<dyn crate::pipeline::PipelineSparseModel> {
+        Box::new(self.clone())
+    }
+
+    fn set_param(&mut self, name: &str, value: &crate::hpo::ParameterValue) -> crate::Result<()> {
+        match name {
+            "alpha" => {
+                if let Some(v) = value.as_f64() {
+                    self.alpha = v;
+                    Ok(())
+                } else {
+                    Err(crate::FerroError::invalid_input("alpha must be a number"))
+                }
+            }
+            _ => Err(crate::FerroError::invalid_input(format!(
+                "Unknown parameter '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "CategoricalNB"
+    }
+
+    fn is_fitted(&self) -> bool {
+        crate::models::Model::is_fitted(self)
     }
 }
 
@@ -4434,5 +4637,44 @@ mod tests {
         // Try to predict with wrong number of features
         let x_bad = Array2::from_shape_vec((1, 3), vec![0.0, 0.0, 0.0]).unwrap();
         assert!(model.predict(&x_bad).is_err());
+    }
+
+    #[test]
+    fn test_gaussian_nb_single_sample_per_class() {
+        // Single sample per class → zero variance before smoothing.
+        // Without the max_var floor fix, epsilon=0 and log(var)=-inf → NaN predictions.
+        let x = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
+        let y = Array1::from_vec(vec![0.0, 1.0]);
+
+        let mut model = GaussianNB::new();
+        let result = model.fit(&x, &y);
+        assert!(
+            result.is_ok(),
+            "GaussianNB should handle single-sample classes: {:?}",
+            result.err()
+        );
+
+        // Predictions must be valid class labels, not NaN
+        let preds = model.predict(&x).unwrap();
+        for &p in preds.iter() {
+            assert!(!p.is_nan(), "prediction should not be NaN");
+            assert!(
+                p == 0.0 || p == 1.0,
+                "prediction should be a valid class label, got {}",
+                p
+            );
+        }
+
+        // Probabilities should sum to 1 and not contain NaN
+        let proba = model.predict_proba(&x).unwrap();
+        for row in proba.rows() {
+            let sum: f64 = row.iter().sum();
+            assert!(!sum.is_nan(), "probability sum should not be NaN");
+            assert!(
+                (sum - 1.0).abs() < 1e-6,
+                "probabilities should sum to 1, got {}",
+                sum
+            );
+        }
     }
 }

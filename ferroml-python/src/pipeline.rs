@@ -1106,6 +1106,350 @@ fn hconcat(arrays: &[Array2<f64>]) -> Array2<f64> {
 }
 
 // =============================================================================
+// TextPipeline - text document processing pipeline
+// =============================================================================
+
+/// Check if a Python object is a scipy sparse matrix.
+fn is_sparse(py: Python<'_>, obj: &Bound<'_, PyAny>) -> bool {
+    if let Ok(scipy_sparse) = py.import("scipy.sparse") {
+        if let Ok(result) = scipy_sparse.call_method1("issparse", (obj,)) {
+            return result.extract::<bool>().unwrap_or(false);
+        }
+    }
+    false
+}
+
+/// Call fit on a model, handling sparse input by trying fit_sparse first,
+/// then falling back to toarray() + fit.
+fn model_fit<'py>(
+    obj: &Bound<'py, PyAny>,
+    x: &Bound<'py, PyAny>,
+    y: &Bound<'py, PyAny>,
+    py: Python<'py>,
+) -> PyResult<()> {
+    if is_sparse(py, x) {
+        // Try fit_sparse first
+        if obj.hasattr("fit_sparse")? {
+            obj.call_method("fit_sparse", (x, y), None)?;
+            return Ok(());
+        }
+        // Fall back: densify and call fit
+        let dense = x.call_method0("toarray")?;
+        obj.call_method("fit", (&dense, y), None)?;
+    } else {
+        obj.call_method("fit", (x, y), None)?;
+    }
+    Ok(())
+}
+
+/// Call predict on a model, handling sparse input by trying predict_sparse first,
+/// then falling back to toarray() + predict.
+fn model_predict<'py>(
+    obj: &Bound<'py, PyAny>,
+    x: &Bound<'py, PyAny>,
+    py: Python<'py>,
+) -> PyResult<Bound<'py, PyAny>> {
+    if is_sparse(py, x) {
+        // Try predict_sparse first
+        if obj.hasattr("predict_sparse")? {
+            return obj.call_method("predict_sparse", (x,), None);
+        }
+        // Fall back: densify and call predict
+        let dense = x.call_method0("toarray")?;
+        return obj.call_method("predict", (&dense,), None);
+    }
+    obj.call_method("predict", (x,), None)
+}
+
+/// A step in the text pipeline
+struct TextPipelineStepInner {
+    name: String,
+    obj: PyObject,
+    is_model: bool,
+}
+
+/// A pipeline for text classification/regression workflows.
+///
+/// Accepts raw text documents as input, chains text transformers (like
+/// TfidfVectorizer) and a final model for end-to-end text processing.
+///
+/// Parameters
+/// ----------
+/// steps : list of tuples
+///     List of (name, transformer/model) tuples. The last element should be
+///     a model (with fit/predict). Earlier elements should be text transformers
+///     (with fit/transform that accept text documents).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.pipeline import TextPipeline
+/// >>> from ferroml.preprocessing import TfidfVectorizer
+/// >>> from ferroml.naive_bayes import MultinomialNB
+/// >>> pipe = TextPipeline([
+/// ...     ('tfidf', TfidfVectorizer()),
+/// ...     ('model', MultinomialNB()),
+/// ... ])
+/// >>> pipe.fit(documents_train, y_train)
+/// >>> predictions = pipe.predict(documents_test)
+#[pyclass(name = "TextPipeline", module = "ferroml.pipeline")]
+pub struct PyTextPipeline {
+    steps: Vec<TextPipelineStepInner>,
+    fitted: bool,
+}
+
+#[pymethods]
+impl PyTextPipeline {
+    #[new]
+    fn new(py: Python<'_>, steps: &Bound<'_, PyList>) -> PyResult<Self> {
+        let mut pipeline_steps = Vec::new();
+
+        for item in steps.iter() {
+            let tuple = item.downcast::<pyo3::types::PyTuple>()?;
+            if tuple.len() != 2 {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Each step must be a tuple of (name, transformer/model)",
+                ));
+            }
+
+            let name: String = tuple.get_item(0)?.extract()?;
+            let obj: PyObject = tuple.get_item(1)?.unbind();
+
+            let has_predict = obj.bind(py).hasattr("predict")?;
+
+            pipeline_steps.push(TextPipelineStepInner {
+                name,
+                obj,
+                is_model: has_predict,
+            });
+        }
+
+        // Validate: only the last step can be a model
+        for (i, step) in pipeline_steps.iter().enumerate() {
+            if step.is_model && i != pipeline_steps.len() - 1 {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Only the last step can be a model. Step '{}' at position {} has predict method.",
+                    step.name, i
+                )));
+            }
+        }
+
+        Ok(Self {
+            steps: pipeline_steps,
+            fitted: false,
+        })
+    }
+
+    /// Fit the pipeline to training data.
+    ///
+    /// Parameters
+    /// ----------
+    /// documents : list of str
+    ///     Training text documents.
+    /// y : array-like of shape (n_samples,)
+    ///     Target values.
+    ///
+    /// Returns
+    /// -------
+    /// self : TextPipeline
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        documents: Vec<String>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        if slf.steps.is_empty() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "TextPipeline is empty. Add at least one step.",
+            ));
+        }
+
+        let y_arr = to_owned_array_1d(y);
+
+        if documents.len() != y_arr.len() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "documents has {} samples but y has {} samples",
+                documents.len(),
+                y_arr.len()
+            )));
+        }
+
+        // Start with documents as a Python list
+        let docs_py = pyo3::types::PyList::new(py, &documents)?;
+        let mut current_x: Bound<'py, PyAny> = docs_py.into_any();
+        let y_py: Bound<'py, PyAny> = y_arr.into_pyarray(py).as_any().clone();
+
+        let n_steps = slf.steps.len();
+        for (i, step) in slf.steps.iter().enumerate() {
+            let obj = step.obj.bind(py);
+            let is_last = i == n_steps - 1;
+
+            if step.is_model && is_last {
+                // Final model: fit(X, y) — handles sparse via fit_sparse or densification
+                model_fit(obj, &current_x, &y_py, py)?;
+            } else {
+                // Transformer: fit_transform(X)
+                let result = obj.call_method("fit_transform", (&current_x,), None)?;
+                current_x = result;
+            }
+        }
+
+        slf.fitted = true;
+        Ok(slf)
+    }
+
+    /// Predict from text documents.
+    ///
+    /// Parameters
+    /// ----------
+    /// documents : list of str
+    ///     Text documents to predict on.
+    ///
+    /// Returns
+    /// -------
+    /// predictions : ndarray of shape (n_samples,)
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        documents: Vec<String>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        if !self.fitted {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "TextPipeline not fitted. Call fit() first.",
+            ));
+        }
+
+        let docs_py = pyo3::types::PyList::new(py, &documents)?;
+        let mut current_x: Bound<'py, PyAny> = docs_py.into_any();
+
+        let n_steps = self.steps.len();
+        for (i, step) in self.steps.iter().enumerate() {
+            let obj = step.obj.bind(py);
+            let is_last = i == n_steps - 1;
+
+            if step.is_model && is_last {
+                // Final model: predict(X) — handles sparse via predict_sparse or densification
+                let result = model_predict(obj, &current_x, py)?;
+                let pred: PyReadonlyArray1<'py, f64> = result.extract()?;
+                return Ok(to_owned_array_1d(pred).into_pyarray(py));
+            } else {
+                // Transformer: transform(X)
+                let result = obj.call_method("transform", (&current_x,), None)?;
+                current_x = result;
+            }
+        }
+
+        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "TextPipeline has no model step for prediction.",
+        ))
+    }
+
+    /// Transform text through all transformer steps (without final model).
+    ///
+    /// Returns
+    /// -------
+    /// X_transformed : scipy.sparse.csr_matrix or ndarray
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        documents: Vec<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        if !self.fitted {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "TextPipeline not fitted. Call fit() first.",
+            ));
+        }
+
+        let docs_py = pyo3::types::PyList::new(py, &documents)?;
+        let mut current_x: Bound<'py, PyAny> = docs_py.into_any();
+
+        for step in &self.steps {
+            if step.is_model {
+                break;
+            }
+            let obj = step.obj.bind(py);
+            let result = obj.call_method("transform", (&current_x,), None)?;
+            current_x = result;
+        }
+
+        Ok(current_x)
+    }
+
+    /// Fit and predict in one step.
+    fn fit_predict<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        documents: Vec<String>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let y_arr = to_owned_array_1d(y);
+
+        if documents.len() != y_arr.len() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "documents has {} samples but y has {} samples",
+                documents.len(),
+                y_arr.len()
+            )));
+        }
+
+        let docs_py = pyo3::types::PyList::new(py, &documents)?;
+        let mut current_x: Bound<'py, PyAny> = docs_py.into_any();
+        let y_py: Bound<'py, PyAny> = y_arr.into_pyarray(py).as_any().clone();
+
+        let n_steps = slf.steps.len();
+
+        for (i, step) in slf.steps.iter().enumerate() {
+            let obj = step.obj.bind(py);
+            let is_last = i == n_steps - 1;
+
+            if step.is_model && is_last {
+                model_fit(obj, &current_x, &y_py, py)?;
+                let result = model_predict(obj, &current_x, py)?;
+                let pred: PyReadonlyArray1<'py, f64> = result.extract()?;
+                slf.fitted = true;
+                return Ok(to_owned_array_1d(pred).into_pyarray(py));
+            } else {
+                let result = obj.call_method("fit_transform", (&current_x,), None)?;
+                current_x = result;
+            }
+        }
+
+        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "TextPipeline has no model step for prediction.",
+        ))
+    }
+
+    /// Access pipeline steps by name.
+    #[getter]
+    fn named_steps<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+        for step in &self.steps {
+            dict.set_item(&step.name, step.obj.bind(py))?;
+        }
+        Ok(dict)
+    }
+
+    /// Get step names.
+    fn get_step_names(&self) -> Vec<String> {
+        self.steps.iter().map(|s| s.name.clone()).collect()
+    }
+
+    /// Check if fitted.
+    #[getter]
+    fn is_fitted(&self) -> bool {
+        self.fitted
+    }
+
+    fn __repr__(&self) -> String {
+        let step_names: Vec<&str> = self.steps.iter().map(|s| s.name.as_str()).collect();
+        format!("TextPipeline(steps={:?})", step_names)
+    }
+
+    fn __len__(&self) -> usize {
+        self.steps.len()
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -1116,6 +1460,7 @@ pub fn register_pipeline_module(parent_module: &Bound<'_, PyModule>) -> PyResult
     pipeline_module.add_class::<PyPipeline>()?;
     pipeline_module.add_class::<PyColumnTransformer>()?;
     pipeline_module.add_class::<PyFeatureUnion>()?;
+    pipeline_module.add_class::<PyTextPipeline>()?;
 
     parent_module.add_submodule(&pipeline_module)?;
 

@@ -119,7 +119,16 @@ impl LocalOutlierFactor {
 
     /// Effective k, clamped to n_samples - 1.
     fn effective_k(&self, n_samples: usize) -> usize {
-        self.n_neighbors.min(n_samples - 1).max(1)
+        let effective = self.n_neighbors.min(n_samples - 1).max(1);
+        if self.n_neighbors > n_samples - 1 {
+            eprintln!(
+                "Warning: n_neighbors ({}) exceeds n_samples-1 ({}). Using {} neighbors.",
+                self.n_neighbors,
+                n_samples - 1,
+                effective
+            );
+        }
+        effective
     }
 
     /// Find k nearest neighbors for all points in x, using training data.
@@ -356,6 +365,13 @@ impl OutlierDetector for LocalOutlierFactor {
 
         // LOF scores (negative)
         let nof = self.compute_lof(&lrd, &neighbor_indices, &lrd);
+
+        // Warn if all LOF scores are identical (e.g. all points equidistant/identical)
+        let nof_mean = nof.mean().unwrap_or(0.0);
+        let nof_var = nof.mapv(|v| (v - nof_mean).powi(2)).mean().unwrap_or(0.0);
+        if nof_var < 1e-10 {
+            eprintln!("Warning: LOF scores are all identical. This may indicate all points are equidistant or identical.");
+        }
 
         // Set offset
         match self.contamination {

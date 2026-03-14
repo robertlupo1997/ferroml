@@ -215,11 +215,16 @@ impl Study {
         Ok(())
     }
 
-    /// Get the best trial
+    /// Get the best trial.
+    ///
+    /// Returns `None` if no trials completed successfully or if all completed
+    /// trials have NaN/infinite values.
     pub fn best_trial(&self) -> Option<&Trial> {
         self.trials
             .iter()
-            .filter(|t| t.state == TrialState::Complete && t.value.is_some())
+            .filter(|t| {
+                t.state == TrialState::Complete && t.value.map(|v| v.is_finite()).unwrap_or(false)
+            })
             .min_by(|a, b| {
                 let va = a.value.unwrap();
                 let vb = b.value.unwrap();
@@ -228,6 +233,18 @@ impl Study {
                     Direction::Maximize => vb.partial_cmp(&va).unwrap(),
                 }
             })
+    }
+
+    /// Get the best trial, or return an error if no trials completed successfully.
+    ///
+    /// This is a convenience wrapper around [`best_trial()`](Self::best_trial)
+    /// for callers that want a `Result` instead of `Option`.
+    pub fn best_trial_or_err(&self) -> crate::Result<&Trial> {
+        self.best_trial().ok_or_else(|| {
+            crate::FerroError::invalid_input(
+                "No trials completed successfully. All trials failed or returned NaN/infinite values."
+            )
+        })
     }
 
     /// Get the best value
@@ -301,7 +318,8 @@ pub fn parameter_importance(study: &Study) -> Vec<ParameterImportance> {
         .collect();
 
     if completed_trials.len() < 10 {
-        return importance_scores; // Not enough data
+        eprintln!("Warning: parameter_importance() requires at least 10 completed trials (have {}). Returning empty.", completed_trials.len());
+        return importance_scores;
     }
 
     for param_name in study.search_space.parameters.keys() {

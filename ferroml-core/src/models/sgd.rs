@@ -9,6 +9,7 @@
 //! - [`Perceptron`] - Classic Perceptron algorithm (equivalent to SGDClassifier with hinge loss, no regularization)
 //! - [`PassiveAggressiveClassifier`] - Online learning classifier (PA-I / PA-II)
 
+use crate::models::traits::IncrementalModel;
 use crate::models::{check_is_fitted, validate_fit_input, validate_predict_input, Model};
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
@@ -133,6 +134,10 @@ pub struct SGDClassifier {
     classes: Option<Array1<f64>>,
     n_features: Option<usize>,
     n_iter: Option<usize>,
+    /// Global SGD step counter (persists across partial_fit calls for learning rate schedule)
+    t: usize,
+    /// RNG state (persists across partial_fit calls)
+    rng_state: u64,
 }
 
 impl SGDClassifier {
@@ -157,6 +162,8 @@ impl SGDClassifier {
             classes: None,
             n_features: None,
             n_iter: None,
+            t: 0,
+            rng_state: 0,
         }
     }
 
@@ -209,6 +216,12 @@ impl SGDClassifier {
     /// Get number of iterations run.
     pub fn n_iter(&self) -> Option<usize> {
         self.n_iter
+    }
+
+    /// Get the unique class labels.
+    #[must_use]
+    pub fn classes(&self) -> Option<&Array1<f64>> {
+        self.classes.as_ref()
     }
 
     /// Compute decision function.
@@ -270,66 +283,23 @@ impl SGDClassifier {
         for epoch in 0..self.max_iter {
             actual_iter = epoch + 1;
 
-            // Shuffle
-            if self.shuffle {
-                for i in (1..n_samples).rev() {
-                    rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1);
-                    let j = (rng >> 33) as usize % (i + 1);
-                    indices.swap(i, j);
-                }
-            }
+            Self::run_one_classification_epoch(
+                x,
+                y,
+                &mut coef,
+                &mut intercept,
+                &mut t,
+                &mut rng,
+                &mut indices,
+                self.loss,
+                self.shuffle,
+                self.fit_intercept,
+                self.epsilon,
+                |t_val| self.get_eta(t_val),
+                |c_val| self.apply_penalty(c_val),
+            );
 
-            let mut epoch_loss = 0.0;
-
-            for &i in &indices {
-                let xi = x.row(i);
-                let yi = y[i]; // {-1, +1}
-
-                let eta = self.get_eta(t);
-                t += 1;
-
-                let decision = xi.dot(&coef) + intercept;
-                let margin = yi * decision;
-
-                // Compute loss gradient
-                let dloss = match self.loss {
-                    SGDClassifierLoss::Hinge => {
-                        epoch_loss += (1.0 - margin).max(0.0);
-                        if margin < 1.0 {
-                            -yi
-                        } else {
-                            0.0
-                        }
-                    }
-                    SGDClassifierLoss::Log => {
-                        let exp_val = (-margin).exp();
-                        epoch_loss += (1.0 + exp_val).ln();
-                        -yi * exp_val / (1.0 + exp_val)
-                    }
-                    SGDClassifierLoss::ModifiedHuber => {
-                        if margin >= 1.0 {
-                            0.0
-                        } else if margin >= -1.0 {
-                            epoch_loss += (1.0 - margin).powi(2);
-                            -2.0 * yi * (1.0 - margin)
-                        } else {
-                            epoch_loss += -4.0 * margin;
-                            -4.0 * yi
-                        }
-                    }
-                };
-
-                // Update coefficients
-                for j in 0..n_features {
-                    let penalty = self.apply_penalty(coef[j]);
-                    coef[j] -= eta * (dloss * xi[j] + penalty);
-                }
-                if self.fit_intercept {
-                    intercept -= eta * dloss;
-                }
-            }
-
-            epoch_loss /= n_samples as f64;
+            let epoch_loss = Self::compute_classification_loss(x, y, &coef, intercept, self.loss);
 
             // Check convergence
             if (best_loss - epoch_loss).abs() < self.tol {
@@ -347,6 +317,124 @@ impl SGDClassifier {
 
         (coef, intercept, actual_iter)
     }
+
+    /// Run a single epoch of SGD classification updates on the given weights.
+    /// Mutates coef, intercept, t, rng, and indices in place.
+    #[allow(clippy::too_many_arguments)]
+    fn run_one_classification_epoch(
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        coef: &mut Array1<f64>,
+        intercept: &mut f64,
+        t: &mut usize,
+        rng: &mut u64,
+        indices: &mut Vec<usize>,
+        loss: SGDClassifierLoss,
+        shuffle: bool,
+        fit_intercept: bool,
+        _epsilon: f64,
+        get_eta: impl Fn(usize) -> f64,
+        apply_penalty: impl Fn(f64) -> f64,
+    ) {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        // Shuffle
+        if shuffle {
+            for i in (1..n_samples).rev() {
+                *rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1);
+                let j = (*rng >> 33) as usize % (i + 1);
+                indices.swap(i, j);
+            }
+        }
+
+        for &i in indices.iter() {
+            let xi = x.row(i);
+            let yi = y[i]; // {-1, +1}
+
+            let eta = get_eta(*t);
+            *t += 1;
+
+            let decision = xi.dot(coef) + *intercept;
+            let margin = yi * decision;
+
+            // Compute loss gradient
+            let dloss = match loss {
+                SGDClassifierLoss::Hinge => {
+                    if margin < 1.0 {
+                        -yi
+                    } else {
+                        0.0
+                    }
+                }
+                SGDClassifierLoss::Log => {
+                    if margin >= 0.0 {
+                        let exp_neg = (-margin).exp();
+                        -yi * exp_neg / (1.0 + exp_neg)
+                    } else {
+                        let exp_pos = margin.exp();
+                        -yi / (1.0 + exp_pos)
+                    }
+                }
+                SGDClassifierLoss::ModifiedHuber => {
+                    if margin >= 1.0 {
+                        0.0
+                    } else if margin >= -1.0 {
+                        -2.0 * yi * (1.0 - margin)
+                    } else {
+                        -4.0 * yi
+                    }
+                }
+            };
+
+            // Update coefficients
+            for j in 0..n_features {
+                let penalty = apply_penalty(coef[j]);
+                coef[j] -= eta * (dloss * xi[j] + penalty);
+            }
+            if fit_intercept {
+                *intercept -= eta * dloss;
+            }
+        }
+    }
+
+    /// Compute the average classification loss over the dataset.
+    fn compute_classification_loss(
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        coef: &Array1<f64>,
+        intercept: f64,
+        loss: SGDClassifierLoss,
+    ) -> f64 {
+        let n_samples = x.nrows();
+        let mut total_loss = 0.0;
+        for i in 0..n_samples {
+            let xi = x.row(i);
+            let yi = y[i];
+            let decision = xi.dot(coef) + intercept;
+            let margin = yi * decision;
+            total_loss += match loss {
+                SGDClassifierLoss::Hinge => (1.0 - margin).max(0.0),
+                SGDClassifierLoss::Log => {
+                    if margin >= 0.0 {
+                        (1.0 + (-margin).exp()).ln()
+                    } else {
+                        -margin + (1.0 + margin.exp()).ln()
+                    }
+                }
+                SGDClassifierLoss::ModifiedHuber => {
+                    if margin >= 1.0 {
+                        0.0
+                    } else if margin >= -1.0 {
+                        (1.0 - margin).powi(2)
+                    } else {
+                        -4.0 * margin
+                    }
+                }
+            };
+        }
+        total_loss / n_samples as f64
+    }
 }
 
 impl Default for SGDClassifier {
@@ -358,6 +446,12 @@ impl Default for SGDClassifier {
 impl Model for SGDClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        if self.alpha <= 0.0 && self.learning_rate == LearningRateScheduleType::Optimal {
+            return Err(FerroError::invalid_input(
+                "alpha must be > 0 when using optimal learning rate schedule",
+            ));
+        }
 
         let n_features = x.ncols();
         let classes = crate::models::get_unique_classes(y);
@@ -415,6 +509,8 @@ impl Model for SGDClassifier {
 
         self.classes = Some(classes);
         self.n_features = Some(n_features);
+        self.t = 0;
+        self.rng_state = seed;
         Ok(())
     }
 
@@ -460,6 +556,153 @@ impl Model for SGDClassifier {
     }
 }
 
+impl IncrementalModel for SGDClassifier {
+    fn partial_fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        self.partial_fit_with_classes(x, y, None)
+    }
+
+    fn partial_fit_with_classes(
+        &mut self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        classes: Option<&[f64]>,
+    ) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        if self.alpha <= 0.0 && self.learning_rate == LearningRateScheduleType::Optimal {
+            return Err(FerroError::invalid_input(
+                "alpha must be > 0 when using optimal learning rate schedule",
+            ));
+        }
+
+        let n_features = x.ncols();
+
+        // If not yet fitted, initialize weights
+        if self.coef.is_none() {
+            // Determine classes from the provided list or from y
+            let class_list = if let Some(c) = classes {
+                Array1::from_vec(c.to_vec())
+            } else {
+                crate::models::get_unique_classes(y)
+            };
+            let n_classes = class_list.len();
+            if n_classes < 2 {
+                return Err(FerroError::invalid_input(
+                    "SGDClassifier requires at least 2 classes",
+                ));
+            }
+
+            let n_outputs = if n_classes == 2 { 1 } else { n_classes };
+            self.coef = Some(Array2::zeros((n_outputs, n_features)));
+            self.intercept = Some(Array1::zeros(n_outputs));
+            self.classes = Some(class_list);
+            self.n_features = Some(n_features);
+            self.n_iter = Some(0);
+            self.t = 0;
+            self.rng_state = self.random_state.unwrap_or(42);
+        }
+
+        // Validate feature count matches
+        if n_features != self.n_features.unwrap() {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", self.n_features.unwrap()),
+                format!("{} features", n_features),
+            ));
+        }
+
+        let classes = self.classes.clone().unwrap();
+        let n_classes = classes.len();
+        let n_samples = x.nrows();
+        let mut indices: Vec<usize> = (0..n_samples).collect();
+
+        if n_classes == 2 {
+            // Binary: single classifier with {-1, +1} encoding
+            let y_encoded: Array1<f64> = y
+                .iter()
+                .map(|&v| {
+                    if (v - classes[0]).abs() < 1e-10 {
+                        -1.0
+                    } else {
+                        1.0
+                    }
+                })
+                .collect();
+
+            let mut coef = self.coef.as_ref().unwrap().row(0).to_owned();
+            let mut intercept = self.intercept.as_ref().unwrap()[0];
+            let mut t = self.t;
+            let mut rng = self.rng_state;
+
+            Self::run_one_classification_epoch(
+                x,
+                &y_encoded,
+                &mut coef,
+                &mut intercept,
+                &mut t,
+                &mut rng,
+                &mut indices,
+                self.loss,
+                self.shuffle,
+                self.fit_intercept,
+                self.epsilon,
+                |t_val| self.get_eta(t_val),
+                |c_val| self.apply_penalty(c_val),
+            );
+
+            self.coef.as_mut().unwrap().row_mut(0).assign(&coef);
+            self.intercept.as_mut().unwrap()[0] = intercept;
+            self.t = t;
+            self.rng_state = rng;
+        } else {
+            // Multiclass: OvR — one epoch per binary classifier
+            let mut t = self.t;
+            let mut rng = self.rng_state;
+
+            for (ci, &c) in classes.iter().enumerate() {
+                let y_binary: Array1<f64> = y
+                    .iter()
+                    .map(|&v| if (v - c).abs() < 1e-10 { 1.0 } else { -1.0 })
+                    .collect();
+
+                let mut coef = self.coef.as_ref().unwrap().row(ci).to_owned();
+                let mut intercept = self.intercept.as_ref().unwrap()[ci];
+                let mut class_t = t;
+                let mut class_rng = rng.wrapping_add(ci as u64);
+
+                Self::run_one_classification_epoch(
+                    x,
+                    &y_binary,
+                    &mut coef,
+                    &mut intercept,
+                    &mut class_t,
+                    &mut class_rng,
+                    &mut indices,
+                    self.loss,
+                    self.shuffle,
+                    self.fit_intercept,
+                    self.epsilon,
+                    |t_val| self.get_eta(t_val),
+                    |c_val| self.apply_penalty(c_val),
+                );
+
+                self.coef.as_mut().unwrap().row_mut(ci).assign(&coef);
+                self.intercept.as_mut().unwrap()[ci] = intercept;
+                // Use the last class's t for the global counter
+                if ci == n_classes - 1 {
+                    t = class_t;
+                    rng = class_rng;
+                }
+            }
+
+            self.t = t;
+            self.rng_state = rng;
+        }
+
+        *self.n_iter.as_mut().unwrap() += 1;
+        Ok(())
+    }
+}
+
 // =============================================================================
 // SGD Regressor
 // =============================================================================
@@ -501,6 +744,10 @@ pub struct SGDRegressor {
     intercept: Option<f64>,
     n_features: Option<usize>,
     n_iter: Option<usize>,
+    /// Global SGD step counter (persists across partial_fit calls for learning rate schedule)
+    t: usize,
+    /// RNG state (persists across partial_fit calls)
+    rng_state: u64,
 }
 
 impl SGDRegressor {
@@ -524,6 +771,8 @@ impl SGDRegressor {
             intercept: None,
             n_features: None,
             n_iter: None,
+            t: 0,
+            rng_state: 0,
         }
     }
 
@@ -589,6 +838,68 @@ impl SGDRegressor {
             }
         }
     }
+
+    /// Run a single epoch of SGD regression updates on the given weights.
+    #[allow(clippy::too_many_arguments)]
+    fn run_one_regression_epoch(
+        &self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        coef: &mut Array1<f64>,
+        intercept: &mut f64,
+        t: &mut usize,
+        rng: &mut u64,
+        indices: &mut Vec<usize>,
+    ) {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        if self.shuffle {
+            for i in (1..n_samples).rev() {
+                *rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1);
+                let j = (*rng >> 33) as usize % (i + 1);
+                indices.swap(i, j);
+            }
+        }
+
+        for &i in indices.iter() {
+            let xi = x.row(i);
+            let yi = y[i];
+            let eta = self.get_eta(*t);
+            *t += 1;
+
+            let pred = xi.dot(coef) + *intercept;
+            let error = pred - yi;
+
+            let dloss = match self.loss {
+                SGDRegressorLoss::SquaredError => 2.0 * error,
+                SGDRegressorLoss::Huber => {
+                    let abs_err = error.abs();
+                    if abs_err <= self.epsilon {
+                        2.0 * error
+                    } else {
+                        2.0 * self.epsilon * error.signum()
+                    }
+                }
+                SGDRegressorLoss::EpsilonInsensitive => {
+                    let abs_err = error.abs();
+                    if abs_err <= self.epsilon {
+                        0.0
+                    } else {
+                        error.signum()
+                    }
+                }
+            };
+
+            for j in 0..n_features {
+                let penalty = self.apply_penalty(coef[j]);
+                coef[j] -= eta * (dloss * xi[j] + penalty);
+            }
+            if self.fit_intercept {
+                *intercept -= eta * dloss;
+            }
+        }
+    }
 }
 
 impl Default for SGDRegressor {
@@ -600,6 +911,12 @@ impl Default for SGDRegressor {
 impl Model for SGDRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        if self.alpha <= 0.0 && self.learning_rate == LearningRateScheduleType::Optimal {
+            return Err(FerroError::invalid_input(
+                "alpha must be > 0 when using optimal learning rate schedule",
+            ));
+        }
 
         let n_samples = x.nrows();
         let n_features = x.ncols();
@@ -691,6 +1008,8 @@ impl Model for SGDRegressor {
         self.intercept = Some(intercept);
         self.n_features = Some(n_features);
         self.n_iter = Some(actual_iter);
+        self.t = 0;
+        self.rng_state = self.random_state.unwrap_or(42);
         Ok(())
     }
 
@@ -714,6 +1033,62 @@ impl Model for SGDRegressor {
 
     fn model_name(&self) -> &str {
         "SGDRegressor"
+    }
+}
+
+impl IncrementalModel for SGDRegressor {
+    fn partial_fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        if self.alpha <= 0.0 && self.learning_rate == LearningRateScheduleType::Optimal {
+            return Err(FerroError::invalid_input(
+                "alpha must be > 0 when using optimal learning rate schedule",
+            ));
+        }
+
+        let n_features = x.ncols();
+        let n_samples = x.nrows();
+
+        // If not yet fitted, initialize weights
+        if self.coef.is_none() {
+            self.coef = Some(Array1::zeros(n_features));
+            self.intercept = Some(0.0);
+            self.n_features = Some(n_features);
+            self.n_iter = Some(0);
+            self.t = 0;
+            self.rng_state = self.random_state.unwrap_or(42);
+        }
+
+        // Validate feature count matches
+        if n_features != self.n_features.unwrap() {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", self.n_features.unwrap()),
+                format!("{} features", n_features),
+            ));
+        }
+
+        let mut coef = self.coef.take().unwrap();
+        let mut intercept = self.intercept.unwrap();
+        let mut t = self.t;
+        let mut rng = self.rng_state;
+        let mut indices: Vec<usize> = (0..n_samples).collect();
+
+        self.run_one_regression_epoch(
+            x,
+            y,
+            &mut coef,
+            &mut intercept,
+            &mut t,
+            &mut rng,
+            &mut indices,
+        );
+
+        self.coef = Some(coef);
+        self.intercept = Some(intercept);
+        self.t = t;
+        self.rng_state = rng;
+        *self.n_iter.as_mut().unwrap() += 1;
+        Ok(())
     }
 }
 
@@ -861,6 +1236,22 @@ impl PassiveAggressiveClassifier {
         self
     }
 
+    /// Get fitted coefficients.
+    pub fn coef(&self) -> Option<&Array2<f64>> {
+        self.coef.as_ref()
+    }
+
+    /// Get fitted intercept.
+    pub fn intercept(&self) -> Option<&Array1<f64>> {
+        self.intercept.as_ref()
+    }
+
+    /// Get the unique class labels.
+    #[must_use]
+    pub fn classes(&self) -> Option<&Array1<f64>> {
+        self.classes.as_ref()
+    }
+
     /// Fit a single binary PA classifier: y in {-1, +1}.
     fn fit_binary(&self, x: &Array2<f64>, y: &Array1<f64>, seed: u64) -> (Array1<f64>, f64) {
         let n_samples = x.nrows();
@@ -922,6 +1313,12 @@ impl PassiveAggressiveClassifier {
 impl Model for PassiveAggressiveClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        if self.c <= 0.0 {
+            return Err(FerroError::invalid_input(
+                "C must be > 0 for PassiveAggressive models",
+            ));
+        }
 
         let n_features = x.ncols();
         let classes = crate::models::get_unique_classes(y);
@@ -1301,5 +1698,254 @@ mod tests {
         let clf = PassiveAggressiveClassifier::new(1.0);
         let x = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
         assert!(clf.predict(&x).is_err());
+    }
+
+    #[test]
+    fn test_passive_aggressive_c_zero_rejected() {
+        let (x, y) = make_binary_data();
+        let mut clf = PassiveAggressiveClassifier::new(0.0);
+        let err = clf.fit(&x, &y).unwrap_err();
+        assert!(
+            err.to_string().contains("C must be > 0"),
+            "Expected C validation error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_passive_aggressive_c_negative_rejected() {
+        let (x, y) = make_binary_data();
+        let mut clf = PassiveAggressiveClassifier::new(-1.0);
+        let err = clf.fit(&x, &y).unwrap_err();
+        assert!(
+            err.to_string().contains("C must be > 0"),
+            "Expected C validation error, got: {}",
+            err
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // IncrementalModel (partial_fit) Tests
+    // -------------------------------------------------------------------------
+
+    use crate::models::traits::IncrementalModel;
+
+    #[test]
+    fn test_sgd_classifier_partial_fit_binary() {
+        let (x, y) = make_binary_data();
+
+        // partial_fit over 200 single-epoch calls should learn the data
+        let mut clf = SGDClassifier::new()
+            .with_loss(SGDClassifierLoss::Log)
+            .with_random_state(42);
+        for _ in 0..200 {
+            clf.partial_fit(&x, &y).unwrap();
+        }
+
+        assert!(clf.is_fitted());
+        let preds = clf.predict(&x).unwrap();
+        let correct: usize = preds
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (**p - **t).abs() < 1e-10)
+            .count();
+        assert!(correct >= 8, "Expected >=8 correct, got {}", correct);
+    }
+
+    #[test]
+    fn test_sgd_classifier_partial_fit_with_classes() {
+        let (x, y) = make_binary_data();
+
+        // Provide classes upfront
+        let mut clf = SGDClassifier::new()
+            .with_loss(SGDClassifierLoss::Hinge)
+            .with_random_state(42);
+        clf.partial_fit_with_classes(&x, &y, Some(&[0.0, 1.0]))
+            .unwrap();
+        assert!(clf.is_fitted());
+        assert_eq!(clf.classes().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_sgd_classifier_partial_fit_multiclass() {
+        let x = Array2::from_shape_vec(
+            (12, 2),
+            vec![
+                0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 10.0, 0.0, 11.0, 0.0, 10.0, 1.0, 11.0, 1.0,
+                5.0, 10.0, 6.0, 10.0, 5.0, 11.0, 6.0, 11.0,
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0,
+        ]);
+
+        let mut clf = SGDClassifier::new()
+            .with_loss(SGDClassifierLoss::Log)
+            .with_random_state(42);
+        // Must specify all classes on first call for multiclass
+        clf.partial_fit_with_classes(&x, &y, Some(&[0.0, 1.0, 2.0]))
+            .unwrap();
+        for _ in 1..500 {
+            clf.partial_fit(&x, &y).unwrap();
+        }
+
+        let preds = clf.predict(&x).unwrap();
+        let correct: usize = preds
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (**p - **t).abs() < 1e-10)
+            .count();
+        assert!(correct >= 9, "Expected >=9/12 correct, got {}", correct);
+    }
+
+    #[test]
+    fn test_sgd_classifier_partial_fit_batched() {
+        // Simulate online learning: feed data in two batches
+        let (x, y) = make_binary_data();
+        let n = x.nrows() / 2;
+
+        let x1 = x.slice(ndarray::s![..n, ..]).to_owned();
+        let y1 = y.slice(ndarray::s![..n]).to_owned();
+        let x2 = x.slice(ndarray::s![n.., ..]).to_owned();
+        let y2 = y.slice(ndarray::s![n..]).to_owned();
+
+        let mut clf = SGDClassifier::new()
+            .with_loss(SGDClassifierLoss::Log)
+            .with_random_state(42);
+
+        // First call must see both classes (or specify them)
+        clf.partial_fit_with_classes(&x1, &y1, Some(&[0.0, 1.0]))
+            .unwrap();
+
+        // Continue with second batch
+        for _ in 0..200 {
+            clf.partial_fit(&x1, &y1).unwrap();
+            clf.partial_fit(&x2, &y2).unwrap();
+        }
+
+        let preds = clf.predict(&x).unwrap();
+        let correct: usize = preds
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (**p - **t).abs() < 1e-10)
+            .count();
+        assert!(correct >= 8, "Expected >=8 correct, got {}", correct);
+    }
+
+    #[test]
+    fn test_sgd_classifier_partial_fit_feature_mismatch() {
+        let (x, y) = make_binary_data();
+        let mut clf = SGDClassifier::new().with_random_state(42);
+        clf.partial_fit(&x, &y).unwrap();
+
+        // Try with wrong number of features
+        let x_bad = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let y_bad = Array1::from_vec(vec![0.0, 1.0]);
+        assert!(clf.partial_fit(&x_bad, &y_bad).is_err());
+    }
+
+    #[test]
+    fn test_sgd_regressor_partial_fit() {
+        let (x, y) = make_regression_data();
+
+        let mut reg = SGDRegressor::new()
+            .with_loss(SGDRegressorLoss::SquaredError)
+            .with_random_state(42);
+        for _ in 0..500 {
+            reg.partial_fit(&x, &y).unwrap();
+        }
+
+        assert!(reg.is_fitted());
+        let preds = reg.predict(&x).unwrap();
+        let mse: f64 = preds
+            .iter()
+            .zip(y.iter())
+            .map(|(p, t)| (p - t).powi(2))
+            .sum::<f64>()
+            / y.len() as f64;
+        assert!(mse < 5.0, "MSE too high: {}", mse);
+    }
+
+    #[test]
+    fn test_sgd_regressor_partial_fit_batched() {
+        let (x, y) = make_regression_data();
+        let n = x.nrows() / 2;
+
+        let x1 = x.slice(ndarray::s![..n, ..]).to_owned();
+        let y1 = y.slice(ndarray::s![..n]).to_owned();
+        let x2 = x.slice(ndarray::s![n.., ..]).to_owned();
+        let y2 = y.slice(ndarray::s![n..]).to_owned();
+
+        let mut reg = SGDRegressor::new()
+            .with_loss(SGDRegressorLoss::SquaredError)
+            .with_random_state(42);
+
+        for _ in 0..500 {
+            reg.partial_fit(&x1, &y1).unwrap();
+            reg.partial_fit(&x2, &y2).unwrap();
+        }
+
+        assert!(reg.is_fitted());
+        let preds = reg.predict(&x).unwrap();
+        let mse: f64 = preds
+            .iter()
+            .zip(y.iter())
+            .map(|(p, t)| (p - t).powi(2))
+            .sum::<f64>()
+            / y.len() as f64;
+        assert!(mse < 10.0, "MSE too high: {}", mse);
+    }
+
+    #[test]
+    fn test_sgd_regressor_partial_fit_feature_mismatch() {
+        let (x, y) = make_regression_data();
+        let mut reg = SGDRegressor::new().with_random_state(42);
+        reg.partial_fit(&x, &y).unwrap();
+
+        let x_bad = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let y_bad = Array1::from_vec(vec![1.0, 2.0]);
+        assert!(reg.partial_fit(&x_bad, &y_bad).is_err());
+    }
+
+    #[test]
+    fn test_sgd_regressor_partial_fit_huber() {
+        let (x, y) = make_regression_data();
+        let mut reg = SGDRegressor::new()
+            .with_loss(SGDRegressorLoss::Huber)
+            .with_random_state(42);
+        for _ in 0..500 {
+            reg.partial_fit(&x, &y).unwrap();
+        }
+        assert!(reg.is_fitted());
+    }
+
+    #[test]
+    fn test_sgd_classifier_partial_fit_initializes_unfitted() {
+        // Verify partial_fit works on a completely fresh model
+        let mut clf = SGDClassifier::new().with_random_state(42);
+        assert!(!clf.is_fitted());
+
+        let x =
+            Array2::from_shape_vec((4, 2), vec![1.0, 1.0, 2.0, 2.0, 8.0, 8.0, 9.0, 9.0]).unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0]);
+
+        clf.partial_fit(&x, &y).unwrap();
+        assert!(clf.is_fitted());
+        assert_eq!(clf.n_features(), Some(2));
+        assert!(clf.classes().is_some());
+    }
+
+    #[test]
+    fn test_sgd_regressor_partial_fit_initializes_unfitted() {
+        let mut reg = SGDRegressor::new().with_random_state(42);
+        assert!(!reg.is_fitted());
+
+        let x = Array2::from_shape_vec((3, 1), vec![1.0, 2.0, 3.0]).unwrap();
+        let y = Array1::from_vec(vec![2.0, 4.0, 6.0]);
+
+        reg.partial_fit(&x, &y).unwrap();
+        assert!(reg.is_fitted());
+        assert_eq!(reg.n_features(), Some(1));
     }
 }

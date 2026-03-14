@@ -348,6 +348,13 @@ impl Transformer for PolynomialFeatures {
         let powers = self.generate_powers(n_features);
         let n_features_out = powers.len();
 
+        if n_features_out > 1_000_000 {
+            return Err(crate::FerroError::invalid_input(format!(
+                "PolynomialFeatures would produce {} features (degree={}, n_input_features={}). Maximum is 1,000,000. Reduce degree or input features.",
+                n_features_out, self.degree, n_features
+            )));
+        }
+
         self.n_features_in = Some(n_features);
         self.n_features_out = Some(n_features_out);
         self.powers = Some(powers);

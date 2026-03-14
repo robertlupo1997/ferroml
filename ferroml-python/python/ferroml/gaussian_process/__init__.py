@@ -35,6 +35,9 @@ from ferroml import ferroml as _native
 
 GaussianProcessRegressor = _native.gaussian_process.GaussianProcessRegressor
 GaussianProcessClassifier = _native.gaussian_process.GaussianProcessClassifier
+SparseGPRegressor = _native.gaussian_process.SparseGPRegressor
+SparseGPClassifier = _native.gaussian_process.SparseGPClassifier
+SVGPRegressor = _native.gaussian_process.SVGPRegressor
 RBF = _native.gaussian_process.RBF
 Matern = _native.gaussian_process.Matern
 ConstantKernel = _native.gaussian_process.ConstantKernel
@@ -43,6 +46,9 @@ WhiteKernel = _native.gaussian_process.WhiteKernel
 __all__ = [
     "GaussianProcessRegressor",
     "GaussianProcessClassifier",
+    "SparseGPRegressor",
+    "SparseGPClassifier",
+    "SVGPRegressor",
     "RBF",
     "Matern",
     "ConstantKernel",

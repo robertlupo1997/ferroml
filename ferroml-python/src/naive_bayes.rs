@@ -9,8 +9,10 @@
 use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
 use ferroml_core::models::naive_bayes::{BernoulliNB, CategoricalNB, GaussianNB, MultinomialNB};
 use ferroml_core::models::{Model, ProbabilisticModel};
+use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 
 #[cfg(feature = "sparse")]
 use crate::sparse_utils::py_csr_to_ferro;
@@ -137,6 +139,32 @@ impl PyGaussianNB {
         Ok(probas.into_pyarray(py))
     }
 
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, n_classes)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
+    }
+
     /// Get the unique class labels.
     #[getter]
     fn classes_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -180,6 +208,75 @@ impl PyGaussianNB {
             })?
             .clone();
         Ok(var.into_pyarray(py))
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 
     fn __repr__(&self) -> String {
@@ -312,6 +409,32 @@ impl PyMultinomialNB {
         Ok(probas.into_pyarray(py))
     }
 
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, n_classes)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
+    }
+
     /// Get the unique class labels.
     #[getter]
     fn classes_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -382,6 +505,75 @@ impl PyMultinomialNB {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(predictions.into_pyarray(py))
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 
     fn __repr__(&self) -> String {
@@ -522,6 +714,32 @@ impl PyBernoulliNB {
         Ok(probas.into_pyarray(py))
     }
 
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, n_classes)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
+    }
+
     /// Get the unique class labels.
     #[getter]
     fn classes_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -570,6 +788,75 @@ impl PyBernoulliNB {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(predictions.into_pyarray(py))
+    }
+
+    /// Export the fitted model to ONNX format.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output file path (typically with .onnx extension).
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    #[pyo3(signature = (path, model_name=None, input_name=None, output_name=None))]
+    fn export_onnx(
+        &self,
+        path: &str,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<()> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        self.inner
+            .export_onnx(path, &config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
+    /// Export the fitted model to ONNX format as bytes.
+    ///
+    /// Parameters
+    /// ----------
+    /// model_name : str, optional
+    ///     Name for the model in the ONNX graph (default: "ferroml_model").
+    /// input_name : str, optional
+    ///     Name for the input tensor (default: "input").
+    /// output_name : str, optional
+    ///     Name for the output tensor (default: "output").
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The ONNX model as bytes.
+    #[pyo3(signature = (model_name=None, input_name=None, output_name=None))]
+    fn to_onnx_bytes(
+        &self,
+        py: Python<'_>,
+        model_name: Option<String>,
+        input_name: Option<String>,
+        output_name: Option<String>,
+    ) -> PyResult<Py<PyBytes>> {
+        let mut config = OnnxConfig::new(model_name.unwrap_or_else(|| "ferroml_model".into()));
+        if let Some(name) = input_name {
+            config = config.with_input_name(name);
+        }
+        if let Some(name) = output_name {
+            config = config.with_output_name(name);
+        }
+        let bytes = self
+            .inner
+            .to_onnx(&config)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(PyBytes::new(py, &bytes).unbind())
     }
 
     fn __repr__(&self) -> String {
@@ -704,6 +991,32 @@ impl PyCategoricalNB {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(probas.into_pyarray(py))
+    }
+
+    /// Predict log-probabilities for each class.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : ndarray of shape (n_samples, n_features)
+    ///     Input features.
+    ///
+    /// Returns
+    /// -------
+    /// log_probas : ndarray of shape (n_samples, n_classes)
+    ///     Log-probability of each class.
+    fn predict_log_proba<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+
+        let probas = self
+            .inner
+            .predict_proba(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
     /// Incremental fit on a batch of samples.
