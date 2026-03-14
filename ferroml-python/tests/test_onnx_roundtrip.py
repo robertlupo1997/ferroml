@@ -251,10 +251,9 @@ class TestTreeRegressorRoundtrip:
 class TestTreeClassifierRoundtrip:
     """Round-trip validation for tree-based classifiers.
 
-    Note: TreeEnsembleClassifier output type in our ONNX export currently
-    causes ORT loading failures for pure classifier tree models.
-    GradientBoosting classifiers work because they use TreeEnsembleRegressor
-    internally (raw scores + sigmoid/softmax).
+    DecisionTreeClassifier passes round-trip. RandomForestClassifier has a
+    prediction accuracy mismatch (separate from the output type fix).
+    GradientBoosting classifiers use TreeEnsembleRegressor internally.
     """
 
     def test_decision_tree_classifier(self, binary_data):
@@ -369,7 +368,7 @@ class TestSvmRoundtrip:
         assert_regressor_roundtrip(SVR(), *regression_data, atol=1e-3)
 
     @pytest.mark.xfail(
-        reason="SVMClassifier ONNX graph invalid in ORT",
+        reason="SVMClassifier OvO coefficient encoding produces incorrect predictions",
         strict=True,
     )
     def test_svc(self, binary_data):
