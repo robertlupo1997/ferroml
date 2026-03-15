@@ -24,7 +24,7 @@ Optional feature flags:
 
 ```toml
 [dependencies]
-ferroml-core = { version = "0.1", features = ["simd", "sparse"] }
+ferroml-core = { version = "0.3", features = ["simd", "sparse"] }
 ```
 
 | Feature | Description |
