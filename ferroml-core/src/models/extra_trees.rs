@@ -238,6 +238,16 @@ impl ExtraTreesClassifier {
         Ok(avg_proba)
     }
 
+    /// Compute decision function scores for classification.
+    ///
+    /// For extra trees, the decision function returns the averaged class
+    /// probability estimates across all trees, which are the raw scores before argmax.
+    ///
+    /// Returns an Array2 of shape (n_samples, n_classes).
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        self.predict_proba(x)
+    }
+
     /// Generate bootstrap indices and OOB indices
     fn generate_bootstrap_indices(n_samples: usize, rng: &mut StdRng) -> (Vec<usize>, Vec<usize>) {
         let bootstrap: Vec<usize> = (0..n_samples)
@@ -777,6 +787,11 @@ impl Model for ExtraTreesRegressor {
             .int("max_depth", 1, 30)
             .int("min_samples_split", 2, 20)
             .int("min_samples_leaf", 1, 10)
+    }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
     }
 }
 

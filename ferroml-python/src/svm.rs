@@ -252,6 +252,21 @@ impl PyLinearSVC {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "LinearSVC(C={}, loss='{}', max_iter={})",
@@ -501,6 +516,21 @@ impl PyLinearSVR {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -885,6 +915,21 @@ impl PySVC {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "SVC(kernel='{}', C={}, probability={})",
@@ -1124,6 +1169,21 @@ impl PySVR {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {

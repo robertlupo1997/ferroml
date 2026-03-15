@@ -6,7 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-15
+
 ### Added
+
+#### Plan U — sklearn API Parity (2026-03-15)
+
+- `score(X, y)` on 55+ models: R² for regressors, accuracy for classifiers, negative inertia for KMeans
+- `partial_fit` on 10 models: SGDClassifier, SGDRegressor, GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB, Perceptron, PassiveAggressiveClassifier, IncrementalPCA
+- `decision_function` on 13 classifiers: LogReg, SVC, LinearSVC, SGDClassifier, RidgeClassifier, Perceptron, PassiveAggressiveClassifier, DecisionTreeClassifier, RandomForestClassifier, ExtraTreesClassifier, GradientBoostingClassifier, HistGradientBoostingClassifier, AdaBoostClassifier
+- `IncrementalModel` trait implementation for Perceptron and PassiveAggressiveClassifier
+- 69 new Python tests (test_score_all_models, test_partial_fit, test_decision_function)
+
+#### Plan T — Performance Optimization & Feature Parity (2026-03-14)
+
+- Feature parity scorecard (auto-generated comparison vs sklearn/statsmodels/xgboost/lightgbm)
+- warm_start expansion from 7 to 13 models
+- feature_importances_ for linear models
+
+### Performance
+
+- HistGradientBoosting optimized (reduced gap vs sklearn)
+- KMeans optimized
+- LogisticRegression optimized
 
 #### Plan S — Sparse/Approximate GP, Text Pipeline, Voting & Stacking (2026-03-12 — 2026-03-13)
 

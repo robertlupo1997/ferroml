@@ -275,6 +275,29 @@ impl PyMLPClassifier {
             .map(|d| d.loss_curve.clone())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy (fraction of correct predictions).
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_owned = to_owned_array_2d(x);
+        let y_owned = to_owned_array_1d(y);
+        let preds = self
+            .inner
+            .predict(&x_owned)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let n = y_owned.len() as f64;
+        let correct = preds
+            .iter()
+            .zip(y_owned.iter())
+            .filter(|(p, t)| (*p - *t).abs() < 1e-10)
+            .count() as f64;
+        Ok(correct / n)
+    }
+
     /// Check if the model is fitted.
     fn is_fitted(&self) -> bool {
         self.inner.is_fitted()

@@ -325,6 +325,36 @@ impl PyKMeans {
         Ok(labels.clone().into_pyarray(py))
     }
 
+    /// Opposite of the value of X on the K-means objective (negative inertia).
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     New data.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Negative inertia on the given data.
+    fn score(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        // Compute inertia on new data: sum of squared distances to nearest center
+        let labels = self
+            .inner
+            .predict(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let centers = self.inner.cluster_centers().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        let mut inertia = 0.0;
+        for (i, &label) in labels.iter().enumerate() {
+            let center = centers.row(label as usize);
+            let diff = &x_arr.row(i) - &center;
+            inertia += diff.dot(&diff);
+        }
+        Ok(-inertia)
+    }
+
     /// Get inertia (within-cluster sum of squares).
     #[getter]
     fn inertia_(&self) -> PyResult<f64> {

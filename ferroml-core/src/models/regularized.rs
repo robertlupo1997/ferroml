@@ -300,6 +300,11 @@ impl Model for RidgeRegression {
     fn n_features(&self) -> Option<usize> {
         self.n_features
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 impl StatisticalModel for RidgeRegression {
@@ -740,6 +745,11 @@ impl Model for LassoRegression {
     fn n_features(&self) -> Option<usize> {
         self.n_features
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 impl StatisticalModel for LassoRegression {
@@ -1163,6 +1173,11 @@ impl Model for ElasticNet {
 
     fn n_features(&self) -> Option<usize> {
         self.n_features
+    }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
     }
 }
 
@@ -1591,6 +1606,11 @@ impl Model for RidgeCV {
     fn n_features(&self) -> Option<usize> {
         self.model.as_ref()?.n_features()
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 /// Lasso Regression with cross-validated alpha selection
@@ -1806,6 +1826,11 @@ impl Model for LassoCV {
     fn n_features(&self) -> Option<usize> {
         self.model.as_ref()?.n_features()
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 /// ElasticNet with cross-validated alpha and l1_ratio selection
@@ -2014,6 +2039,11 @@ impl Model for ElasticNetCV {
 
     fn n_features(&self) -> Option<usize> {
         self.model.as_ref()?.n_features()
+    }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
     }
 }
 

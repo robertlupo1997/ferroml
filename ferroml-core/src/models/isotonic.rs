@@ -436,6 +436,11 @@ impl super::Model for IsotonicRegression {
     fn search_space(&self) -> SearchSpace {
         SearchSpace::new()
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 impl crate::preprocessing::Transformer for IsotonicRegression {

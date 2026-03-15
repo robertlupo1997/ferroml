@@ -593,6 +593,17 @@ impl DecisionTreeClassifier {
         Ok(probas)
     }
 
+    /// Compute decision function scores for classification.
+    ///
+    /// For decision trees, the decision function returns the class probability
+    /// estimates (proportion of training samples of each class in the leaf node),
+    /// which are the raw scores before argmax.
+    ///
+    /// Returns an Array2 of shape (n_samples, n_classes).
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        self.predict_proba(x)
+    }
+
     /// Find the leaf node for a sample
     fn find_leaf(&self, x: &[f64]) -> usize {
         let tree = self.tree.as_ref().expect("model must be fitted");
@@ -1998,6 +2009,11 @@ impl Model for DecisionTreeRegressor {
 
     fn n_features(&self) -> Option<usize> {
         self.n_features
+    }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
     }
 }
 

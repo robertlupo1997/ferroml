@@ -5,13 +5,13 @@
 //! - GaussianProcessClassifier
 //! - Kernel classes: RBF, Matern, ConstantKernel, WhiteKernel
 
-use crate::array_utils::{py_array_to_f64_1d, to_owned_array_2d};
+use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
 use ferroml_core::models::gaussian_process::{
     self, GaussianProcessClassifier, GaussianProcessRegressor, InducingPointMethod, Kernel,
     SVGPRegressor, SparseApproximation, SparseGPClassifier, SparseGPRegressor,
 };
 use ferroml_core::models::Model;
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2};
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 
 // =============================================================================
@@ -236,6 +236,21 @@ impl PyGaussianProcessRegressor {
         Ok((mean.into_pyarray(py), std.into_pyarray(py)))
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
     /// Log marginal likelihood of the fitted model.
     #[getter]
     fn log_marginal_likelihood_(&self) -> PyResult<f64> {
@@ -356,6 +371,21 @@ impl PyGaussianProcessClassifier {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
 }
 
 // =============================================================================
@@ -461,6 +491,21 @@ impl PySparseGPRegressor {
             .predict_with_std(&x_arr)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok((mean.into_pyarray(py), std.into_pyarray(py)))
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     #[getter]
@@ -573,6 +618,21 @@ impl PySparseGPClassifier {
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
     #[getter]
     fn inducing_points_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
         let z = self
@@ -659,6 +719,21 @@ impl PySVGPRegressor {
             .predict_with_std(&x_arr)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok((mean.into_pyarray(py), std.into_pyarray(py)))
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     #[getter]

@@ -1720,6 +1720,79 @@ impl HistGradientBoostingClassifier {
         )
     }
 
+    /// Compute raw predictions (log-odds) before sigmoid/softmax transformation.
+    fn raw_predictions(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.trees, "decision_function")?;
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
+        validate_predict_input_allow_nan(x, n_features)?;
+
+        let n_samples = x.nrows();
+        let n_classes = self
+            .n_classes
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
+        let bin_mapper = self
+            .categorical_bin_mapper
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
+        let trees = self
+            .trees
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
+        let init = self
+            .init_predictions
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
+
+        let x_binned = bin_mapper.transform(x);
+
+        let n_trees_per_iter = if n_classes == 2 { 1 } else { n_classes };
+        let mut raw = Array2::zeros((n_samples, n_trees_per_iter));
+        for k in 0..n_trees_per_iter {
+            for i in 0..n_samples {
+                raw[[i, k]] = init[k];
+            }
+        }
+
+        for iteration_trees in trees {
+            for (k, tree) in iteration_trees.iter().enumerate() {
+                for i in 0..n_samples {
+                    let row = x_binned.row(i);
+                    let row_slice = row.as_slice().expect("x_binned is standard layout");
+                    raw[[i, k]] += self.learning_rate * tree.predict_single(row_slice);
+                }
+            }
+        }
+
+        Ok(raw)
+    }
+
+    /// Compute decision function scores (raw predictions before sigmoid/softmax).
+    ///
+    /// For histogram-based gradient boosting classifiers, this returns the raw
+    /// log-odds predictions before the sigmoid (binary) or softmax (multiclass)
+    /// transformation.
+    ///
+    /// Returns an Array2 of shape (n_samples, n_classes). For binary classification,
+    /// the single raw score is expanded to two columns: [-score, +score].
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        let raw = self.raw_predictions(x)?;
+        let n_classes = self.n_classes.unwrap();
+
+        if n_classes == 2 {
+            let n_samples = raw.nrows();
+            let mut result = Array2::zeros((n_samples, 2));
+            for i in 0..n_samples {
+                result[[i, 0]] = -raw[[i, 0]];
+                result[[i, 1]] = raw[[i, 0]];
+            }
+            Ok(result)
+        } else {
+            Ok(raw)
+        }
+    }
+
     /// Compute feature importances from all trees
     fn compute_feature_importances(&mut self) {
         if let Some(ref trees) = self.trees {
@@ -2706,6 +2779,11 @@ impl Model for HistGradientBoostingRegressor {
 
     fn n_features(&self) -> Option<usize> {
         self.n_features
+    }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
     }
 }
 

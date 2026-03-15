@@ -14,7 +14,7 @@
 //! When calling core Rust functions that require owned arrays, a copy is made.
 //! Output arrays use `into_pyarray` to transfer ownership to Python without copying data.
 
-use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::ensemble::bagging::MaxFeatures as BaggingMaxFeatures;
 use ferroml_core::ensemble::stacking::{StackMethod, StackingClassifier, StackingRegressor};
@@ -23,6 +23,7 @@ use ferroml_core::ensemble::{
     BaggingClassifier, BaggingRegressor, MaxSamples, VotingClassifier, VotingMethod,
     VotingRegressor,
 };
+use ferroml_core::models::traits::IncrementalModel;
 use ferroml_core::models::{
     AdaBoostClassifier, AdaBoostRegressor, BernoulliNB, DecisionTreeClassifier,
     DecisionTreeRegressor, ElasticNet, ExtraTreesClassifier, ExtraTreesRegressor, GaussianNB,
@@ -204,6 +205,35 @@ impl PyExtraTreesClassifier {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Compute the decision function (raw scores).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "ExtraTreesClassifier(n_estimators={})",
@@ -376,6 +406,21 @@ impl PyExtraTreesRegressor {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "ExtraTreesRegressor(n_estimators={})",
@@ -534,6 +579,35 @@ impl PyAdaBoostClassifier {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Compute the decision function (raw scores).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
     }
 
     fn __repr__(&self) -> String {
@@ -710,6 +784,21 @@ impl PyAdaBoostRegressor {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -915,6 +1004,66 @@ impl PySGDClassifier {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Incremental fit on a batch of samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Training data.
+    /// y : numpy.ndarray of shape (n_samples,)
+    ///     Target values.
+    /// classes : list of float, optional
+    ///     List of all classes that can possibly appear in y.
+    ///
+    /// Returns
+    /// -------
+    /// self : SGDClassifier
+    ///     Updated estimator.
+    #[pyo3(signature = (x, y, classes=None))]
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+        classes: Option<Vec<f64>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .partial_fit_with_classes(&x_arr, &y_arr, classes.as_deref())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Compute the decision function (raw scores before thresholding).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         "SGDClassifier()".to_string()
     }
@@ -1111,6 +1260,48 @@ impl PySGDRegressor {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Incremental fit on a batch of samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Training data.
+    /// y : numpy.ndarray of shape (n_samples,)
+    ///     Target values.
+    ///
+    /// Returns
+    /// -------
+    /// self : SGDRegressor
+    ///     Updated estimator.
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .partial_fit(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
     fn __repr__(&self) -> String {
         "SGDRegressor()".to_string()
     }
@@ -1262,6 +1453,66 @@ impl PyPassiveAggressiveClassifier {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Incremental fit on a batch of samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Training data.
+    /// y : numpy.ndarray of shape (n_samples,)
+    ///     Target values.
+    /// classes : list of float, optional
+    ///     List of all classes that can possibly appear in y.
+    ///
+    /// Returns
+    /// -------
+    /// self : PassiveAggressiveClassifier
+    ///     Updated estimator.
+    #[pyo3(signature = (x, y, classes=None))]
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+        classes: Option<Vec<f64>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .partial_fit_with_classes(&x_arr, &y_arr, classes.as_deref())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Compute the decision function (raw scores before thresholding).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
     }
 
     fn __repr__(&self) -> String {
@@ -1974,6 +2225,21 @@ impl PyBaggingClassifier {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
         })?;
         Ok(imp.into_pyarray(py))
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -2700,6 +2966,21 @@ impl PyBaggingRegressor {
         Ok(imp.into_pyarray(py))
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "BaggingRegressor(base_estimator={}, n_estimators={})",
@@ -3020,6 +3301,21 @@ impl PyVotingClassifier {
         self.voting_str.clone()
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         let names: Vec<&str> = self
             .estimator_specs
@@ -3113,6 +3409,21 @@ impl PyVotingRegressor {
             .into_iter()
             .map(String::from)
             .collect()
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -3297,6 +3608,21 @@ impl PyStackingClassifier {
         self.inner.passthrough()
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         let names: Vec<&str> = self
             .estimator_specs
@@ -3418,6 +3744,21 @@ impl PyStackingRegressor {
     #[getter]
     fn passthrough(&self) -> bool {
         self.inner.passthrough()
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {

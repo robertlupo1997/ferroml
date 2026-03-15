@@ -165,6 +165,38 @@ impl PyGaussianNB {
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
+    /// Incremental fit on a batch of samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Training data.
+    /// y : numpy.ndarray of shape (n_samples,)
+    ///     Target values.
+    /// classes : list of float, optional
+    ///     List of all classes that can possibly appear in y. Must be provided
+    ///     on the first call, can be omitted on subsequent calls.
+    ///
+    /// Returns
+    /// -------
+    /// self : GaussianNB
+    ///     Updated estimator.
+    #[pyo3(signature = (x, y, classes=None))]
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+        classes: Option<Vec<f64>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .partial_fit(&x_arr, &y_arr, classes)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
     /// Get the unique class labels.
     #[getter]
     fn classes_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -277,6 +309,21 @@ impl PyGaussianNB {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -435,6 +482,37 @@ impl PyMultinomialNB {
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
+    /// Incremental fit on a batch of samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Training data.
+    /// y : numpy.ndarray of shape (n_samples,)
+    ///     Target values.
+    /// classes : list of float, optional
+    ///     List of all classes that can possibly appear in y.
+    ///
+    /// Returns
+    /// -------
+    /// self : MultinomialNB
+    ///     Updated estimator.
+    #[pyo3(signature = (x, y, classes=None))]
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+        classes: Option<Vec<f64>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .partial_fit(&x_arr, &y_arr, classes)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
     /// Get the unique class labels.
     #[getter]
     fn classes_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -574,6 +652,21 @@ impl PyMultinomialNB {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -740,6 +833,37 @@ impl PyBernoulliNB {
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
+    /// Incremental fit on a batch of samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Training data.
+    /// y : numpy.ndarray of shape (n_samples,)
+    ///     Target values.
+    /// classes : list of float, optional
+    ///     List of all classes that can possibly appear in y.
+    ///
+    /// Returns
+    /// -------
+    /// self : BernoulliNB
+    ///     Updated estimator.
+    #[pyo3(signature = (x, y, classes=None))]
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+        classes: Option<Vec<f64>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .partial_fit(&x_arr, &y_arr, classes)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
     /// Get the unique class labels.
     #[getter]
     fn classes_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -857,6 +981,21 @@ impl PyBernoulliNB {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -1095,6 +1234,21 @@ impl PyCategoricalNB {
             })?
             .clone();
         Ok(class_log_prior.into_pyarray(py))
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {

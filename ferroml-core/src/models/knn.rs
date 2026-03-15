@@ -1488,6 +1488,11 @@ impl Model for KNeighborsRegressor {
                 vec!["euclidean".to_string(), "manhattan".to_string()],
             )
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 // =============================================================================

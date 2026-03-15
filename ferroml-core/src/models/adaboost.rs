@@ -134,6 +134,37 @@ impl AdaBoostClassifier {
     pub fn classes(&self) -> Option<&Array1<f64>> {
         self.classes.as_ref()
     }
+
+    /// Compute decision function scores (weighted class votes).
+    ///
+    /// For AdaBoost, this returns the accumulated weighted votes per class
+    /// from all estimators, which are the raw scores before argmax.
+    ///
+    /// Returns an Array2 of shape (n_samples, n_classes).
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.estimators, "decision_function")?;
+        let n_features = self.n_features.unwrap();
+        validate_predict_input(x, n_features)?;
+
+        let estimators = self.estimators.as_ref().unwrap();
+        let weights = self.estimator_weights.as_ref().unwrap();
+        let classes = self.classes.as_ref().unwrap();
+        let n_samples = x.nrows();
+        let n_classes = classes.len();
+
+        let mut class_scores = Array2::zeros((n_samples, n_classes));
+
+        for (est, &w) in estimators.iter().zip(weights.iter()) {
+            let preds = est.predict(x)?;
+            for i in 0..n_samples {
+                if let Some(ci) = classes.iter().position(|&c| (c - preds[i]).abs() < 1e-10) {
+                    class_scores[[i, ci]] += w;
+                }
+            }
+        }
+
+        Ok(class_scores)
+    }
 }
 
 impl Model for AdaBoostClassifier {
@@ -593,6 +624,11 @@ impl Model for AdaBoostRegressor {
 
     fn model_name(&self) -> &str {
         "AdaBoostRegressor"
+    }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
     }
 }
 

@@ -32,6 +32,7 @@ use ferroml_core::models::quantile::QuantileRegression;
 use ferroml_core::models::regularized::{ElasticNetCV, LassoCV, RidgeCV, RidgeClassifier};
 use ferroml_core::models::robust::{MEstimator, RobustRegression};
 use ferroml_core::models::sgd::Perceptron;
+use ferroml_core::models::traits::IncrementalModel;
 use ferroml_core::models::{
     ElasticNet, LassoRegression, LinearRegression, LogisticRegression, Model, ProbabilisticModel,
     RidgeRegression, StatisticalModel,
@@ -665,6 +666,21 @@ impl PyLinearRegression {
         Ok(())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "LinearRegression(fit_intercept={}, confidence_level={})",
@@ -1224,6 +1240,35 @@ impl PyLogisticRegression {
         Ok(())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Compute the decision function (raw scores).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "LogisticRegression(fit_intercept={}, max_iter={}, l2_penalty={})",
@@ -1554,6 +1599,21 @@ impl PyRidgeRegression {
     pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
         self.inner = setstate(state.as_bytes())?;
         Ok(())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -1895,6 +1955,21 @@ impl PyLassoRegression {
         Ok(())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "LassoRegression(alpha={}, fit_intercept={}, max_iter={})",
@@ -2234,6 +2309,21 @@ impl PyElasticNet {
         Ok(())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "ElasticNet(alpha={}, l1_ratio={}, fit_intercept={})",
@@ -2411,6 +2501,21 @@ impl PyRobustRegression {
         })
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "RobustRegression(estimator={:?}, max_iter={}, tol={})",
@@ -2578,6 +2683,21 @@ impl PyQuantileRegression {
         })
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "QuantileRegression(quantile={}, max_iter={}, tol={})",
@@ -2720,6 +2840,66 @@ impl PyPerceptron {
         Ok(predictions.into_pyarray(py))
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Incremental fit on a batch of samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Training data.
+    /// y : numpy.ndarray of shape (n_samples,)
+    ///     Target values.
+    /// classes : list of float, optional
+    ///     List of all classes that can possibly appear in y.
+    ///
+    /// Returns
+    /// -------
+    /// self : Perceptron
+    ///     Updated estimator.
+    #[pyo3(signature = (x, y, classes=None))]
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        y: &Bound<'py, PyAny>,
+        classes: Option<Vec<f64>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = py_array_to_f64_1d(py, y)?;
+        slf.inner
+            .partial_fit_with_classes(&x_arr, &y_arr, classes.as_deref())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    /// Compute the decision function (raw scores before thresholding).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         "Perceptron()".to_string()
     }
@@ -2799,6 +2979,21 @@ impl PyRidgeCV {
         })
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!("RidgeCV(cv={})", self.inner.cv)
     }
@@ -2874,6 +3069,21 @@ impl PyLassoCV {
         self.inner.best_alpha().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
         })
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -2970,6 +3180,21 @@ impl PyElasticNetCV {
         })
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "ElasticNetCV(n_alphas={}, cv={})",
@@ -3038,6 +3263,35 @@ impl PyRidgeClassifier {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         Ok(predictions.into_pyarray(py))
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Compute the decision function (raw scores).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
     }
 
     fn __repr__(&self) -> String {
@@ -3244,6 +3498,21 @@ impl PyIsotonicRegression {
     pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
         self.inner = setstate(state.as_bytes())?;
         Ok(())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {

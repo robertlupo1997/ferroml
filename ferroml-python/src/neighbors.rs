@@ -13,14 +13,14 @@
 //!
 //! See `crate::array_utils` for detailed documentation.
 
-use crate::array_utils::{py_array_to_f64_1d, to_owned_array_2d};
+use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::models::knn::{
     DistanceMetric, KNNAlgorithm, KNNWeights, KNeighborsClassifier, KNeighborsRegressor,
     NearestCentroid,
 };
 use ferroml_core::models::{Model, ProbabilisticModel};
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2};
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -259,6 +259,21 @@ impl PyKNeighborsClassifier {
         self.inner.n_neighbors
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
     /// Return the state of the model for pickling.
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
         getstate(py, &self.inner)
@@ -417,6 +432,21 @@ impl PyKNeighborsRegressor {
         self.inner.n_neighbors
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    }
+
     /// Return the state of the model for pickling.
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
         getstate(py, &self.inner)
@@ -527,6 +557,21 @@ impl PyNearestCentroid {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
         })?;
         Ok(classes.clone().into_pyarray(py))
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {

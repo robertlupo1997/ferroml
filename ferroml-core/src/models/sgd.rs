@@ -1034,6 +1034,11 @@ impl Model for SGDRegressor {
     fn model_name(&self) -> &str {
         "SGDRegressor"
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 impl IncrementalModel for SGDRegressor {
@@ -1174,6 +1179,28 @@ impl Model for Perceptron {
     }
 }
 
+impl Perceptron {
+    /// Compute the decision function (raw scores before thresholding).
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        self.inner.decision_function(x)
+    }
+}
+
+impl IncrementalModel for Perceptron {
+    fn partial_fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        self.inner.partial_fit(x, y)
+    }
+
+    fn partial_fit_with_classes(
+        &mut self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        classes: Option<&[f64]>,
+    ) -> Result<()> {
+        self.inner.partial_fit_with_classes(x, y, classes)
+    }
+}
+
 // =============================================================================
 // Passive Aggressive Classifier
 // =============================================================================
@@ -1234,6 +1261,22 @@ impl PassiveAggressiveClassifier {
     pub fn with_random_state(mut self, seed: u64) -> Self {
         self.random_state = Some(seed);
         self
+    }
+
+    /// Compute the decision function (raw scores before thresholding).
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.coef, "decision_function")?;
+        let n_features = self.n_features.unwrap();
+        validate_predict_input(x, n_features)?;
+
+        let coef = self.coef.as_ref().unwrap();
+        let intercept = self.intercept.as_ref().unwrap();
+
+        let mut result = x.dot(&coef.t());
+        for (mut col, &b) in result.columns_mut().into_iter().zip(intercept.iter()) {
+            col += b;
+        }
+        Ok(result)
     }
 
     /// Get fitted coefficients.
@@ -1422,6 +1465,115 @@ impl Model for PassiveAggressiveClassifier {
 
     fn model_name(&self) -> &str {
         "PassiveAggressiveClassifier"
+    }
+}
+
+impl IncrementalModel for PassiveAggressiveClassifier {
+    fn partial_fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        self.partial_fit_with_classes(x, y, None)
+    }
+
+    fn partial_fit_with_classes(
+        &mut self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        classes: Option<&[f64]>,
+    ) -> Result<()> {
+        validate_fit_input(x, y)?;
+
+        if self.c <= 0.0 {
+            return Err(FerroError::invalid_input(
+                "C must be > 0 for PassiveAggressive models",
+            ));
+        }
+
+        let n_features = x.ncols();
+
+        // If not yet fitted, initialize weights
+        if self.coef.is_none() {
+            let class_list = if let Some(c) = classes {
+                Array1::from_vec(c.to_vec())
+            } else {
+                crate::models::get_unique_classes(y)
+            };
+            let n_classes = class_list.len();
+            if n_classes < 2 {
+                return Err(FerroError::invalid_input(
+                    "PassiveAggressiveClassifier requires at least 2 classes",
+                ));
+            }
+
+            let n_outputs = if n_classes == 2 { 1 } else { n_classes };
+            self.coef = Some(Array2::zeros((n_outputs, n_features)));
+            self.intercept = Some(Array1::zeros(n_outputs));
+            self.classes = Some(class_list);
+            self.n_features = Some(n_features);
+        }
+
+        // Validate feature count matches
+        if n_features != self.n_features.unwrap() {
+            return Err(FerroError::shape_mismatch(
+                format!("{} features", self.n_features.unwrap()),
+                format!("{} features", n_features),
+            ));
+        }
+
+        let classes = self.classes.as_ref().unwrap().clone();
+        let n_classes = classes.len();
+        let mut coef = self.coef.take().unwrap();
+        let mut intercept = self.intercept.take().unwrap();
+
+        // PA update for each sample (one-vs-rest for multiclass)
+        for i in 0..x.nrows() {
+            let xi = x.row(i);
+            let yi = y[i];
+            let xi_norm_sq: f64 =
+                xi.iter().map(|v| v * v).sum::<f64>() + if self.fit_intercept { 1.0 } else { 0.0 };
+
+            if n_classes == 2 {
+                // Binary: single weight vector, encode as -1/+1
+                let label = if (yi - classes[0]).abs() < 1e-10 {
+                    -1.0
+                } else {
+                    1.0
+                };
+                let decision = xi.dot(&coef.row(0)) + intercept[0];
+                let loss = (1.0 - label * decision).max(0.0);
+                if loss > 0.0 && xi_norm_sq > 0.0 {
+                    let tau = (loss / xi_norm_sq).min(self.c);
+                    for j in 0..n_features {
+                        coef[[0, j]] += tau * label * xi[j];
+                    }
+                    if self.fit_intercept {
+                        intercept[0] += tau * label;
+                    }
+                }
+            } else {
+                // OvR: update each binary classifier
+                for ci in 0..n_classes {
+                    let label = if (yi - classes[ci]).abs() < 1e-10 {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                    let decision = xi.dot(&coef.row(ci)) + intercept[ci];
+                    let loss = (1.0 - label * decision).max(0.0);
+                    if loss > 0.0 && xi_norm_sq > 0.0 {
+                        let tau = (loss / xi_norm_sq).min(self.c);
+                        for j in 0..n_features {
+                            coef[[ci, j]] += tau * label * xi[j];
+                        }
+                        if self.fit_intercept {
+                            intercept[ci] += tau * label;
+                        }
+                    }
+                }
+            }
+        }
+
+        self.coef = Some(coef);
+        self.intercept = Some(intercept);
+        Ok(())
     }
 }
 

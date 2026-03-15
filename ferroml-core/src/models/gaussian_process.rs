@@ -649,6 +649,11 @@ impl Model for GaussianProcessRegressor {
     fn search_space(&self) -> SearchSpace {
         SearchSpace::new().float_log("alpha", 1e-12, 1.0)
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 // =============================================================================
@@ -1430,6 +1435,11 @@ impl Model for SparseGPRegressor {
         SearchSpace::new()
             .float_log("alpha", 1e-6, 1.0)
             .int("n_inducing", 10, 500)
+    }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
     }
 }
 
@@ -2269,5 +2279,10 @@ impl Model for SVGPRegressor {
             .float_log("noise_variance", 1e-4, 10.0)
             .int("n_inducing", 10, 500)
             .int("batch_size", 32, 512)
+    }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
     }
 }

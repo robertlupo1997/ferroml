@@ -241,6 +241,28 @@ impl PyIncrementalPCA {
         Ok(result.into_pyarray(py))
     }
 
+    /// Incremental fit on a batch of samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray of shape (n_samples, n_features)
+    ///     Training data batch.
+    ///
+    /// Returns
+    /// -------
+    /// self : IncrementalPCA
+    ///     Updated estimator.
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .partial_fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
         getstate(py, &self.inner)
     }
@@ -935,6 +957,22 @@ impl PyQDA {
             .decision_function(&x_arr)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(scores.into_pyarray(py))
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        use ferroml_core::models::Model;
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {

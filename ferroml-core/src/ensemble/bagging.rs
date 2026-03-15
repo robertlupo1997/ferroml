@@ -1180,6 +1180,11 @@ impl Model for BaggingRegressor {
     fn n_features(&self) -> Option<usize> {
         self.n_features
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 // =============================================================================

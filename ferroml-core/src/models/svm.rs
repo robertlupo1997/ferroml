@@ -1785,6 +1785,11 @@ impl Model for SVR {
                 vec!["linear".to_string(), "rbf".to_string(), "poly".to_string()],
             )
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 // =============================================================================
@@ -2657,6 +2662,11 @@ impl Model for LinearSVR {
                     "squared_epsilon_insensitive".to_string(),
                 ],
             )
+    }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
     }
 }
 

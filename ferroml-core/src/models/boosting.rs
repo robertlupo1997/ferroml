@@ -864,6 +864,11 @@ impl Model for GradientBoostingRegressor {
     fn n_features(&self) -> Option<usize> {
         self.n_features
     }
+
+    fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
+        let predictions = self.predict(x)?;
+        crate::metrics::r2_score(y, &predictions)
+    }
 }
 
 // =============================================================================
@@ -1257,6 +1262,68 @@ impl GradientBoostingClassifier {
             }
 
             self.feature_importances = Some(importances);
+        }
+    }
+
+    /// Compute raw predictions (log-odds) before sigmoid/softmax transformation.
+    ///
+    /// Returns an Array2 of shape (n_samples, n_trees_per_stage) where
+    /// n_trees_per_stage is 1 for binary classification and n_classes for multiclass.
+    fn raw_predictions(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        check_is_fitted(&self.estimators, "decision_function")?;
+        let n_features = self.n_features.unwrap();
+        validate_predict_input(x, n_features)?;
+
+        let n_samples = x.nrows();
+        let n_classes = self.n_classes.unwrap();
+        let estimators = self.estimators.as_ref().unwrap();
+        let init = self.init_predictions.as_ref().unwrap();
+        let n_trees_per_stage = if n_classes == 2 { 1 } else { n_classes };
+
+        let mut raw = Array2::zeros((n_samples, n_trees_per_stage));
+        for k in 0..n_trees_per_stage {
+            for i in 0..n_samples {
+                raw[[i, k]] = init[k];
+            }
+        }
+
+        for (iteration, trees_at_stage) in estimators.iter().enumerate() {
+            let lr = self
+                .learning_rate_schedule
+                .get_lr(iteration, self.n_estimators);
+            for (k, tree) in trees_at_stage.iter().enumerate() {
+                let tree_pred = tree.predict(x)?;
+                for i in 0..n_samples {
+                    raw[[i, k]] += lr * tree_pred[i];
+                }
+            }
+        }
+
+        Ok(raw)
+    }
+
+    /// Compute decision function scores (raw predictions before sigmoid/softmax).
+    ///
+    /// For gradient boosting classifiers, this returns the raw log-odds predictions
+    /// before the sigmoid (binary) or softmax (multiclass) transformation.
+    ///
+    /// Returns an Array2 of shape (n_samples, n_classes). For binary classification,
+    /// the single raw score is expanded to two columns: [-score, +score].
+    pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
+        let raw = self.raw_predictions(x)?;
+        let n_classes = self.n_classes.unwrap();
+
+        if n_classes == 2 {
+            // Expand single column to two columns: negative and positive class scores
+            let n_samples = raw.nrows();
+            let mut result = Array2::zeros((n_samples, 2));
+            for i in 0..n_samples {
+                result[[i, 0]] = -raw[[i, 0]];
+                result[[i, 1]] = raw[[i, 0]];
+            }
+            Ok(result)
+        } else {
+            Ok(raw)
         }
     }
 

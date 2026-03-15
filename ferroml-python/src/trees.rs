@@ -303,6 +303,35 @@ impl PyDecisionTreeClassifier {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Compute the decision function (raw scores).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "DecisionTreeClassifier(criterion={:?}, max_depth={:?})",
@@ -519,6 +548,21 @@ impl PyDecisionTreeRegressor {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -821,6 +865,35 @@ impl PyRandomForestClassifier {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Compute the decision function (raw scores).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "RandomForestClassifier(n_estimators={}, max_depth={:?})",
@@ -1048,6 +1121,21 @@ impl PyRandomForestRegressor {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -1310,6 +1398,35 @@ impl PyGradientBoostingClassifier {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Compute the decision function (raw scores).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "GradientBoostingClassifier(n_estimators={}, max_depth={:?})",
@@ -1530,6 +1647,21 @@ impl PyGradientBoostingRegressor {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
@@ -1775,6 +1907,35 @@ impl PyHistGradientBoostingClassifier {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Compute the decision function (raw scores).
+    fn decision_function<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .decision_function(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "HistGradientBoostingClassifier(max_iter={}, learning_rate={})",
@@ -1986,6 +2147,21 @@ impl PyHistGradientBoostingRegressor {
             .to_onnx(&config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Evaluate the model on test data.
+    ///
+    /// Returns accuracy for classifiers, R² for regressors.
+    fn score<'py>(
+        &self,
+        x: PyReadonlyArray2<'py, f64>,
+        y: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<f64> {
+        let x_arr = to_owned_array_2d(x);
+        let y_arr = to_owned_array_1d(y);
+        self.inner
+            .score(&x_arr, &y_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn __repr__(&self) -> String {
