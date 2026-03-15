@@ -249,7 +249,8 @@ impl LinearRegression {
         for i in 0..n {
             let h_i = data.leverage[i];
             let e_i = data.residuals[i];
-            cooks[i] = (e_i.powi(2) / (p as f64 * mse)) * (h_i / (1.0 - h_i).powi(2));
+            let one_minus_h = (1.0 - h_i).max(1e-10);
+            cooks[i] = (e_i.powi(2) / (p as f64 * mse)) * (h_i / one_minus_h.powi(2));
         }
 
         Some(cooks)
@@ -264,7 +265,8 @@ impl LinearRegression {
         let mut std_resid = Array1::zeros(n);
         for i in 0..n {
             let h_i = data.leverage[i];
-            std_resid[i] = data.residuals[i] / (mse * (1.0 - h_i)).sqrt();
+            let one_minus_h = (1.0 - h_i).max(1e-10);
+            std_resid[i] = data.residuals[i] / (mse * one_minus_h).sqrt();
         }
 
         Some(std_resid)
@@ -283,8 +285,9 @@ impl LinearRegression {
             let e_i = data.residuals[i];
 
             // Leave-one-out MSE estimate
-            let mse_i = (data.rss - e_i.powi(2) / (1.0 - h_i)) / (df - 1) as f64;
-            stud_resid[i] = e_i / (mse_i * (1.0 - h_i)).sqrt();
+            let one_minus_h = (1.0 - h_i).max(1e-10);
+            let mse_i = (data.rss - e_i.powi(2) / one_minus_h) / (df - 1) as f64;
+            stud_resid[i] = e_i / (mse_i * one_minus_h).sqrt();
         }
 
         Some(stud_resid)
@@ -298,7 +301,8 @@ impl LinearRegression {
         let mut dffits = Array1::zeros(data.n_samples);
         for i in 0..data.n_samples {
             let h_i = data.leverage[i];
-            dffits[i] = stud[i] * (h_i / (1.0 - h_i)).sqrt();
+            let one_minus_h = (1.0 - h_i).max(1e-10);
+            dffits[i] = stud[i] * (h_i / one_minus_h).sqrt();
         }
 
         Some(dffits)
@@ -1451,5 +1455,47 @@ mod tests {
             "VIF[1] = {}, expected > 5.0 for collinear features",
             vifs[1]
         );
+    }
+
+    #[test]
+    fn test_cooks_distance_high_leverage_point() {
+        // Create data where one point has leverage very close to 1.0
+        // A point that is extremely far from the centroid of x has high leverage
+        let mut x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+        x_data.push(1e6); // extreme leverage point
+        let x = Array2::from_shape_vec((6, 1), x_data).unwrap();
+        let y = array![2.0, 4.0, 6.0, 8.0, 10.0, 12.0];
+
+        let mut model = LinearRegression::new();
+        model.fit(&x, &y).unwrap();
+
+        let cooks = model.cooks_distance().unwrap();
+        // Should not contain NaN or Inf — the leverage guard prevents division by zero
+        for &c in cooks.iter() {
+            assert!(c.is_finite(), "Cook's distance must be finite, got {}", c);
+        }
+
+        let std_resid = model.standardized_residuals().unwrap();
+        for &r in std_resid.iter() {
+            assert!(
+                r.is_finite(),
+                "Standardized residual must be finite, got {}",
+                r
+            );
+        }
+
+        let stud_resid = model.studentized_residuals().unwrap();
+        for &r in stud_resid.iter() {
+            assert!(
+                r.is_finite(),
+                "Studentized residual must be finite, got {}",
+                r
+            );
+        }
+
+        let dffits_vals = model.dffits().unwrap();
+        for &d in dffits_vals.iter() {
+            assert!(d.is_finite(), "DFFITS must be finite, got {}", d);
+        }
     }
 }

@@ -345,7 +345,7 @@ impl TSNE {
                 if j == i {
                     p[j] = 0.0;
                 } else {
-                    p[j] = (-distances_i[j] * beta).exp();
+                    p[j] = (-distances_i[j] * beta).max(-700.0).exp();
                     sum_p += p[j];
                 }
             }
@@ -658,7 +658,7 @@ impl TSNE {
         for _ in 0..max_tries {
             let mut sum_p = 0.0;
             for (j, &d) in sq_distances.iter().enumerate() {
-                p[j] = (-d * beta).exp();
+                p[j] = (-d * beta).max(-700.0).exp();
                 sum_p += p[j];
             }
 
@@ -1802,5 +1802,39 @@ mod tests {
         let tsne = TSNE::new();
         assert!(tsne.method.is_none()); // Auto-detection
         assert!((tsne.theta - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_tsne_large_distance_no_overflow() {
+        // Create data with extremely large distances that could cause exp() overflow
+        let n = 10;
+        let dim = 2;
+        let mut data = Array2::zeros((n, dim));
+        for i in 0..n {
+            data[[i, 0]] = i as f64 * 1e6; // huge distances between points
+            data[[i, 1]] = i as f64 * 1e6;
+        }
+
+        let mut tsne = TSNE::new()
+            .with_n_components(2)
+            .with_perplexity(3.0)
+            .with_max_iter(50);
+        let result = tsne.fit_transform(&data);
+        assert!(
+            result.is_ok(),
+            "t-SNE should handle large distances without overflow: {:?}",
+            result.err()
+        );
+
+        let embedding = result.unwrap();
+        assert_eq!(embedding.dim(), (n, 2));
+        // No NaN or Inf in the embedding
+        for &val in embedding.iter() {
+            assert!(
+                val.is_finite(),
+                "Embedding value must be finite, got {}",
+                val
+            );
+        }
     }
 }

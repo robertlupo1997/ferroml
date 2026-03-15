@@ -279,6 +279,7 @@ pub fn log_determinant_from_cholesky(l: &Array2<f64>) -> f64 {
     let n = l.nrows();
     let mut log_det = 0.0;
     for i in 0..n {
+        debug_assert!(l[[i, i]] > 0.0, "Cholesky diagonal must be positive");
         log_det += l[[i, i]].ln();
     }
     2.0 * log_det

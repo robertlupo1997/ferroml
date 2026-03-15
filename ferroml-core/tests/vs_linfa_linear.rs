@@ -95,19 +95,22 @@ mod linear_regression {
         );
     }
 
+    // Tolerances scale with problem size because the condition number of X'X grows
+    // with n and p, amplifying the difference between two closed-form solvers
+    // that use different LAPACK routines (FerroML: QR, linfa: SVD-based).
     #[test]
     fn small() {
-        compare_at_size(200, 10, 1e-4);
+        compare_at_size(200, 10, 1e-6);
     }
 
     #[test]
     fn medium() {
-        compare_at_size(1000, 50, 1e-3);
+        compare_at_size(1000, 50, 1e-4);
     }
 
     #[test]
     fn large() {
-        compare_at_size(5000, 100, 1e-2);
+        compare_at_size(5000, 100, 1e-3);
     }
 }
 

@@ -494,7 +494,7 @@ impl GaussianMixture {
             // log_det = -0.5 * sum(log(diag_cov[c]))
             let mut log_det: f64 = 0.0;
             for j in 0..d {
-                log_det += diag_cov[[c, j]].ln();
+                log_det += diag_cov[[c, j]].max(self.reg_covar).ln();
             }
 
             for i in 0..n {
@@ -520,7 +520,7 @@ impl GaussianMixture {
         let mut log_prob = Array2::zeros((n, k));
 
         for c in 0..k {
-            let log_det = d as f64 * sph_cov[c].ln();
+            let log_det = d as f64 * sph_cov[c].max(self.reg_covar).ln();
 
             for i in 0..n {
                 let mut maha = 0.0;
@@ -1479,5 +1479,67 @@ mod tests {
             bic2,
             bic1
         );
+    }
+
+    #[test]
+    fn test_gmm_near_zero_variance_component() {
+        // Data where one feature has near-zero variance — diagonal covariance
+        // should not produce NaN/Inf in log probability
+        let mut data = Vec::new();
+        for i in 0..30 {
+            data.push(i as f64);
+            data.push(5.0); // constant feature — near-zero variance
+        }
+        let x = Array2::from_shape_vec((30, 2), data).unwrap();
+
+        let mut gmm = GaussianMixture::new(2)
+            .covariance_type(CovarianceType::Diagonal)
+            .max_iter(50)
+            .random_state(42);
+        let result = gmm.fit(&x);
+        assert!(
+            result.is_ok(),
+            "GMM diagonal fit should not fail: {:?}",
+            result.err()
+        );
+
+        let labels = gmm.predict(&x).unwrap();
+        for &l in labels.iter() {
+            assert!(l >= 0, "Labels must be non-negative");
+        }
+    }
+
+    #[test]
+    fn test_gmm_spherical_degenerate() {
+        // Data where one cluster has very tight points — spherical covariance
+        // should not produce NaN/Inf in log probability
+        let mut data = Vec::new();
+        // Cluster 1: identical points
+        for _ in 0..15 {
+            data.push(0.0);
+            data.push(0.0);
+        }
+        // Cluster 2: spread out
+        for i in 0..15 {
+            data.push(10.0 + i as f64 * 0.5);
+            data.push(10.0 + i as f64 * 0.5);
+        }
+        let x = Array2::from_shape_vec((30, 2), data).unwrap();
+
+        let mut gmm = GaussianMixture::new(2)
+            .covariance_type(CovarianceType::Spherical)
+            .max_iter(50)
+            .random_state(42);
+        let result = gmm.fit(&x);
+        assert!(
+            result.is_ok(),
+            "GMM spherical fit should not fail: {:?}",
+            result.err()
+        );
+
+        let labels = gmm.predict(&x).unwrap();
+        for &l in labels.iter() {
+            assert!(l >= 0, "Labels must be non-negative");
+        }
     }
 }

@@ -25,85 +25,137 @@
 
 use ndarray::{Array1, Array2};
 
-/// Tolerance constants calibrated for different algorithm types
+/// Tolerance constants calibrated for different algorithm types.
 ///
 /// These values are carefully chosen based on the numerical characteristics
 /// of each algorithm family and should be used consistently across tests.
+///
+/// # Tolerance Tiers (tightest to loosest)
+///
+/// | Tier              | Value  | Rationale                                                  |
+/// |-------------------|--------|------------------------------------------------------------|
+/// | `CV_SPLIT`        | 1e-15  | Index-based; should be exact                               |
+/// | `STRICT`          | 1e-14  | Near machine epsilon; bit-exact or trivial arithmetic      |
+/// | `TREE`            | 1e-12  | Deterministic discrete splits; only FP accumulation error  |
+/// | `CLOSED_FORM`     | 1e-10  | QR/Cholesky solve; ~eps * condition_number                 |
+/// | `SCALER`          | 1e-10  | mean/std are closed-form; same tier as CLOSED_FORM         |
+/// | `DISTANCE`        | 1e-10  | Euclidean distance is closed-form                          |
+/// | `METRIC`          | 1e-10  | R2/MSE are closed-form given predictions                   |
+/// | `DECOMPOSITION`   | 1e-8   | SVD/eigenvalue iteration; sign ambiguity in eigenvectors   |
+/// | `PROBABILITY`     | 1e-6   | softmax/log-sum-exp accumulation; sum-to-one constraints   |
+/// | `SKLEARN_COMPAT`  | 1e-5   | Cross-impl differences (different LAPACK, iteration order) |
+/// | `ITERATIVE`       | 1e-4   | Gradient descent / coordinate descent convergence tol      |
+/// | `NEURAL`          | 1e-3   | Deep FP accumulation across many layers                    |
+/// | `PROBABILISTIC`   | 1e-2   | Stochastic sampling (MCMC, random init, SGD)               |
+/// | `LOOSE`           | 1e-2   | Visual / display / rough agreement checks                  |
+///
+/// # Cross-Library Comparisons
+///
+/// Cross-library tests (vs linfa, vs sklearn) should generally use
+/// **metric-based comparisons** (R2 gap, accuracy gap, ARI) rather than
+/// element-wise tolerance checks, because:
+/// - Different libraries may use different algorithms for the same model
+///   (e.g., linfa uses coordinate descent for Ridge, FerroML uses closed-form)
+/// - RNG differences cause ensemble/stochastic models to diverge
+/// - Hyperparameter semantics may differ (e.g., regularization scaling)
+///
+/// For cross-library element-wise comparisons (same algorithm, same data):
+/// - Closed-form solvers: `SKLEARN_COMPAT` (1e-5) accounts for LAPACK differences
+/// - Iterative solvers: `ITERATIVE` (1e-4) or looser, depending on convergence
+/// - Stochastic models: use metric-based comparison, not element-wise
 pub mod tolerances {
-    /// Closed-form solutions (QR decomposition, direct solve, least squares)
+    /// Closed-form solutions (QR decomposition, direct solve, least squares).
     ///
-    /// Use for: LinearRegression, Ridge (closed form), direct matrix operations
-    /// Expected precision: ~machine epsilon * condition number
+    /// Use for: LinearRegression, Ridge (closed form), direct matrix operations.
+    /// Rationale: ~machine epsilon (2.2e-16) * typical condition number (~1e6).
+    /// Well-conditioned small problems will be much tighter than this bound.
     pub const CLOSED_FORM: f64 = 1e-10;
 
-    /// Iterative algorithms (gradient descent, IRLS, coordinate descent)
+    /// Iterative algorithms (gradient descent, IRLS, coordinate descent).
     ///
-    /// Use for: Lasso, ElasticNet, LogisticRegression, SGD variants
-    /// Expected precision: depends on convergence tolerance (typically 1e-4)
+    /// Use for: Lasso, ElasticNet, LogisticRegression, SGD variants.
+    /// Rationale: these algorithms converge to within their own tolerance
+    /// parameter, which is typically 1e-4. Two runs with the same parameters
+    /// should agree to this precision.
     pub const ITERATIVE: f64 = 1e-4;
 
-    /// Tree-based algorithms (deterministic splits)
+    /// Tree-based algorithms (deterministic splits).
     ///
-    /// Use for: DecisionTree, RandomForest, GradientBoosting
-    /// Expected precision: very high (discrete operations)
+    /// Use for: DecisionTree, RandomForest, GradientBoosting (same-library reproducibility).
+    /// Rationale: tree splits are discrete comparisons; the only FP error comes
+    /// from summing leaf values, which is O(eps * tree_depth).
     pub const TREE: f64 = 1e-12;
 
-    /// Probabilistic algorithms (sampling-based, MCMC)
+    /// Probabilistic / stochastic algorithms (sampling-based, MCMC, random init).
     ///
-    /// Use for: BayesianRidge, GaussianProcesses, ensemble with randomness
-    /// Expected precision: lower due to stochastic nature
+    /// Use for: BayesianRidge, GaussianProcesses, ensemble with randomness, SGD, t-SNE.
+    /// Rationale: stochastic algorithms have inherent variance; this tolerance
+    /// reflects the expected spread from random initialization and sampling.
     pub const PROBABILISTIC: f64 = 1e-2;
 
-    /// Neural network / deep learning
+    /// Neural network / deep learning.
     ///
-    /// Use for: MLP, deep learning models
-    /// Expected precision: moderate due to floating point accumulation
+    /// Use for: MLP, deep learning models.
+    /// Rationale: FP error accumulates across many layers of matrix multiplications
+    /// and nonlinear activations. Tighter than PROBABILISTIC because networks are
+    /// deterministic given fixed weights, but looser than ITERATIVE due to depth.
     pub const NEURAL: f64 = 1e-3;
 
-    /// sklearn comparison (accounts for implementation differences)
+    /// sklearn comparison (accounts for implementation differences).
     ///
     /// Use for: comparing FerroML results against sklearn reference values
-    /// Slightly looser to account for algorithmic differences
+    /// (same algorithm, same data, different implementation).
+    /// Rationale: different LAPACK backends, different iteration orders, and
+    /// different floating-point reduction strategies cause small divergence
+    /// even for closed-form solvers.
     pub const SKLEARN_COMPAT: f64 = 1e-5;
 
-    /// Standard scaler and normalization operations
+    /// Standard scaler and normalization operations.
     ///
     /// Use for: StandardScaler, MinMaxScaler, etc.
+    /// Rationale: mean and variance are closed-form; same tier as CLOSED_FORM.
     pub const SCALER: f64 = 1e-10;
 
-    /// Decomposition operations (PCA, SVD)
+    /// Decomposition operations (PCA, SVD).
     ///
     /// Use for: PCA, TruncatedSVD, etc.
+    /// Rationale: eigenvalue solvers are iterative internally but converge to
+    /// high precision. Sign ambiguity in eigenvectors requires care in comparisons.
     pub const DECOMPOSITION: f64 = 1e-8;
 
-    /// Distance calculations (KNN, clustering)
+    /// Distance calculations (KNN, clustering).
     ///
-    /// Use for: KNeighbors, KMeans, distance metrics
+    /// Use for: KNeighbors, KMeans, distance metrics (Euclidean, Manhattan, etc.).
+    /// Rationale: distance is a closed-form operation (sum of squares + sqrt).
     pub const DISTANCE: f64 = 1e-10;
 
-    /// Probability outputs (softmax, predict_proba)
+    /// Probability outputs (softmax, predict_proba).
     ///
-    /// Use for: probability predictions that should sum to 1
+    /// Use for: probability predictions that should sum to 1.
+    /// Rationale: log-sum-exp and softmax involve exp/log which amplify FP error
+    /// more than simple arithmetic.
     pub const PROBABILITY: f64 = 1e-6;
 
-    /// Metric calculations (R2, MSE, accuracy)
+    /// Metric calculations (R2, MSE, accuracy).
     ///
-    /// Use for: evaluation metric tests
+    /// Use for: evaluation metric tests (same predictions, same targets).
+    /// Rationale: metrics are closed-form given predictions; only FP accumulation.
     pub const METRIC: f64 = 1e-10;
 
-    /// Cross-validation splits (should be exact)
+    /// Cross-validation splits (should be exact).
     ///
-    /// Use for: CV split indices and fold validation
+    /// Use for: CV split indices and fold validation.
+    /// Rationale: indices are integers; no FP error expected.
     pub const CV_SPLIT: f64 = 1e-15;
 
-    /// Loose tolerance for visual/display purposes
+    /// Loose tolerance for visual/display purposes.
     ///
-    /// Use for: tests that only need approximate agreement
+    /// Use for: tests that only need approximate agreement (e.g., plot values).
     pub const LOOSE: f64 = 1e-2;
 
-    /// Very strict tolerance for exact operations
+    /// Very strict tolerance for exact operations.
     ///
-    /// Use for: operations that should be bit-exact
+    /// Use for: operations that should be bit-exact (identity transforms, zero additions).
     pub const STRICT: f64 = 1e-14;
 }
 
