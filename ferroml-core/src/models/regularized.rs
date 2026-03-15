@@ -286,7 +286,13 @@ impl Model for RidgeRegression {
 
     fn feature_importance(&self) -> Option<Array1<f64>> {
         let coef = self.coefficients.as_ref()?;
-        Some(coef.mapv(|c| c.abs()))
+        let abs_coef: Array1<f64> = coef.mapv(|c| c.abs());
+        let sum = abs_coef.sum();
+        if sum > 0.0 {
+            Some(abs_coef / sum)
+        } else {
+            Some(abs_coef)
+        }
     }
 
     fn search_space(&self) -> SearchSpace {
@@ -731,7 +737,13 @@ impl Model for LassoRegression {
 
     fn feature_importance(&self) -> Option<Array1<f64>> {
         let coef = self.coefficients.as_ref()?;
-        Some(coef.mapv(|c| c.abs()))
+        let abs_coef: Array1<f64> = coef.mapv(|c| c.abs());
+        let sum = abs_coef.sum();
+        if sum > 0.0 {
+            Some(abs_coef / sum)
+        } else {
+            Some(abs_coef)
+        }
     }
 
     fn search_space(&self) -> SearchSpace {
@@ -1158,7 +1170,13 @@ impl Model for ElasticNet {
 
     fn feature_importance(&self) -> Option<Array1<f64>> {
         let coef = self.coefficients.as_ref()?;
-        Some(coef.mapv(|c| c.abs()))
+        let abs_coef: Array1<f64> = coef.mapv(|c| c.abs());
+        let sum = abs_coef.sum();
+        if sum > 0.0 {
+            Some(abs_coef / sum)
+        } else {
+            Some(abs_coef)
+        }
     }
 
     fn search_space(&self) -> SearchSpace {
@@ -1476,10 +1494,12 @@ impl RidgeCV {
 
     /// Create with default alphas (log-spaced from 1e-4 to 1e4)
     pub fn with_defaults(cv: usize) -> Self {
+        let log_min = 1e-4_f64.ln(); // ln(1e-4) ≈ -9.21
+        let log_max = 1e4_f64.ln(); // ln(1e4) ≈ 9.21
         let alphas: Vec<f64> = (0..50)
             .map(|i| {
                 let t = i as f64 / 49.0;
-                (-4.0_f64).ln().mul_add(1.0 - t, 4.0_f64.ln() * t).exp()
+                (log_min + t * (log_max - log_min)).exp()
             })
             .collect();
         Self::new(alphas, cv)
@@ -3109,5 +3129,69 @@ mod tests {
         let y = Array1::from_vec(vec![0.0, 0.0, 0.0]);
         let mut clf = RidgeClassifier::new(1.0);
         assert!(clf.fit(&x, &y).is_err());
+    }
+
+    #[test]
+    fn test_ridge_cv_no_nan_predictions() {
+        // Regression test: RidgeCV::with_defaults previously generated NaN alphas
+        // because it computed ln(-4.0) which is NaN.
+
+        // Deterministic seed via manual construction (same data shape as the bug report)
+        let n = 80;
+        let p = 3;
+        // Use a simple LCG to generate reproducible data
+        let mut rng_state: u64 = 42;
+        let mut next_normal = || -> f64 {
+            // Box-Muller from a simple LCG
+            rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let u1 = (rng_state >> 11) as f64 / (1u64 << 53) as f64;
+            rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let u2 = (rng_state >> 11) as f64 / (1u64 << 53) as f64;
+            let u1 = u1.max(1e-15); // avoid ln(0)
+            (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
+        };
+
+        let x_data: Vec<f64> = (0..n * p).map(|_| next_normal()).collect();
+        let x = Array2::from_shape_vec((n, p), x_data).unwrap();
+        let y: Array1<f64> = x
+            .rows()
+            .into_iter()
+            .map(|row| 2.0 * row[0] + 3.0 * row[1] - row[2] + next_normal() * 0.1)
+            .collect();
+
+        let mut ridge_cv = RidgeCV::with_defaults(5);
+        ridge_cv.fit(&x, &y).unwrap();
+
+        let preds = ridge_cv.predict(&x).unwrap();
+
+        // No prediction should be NaN
+        for (i, &p) in preds.iter().enumerate() {
+            assert!(p.is_finite(), "Prediction {} is not finite: {}", i, p);
+        }
+
+        // R^2 should be high for this linear data
+        let r2 = ridge_cv.score(&x, &y).unwrap();
+        assert!(r2 > 0.9, "R^2 should be > 0.9, got {}", r2);
+
+        // Best alpha should be valid
+        let best_alpha = ridge_cv.best_alpha().unwrap();
+        assert!(best_alpha.is_finite() && best_alpha > 0.0);
+    }
+
+    #[test]
+    fn test_ridge_cv_default_alphas_are_valid() {
+        // Verify all generated alphas are finite and positive
+        let rcv = RidgeCV::with_defaults(5);
+        for (i, &alpha) in rcv.alphas.iter().enumerate() {
+            assert!(
+                alpha.is_finite() && alpha > 0.0,
+                "Alpha {} is invalid: {}",
+                i,
+                alpha
+            );
+        }
+        // Check range: first should be near 1e-4, last near 1e4
+        assert!(rcv.alphas[0] < 1e-3, "First alpha should be near 1e-4");
+        assert!(rcv.alphas[49] > 1e3, "Last alpha should be near 1e4");
     }
 }

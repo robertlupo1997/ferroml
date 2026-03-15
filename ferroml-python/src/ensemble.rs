@@ -926,6 +926,20 @@ impl PySGDClassifier {
         Ok(result.into_pyarray(py))
     }
 
+    /// Get feature importances (normalized absolute coefficients).
+    ///
+    /// Returns
+    /// -------
+    /// feature_importances : ndarray of shape (n_features,)
+    ///     Normalized absolute coefficient magnitudes summing to 1.
+    #[getter]
+    fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let imp = self.inner.feature_importance().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(imp.into_pyarray(py))
+    }
+
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
         getstate(py, &self.inner)
     }
@@ -1180,6 +1194,20 @@ impl PySGDRegressor {
         self.inner
             .intercept()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted."))
+    }
+
+    /// Get feature importances (normalized absolute coefficients).
+    ///
+    /// Returns
+    /// -------
+    /// feature_importances : ndarray of shape (n_features,)
+    ///     Normalized absolute coefficient magnitudes summing to 1.
+    #[getter]
+    fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let imp = self.inner.feature_importance().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(imp.into_pyarray(py))
     }
 
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {

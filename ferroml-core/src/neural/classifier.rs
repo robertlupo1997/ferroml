@@ -50,6 +50,8 @@ pub struct MLPClassifier {
     pub n_classes: Option<usize>,
     /// Class labels (for multiclass)
     pub classes_: Option<Vec<f64>>,
+    /// Whether to reuse previous weights as initialization
+    pub warm_start: bool,
     /// Training diagnostics
     #[serde(skip)]
     diagnostics: Option<TrainingDiagnostics>,
@@ -68,6 +70,7 @@ impl MLPClassifier {
             mlp: MLP::new().output_activation(Activation::Softmax),
             n_classes: None,
             classes_: None,
+            warm_start: false,
             diagnostics: None,
         }
     }
@@ -135,6 +138,12 @@ impl MLPClassifier {
     /// Set verbose level
     pub fn verbose(mut self, level: usize) -> Self {
         self.mlp = self.mlp.verbose(level);
+        self
+    }
+
+    /// Set whether to reuse previous weights as initialization.
+    pub fn with_warm_start(mut self, warm_start: bool) -> Self {
+        self.warm_start = warm_start;
         self
     }
 
@@ -248,8 +257,16 @@ impl NeuralModel for MLPClassifier {
         };
         self.mlp.output_activation = output_activation;
 
-        // Initialize network
-        self.mlp.initialize(n_features, n_outputs)?;
+        // Initialize network (skip if warm_start and already fitted with same architecture)
+        let should_init = if self.warm_start && self.mlp.is_fitted() {
+            // Only skip init if architecture matches
+            self.mlp.n_features_in != Some(n_features) || self.mlp.n_outputs != Some(n_outputs)
+        } else {
+            true
+        };
+        if should_init {
+            self.mlp.initialize(n_features, n_outputs)?;
+        }
 
         // Convert labels to one-hot
         let y_one_hot = self.to_one_hot(y);
@@ -571,5 +588,48 @@ mod tests {
         // Should have stopped before max_iter
         let diag = mlp.training_diagnostics().unwrap();
         assert!(diag.n_iter < 1000);
+    }
+
+    #[test]
+    fn test_mlp_classifier_warm_start() {
+        let x = Array2::from_shape_vec(
+            (6, 2),
+            vec![0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.5, 0.5, 2.0, 2.0],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 1.0, 1.0, 0.0, 0.0, 1.0]);
+
+        let mut mlp = MLPClassifier::new()
+            .hidden_layer_sizes(&[8, 4])
+            .activation(Activation::ReLU)
+            .learning_rate(0.1)
+            .max_iter(200)
+            .random_state(42)
+            .with_warm_start(true);
+
+        mlp.fit(&x, &y).unwrap();
+        let preds1 = mlp.predict(&x).unwrap();
+        let correct1: usize = preds1
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (**p - **t).abs() < 1e-10)
+            .count();
+
+        // Fit again — should reuse weights and maintain or improve accuracy
+        mlp.fit(&x, &y).unwrap();
+        let preds2 = mlp.predict(&x).unwrap();
+        let correct2: usize = preds2
+            .iter()
+            .zip(y.iter())
+            .filter(|(p, t)| (**p - **t).abs() < 1e-10)
+            .count();
+
+        // Second fit with warm start should be at least as good
+        assert!(
+            correct2 >= correct1.saturating_sub(1),
+            "correct2={} should be >= correct1={} - 1",
+            correct2,
+            correct1
+        );
     }
 }

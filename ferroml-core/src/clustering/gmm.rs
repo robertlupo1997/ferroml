@@ -798,7 +798,11 @@ impl GaussianMixture {
         let n = x.nrows();
         let d = x.ncols();
 
-        self.initialize_parameters(x, rng)?;
+        // If warm_start and already fitted, skip initialization (reuse current params)
+        let already_fitted = self.weights_.is_some() && self.means_.is_some();
+        if !(self.warm_start && already_fitted) {
+            self.initialize_parameters(x, rng)?;
+        }
 
         let mut prev_lower_bound = f64::NEG_INFINITY;
         let mut converged = false;
@@ -875,7 +879,14 @@ impl ClusteringModel for GaussianMixture {
             bool,
         )> = None;
 
-        for init_idx in 0..self.n_init {
+        // When warm_start and already fitted, only run 1 init (reuse current params)
+        let n_init_runs = if self.warm_start && self.weights_.is_some() {
+            1
+        } else {
+            self.n_init
+        };
+
+        for init_idx in 0..n_init_runs {
             let mut rng =
                 rand_chacha::ChaCha8Rng::seed_from_u64(base_seed.wrapping_add(init_idx as u64));
 
@@ -1425,12 +1436,18 @@ mod tests {
         gmm.fit(&x).unwrap();
         let lb1 = gmm.lower_bound().unwrap();
 
-        // Re-fit should keep going from where it left off (though warm_start
-        // flag is set, current impl re-initializes — just verify no crash)
+        // Re-fit with warm_start should reuse previous params and converge
+        // at least as well (starting from a good initialization)
         gmm.fit(&x).unwrap();
         let lb2 = gmm.lower_bound().unwrap();
         assert!(lb2.is_finite());
-        let _ = lb1; // Silence unused warning
+        // Second fit should be at least as good (warm start from good params)
+        assert!(
+            lb2 >= lb1 - 0.5,
+            "lb2={} should be >= lb1={} - 0.5",
+            lb2,
+            lb1
+        );
     }
 
     #[test]

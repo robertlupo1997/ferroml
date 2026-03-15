@@ -1,143 +1,73 @@
 # FerroML Roadmap
 
-> **Last Updated:** 2026-03-09
+> **Last Updated:** 2026-03-15
 
-## Current Status: v0.1.0 Complete
+## Current Status: v0.3.0
 
-FerroML has completed 21 plans of development and hardening (Plans 1-6, A-O) with ~2,933 Rust tests and ~1,418 Python tests passing. All core ML algorithms are implemented, validated against sklearn, and hardened with correctness tests. Python binding coverage is ~99%.
+FerroML has completed 27 plans of development and hardening (Plans 1-6, A-U) with 3,160+ Rust tests and 1,920+ Python tests passing. All core ML algorithms are implemented, validated against sklearn/scipy/xgboost/lightgbm/statsmodels, and hardened with correctness tests. Python binding coverage is ~99%.
+
+## Release History
+
+### v0.3.0 (2026-03-15) — sklearn API Parity
+
+- `score(X, y)` on 56 models (R² for regressors, accuracy for classifiers)
+- `partial_fit` on 10 models (SGD, NaiveBayes, Perceptron, PassiveAggressive, IncrementalPCA)
+- `decision_function` on 13 classifiers
+- Performance optimization (HistGBT, KMeans, LogReg)
+- Feature parity scorecard
+- Cross-library validation (164 tests vs 6 libraries)
+- 5-pass robustness audit (36 issues found, 35 fixed)
+
+### v0.2.0 (2026-03-11) — Feature Completion
+
+- CountVectorizer, TfidfVectorizer
+- GaussianProcessRegressor/Classifier (RBF, Matern, Constant, White kernels)
+- Sparse GP variants (FITC, VFE, SVGP)
+- MultiOutput wrappers
+- GPU shaders (12 WGSL shaders, GpuDispatcher)
+- SparseModel trait (12 models)
+- Voting/Stacking ensembles
+- ONNX export for all models
+
+### v0.1.0 (2026-03-09) — Initial Release
+
+- 55+ ML algorithms across 13 categories
+- Python bindings via PyO3
+- Statistical features (CI, effect sizes, power analysis, fairness)
+- Explainability (TreeSHAP, KernelSHAP, PDP, ICE)
+- 86+ Criterion benchmarks
 
 ## Completed Plans
 
-### Phase 1-6: Foundation (2026-02-06 — 2026-02-11)
-
-| Plan | Description | Status |
-|------|-------------|--------|
-| Plan 1: Sklearn Accuracy Testing | 58 fixture-based comparisons | Complete |
-| Plan 2: Doctest Fixes | 82 doctests passing | Complete |
-| Plan 3: Clustering | KMeans, DBSCAN with statistical extensions | Complete |
-| Plan 4: Neural Networks | MLP + diagnostics, uncertainty | Complete |
-| Plan 5: Code Quality | Dead code removal, lint cleanup | Complete |
-| Plan 6: Advanced Features | BCa CI, streaming serialization | Complete |
-
-### Phase A-E: Hardening (2026-02-25 — 2026-03-01)
-
-| Plan | Description | Status |
-|------|-------------|--------|
-| Plan A: Clustering Hardening | 3 bug fixes + 102 correctness tests | Complete |
-| Plan B: Neural Network Hardening | 7 bug fixes + 49 correctness tests | Complete |
-| Plan C: Performance Benchmarks | 15 new benchmarks (86+ total) | Complete |
-| Plan D: Python Bindings | Coverage 35% → 85% | Complete |
-| Plan E: Preprocessing Tests | 101 correctness tests | Complete |
-
-### Phase F-L: Completion (2026-03-02 — 2026-03-08)
-
-| Plan | Description | Status |
-|------|-------------|--------|
-| Plan F: CI Fixes & Tests | CI green + 120 BaggingRegressor/RFE tests | Complete |
-| Plan G: Python Bindings + CI | 14 models exposed, strict CI, README sync | Complete |
-| Plan H: Gaussian Mixture Models | EM, 4 covariance types, BIC/AIC, 59 tests | Complete |
-| Plan I: Anomaly Detection | IsolationForest, LOF, OutlierDetector trait, 88 tests | Complete |
-| Plan J: t-SNE | Exact O(N²), 3 metrics, PCA init, 47 tests | Complete |
-| Plan K: QDA + IsotonicRegression | Per-class covariance, PAVA, 67 tests | Complete |
-| Plan L: Testing Phases 23-28 | 6 test modules, 218 tests | Complete |
-
-### Phase M-O: Validation & Optimization (2026-03-08 — 2026-03-09)
-
-| Plan | Description | Status |
-|------|-------------|--------|
-| Plan M: Real-World Validation | 279 comparison tests vs sklearn, performance benchmarks | Complete |
-| Plan N: Performance Optimization | SIMD, Barnes-Hut t-SNE, parallel predict, bench CI | Complete |
-| Plan O: System Validation + Features | CategoricalNB, HDBSCAN, AutoML system tests, faer default | Complete |
-
-## Feature Completion Matrix
-
-### Algorithms
-
-| Category | sklearn | FerroML | Notes |
-|----------|---------|---------|-------|
-| Linear Models | 10+ | 10 | Ridge, Lasso, ElasticNet, Quantile, Robust, RidgeCV, LassoCV, ElasticNetCV, SGD, PassiveAggressive |
-| Trees | 2 | 4 | Decision trees + ExtraTrees (classifier/regressor) |
-| Ensembles | 6+ | 10 | RF, GB, HistGB, AdaBoost, ExtraTrees, Bagging, Stacking, Voting |
-| SVM | 4 | 4 | SVC, SVR, LinearSVC, LinearSVR — full parity |
-| KNN | 2 | 3 | + NearestCentroid |
-| Naive Bayes | 4 | 4 | Missing ComplementNB |
-| Clustering | 8+ | 5 | KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture, HDBSCAN |
-| Anomaly Detection | 2 | 2 | IsolationForest, LocalOutlierFactor |
-| Decomposition | 7+ | 6 | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis, t-SNE |
-| Discriminant Analysis | 2 | 2 | LDA, QDA |
-| Neural Networks | 2 | 2 | MLPClassifier, MLPRegressor |
-| Calibration | 2 | 3 | + Temperature scaling |
-| Isotonic | 1 | 1 | IsotonicRegression |
-
-### Statistical Features (FerroML Differentiators)
-
-| Feature | sklearn | FerroML | Notes |
-|---------|---------|---------|-------|
-| Confidence Intervals | No | Yes | On all predictions |
-| Effect Sizes | No | Yes | Cohen's d, Hedges' g, etc. |
-| Multiple Testing | No | Yes | Bonferroni, Holm, BH, BY |
-| Power Analysis | No | Yes | Sample size calculations |
-| Model Diagnostics | Minimal | Extensive | VIF, Cook's D, residuals |
-| Fairness Metrics | Via fairlearn | Built-in | 5 metrics + intersectional |
-| Assumption Testing | No | Yes | Normality, homoscedasticity |
-
-### Explainability
-
-| Method | sklearn | FerroML | Notes |
-|--------|---------|---------|-------|
-| Permutation Importance | Yes | Yes | With CI |
-| TreeSHAP | Via shap | Built-in | Lundberg 2018 Algorithm 2 |
-| KernelSHAP | Via shap | Built-in | Model-agnostic, 10 typed variants |
-| PDP | Yes | Yes | 1D and 2D |
-| ICE | Yes | Yes | With centering |
-| H-Statistic | No | Yes | Interaction detection |
-
-### Python Bindings Coverage (~99%)
-
-| Module | Coverage | Details |
-|--------|----------|---------|
-| Models | ~99% | 37+ models exposed (linear, trees, ensemble, SVM, NB, anomaly, QDA, isotonic) |
-| Preprocessing | ~95% | 21 transformers + 5 resamplers + RFE |
-| Decomposition | 100% | PCA, IncrementalPCA, TruncatedSVD, LDA, FactorAnalysis, t-SNE |
-| Explainability | ~95% | TreeSHAP, KernelSHAP (10 variants), permutation importance, PDP, ICE, H-statistic |
-| Clustering | 100% | KMeans, DBSCAN, AgglomerativeClustering, GaussianMixture, HDBSCAN |
-| Anomaly | 100% | IsolationForest, LocalOutlierFactor |
-| Naive Bayes | 100% | GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB |
-| SVM | 100% | SVC, SVR, LinearSVC, LinearSVR |
-| Calibration | 100% | CalibratedClassifierCV, TemperatureScalingCalibrator |
-| Ensemble | 100% | BaggingClassifier (8 factories), BaggingRegressor (9 factories), Stacking, Voting |
+| Plans | Description | Status |
+|-------|-------------|--------|
+| 1-6 | Foundation (sklearn tests, clustering, neural, code quality) | Complete |
+| A-E | Hardening (correctness tests, benchmarks, Python bindings) | Complete |
+| F-L | Feature completion (GMM, anomaly, t-SNE, QDA, test suites) | Complete |
+| M-O | Validation & optimization (SIMD, Barnes-Hut, HDBSCAN) | Complete |
+| P | SVM polish (decision_function, class weights) | Complete |
+| Q | GPU shaders, SparseModel trait | Complete |
+| R | CountVectorizer, GP, MultiOutput, v0.2.0 release | Complete |
+| S | Cross-library validation (linfa, xgboost, lightgbm, statsmodels, scipy) | Complete |
+| T | Performance optimization, feature parity scorecard, warm_start | Complete |
+| U | sklearn API parity (score, partial_fit, decision_function), v0.3.0 | Complete |
 
 ## Next Steps
 
-### Post-v0.1.0 Priorities
+### v0.3.1 — Open-Source Polish (Plan V, In Progress)
 
-#### Documentation & Tutorials
-- [ ] Comprehensive API documentation (rustdoc + Python docstrings)
-- [ ] Tutorial notebooks (classification, regression, clustering, anomaly detection)
-- [ ] Migration guide for sklearn users
-- [ ] Performance comparison guide
+- [x] Fix RidgeCV NaN bug
+- [x] Fix ONNX RandomForest roundtrip
+- [ ] warm_start expansion to 12+ models
+- [ ] feature_importances_ for linear models
+- [ ] Community files (CONTRIBUTING, CODE_OF_CONDUCT, SECURITY)
+- [ ] Documentation sync to v0.3.0
 
-#### Real-World Validation
-- [ ] Published benchmarks vs XGBoost/LightGBM/sklearn on standard datasets
-- [ ] End-to-end examples on Kaggle-style problems
-- [ ] Community feedback integration
+### Future
 
-#### Performance
-- [ ] GPU acceleration (wgpu backend exists, needs hardening)
-- [x] Barnes-Hut t-SNE for large datasets (O(N log N)) — Complete (Plan N)
-- [ ] Sparse matrix optimizations for text/NLP workloads
-
-#### Coverage Gaps
-- [ ] ComplementNB (Naive Bayes)
-- [x] HDBSCAN — Complete (Plan O)
+- [ ] ComplementNB (Naive Bayes variant)
 - [ ] Spectral Clustering
-- [ ] stats/power.rs and stats/diagnostics.rs test coverage
-- [ ] GPU backend tests (67 exist, more needed)
-
-### v1.0.0 (Future)
-
-- [ ] Production-ready stability
-- [ ] Full sklearn parity for core algorithms
-- [ ] Publish to crates.io and PyPI
-- [ ] CI/CD pipeline for automated releases
-- [ ] Comprehensive documentation and tutorials
+- [ ] sklearn migration guide
+- [ ] Tutorial notebooks
+- [ ] Published benchmarks on standard datasets
+- [ ] v1.0.0 stability release

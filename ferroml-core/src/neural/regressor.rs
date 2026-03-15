@@ -50,6 +50,8 @@ pub struct MLPRegressor {
     target_mean: f64,
     /// Target std (for normalization)
     target_std: f64,
+    /// Whether to reuse previous weights as initialization
+    pub warm_start: bool,
     /// Training diagnostics
     #[serde(skip)]
     diagnostics: Option<TrainingDiagnostics>,
@@ -69,6 +71,7 @@ impl MLPRegressor {
             n_outputs: None,
             target_mean: 0.0,
             target_std: 1.0,
+            warm_start: false,
             diagnostics: None,
         }
     }
@@ -136,6 +139,12 @@ impl MLPRegressor {
     /// Set verbose level
     pub fn verbose(mut self, level: usize) -> Self {
         self.mlp = self.mlp.verbose(level);
+        self
+    }
+
+    /// Set whether to reuse previous weights as initialization.
+    pub fn with_warm_start(mut self, warm_start: bool) -> Self {
+        self.warm_start = warm_start;
         self
     }
 
@@ -207,8 +216,15 @@ impl NeuralModel for MLPRegressor {
             .into_shape_with_order((y.len(), 1))
             .map_err(|e| FerroError::InvalidInput(e.to_string()))?;
 
-        // Initialize network
-        self.mlp.initialize(n_features, n_outputs)?;
+        // Initialize network (skip if warm_start and already fitted with same architecture)
+        let should_init = if self.warm_start && self.mlp.is_fitted() {
+            self.mlp.n_features_in != Some(n_features) || self.mlp.n_outputs != Some(n_outputs)
+        } else {
+            true
+        };
+        if should_init {
+            self.mlp.initialize(n_features, n_outputs)?;
+        }
 
         // Training loop
         let mut diagnostics = TrainingDiagnostics::new(self.mlp.optimizer_config.learning_rate);
@@ -590,6 +606,33 @@ mod tests {
             "Prediction mean {} should be within 10x of target mean {}",
             pred_mean,
             target_mean
+        );
+    }
+
+    #[test]
+    fn test_mlp_regressor_warm_start() {
+        let (x, y) = create_linear_data();
+
+        let mut mlp = MLPRegressor::new()
+            .hidden_layer_sizes(&[10])
+            .activation(Activation::ReLU)
+            .learning_rate(0.01)
+            .max_iter(200)
+            .random_state(42)
+            .with_warm_start(true);
+
+        mlp.fit(&x, &y).unwrap();
+        let score1 = mlp.score(&x, &y).unwrap();
+
+        // Fit again — should reuse weights and converge at least as well
+        mlp.fit(&x, &y).unwrap();
+        let score2 = mlp.score(&x, &y).unwrap();
+
+        assert!(
+            score2 >= score1 - 0.1,
+            "score2={} should be >= score1={} - 0.1",
+            score2,
+            score1
         );
     }
 }

@@ -127,6 +127,8 @@ pub struct SGDClassifier {
     pub random_state: Option<u64>,
     /// Epsilon for Huber loss
     pub epsilon: f64,
+    /// Whether to reuse previous coefficients as initialization
+    pub warm_start: bool,
 
     // Fitted state
     coef: Option<Array2<f64>>, // (n_classes_or_1, n_features)
@@ -157,6 +159,7 @@ impl SGDClassifier {
             shuffle: true,
             random_state: None,
             epsilon: 0.1,
+            warm_start: false,
             coef: None,
             intercept: None,
             classes: None,
@@ -200,6 +203,12 @@ impl SGDClassifier {
     /// Set random seed.
     pub fn with_random_state(mut self, seed: u64) -> Self {
         self.random_state = Some(seed);
+        self
+    }
+
+    /// Set whether to reuse previous coefficients as initialization.
+    pub fn with_warm_start(mut self, warm_start: bool) -> Self {
+        self.warm_start = warm_start;
         self
     }
 
@@ -266,12 +275,19 @@ impl SGDClassifier {
     }
 
     /// Fit a single binary classifier: y_binary in {-1, +1}.
-    fn fit_binary(&self, x: &Array2<f64>, y: &Array1<f64>, seed: u64) -> (Array1<f64>, f64, usize) {
+    fn fit_binary(
+        &self,
+        x: &Array2<f64>,
+        y: &Array1<f64>,
+        seed: u64,
+        initial_coef: Option<Array1<f64>>,
+        initial_intercept: f64,
+    ) -> (Array1<f64>, f64, usize) {
         let n_samples = x.nrows();
         let n_features = x.ncols();
 
-        let mut coef = Array1::zeros(n_features);
-        let mut intercept = 0.0;
+        let mut coef = initial_coef.unwrap_or_else(|| Array1::zeros(n_features));
+        let mut intercept = initial_intercept;
         let mut t: usize = 0;
         let mut rng = seed;
         let mut best_loss = f64::INFINITY;
@@ -465,6 +481,18 @@ impl Model for SGDClassifier {
 
         let seed = self.random_state.unwrap_or(42);
 
+        // Determine initial coefficients for warm_start
+        let prev_coef = if self.warm_start {
+            self.coef.take()
+        } else {
+            None
+        };
+        let prev_intercept = if self.warm_start {
+            self.intercept.take()
+        } else {
+            None
+        };
+
         if n_classes == 2 {
             // Binary: single classifier with {-1, +1} encoding
             let y_encoded: Array1<f64> = y
@@ -478,7 +506,11 @@ impl Model for SGDClassifier {
                 })
                 .collect();
 
-            let (coef, intercept, n_iter) = self.fit_binary(x, &y_encoded, seed);
+            let init_coef = prev_coef.map(|c| c.row(0).to_owned());
+            let init_intercept = prev_intercept.as_ref().map_or(0.0, |i| i[0]);
+
+            let (coef, intercept, n_iter) =
+                self.fit_binary(x, &y_encoded, seed, init_coef, init_intercept);
             self.coef = Some(coef.insert_axis(ndarray::Axis(0)));
             self.intercept = Some(Array1::from_vec(vec![intercept]));
             self.n_iter = Some(n_iter);
@@ -495,7 +527,18 @@ impl Model for SGDClassifier {
                     .collect();
 
                 let class_seed = seed.wrapping_add(ci as u64);
-                let (coef, intercept, n_iter) = self.fit_binary(x, &y_binary, class_seed);
+
+                let init_coef = prev_coef
+                    .as_ref()
+                    .filter(|c| c.ncols() == n_features && ci < c.nrows())
+                    .map(|c| c.row(ci).to_owned());
+                let init_intercept =
+                    prev_intercept
+                        .as_ref()
+                        .map_or(0.0, |i| if ci < i.len() { i[ci] } else { 0.0 });
+
+                let (coef, intercept, n_iter) =
+                    self.fit_binary(x, &y_binary, class_seed, init_coef, init_intercept);
 
                 all_coefs.row_mut(ci).assign(&coef);
                 all_intercepts[ci] = intercept;
@@ -549,6 +592,18 @@ impl Model for SGDClassifier {
 
     fn n_features(&self) -> Option<usize> {
         self.n_features
+    }
+
+    fn feature_importance(&self) -> Option<Array1<f64>> {
+        let coef = self.coef.as_ref()?; // Array2: (n_classes, n_features)
+        let abs_coef = coef.mapv(|c| c.abs());
+        let summed = abs_coef.sum_axis(ndarray::Axis(0)); // sum across classes
+        let total = summed.sum();
+        if total > 0.0 {
+            Some(summed / total)
+        } else {
+            Some(summed)
+        }
     }
 
     fn model_name(&self) -> &str {
@@ -738,6 +793,8 @@ pub struct SGDRegressor {
     pub random_state: Option<u64>,
     /// Epsilon for Huber/epsilon-insensitive loss
     pub epsilon: f64,
+    /// Whether to reuse previous coefficients as initialization
+    pub warm_start: bool,
 
     // Fitted state
     coef: Option<Array1<f64>>,
@@ -767,6 +824,7 @@ impl SGDRegressor {
             shuffle: true,
             random_state: None,
             epsilon: 0.1,
+            warm_start: false,
             coef: None,
             intercept: None,
             n_features: None,
@@ -803,6 +861,12 @@ impl SGDRegressor {
     /// Set random seed.
     pub fn with_random_state(mut self, seed: u64) -> Self {
         self.random_state = Some(seed);
+        self
+    }
+
+    /// Set whether to reuse previous coefficients as initialization.
+    pub fn with_warm_start(mut self, warm_start: bool) -> Self {
+        self.warm_start = warm_start;
         self
     }
 
@@ -921,8 +985,20 @@ impl Model for SGDRegressor {
         let n_samples = x.nrows();
         let n_features = x.ncols();
 
-        let mut coef = Array1::zeros(n_features);
-        let mut intercept = 0.0;
+        // Warm start: reuse previous coefficients if available and compatible
+        let mut coef = if self.warm_start {
+            self.coef
+                .take()
+                .filter(|c| c.len() == n_features)
+                .unwrap_or_else(|| Array1::zeros(n_features))
+        } else {
+            Array1::zeros(n_features)
+        };
+        let mut intercept = if self.warm_start {
+            self.intercept.take().unwrap_or(0.0)
+        } else {
+            0.0
+        };
         let mut t: usize = 0;
         let mut rng = self.random_state.unwrap_or(42);
         let mut indices: Vec<usize> = (0..n_samples).collect();
@@ -1029,6 +1105,17 @@ impl Model for SGDRegressor {
 
     fn n_features(&self) -> Option<usize> {
         self.n_features
+    }
+
+    fn feature_importance(&self) -> Option<Array1<f64>> {
+        let coef = self.coef.as_ref()?;
+        let abs_coef: Array1<f64> = coef.mapv(|c| c.abs());
+        let sum = abs_coef.sum();
+        if sum > 0.0 {
+            Some(abs_coef / sum)
+        } else {
+            Some(abs_coef)
+        }
     }
 
     fn model_name(&self) -> &str {
@@ -2099,5 +2186,52 @@ mod tests {
         reg.partial_fit(&x, &y).unwrap();
         assert!(reg.is_fitted());
         assert_eq!(reg.n_features(), Some(1));
+    }
+
+    #[test]
+    fn test_sgd_classifier_warm_start() {
+        let (x, y) = make_binary_data();
+
+        let mut model = SGDClassifier::new()
+            .with_warm_start(true)
+            .with_max_iter(50)
+            .with_random_state(42)
+            .with_loss(SGDClassifierLoss::Log);
+        model.fit(&x, &y).unwrap();
+        let score1 = model.score(&x, &y).unwrap();
+
+        // Fit again — should reuse coefficients and converge at least as well
+        model.fit(&x, &y).unwrap();
+        let score2 = model.score(&x, &y).unwrap();
+
+        assert!(
+            score2 >= score1 - 0.1,
+            "score2={} should be >= score1={} - 0.1",
+            score2,
+            score1
+        );
+    }
+
+    #[test]
+    fn test_sgd_regressor_warm_start() {
+        let (x, y) = make_regression_data();
+
+        let mut model = SGDRegressor::new()
+            .with_warm_start(true)
+            .with_max_iter(50)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+        let score1 = model.score(&x, &y).unwrap();
+
+        // Fit again — should reuse coefficients and converge at least as well
+        model.fit(&x, &y).unwrap();
+        let score2 = model.score(&x, &y).unwrap();
+
+        assert!(
+            score2 >= score1 - 0.1,
+            "score2={} should be >= score1={} - 0.1",
+            score2,
+            score1
+        );
     }
 }

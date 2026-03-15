@@ -413,13 +413,16 @@ impl Model for ExtraTreesClassifier {
         let mut predictions = Array1::zeros(n_samples);
 
         for i in 0..n_samples {
+            // Use first-argmax (lowest index wins ties) to match sklearn/ONNX ArgMax behavior
             let row = proba.row(i);
-            let max_idx = row
-                .iter()
-                .enumerate()
-                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-                .map(|(idx, _)| idx)
-                .unwrap_or(0);
+            let mut max_idx = 0;
+            let mut max_val = f64::NEG_INFINITY;
+            for (j, &v) in row.iter().enumerate() {
+                if v > max_val {
+                    max_val = v;
+                    max_idx = j;
+                }
+            }
             predictions[i] = classes[max_idx];
         }
 

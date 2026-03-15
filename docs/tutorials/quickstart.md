@@ -17,7 +17,7 @@ Add `ferroml-core` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ferroml-core = "0.1"
+ferroml-core = "0.3"
 ```
 
 Optional feature flags:

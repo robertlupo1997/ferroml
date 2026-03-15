@@ -973,4 +973,32 @@ mod tests {
         // Inertia should be exactly 0 since all points lie on centroids
         assert!((inertia - 0.0).abs() < 1e-10);
     }
+
+    #[test]
+    fn test_kmeans_warm_start() {
+        let x = Array2::from_shape_vec(
+            (8, 2),
+            vec![
+                1.0, 1.0, 1.1, 1.1, 1.0, 1.1, 1.1, 1.0, 10.0, 10.0, 10.1, 10.1, 10.0, 10.1, 10.1,
+                10.0,
+            ],
+        )
+        .unwrap();
+
+        let mut kmeans = KMeans::new(2).warm_start(true).random_state(42);
+        kmeans.fit(&x).unwrap();
+        let inertia1 = kmeans.inertia().unwrap();
+
+        // Fit again — should reuse centers and converge at least as well
+        kmeans.fit(&x).unwrap();
+        let inertia2 = kmeans.inertia().unwrap();
+
+        // Second fit should have similar or better inertia
+        assert!(
+            inertia2 <= inertia1 + 0.1,
+            "inertia2={} should be <= inertia1={} + 0.1",
+            inertia2,
+            inertia1
+        );
+    }
 }

@@ -210,6 +210,20 @@ impl PyLinearRegression {
         })
     }
 
+    /// Get feature importances (normalized absolute coefficients).
+    ///
+    /// Returns
+    /// -------
+    /// feature_importances : ndarray of shape (n_features,)
+    ///     Normalized absolute coefficient magnitudes summing to 1.
+    #[getter]
+    fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let imp = self.inner.feature_importance().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(imp.into_pyarray(py))
+    }
+
     /// Get the number of features seen during fit.
     #[getter]
     fn n_features_in_(&self) -> PyResult<usize> {
@@ -955,6 +969,20 @@ impl PyLogisticRegression {
         })
     }
 
+    /// Get feature importances (normalized absolute coefficients).
+    ///
+    /// Returns
+    /// -------
+    /// feature_importances : ndarray of shape (n_features,)
+    ///     Normalized absolute coefficient magnitudes summing to 1.
+    #[getter]
+    fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let imp = self.inner.feature_importance().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(imp.into_pyarray(py))
+    }
+
     /// Get odds ratios for each coefficient.
     ///
     /// Odds ratio = exp(β). An odds ratio > 1 means the odds of the positive
@@ -1447,6 +1475,20 @@ impl PyRidgeRegression {
         })
     }
 
+    /// Get feature importances (normalized absolute coefficients).
+    ///
+    /// Returns
+    /// -------
+    /// feature_importances : ndarray of shape (n_features,)
+    ///     Normalized absolute coefficient magnitudes summing to 1.
+    #[getter]
+    fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let imp = self.inner.feature_importance().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(imp.into_pyarray(py))
+    }
+
     /// Get the R² value.
     fn r_squared(&self) -> PyResult<f64> {
         self.inner.r_squared().ok_or_else(|| {
@@ -1827,6 +1869,20 @@ impl PyLassoRegression {
         Ok(format!("{}", self.inner.summary()))
     }
 
+    /// Get feature importances (normalized absolute coefficients).
+    ///
+    /// Returns
+    /// -------
+    /// feature_importances : ndarray of shape (n_features,)
+    ///     Normalized absolute coefficient magnitudes summing to 1.
+    #[getter]
+    fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let imp = self.inner.feature_importance().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(imp.into_pyarray(py))
+    }
+
     /// Get feature importance (absolute coefficients).
     fn feature_importance<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let importance = self.inner.feature_importance().ok_or_else(|| {
@@ -2179,6 +2235,20 @@ impl PyElasticNet {
             ));
         }
         Ok(format!("{}", self.inner.summary()))
+    }
+
+    /// Get feature importances (normalized absolute coefficients).
+    ///
+    /// Returns
+    /// -------
+    /// feature_importances : ndarray of shape (n_features,)
+    ///     Normalized absolute coefficient magnitudes summing to 1.
+    #[getter]
+    fn feature_importances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let imp = self.inner.feature_importance().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(imp.into_pyarray(py))
     }
 
     /// Get feature importance (absolute coefficients).

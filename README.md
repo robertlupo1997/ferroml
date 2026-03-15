@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/ferroml-core.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-4%2C700%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-5%2C000%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v0.2.0** — 55+ ML algorithms, 4,700+ tests passing (3,200+ Rust + 1,500+ Python), GPU acceleration, native sparse support, validated against sklearn with 252+ correctness tests. Plans A-R complete. See [Project Status](#project-status) for details.
+> **Status: v0.3.0** — 55+ ML algorithms, 5,000+ tests passing (3,160+ Rust + 1,920+ Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm with 250+ correctness tests. See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -24,7 +24,7 @@ FerroML is a high-performance machine learning library that prioritizes statisti
 
 ```toml
 [dependencies]
-ferroml-core = "0.2"
+ferroml-core = "0.3"
 ```
 
 ### Python
@@ -197,7 +197,7 @@ cargo run --example pipeline
 
 ```toml
 [dependencies]
-ferroml-core = { version = "0.2", features = ["simd", "sparse", "onnx"] }
+ferroml-core = { version = "0.3", features = ["simd", "sparse", "onnx"] }
 ```
 
 | Feature | Description |
@@ -239,17 +239,18 @@ at your option.
 
 ## Project Status
 
-### Current State (v0.2.0)
+### Current State (v0.3.0)
 
-FerroML is **v0.2.0**, hardened through 24 plans (1-6, A-R) of correctness, performance, and feature work:
+FerroML is **v0.3.0**, hardened through 27 plans (1-6, A-U) of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 4,700+ passing (3,200+ Rust + 1,500+ Python), 0 failing, 26 ignored (slow AutoML system tests) |
-| **Correctness Tests** | 252+ (clustering: 102, neural: 49, preprocessing: 101) |
-| **Sklearn Match** | 58 comparisons passing (32 models + preprocessing) |
-| **Python Test Files** | 37+ end-to-end test files |
+| **Tests** | 5,000+ passing (3,160+ Rust + 1,920+ Python), 0 failing, 26 ignored (slow AutoML system tests) |
+| **Correctness Tests** | 250+ (clustering: 102, neural: 49, preprocessing: 101) |
+| **Cross-Library Validation** | 164 tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa) |
+| **Python Test Files** | 53+ end-to-end test files |
 | **Python Bindings** | ~99% coverage (55+ models, 23 preprocessors, 6 decomposition, 37 explainability) |
+| **sklearn API** | `score()` on 56 models, `partial_fit` on 10, `decision_function` on 13 classifiers |
 | **Benchmarks** | 86+ Criterion benchmarks with CI regression baseline |
 | **GPU Tests** | ~188 tests for wgpu shader acceleration |
 | **Sparse Tests** | ~55 sparse model tests + 90 sparse infrastructure tests |

@@ -518,13 +518,15 @@ impl RandomForestClassifier {
                 }
 
                 // Find predicted class
-                let pred_class_idx = oob_proba
-                    .row(i)
-                    .iter()
-                    .enumerate()
-                    .max_by(|a: &(usize, &f64), b: &(usize, &f64)| a.1.partial_cmp(b.1).unwrap())
-                    .map(|(idx, _)| idx)
-                    .unwrap_or(0);
+                // Use first-argmax (lowest index wins ties) to match sklearn behavior
+                let mut pred_class_idx = 0;
+                let mut max_val = f64::NEG_INFINITY;
+                for (j, &v) in oob_proba.row(i).iter().enumerate() {
+                    if v > max_val {
+                        max_val = v;
+                        pred_class_idx = j;
+                    }
+                }
 
                 let pred_class = classes[pred_class_idx];
                 if (pred_class - y[i]).abs() < 1e-10 {
@@ -749,13 +751,15 @@ impl Model for RandomForestClassifier {
         let mut predictions = Array1::zeros(n_samples);
 
         for i in 0..n_samples {
-            let max_idx = probas
-                .row(i)
-                .iter()
-                .enumerate()
-                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-                .map(|(idx, _)| idx)
-                .unwrap_or(0);
+            // Use first-argmax (lowest index wins ties) to match sklearn/ONNX ArgMax behavior
+            let mut max_idx = 0;
+            let mut max_val = f64::NEG_INFINITY;
+            for (j, &v) in probas.row(i).iter().enumerate() {
+                if v > max_val {
+                    max_val = v;
+                    max_idx = j;
+                }
+            }
             predictions[i] = classes[max_idx];
         }
 

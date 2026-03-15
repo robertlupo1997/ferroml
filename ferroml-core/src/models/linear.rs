@@ -516,22 +516,14 @@ impl Model for LinearRegression {
     }
 
     fn feature_importance(&self) -> Option<Array1<f64>> {
-        // For linear regression, use absolute standardized coefficients
         let coef = self.coefficients.as_ref()?;
-        let data = self.fitted_data.as_ref()?;
-
-        let mut importance = Array1::zeros(coef.len());
-        for i in 0..coef.len() {
-            // Standardize by coefficient standard error
-            let idx = if self.fit_intercept { i + 1 } else { i };
-            if idx < data.coef_std_errors.len() {
-                importance[i] = (coef[i] / data.coef_std_errors[idx]).abs();
-            } else {
-                importance[i] = coef[i].abs();
-            }
+        let abs_coef: Array1<f64> = coef.mapv(|c| c.abs());
+        let sum = abs_coef.sum();
+        if sum > 0.0 {
+            Some(abs_coef / sum)
+        } else {
+            Some(abs_coef)
         }
-
-        Some(importance)
     }
 
     fn search_space(&self) -> SearchSpace {
