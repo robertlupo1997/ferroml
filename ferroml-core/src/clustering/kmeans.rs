@@ -58,6 +58,8 @@ pub struct KMeans {
     random_state: Option<u64>,
     /// Number of times to run with different centroid seeds
     n_init: usize,
+    /// Whether to reuse previous cluster centers as initialization
+    warm_start: bool,
     /// Optional GPU backend for accelerated distance computation
     #[cfg(feature = "gpu")]
     #[serde(skip)]
@@ -92,6 +94,7 @@ impl KMeans {
             tol: 1e-4,
             random_state: None,
             n_init: 10,
+            warm_start: false,
             #[cfg(feature = "gpu")]
             gpu_backend: None,
             cluster_centers_: None,
@@ -129,6 +132,12 @@ impl KMeans {
     /// Set number of initialization runs
     pub fn n_init(mut self, n_init: usize) -> Self {
         self.n_init = n_init;
+        self
+    }
+
+    /// Set whether to reuse previous cluster centers as initialization
+    pub fn warm_start(mut self, warm_start: bool) -> Self {
+        self.warm_start = warm_start;
         self
     }
 
@@ -197,22 +206,32 @@ impl KMeans {
     /// CPU assignment step: assign each point to nearest center.
     ///
     /// Uses SIMD-optimized squared Euclidean distance for fast assignment.
+    /// Pre-computes center slices to avoid repeated row extraction overhead.
     fn cpu_assign(
         x: &Array2<f64>,
         centers: &Array2<f64>,
         n_clusters: usize,
         n_samples: usize,
     ) -> (Array1<i32>, f64) {
+        // Pre-extract center data as contiguous Vec for cache-friendly access
+        let center_data: Vec<Vec<f64>> = (0..n_clusters).map(|k| centers.row(k).to_vec()).collect();
+
         #[cfg(feature = "parallel")]
         {
             use rayon::prelude::*;
+            // Use chunks for better cache locality and reduced allocation
+            let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
             let results: Vec<(i32, f64)> = (0..n_samples)
                 .into_par_iter()
+                .with_min_len(chunk_size)
                 .map(|i| {
+                    let x_row = x.row(i);
+                    let x_slice = x_row.as_slice().unwrap_or(&[]);
                     let mut min_dist = f64::MAX;
                     let mut min_idx = 0i32;
                     for k in 0..n_clusters {
-                        let dist = squared_euclidean(&x.row(i), &centers.row(k));
+                        let dist =
+                            crate::linalg::squared_euclidean_distance(x_slice, &center_data[k]);
                         if dist < min_dist {
                             min_dist = dist;
                             min_idx = k as i32;
@@ -223,8 +242,8 @@ impl KMeans {
                 .collect();
             let mut labels = Array1::zeros(n_samples);
             let mut total_inertia = 0.0;
-            for (i, (label, dist)) in results.iter().enumerate() {
-                labels[i] = *label;
+            for (i, &(label, dist)) in results.iter().enumerate() {
+                labels[i] = label;
                 total_inertia += dist;
             }
             (labels, total_inertia)
@@ -234,16 +253,18 @@ impl KMeans {
             let mut labels = Array1::zeros(n_samples);
             let mut total_inertia = 0.0;
             for i in 0..n_samples {
+                let x_row = x.row(i);
+                let x_slice = x_row.as_slice().unwrap_or(&[]);
                 let mut min_dist = f64::MAX;
-                let mut min_idx = 0;
+                let mut min_idx = 0i32;
                 for k in 0..n_clusters {
-                    let dist = squared_euclidean(&x.row(i), &centers.row(k));
+                    let dist = crate::linalg::squared_euclidean_distance(x_slice, &center_data[k]);
                     if dist < min_dist {
                         min_dist = dist;
                         min_idx = k;
                     }
                 }
-                labels[i] = min_idx as i32;
+                labels[i] = min_idx;
                 total_inertia += min_dist;
             }
             (labels, total_inertia)
@@ -321,17 +342,17 @@ impl KMeans {
 
             for i in 0..n_samples {
                 let k = labels[i] as usize;
-                for j in 0..n_features {
-                    new_centers[[k, j]] += x[[i, j]];
-                }
+                // Use ndarray row operations — much faster than element-wise indexing
+                let x_row = x.row(i);
+                let mut center_row = new_centers.row_mut(k);
+                center_row += &x_row;
                 counts[k] += 1;
             }
 
             for k in 0..self.n_clusters {
                 if counts[k] > 0 {
-                    for j in 0..n_features {
-                        new_centers[[k, j]] /= counts[k] as f64;
-                    }
+                    let scale = 1.0 / counts[k] as f64;
+                    new_centers.row_mut(k).mapv_inplace(|v| v * scale);
                 } else {
                     // Empty cluster: re-initialize to a random data point
                     // (matching sklearn behavior instead of keeping stale center)
@@ -529,24 +550,71 @@ impl ClusteringModel for KMeans {
         }
 
         let base_seed = self.random_state.unwrap_or_else(rand::random);
-        let mut best_inertia = f64::MAX;
-        let mut best_centers = None;
-        let mut best_labels = None;
-        let mut best_n_iter = 0;
 
-        // Run n_init times and keep best result
-        for init in 0..self.n_init {
-            let mut rng = StdRng::seed_from_u64(base_seed.wrapping_add(init as u64));
-            let initial_centers = self.kmeans_plus_plus_init(x, &mut rng);
-            let (centers, labels, inertia, n_iter) = self.run_kmeans(x, initial_centers);
-
-            if inertia < best_inertia {
-                best_inertia = inertia;
-                best_centers = Some(centers);
-                best_labels = Some(labels);
-                best_n_iter = n_iter;
+        // Warm start: reuse previous cluster centers as initial centers (single run)
+        if self.warm_start {
+            if let Some(ref prev_centers) = self.cluster_centers_ {
+                if prev_centers.ncols() == x.ncols() && prev_centers.nrows() == self.n_clusters {
+                    let (centers, labels, inertia, n_iter) =
+                        self.run_kmeans(x, prev_centers.clone());
+                    self.cluster_centers_ = Some(centers);
+                    self.labels_ = Some(labels);
+                    self.inertia_ = Some(inertia);
+                    self.n_iter_ = Some(n_iter);
+                    return Ok(());
+                }
             }
         }
+
+        // Run n_init times and keep best result
+        // Parallelize across n_init runs when the parallel feature is enabled
+        #[cfg(feature = "parallel")]
+        let (best_centers, best_labels, best_inertia, best_n_iter) = {
+            use rayon::prelude::*;
+            let results: Vec<_> = (0..self.n_init)
+                .into_par_iter()
+                .map(|init| {
+                    let mut rng = StdRng::seed_from_u64(base_seed.wrapping_add(init as u64));
+                    let initial_centers = self.kmeans_plus_plus_init(x, &mut rng);
+                    self.run_kmeans(x, initial_centers)
+                })
+                .collect();
+
+            let mut best_inertia = f64::MAX;
+            let mut best_centers = None;
+            let mut best_labels = None;
+            let mut best_n_iter = 0;
+            for (centers, labels, inertia, n_iter) in results {
+                if inertia < best_inertia {
+                    best_inertia = inertia;
+                    best_centers = Some(centers);
+                    best_labels = Some(labels);
+                    best_n_iter = n_iter;
+                }
+            }
+            (best_centers, best_labels, best_inertia, best_n_iter)
+        };
+
+        #[cfg(not(feature = "parallel"))]
+        let (best_centers, best_labels, best_inertia, best_n_iter) = {
+            let mut best_inertia = f64::MAX;
+            let mut best_centers = None;
+            let mut best_labels = None;
+            let mut best_n_iter = 0;
+            for init in 0..self.n_init {
+                let mut rng = StdRng::seed_from_u64(base_seed.wrapping_add(init as u64));
+                let initial_centers = self.kmeans_plus_plus_init(x, &mut rng);
+                let (centers, labels, inertia, n_iter) = self.run_kmeans(x, initial_centers);
+
+                if inertia < best_inertia {
+                    best_inertia = inertia;
+                    best_centers = Some(centers);
+                    best_labels = Some(labels);
+                    best_n_iter = n_iter;
+                }
+            }
+            (best_centers, best_labels, best_inertia, best_n_iter)
+        };
 
         self.cluster_centers_ = best_centers;
         self.labels_ = best_labels;

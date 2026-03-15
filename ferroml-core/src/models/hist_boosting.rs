@@ -368,6 +368,21 @@ impl BinMapperInfo for BinMapper {
     }
 }
 
+/// Convert row-major binned Array2 to column-major Vec<Vec<u8>> for cache-friendly histogram building
+fn to_col_major(x_binned: &Array2<u8>) -> Vec<Vec<u8>> {
+    let n_samples = x_binned.nrows();
+    let n_features = x_binned.ncols();
+    let mut cols = Vec::with_capacity(n_features);
+    for f in 0..n_features {
+        let mut col = Vec::with_capacity(n_samples);
+        for i in 0..n_samples {
+            col.push(x_binned[[i, f]]);
+        }
+        cols.push(col);
+    }
+    cols
+}
+
 /// Histogram for a single node
 #[derive(Debug, Clone)]
 struct Histogram {
@@ -773,7 +788,227 @@ impl HistTreeBuilder {
         best_split
     }
 
-    /// Build a tree using leaf-wise growth strategy
+    /// Build a tree using leaf-wise growth strategy (column-major optimized)
+    fn build_leaf_wise_col_major(
+        &self,
+        x_col_major: &[Vec<u8>],
+        gradients: &[f64],
+        hessians: &[f64],
+        sample_indices: &[usize],
+        n_bins_per_feature: &[usize],
+    ) -> HistTree {
+        let n_features = x_col_major.len();
+        let mut tree = HistTree::new();
+
+        if sample_indices.is_empty() {
+            return tree;
+        }
+
+        // Compute initial statistics
+        let mut sum_gradients = 0.0f64;
+        let mut sum_hessians = 0.0f64;
+        for &i in sample_indices {
+            sum_gradients += gradients[i];
+            sum_hessians += hessians[i];
+        }
+        let root_value = -sum_gradients / (sum_hessians + self.l2_regularization);
+
+        // Create root node
+        let root = HistTreeNode::new_leaf(
+            root_value,
+            sample_indices.len(),
+            sum_gradients,
+            sum_hessians,
+            0,
+        );
+        tree.nodes.push(root);
+
+        // Track which samples belong to each node
+        let mut node_samples: Vec<Vec<usize>> = vec![sample_indices.to_vec()];
+
+        // Build histograms for root
+        let mut histograms: Vec<Vec<Histogram>> = vec![self.build_histograms_col_major(
+            x_col_major,
+            gradients,
+            hessians,
+            sample_indices,
+            n_bins_per_feature,
+        )];
+
+        // Priority queue of nodes to split
+        let mut split_queue: BinaryHeap<SplitCandidate> = BinaryHeap::new();
+
+        // Find initial split for root
+        if let Some(split) = self.find_best_split(
+            &histograms[0],
+            &tree.nodes[0],
+            None,
+            f64::NEG_INFINITY,
+            f64::INFINITY,
+        ) {
+            split_queue.push(SplitCandidate {
+                node_idx: 0,
+                split_info: split,
+            });
+        }
+
+        let max_leaves = self.max_leaf_nodes.unwrap_or(usize::MAX);
+        let mut n_leaves = 1;
+
+        // Use the split feature's column data for fast partitioning
+        // Main splitting loop
+        while let Some(candidate) = split_queue.pop() {
+            if n_leaves >= max_leaves {
+                break;
+            }
+
+            let node_idx = candidate.node_idx;
+            let split = candidate.split_info;
+
+            if let Some(max_depth) = self.max_depth {
+                if tree.nodes[node_idx].depth >= max_depth {
+                    continue;
+                }
+            }
+
+            let (left_value, right_value) = split.compute_leaf_values(self.l2_regularization);
+
+            // Partition samples using column-major data (cache-friendly)
+            let parent_samples = &node_samples[node_idx];
+            let feature_col = &x_col_major[split.feature_idx];
+            let threshold = split.bin_threshold;
+
+            let mut left_samples = Vec::with_capacity(split.n_left);
+            let mut right_samples = Vec::with_capacity(split.n_right);
+
+            for &sample_idx in parent_samples {
+                let bin = feature_col[sample_idx];
+                let is_missing = bin as usize >= self.max_bins;
+                let go_left = if is_missing {
+                    split.missing_go_left
+                } else {
+                    bin <= threshold
+                };
+
+                if go_left {
+                    left_samples.push(sample_idx);
+                } else {
+                    right_samples.push(sample_idx);
+                }
+            }
+
+            // Create child nodes
+            let left_node = HistTreeNode::new_leaf(
+                left_value,
+                left_samples.len(),
+                split.sum_gradient_left,
+                split.sum_hessian_left,
+                tree.nodes[node_idx].depth + 1,
+            );
+
+            let right_node = HistTreeNode::new_leaf(
+                right_value,
+                right_samples.len(),
+                split.sum_gradient_right,
+                split.sum_hessian_right,
+                tree.nodes[node_idx].depth + 1,
+            );
+
+            let left_idx = tree.nodes.len();
+            let right_idx = left_idx + 1;
+
+            tree.nodes.push(left_node);
+            tree.nodes.push(right_node);
+
+            tree.nodes[node_idx].feature_idx = Some(split.feature_idx);
+            tree.nodes[node_idx].bin_threshold = Some(split.bin_threshold);
+            tree.nodes[node_idx].missing_go_left = split.missing_go_left;
+            tree.nodes[node_idx].left_child = Some(left_idx);
+            tree.nodes[node_idx].right_child = Some(right_idx);
+            tree.nodes[node_idx].gain = split.gain;
+
+            n_leaves += 1;
+
+            // Build histograms for smaller child, subtract for larger
+            let (smaller_idx, smaller_samples, larger_idx) =
+                if left_samples.len() <= right_samples.len() {
+                    (left_idx, &left_samples, right_idx)
+                } else {
+                    (right_idx, &right_samples, left_idx)
+                };
+
+            let smaller_hist = self.build_histograms_col_major(
+                x_col_major,
+                gradients,
+                hessians,
+                smaller_samples,
+                n_bins_per_feature,
+            );
+
+            // Compute larger child by subtraction from parent
+            let parent_hist = &histograms[node_idx];
+            let mut larger_hist = Vec::with_capacity(n_features);
+            for f in 0..n_features {
+                let n_bins = n_bins_per_feature[f];
+                let mut hist = Histogram::new(n_bins);
+                hist.compute_by_subtraction(&parent_hist[f], &smaller_hist[f]);
+                larger_hist.push(hist);
+            }
+
+            // Store histograms and samples
+            while histograms.len() <= right_idx {
+                histograms.push(Vec::new());
+            }
+            histograms[smaller_idx] = smaller_hist;
+            histograms[larger_idx] = larger_hist;
+
+            while node_samples.len() <= right_idx {
+                node_samples.push(Vec::new());
+            }
+            node_samples[left_idx] = left_samples;
+            node_samples[right_idx] = right_samples;
+
+            // Get bounds for monotonic constraints
+            let (lower_left, upper_left, lower_right, upper_right) = self.get_monotonic_bounds(
+                &tree.nodes[node_idx],
+                left_value,
+                right_value,
+                split.feature_idx,
+            );
+
+            // Find splits for children
+            if let Some(left_split) = self.find_best_split(
+                &histograms[left_idx],
+                &tree.nodes[left_idx],
+                None,
+                lower_left,
+                upper_left,
+            ) {
+                split_queue.push(SplitCandidate {
+                    node_idx: left_idx,
+                    split_info: left_split,
+                });
+            }
+
+            if let Some(right_split) = self.find_best_split(
+                &histograms[right_idx],
+                &tree.nodes[right_idx],
+                None,
+                lower_right,
+                upper_right,
+            ) {
+                split_queue.push(SplitCandidate {
+                    node_idx: right_idx,
+                    split_info: right_split,
+                });
+            }
+        }
+
+        tree
+    }
+
+    /// Build a tree using leaf-wise growth strategy (row-major fallback)
+    #[allow(dead_code)]
     fn build_leaf_wise(
         &self,
         x_binned: &Array2<u8>,
@@ -911,69 +1146,37 @@ impl HistTreeBuilder {
             n_leaves += 1; // One leaf split into two = net +1 leaf
 
             // Build histograms for smaller child (use subtraction for larger)
-            let left_hist = if left_samples.len() <= right_samples.len() {
-                self.build_histograms(x_binned, gradients, hessians, &left_samples, bin_mapper)
-            } else {
-                // Compute by subtraction
-                let parent_hist = &histograms[node_idx];
-                let right_hist = self.build_histograms(
-                    x_binned,
-                    gradients,
-                    hessians,
-                    &right_samples,
-                    bin_mapper,
-                );
-                let mut left_hist = Vec::with_capacity(n_features);
-                for f in 0..n_features {
-                    let n_bins = bin_mapper.n_bins(f);
-                    let mut hist = Histogram::new(n_bins);
-                    hist.compute_by_subtraction(&parent_hist[f], &right_hist[f]);
-                    left_hist.push(hist);
-                }
-                // Store right histogram for later use
-                while histograms.len() <= right_idx {
-                    histograms.push(Vec::new());
-                }
-                histograms[right_idx] = right_hist;
-                left_hist
-            };
+            let (smaller_idx, smaller_samples, larger_idx) =
+                if left_samples.len() <= right_samples.len() {
+                    (left_idx, &left_samples, right_idx)
+                } else {
+                    (right_idx, &right_samples, left_idx)
+                };
 
-            let right_hist = if histograms.len() > right_idx && !histograms[right_idx].is_empty() {
-                std::mem::take(&mut histograms[right_idx])
-            } else if right_samples.len() <= left_samples.len() {
-                self.build_histograms(x_binned, gradients, hessians, &right_samples, bin_mapper)
-            } else {
-                // Compute by subtraction
-                let parent_hist = &histograms[node_idx];
-                let mut right_hist = Vec::with_capacity(n_features);
-                for f in 0..n_features {
-                    let n_bins = bin_mapper.n_bins(f);
-                    let mut hist = Histogram::new(n_bins);
-                    hist.compute_by_subtraction(&parent_hist[f], &left_hist[f]);
-                    right_hist.push(hist);
-                }
-                right_hist
-            };
+            let smaller_hist =
+                self.build_histograms(x_binned, gradients, hessians, smaller_samples, bin_mapper);
+
+            // Compute larger child by subtraction from parent
+            let parent_hist = &histograms[node_idx];
+            let mut larger_hist = Vec::with_capacity(n_features);
+            for f in 0..n_features {
+                let n_bins = bin_mapper.n_bins(f);
+                let mut hist = Histogram::new(n_bins);
+                hist.compute_by_subtraction(&parent_hist[f], &smaller_hist[f]);
+                larger_hist.push(hist);
+            }
 
             // Store histograms and samples
-            while histograms.len() <= left_idx {
-                histograms.push(Vec::new());
-            }
-            histograms[left_idx] = left_hist;
             while histograms.len() <= right_idx {
                 histograms.push(Vec::new());
             }
-            if histograms[right_idx].is_empty() {
-                histograms[right_idx] = right_hist;
-            }
+            histograms[smaller_idx] = smaller_hist;
+            histograms[larger_idx] = larger_hist;
 
-            while node_samples.len() <= left_idx {
-                node_samples.push(Vec::new());
-            }
-            node_samples[left_idx] = left_samples;
             while node_samples.len() <= right_idx {
                 node_samples.push(Vec::new());
             }
+            node_samples[left_idx] = left_samples;
             node_samples[right_idx] = right_samples;
 
             // Get bounds for monotonic constraints
@@ -1015,7 +1218,8 @@ impl HistTreeBuilder {
         tree
     }
 
-    /// Build histograms for all features
+    /// Build histograms for all features (row-major fallback)
+    #[allow(dead_code)]
     fn build_histograms(
         &self,
         x_binned: &Array2<u8>,
@@ -1025,58 +1229,93 @@ impl HistTreeBuilder {
         bin_mapper: &dyn BinMapperInfo,
     ) -> Vec<Histogram> {
         let n_features = x_binned.ncols();
-
-        // Pre-compute n_bins for each feature (required for parallel iteration)
         let n_bins_per_feature: Vec<usize> =
             (0..n_features).map(|f| bin_mapper.n_bins(f)).collect();
 
+        let mut histograms: Vec<Histogram> = n_bins_per_feature
+            .iter()
+            .map(|&nb| Histogram::new(nb))
+            .collect();
+
+        // Single-pass sample-oriented histogram building
+        for &idx in indices {
+            let g = gradients[idx];
+            let h = hessians[idx];
+            let row = x_binned.row(idx);
+            let row_slice = row.as_slice().unwrap_or(&[]);
+            for f in 0..n_features {
+                let bin = row_slice[f] as usize;
+                if bin < n_bins_per_feature[f] {
+                    histograms[f].sum_gradients[bin] += g;
+                    histograms[f].sum_hessians[bin] += h;
+                    histograms[f].counts[bin] += 1;
+                }
+            }
+        }
+
+        histograms
+    }
+
+    /// Build histograms using column-major binned data (cache-friendly)
+    fn build_histograms_col_major(
+        &self,
+        x_col_major: &[Vec<u8>],
+        gradients: &[f64],
+        hessians: &[f64],
+        indices: &[usize],
+        n_bins_per_feature: &[usize],
+    ) -> Vec<Histogram> {
+        let n_features = x_col_major.len();
+
         #[cfg(feature = "parallel")]
         {
-            // Parallel over features - each feature gets its own histogram
-            (0..n_features)
-                .into_par_iter()
-                .map(|f| {
-                    let n_bins = n_bins_per_feature[f];
-                    let mut histogram = Histogram::new(n_bins);
+            if indices.len() > 10_000 && n_features >= 8 {
+                // Parallel over features for large datasets
+                return (0..n_features)
+                    .into_par_iter()
+                    .map(|f| {
+                        let n_bins = n_bins_per_feature[f];
+                        let mut histogram = Histogram::new(n_bins);
+                        let col = &x_col_major[f];
 
-                    // Build histogram (sequential within each feature)
-                    for &idx in indices {
-                        let bin = x_binned[[idx, f]] as usize;
-                        if bin < n_bins {
-                            histogram.sum_gradients[bin] += gradients[idx];
-                            histogram.sum_hessians[bin] += hessians[idx];
-                            histogram.counts[bin] += 1;
+                        for &idx in indices {
+                            let bin = col[idx] as usize;
+                            if bin < n_bins {
+                                histogram.sum_gradients[bin] += gradients[idx];
+                                histogram.sum_hessians[bin] += hessians[idx];
+                                histogram.counts[bin] += 1;
+                            }
                         }
-                    }
 
-                    histogram
-                })
-                .collect()
-        }
-
-        #[cfg(not(feature = "parallel"))]
-        {
-            let mut histograms = Vec::with_capacity(n_features);
-
-            for f in 0..n_features {
-                let n_bins = n_bins_per_feature[f];
-                let mut histogram = Histogram::new(n_bins);
-
-                // Build histogram
-                for &idx in indices {
-                    let bin = x_binned[[idx, f]] as usize;
-                    if bin < n_bins {
-                        histogram.sum_gradients[bin] += gradients[idx];
-                        histogram.sum_hessians[bin] += hessians[idx];
-                        histogram.counts[bin] += 1;
-                    }
-                }
-
-                histograms.push(histogram);
+                        histogram
+                    })
+                    .collect();
             }
-
-            histograms
         }
+
+        // Sequential column-oriented approach: process one feature at a time
+        // Column-major layout means sequential memory access for each feature
+        let mut histograms: Vec<Histogram> = n_bins_per_feature
+            .iter()
+            .map(|&nb| Histogram::new(nb))
+            .collect();
+
+        for f in 0..n_features {
+            let n_bins = n_bins_per_feature[f];
+            let col = &x_col_major[f];
+            let hist = &mut histograms[f];
+
+            for &idx in indices {
+                let bin = col[idx] as usize;
+                if bin < n_bins {
+                    hist.sum_gradients[bin] += gradients[idx];
+                    hist.sum_hessians[bin] += hessians[idx];
+                    hist.counts[bin] += 1;
+                }
+            }
+        }
+
+        histograms
     }
 
     /// Get monotonic constraint bounds for child nodes
@@ -1587,6 +1826,11 @@ impl Model for HistGradientBoostingClassifier {
 
         self.categorical_bin_mapper = Some(bin_mapper.clone());
 
+        // Create column-major layout for cache-friendly histogram building
+        let x_col_major = to_col_major(&x_binned);
+        let n_bins_per_feature: Vec<usize> =
+            (0..n_features).map(|f| bin_mapper.n_bins(f)).collect();
+
         // For binary classification, we only need one tree per stage
         let n_trees_per_iter = if n_classes == 2 { 1 } else { n_classes };
 
@@ -1711,13 +1955,13 @@ impl Model for HistGradientBoostingClassifier {
                     }
                 }
 
-                // Build tree
-                let tree = tree_builder.build_leaf_wise(
-                    &x_binned,
+                // Build tree using column-major optimized path
+                let tree = tree_builder.build_leaf_wise_col_major(
+                    &x_col_major,
                     &gradients,
                     &hessians,
                     &sample_indices,
-                    &bin_mapper,
+                    &n_bins_per_feature,
                 );
 
                 // Update predictions
@@ -1742,9 +1986,11 @@ impl Model for HistGradientBoostingClassifier {
             }
 
             // Compute training loss
-            let train_probas = self.raw_to_proba(&raw_predictions);
-            let train_loss = self.compute_log_loss(&y_train, &train_probas);
-            train_loss_history.push(train_loss);
+            {
+                let train_probas = self.raw_to_proba(&raw_predictions);
+                let train_loss = self.compute_log_loss(&y_train, &train_probas);
+                train_loss_history.push(train_loss);
+            }
 
             // Early stopping check
             if let (Some(ref yv), Some(ref vrp)) = (&y_val, &val_raw_predictions) {
@@ -2272,6 +2518,12 @@ impl Model for HistGradientBoostingRegressor {
 
         self.categorical_bin_mapper = Some(bin_mapper.clone());
 
+        // Create column-major layout for cache-friendly histogram building
+        let x_col_major = to_col_major(&x_binned);
+        let _x_val_col_major = x_val_binned.as_ref().map(|xvb| to_col_major(xvb));
+        let n_bins_per_feature: Vec<usize> =
+            (0..n_features).map(|f| bin_mapper.n_bins(f)).collect();
+
         // Initialize predictions with loss-specific optimal value
         let init_prediction = self.loss.initial_prediction(&y_train);
         self.init_prediction = Some(init_prediction);
@@ -2329,19 +2581,19 @@ impl Model for HistGradientBoostingRegressor {
                 hessians[i] = self
                     .loss
                     .hessian(y_train[i], predictions[i], self.huber_delta)
-                    .max(1e-8); // Ensure positive hessian
+                    .max(1e-8);
             }
 
-            // Build tree
-            let tree = tree_builder.build_leaf_wise(
-                &x_binned,
+            // Build tree using column-major optimized path
+            let tree = tree_builder.build_leaf_wise_col_major(
+                &x_col_major,
                 &gradients,
                 &hessians,
                 &sample_indices,
-                &bin_mapper,
+                &n_bins_per_feature,
             );
 
-            // Update predictions
+            // Update predictions using row-major data for tree traversal
             for i in 0..n_train {
                 let row = x_binned.row(i);
                 let row_slice = row.as_slice().expect("x_binned is standard layout");
@@ -2358,8 +2610,10 @@ impl Model for HistGradientBoostingRegressor {
             }
 
             // Compute training loss
-            let train_loss = self.compute_loss(&y_train, &predictions);
-            train_loss_history.push(train_loss);
+            {
+                let train_loss = self.compute_loss(&y_train, &predictions);
+                train_loss_history.push(train_loss);
+            }
 
             // Early stopping check
             if let (Some(ref yv), Some(ref vp)) = (&y_val, &val_predictions) {

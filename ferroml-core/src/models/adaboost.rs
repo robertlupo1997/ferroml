@@ -60,6 +60,8 @@ pub struct AdaBoostClassifier {
     pub max_depth: usize,
     /// Random seed
     pub random_state: Option<u64>,
+    /// Whether to reuse previous estimators and append new ones
+    pub warm_start: bool,
 
     // Fitted state
     estimators: Option<Vec<DecisionTreeClassifier>>,
@@ -79,11 +81,18 @@ impl AdaBoostClassifier {
             learning_rate: 1.0,
             max_depth: 1,
             random_state: None,
+            warm_start: false,
             estimators: None,
             estimator_weights: None,
             classes: None,
             n_features: None,
         }
+    }
+
+    /// Set whether to reuse previous estimators and append new ones.
+    pub fn with_warm_start(mut self, warm_start: bool) -> Self {
+        self.warm_start = warm_start;
+        self
     }
 
     /// Set the learning rate.
@@ -323,6 +332,8 @@ pub struct AdaBoostRegressor {
     pub max_depth: usize,
     /// Random seed
     pub random_state: Option<u64>,
+    /// Whether to reuse previous estimators and append new ones
+    pub warm_start: bool,
 
     // Fitted state
     estimators: Option<Vec<DecisionTreeRegressor>>,
@@ -339,10 +350,17 @@ impl AdaBoostRegressor {
             loss: AdaBoostLoss::Linear,
             max_depth: 3,
             random_state: None,
+            warm_start: false,
             estimators: None,
             estimator_weights: None,
             n_features: None,
         }
+    }
+
+    /// Set whether to reuse previous estimators and append new ones.
+    pub fn with_warm_start(mut self, warm_start: bool) -> Self {
+        self.warm_start = warm_start;
+        self
     }
 
     /// Set the learning rate.

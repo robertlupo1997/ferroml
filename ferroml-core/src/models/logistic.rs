@@ -87,6 +87,8 @@ pub struct LogisticRegression {
     pub n_bootstrap: usize,
     /// Class weights for handling imbalanced datasets
     pub class_weight: ClassWeight,
+    /// Whether to reuse the solution of the previous call to fit as initialization
+    pub warm_start: bool,
 
     // Fitted parameters (None before fit)
     coefficients: Option<Array1<f64>>,
@@ -153,6 +155,7 @@ impl LogisticRegression {
             feature_names: None,
             n_bootstrap: 1000,
             class_weight: ClassWeight::Uniform,
+            warm_start: false,
             coefficients: None,
             intercept: None,
             n_features: None,
@@ -255,6 +258,13 @@ impl LogisticRegression {
     #[must_use]
     pub fn with_class_weight(mut self, class_weight: ClassWeight) -> Self {
         self.class_weight = class_weight;
+        self
+    }
+
+    /// Set whether to reuse the solution of the previous call to fit as initialization
+    #[must_use]
+    pub fn with_warm_start(mut self, warm_start: bool) -> Self {
+        self.warm_start = warm_start;
         self
     }
 
@@ -470,12 +480,33 @@ impl LogisticRegression {
             self.l2_penalty
         };
 
-        // Initialize coefficients to zero
-        let mut beta = Array1::zeros(p);
+        // Initialize coefficients (warm_start reuses previous fit)
+        let mut beta = if self.warm_start {
+            if let (Some(ref coef), Some(intercept)) = (&self.coefficients, self.intercept) {
+                if self.fit_intercept && coef.len() + 1 == p {
+                    let mut b = Array1::zeros(p);
+                    b[0] = intercept;
+                    b.slice_mut(ndarray::s![1..]).assign(coef);
+                    b
+                } else if !self.fit_intercept && coef.len() == p {
+                    coef.clone()
+                } else {
+                    Array1::zeros(p)
+                }
+            } else {
+                Array1::zeros(p)
+            }
+        } else {
+            Array1::zeros(p)
+        };
 
         // IRLS iterations
         let mut n_iter = 0;
         let mut converged = false;
+
+        // Pre-allocate buffers reused across iterations
+        let mut scaled_x = Array2::zeros((n, p));
+        let mut w_sqrt_buf = Array1::zeros(n);
 
         for iter in 0..self.max_iter {
             n_iter = iter + 1;
@@ -484,31 +515,32 @@ impl LogisticRegression {
             let eta = x_design.dot(&beta);
             let mu = eta.mapv(sigmoid);
 
-            // Check for numerical issues
-            for &m in mu.iter() {
-                if m < 1e-10 || m > 1.0 - 1e-10 {
-                    eprintln!("Warning: LogisticRegression detected perfect or quasi-complete separation. Coefficients may be unstable. Consider adding regularization (penalty='l2').");
-                    break;
+            // Check for numerical issues (only warn once)
+            if iter == 0 {
+                for &m in mu.iter() {
+                    if m < 1e-10 || m > 1.0 - 1e-10 {
+                        eprintln!("Warning: LogisticRegression detected perfect or quasi-complete separation. Coefficients may be unstable. Consider adding regularization (penalty='l2').");
+                        break;
+                    }
                 }
             }
 
-            // Weights: w_i = μ_i * (1 - μ_i) * sample_weight_i
-            let w = &mu * &(1.0 - &mu) * sample_weights;
-
-            // Clamp weights to avoid numerical issues
-            let w_clamped: Array1<f64> = w.mapv(|wi| wi.clamp(1e-10, 0.25));
-
-            // Working response: z = η + (y - μ) / (μ * (1-μ))
-            // Note: We divide by the variance part only, not sample weights
-            let variance_part: Array1<f64> = (&mu * &(1.0 - &mu)).mapv(|v| v.clamp(1e-10, 0.25));
-            let z: Array1<f64> = &eta + &((y - &mu) / &variance_part);
+            // Weights: w_i = μ_i * (1 - μ_i) * sample_weight_i, clamped
+            // Compute variance part and w_clamped in one pass
+            let mut w_clamped = Array1::zeros(n);
+            let mut z = Array1::zeros(n);
+            for i in 0..n {
+                let var = (mu[i] * (1.0 - mu[i])).clamp(1e-10, 0.25);
+                w_clamped[i] = (var * sample_weights[i]).clamp(1e-10, 0.25);
+                z[i] = eta[i] + (y[i] - mu[i]) / var;
+                w_sqrt_buf[i] = w_clamped[i].sqrt();
+            }
 
             // Weighted least squares: solve (X'WX)β = X'Wz
-            // Compute X'WX = (W^½X)' @ (W^½X)
-            let mut scaled_x = x_design.to_owned();
+            // Compute X'WX = (W^½X)' @ (W^½X) — reuse scaled_x buffer
+            scaled_x.assign(x_design);
             for i in 0..n {
-                let w_sqrt = w_clamped[i].sqrt();
-                scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
+                scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt_buf[i]);
             }
             let mut xtwx = scaled_x.t().dot(&scaled_x);
 
@@ -588,18 +620,17 @@ impl LogisticRegression {
         let null_deviance = -2.0 * null_log_likelihood;
 
         // Compute Fisher information matrix (= X'WX at convergence)
-        let w = &mu * &(1.0 - &mu) * sample_weights;
-        let w_clamped: Array1<f64> = w.mapv(|wi| wi.max(1e-10));
+        // Use efficient matrix multiplication: X'WX = (W^½X)' @ (W^½X)
+        let w_final = &mu * &(1.0 - &mu) * sample_weights;
+        let w_clamped_final: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
 
-        let mut fisher_info = Array2::zeros((p, p));
+        // Reuse scaled_x buffer for Fisher info computation
+        scaled_x.assign(x_design);
         for i in 0..n {
-            let xi = x_design.row(i);
-            for j in 0..p {
-                for k in 0..p {
-                    fisher_info[[j, k]] += w_clamped[i] * xi[j] * xi[k];
-                }
-            }
+            let w_sqrt = w_clamped_final[i].sqrt();
+            scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
         }
+        let fisher_info = scaled_x.t().dot(&scaled_x);
 
         // Covariance matrix = (Fisher information)^-1
         let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
