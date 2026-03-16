@@ -16,10 +16,6 @@
 //!
 //! ## DataFrame Support
 //!
-//! ### Polars
-//! When the `polars` feature is enabled, models support fitting and predicting
-//! directly from Polars DataFrames via `fit_dataframe()` and `predict_dataframe()`.
-//!
 //! ### Pandas
 //! When the `pandas` feature is enabled, models support fitting and predicting
 //! directly from Pandas DataFrames via `fit_pandas()` and `predict_pandas()`.
@@ -34,8 +30,8 @@ use ferroml_core::models::robust::{MEstimator, RobustRegression};
 use ferroml_core::models::sgd::Perceptron;
 use ferroml_core::models::traits::IncrementalModel;
 use ferroml_core::models::{
-    ElasticNet, LassoRegression, LinearRegression, LogisticRegression, Model, ProbabilisticModel,
-    RidgeRegression, StatisticalModel,
+    ElasticNet, LassoRegression, LinearRegression, LogisticRegression, LogisticSolver, Model,
+    ProbabilisticModel, RidgeRegression, StatisticalModel,
 };
 use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
@@ -44,14 +40,10 @@ use pyo3::types::{PyBytes, PyDict};
 
 #[cfg(feature = "pandas")]
 use crate::pandas_utils::{extract_x_from_pandas, extract_xy_from_pandas};
-#[cfg(feature = "polars")]
-use crate::polars_utils::{extract_x_from_pydf, extract_xy_from_pydf};
 #[cfg(feature = "sparse")]
 use crate::sparse_utils::{extract_sparse_x, extract_sparse_xy, py_csr_to_ferro};
 #[cfg(feature = "sparse")]
 use ferroml_core::models::traits::SparseModel;
-#[cfg(feature = "polars")]
-use pyo3_polars::PyDataFrame;
 
 // =============================================================================
 // LinearRegression
@@ -428,82 +420,6 @@ impl PyLinearRegression {
         ))
     }
 
-    /// Fit the model from a Polars DataFrame.
-    ///
-    /// Parameters
-    /// ----------
-    /// df : polars.DataFrame
-    ///     DataFrame containing features and target.
-    /// target_column : str
-    ///     Name of the target column.
-    /// feature_columns : list of str, optional
-    ///     Column names to use as features. If None, uses all numeric columns
-    ///     except the target.
-    ///
-    /// Returns
-    /// -------
-    /// self : LinearRegression
-    ///     Fitted estimator.
-    ///
-    /// Examples
-    /// --------
-    /// >>> import polars as pl
-    /// >>> from ferroml.linear import LinearRegression
-    /// >>> df = pl.DataFrame({
-    /// ...     "x1": [1.0, 2.0, 3.0, 4.0, 5.0],
-    /// ...     "x2": [2.0, 4.0, 6.0, 8.0, 10.0],
-    /// ...     "y": [3.0, 6.0, 9.0, 12.0, 15.0]
-    /// ... })
-    /// >>> model = LinearRegression()
-    /// >>> model.fit_dataframe(df, target_column="y")
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, target_column, feature_columns=None))]
-    fn fit_dataframe<'py>(
-        mut slf: PyRefMut<'py, Self>,
-        df: PyDataFrame,
-        target_column: &str,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<PyRefMut<'py, Self>> {
-        let data = extract_xy_from_pydf(&df, target_column, feature_columns)?;
-
-        slf.inner
-            .fit(&data.x, &data.y)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(slf)
-    }
-
-    /// Predict using a Polars DataFrame.
-    ///
-    /// Parameters
-    /// ----------
-    /// df : polars.DataFrame
-    ///     DataFrame containing features.
-    /// feature_columns : list of str, optional
-    ///     Column names to use as features. If None, uses all numeric columns.
-    ///
-    /// Returns
-    /// -------
-    /// y_pred : ndarray of shape (n_samples,)
-    ///     Predicted values.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, feature_columns=None))]
-    fn predict_dataframe<'py>(
-        &self,
-        py: Python<'py>,
-        df: PyDataFrame,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let (x_arr, _) = extract_x_from_pydf(&df, feature_columns)?;
-
-        let predictions = self
-            .inner
-            .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(predictions.into_pyarray(py))
-    }
-
     /// Fit the model from a Pandas DataFrame.
     ///
     /// Parameters
@@ -821,21 +737,39 @@ impl PyLogisticRegression {
 #[pymethods]
 impl PyLogisticRegression {
     /// Create a new LogisticRegression model.
+    ///
+    /// Parameters
+    /// ----------
+    /// fit_intercept : bool, optional (default=True)
+    ///     Whether to add an intercept term.
+    /// max_iter : int, optional (default=100)
+    ///     Maximum number of solver iterations.
+    /// tol : float, optional (default=1e-8)
+    ///     Convergence tolerance.
+    /// l2_penalty : float, optional (default=0.0)
+    ///     L2 regularization strength.
+    /// confidence_level : float, optional (default=0.95)
+    ///     Confidence level for intervals.
+    /// solver : str, optional (default="auto")
+    ///     Optimization algorithm: "irls", "lbfgs", or "auto".
+    ///     "auto" selects IRLS for < 50 features, L-BFGS otherwise.
     #[new]
-    #[pyo3(signature = (fit_intercept=true, max_iter=100, tol=1e-8, l2_penalty=0.0, confidence_level=0.95))]
+    #[pyo3(signature = (fit_intercept=true, max_iter=100, tol=1e-8, l2_penalty=0.0, confidence_level=0.95, solver="auto"))]
     fn new(
         fit_intercept: bool,
         max_iter: usize,
         tol: f64,
         l2_penalty: f64,
         confidence_level: f64,
+        solver: &str,
     ) -> Self {
         let inner = LogisticRegression::new()
             .with_fit_intercept(fit_intercept)
             .with_max_iter(max_iter)
             .with_tol(tol)
             .with_l2_penalty(l2_penalty)
-            .with_confidence_level(confidence_level);
+            .with_confidence_level(confidence_level)
+            .with_solver(LogisticSolver::from_str_lossy(solver));
         Self { inner }
     }
 
@@ -1090,62 +1024,6 @@ impl PyLogisticRegression {
         Ok(format!("{}", self.inner.summary()))
     }
 
-    /// Fit the model from a Polars DataFrame.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, target_column, feature_columns=None))]
-    fn fit_dataframe<'py>(
-        mut slf: PyRefMut<'py, Self>,
-        df: PyDataFrame,
-        target_column: &str,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<PyRefMut<'py, Self>> {
-        let data = extract_xy_from_pydf(&df, target_column, feature_columns)?;
-
-        slf.inner
-            .fit(&data.x, &data.y)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(slf)
-    }
-
-    /// Predict class labels using a Polars DataFrame.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, feature_columns=None))]
-    fn predict_dataframe<'py>(
-        &self,
-        py: Python<'py>,
-        df: PyDataFrame,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let (x_arr, _) = extract_x_from_pydf(&df, feature_columns)?;
-
-        let predictions = self
-            .inner
-            .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(predictions.into_pyarray(py))
-    }
-
-    /// Predict class probabilities using a Polars DataFrame.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, feature_columns=None))]
-    fn predict_proba_dataframe<'py>(
-        &self,
-        py: Python<'py>,
-        df: PyDataFrame,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        let (x_arr, _) = extract_x_from_pydf(&df, feature_columns)?;
-
-        let probas = self
-            .inner
-            .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(probas.into_pyarray(py))
-    }
-
     /// Fit the model from a Pandas DataFrame.
     #[cfg(feature = "pandas")]
     #[pyo3(signature = (df, target_column, feature_columns=None))]
@@ -1299,8 +1177,8 @@ impl PyLogisticRegression {
 
     fn __repr__(&self) -> String {
         format!(
-            "LogisticRegression(fit_intercept={}, max_iter={}, l2_penalty={})",
-            self.inner.fit_intercept, self.inner.max_iter, self.inner.l2_penalty
+            "LogisticRegression(fit_intercept={}, max_iter={}, l2_penalty={}, solver='{}')",
+            self.inner.fit_intercept, self.inner.max_iter, self.inner.l2_penalty, self.inner.solver
         )
     }
 
@@ -1520,43 +1398,6 @@ impl PyRidgeRegression {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
         })?;
         Ok(importance.into_pyarray(py))
-    }
-
-    /// Fit the model from a Polars DataFrame.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, target_column, feature_columns=None))]
-    fn fit_dataframe<'py>(
-        mut slf: PyRefMut<'py, Self>,
-        df: PyDataFrame,
-        target_column: &str,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<PyRefMut<'py, Self>> {
-        let data = extract_xy_from_pydf(&df, target_column, feature_columns)?;
-
-        slf.inner
-            .fit(&data.x, &data.y)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(slf)
-    }
-
-    /// Predict using a Polars DataFrame.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, feature_columns=None))]
-    fn predict_dataframe<'py>(
-        &self,
-        py: Python<'py>,
-        df: PyDataFrame,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let (x_arr, _) = extract_x_from_pydf(&df, feature_columns)?;
-
-        let predictions = self
-            .inner
-            .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(predictions.into_pyarray(py))
     }
 
     /// Fit the model from a Pandas DataFrame.
@@ -1891,43 +1732,6 @@ impl PyLassoRegression {
         Ok(importance.into_pyarray(py))
     }
 
-    /// Fit the model from a Polars DataFrame.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, target_column, feature_columns=None))]
-    fn fit_dataframe<'py>(
-        mut slf: PyRefMut<'py, Self>,
-        df: PyDataFrame,
-        target_column: &str,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<PyRefMut<'py, Self>> {
-        let data = extract_xy_from_pydf(&df, target_column, feature_columns)?;
-
-        slf.inner
-            .fit(&data.x, &data.y)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(slf)
-    }
-
-    /// Predict using a Polars DataFrame.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, feature_columns=None))]
-    fn predict_dataframe<'py>(
-        &self,
-        py: Python<'py>,
-        df: PyDataFrame,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let (x_arr, _) = extract_x_from_pydf(&df, feature_columns)?;
-
-        let predictions = self
-            .inner
-            .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(predictions.into_pyarray(py))
-    }
-
     /// Fit the model from a Pandas DataFrame.
     #[cfg(feature = "pandas")]
     #[pyo3(signature = (df, target_column, feature_columns=None))]
@@ -2257,43 +2061,6 @@ impl PyElasticNet {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
         })?;
         Ok(importance.into_pyarray(py))
-    }
-
-    /// Fit the model from a Polars DataFrame.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, target_column, feature_columns=None))]
-    fn fit_dataframe<'py>(
-        mut slf: PyRefMut<'py, Self>,
-        df: PyDataFrame,
-        target_column: &str,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<PyRefMut<'py, Self>> {
-        let data = extract_xy_from_pydf(&df, target_column, feature_columns)?;
-
-        slf.inner
-            .fit(&data.x, &data.y)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(slf)
-    }
-
-    /// Predict using a Polars DataFrame.
-    #[cfg(feature = "polars")]
-    #[pyo3(signature = (df, feature_columns=None))]
-    fn predict_dataframe<'py>(
-        &self,
-        py: Python<'py>,
-        df: PyDataFrame,
-        feature_columns: Option<Vec<String>>,
-    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let (x_arr, _) = extract_x_from_pydf(&df, feature_columns)?;
-
-        let predictions = self
-            .inner
-            .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-
-        Ok(predictions.into_pyarray(py))
     }
 
     /// Fit the model from a Pandas DataFrame.

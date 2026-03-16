@@ -17,9 +17,9 @@ ndarray.workspace = true
 ndarray-stats.workspace = true
 nalgebra.workspace = true
 
-# Data
-polars.workspace = true
-arrow.workspace = true
+# Data (optional — only needed for CSV/Parquet loading)
+polars = { workspace = true, optional = true }
+arrow = { workspace = true, optional = true }
 
 # Statistics
 statrs.workspace = true
@@ -140,7 +140,8 @@ name = "gradient_boosting"
 path = "examples/gradient_boosting.rs"
 
 [features]
-default = ["parallel", "onnx", "simd", "faer-backend"]
+default = ["parallel", "onnx", "simd", "faer-backend", "datasets"]
+datasets = ["dep:polars", "dep:arrow"]  # CSV/Parquet loading via Polars
 parallel = []
 simd = ["wide"]  # SIMD acceleration for distance calculations
 sparse = ["sprs"]  # Native sparse matrix operations

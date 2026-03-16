@@ -74,6 +74,147 @@ use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use std::collections::{HashMap, VecDeque};
+
+// =============================================================================
+// LRU Kernel Cache
+// =============================================================================
+
+/// Default number of kernel rows to cache when using the LRU cache.
+const DEFAULT_CACHE_SIZE: usize = 1000;
+
+/// Threshold below which the full kernel matrix is precomputed (cache overhead not worth it).
+const FULL_MATRIX_THRESHOLD: usize = 10_000;
+
+/// LRU cache for kernel matrix rows.
+///
+/// Instead of precomputing the full O(n^2) kernel matrix, this caches individual
+/// rows on demand and evicts the least-recently-used row when capacity is exceeded.
+/// For n=5000, this reduces memory from ~200MB (full matrix) to ~8MB (1000 cached rows).
+struct KernelCache {
+    /// Cached kernel rows: row_index -> kernel values for that row against all training samples
+    cache: HashMap<usize, Vec<f64>>,
+    /// LRU eviction order (front = least recently used)
+    order: VecDeque<usize>,
+    /// Maximum number of rows to cache
+    capacity: usize,
+    /// Kernel function to use
+    kernel: Kernel,
+    /// Reference to training data stored as row-major Vec<Vec<f64>> for efficient access
+    training_data: Vec<Vec<f64>>,
+    /// Number of training samples
+    n_samples: usize,
+}
+
+impl KernelCache {
+    /// Create a new kernel cache.
+    fn new(kernel: Kernel, x: &Array2<f64>, capacity: usize) -> Self {
+        let n_samples = x.nrows();
+        let cap = capacity.min(n_samples);
+
+        // Pre-extract training data as Vec<Vec<f64>> for efficient repeated access
+        let x_std = if x.is_standard_layout() {
+            None
+        } else {
+            Some(x.as_standard_layout().into_owned())
+        };
+        let x_ref = x_std.as_ref().unwrap_or(x);
+
+        let training_data: Vec<Vec<f64>> = (0..n_samples)
+            .map(|i| x_ref.row(i).as_slice().unwrap().to_vec())
+            .collect();
+
+        Self {
+            cache: HashMap::with_capacity(cap),
+            order: VecDeque::with_capacity(cap),
+            capacity: cap,
+            kernel,
+            training_data,
+            n_samples,
+        }
+    }
+
+    /// Get the full kernel row for sample `i` (computing and caching if needed).
+    /// Returns a reference to the cached row.
+    fn get_row(&mut self, i: usize) -> &[f64] {
+        if self.cache.contains_key(&i) {
+            // Move to back (most recently used)
+            self.order.retain(|&x| x != i);
+            self.order.push_back(i);
+        } else {
+            // Evict if at capacity
+            if self.cache.len() >= self.capacity {
+                if let Some(evicted) = self.order.pop_front() {
+                    self.cache.remove(&evicted);
+                }
+            }
+
+            // Compute the full row
+            let xi = &self.training_data[i];
+            let mut row = Vec::with_capacity(self.n_samples);
+            for j in 0..self.n_samples {
+                row.push(self.kernel.compute(xi, &self.training_data[j]));
+            }
+
+            self.cache.insert(i, row);
+            self.order.push_back(i);
+        }
+
+        &self.cache[&i]
+    }
+
+    /// Get a single kernel value K(i, j).
+    #[inline]
+    fn get_value(&mut self, i: usize, j: usize) -> f64 {
+        // Check if row i is already cached
+        if let Some(row) = self.cache.get(&i) {
+            return row[j];
+        }
+        // Check if row j is already cached (kernel is symmetric)
+        if let Some(row) = self.cache.get(&j) {
+            return row[i];
+        }
+        // Neither row is cached - compute just this single value
+        self.kernel
+            .compute(&self.training_data[i], &self.training_data[j])
+    }
+}
+
+/// Abstraction over kernel value access: either a full precomputed matrix
+/// or an LRU cache for on-demand computation.
+enum KernelProvider {
+    /// Full precomputed kernel matrix (used for small datasets)
+    Full(Array2<f64>),
+    /// LRU cache (used for large datasets)
+    Cached(KernelCache),
+}
+
+impl KernelProvider {
+    /// Get kernel value K(i, j).
+    #[inline]
+    fn get(&mut self, i: usize, j: usize) -> f64 {
+        match self {
+            KernelProvider::Full(matrix) => matrix[[i, j]],
+            KernelProvider::Cached(cache) => cache.get_value(i, j),
+        }
+    }
+
+    /// Get a full row of kernel values for row `i`.
+    /// For the full matrix this returns a slice; for the cache it computes and caches the row.
+    /// The returned values are copied into the provided buffer.
+    fn fill_row(&mut self, i: usize, buf: &mut [f64]) {
+        match self {
+            KernelProvider::Full(matrix) => {
+                let row = matrix.row(i);
+                buf.copy_from_slice(row.as_slice().unwrap());
+            }
+            KernelProvider::Cached(cache) => {
+                let row = cache.get_row(i);
+                buf.copy_from_slice(row);
+            }
+        }
+    }
+}
 
 /// Numerically stable sigmoid: 1 / (1 + exp(-z)).
 /// Avoids overflow by branching on the sign of z.
@@ -241,6 +382,8 @@ pub(crate) struct BinarySVC {
     tol: f64,
     /// Maximum number of iterations
     max_iter: usize,
+    /// Maximum number of kernel rows to cache (0 = auto)
+    cache_size: usize,
 
     // Fitted state
     /// Support vectors
@@ -266,12 +409,13 @@ pub(crate) struct BinarySVC {
 
 impl BinarySVC {
     /// Create a new binary SVC.
-    fn new(c: f64, kernel: Kernel, tol: f64, max_iter: usize) -> Self {
+    fn new(c: f64, kernel: Kernel, tol: f64, max_iter: usize, cache_size: usize) -> Self {
         Self {
             c,
             kernel,
             tol,
             max_iter,
+            cache_size,
             support_vectors: None,
             dual_coef: None,
             intercept: 0.0,
@@ -350,13 +494,32 @@ impl BinarySVC {
             Array1::from_elem(n_samples, self.c)
         };
 
-        // Initialize alphas and compute kernel matrix
+        // Initialize alphas and create kernel provider
         let mut alpha = Array1::zeros(n_samples);
-        let kernel_matrix = self.compute_kernel_matrix(x);
+        let effective_cache_size = if self.cache_size > 0 {
+            self.cache_size
+        } else {
+            DEFAULT_CACHE_SIZE
+        };
+        let mut kernel_provider = if n_samples < FULL_MATRIX_THRESHOLD {
+            // Small dataset: precompute full kernel matrix
+            KernelProvider::Full(self.compute_kernel_matrix(x))
+        } else {
+            // Large dataset: use LRU cache
+            KernelProvider::Cached(KernelCache::new(
+                self.kernel,
+                x,
+                effective_cache_size.min(n_samples),
+            ))
+        };
 
         // SMO algorithm
-        let (final_alpha, intercept) =
-            self.smo(&kernel_matrix, &y_binary, &c_effective, alpha.view_mut())?;
+        let (final_alpha, intercept) = self.smo(
+            &mut kernel_provider,
+            &y_binary,
+            &c_effective,
+            alpha.view_mut(),
+        )?;
 
         // Extract support vectors
         let support_threshold = 1e-8;
@@ -395,7 +558,7 @@ impl BinarySVC {
     /// SMO (Sequential Minimal Optimization) algorithm.
     fn smo(
         &self,
-        kernel_matrix: &Array2<f64>,
+        kernel: &mut KernelProvider,
         y: &Array1<f64>,
         c: &Array1<f64>,
         mut alpha: ndarray::ArrayViewMut1<f64>,
@@ -405,6 +568,10 @@ impl BinarySVC {
 
         // Error cache
         let mut errors: Array1<f64> = -y.clone();
+
+        // Buffers for kernel rows (used in incremental error update)
+        let mut row_i_buf = vec![0.0; n_samples];
+        let mut row_j_buf = vec![0.0; n_samples];
 
         let mut n_changed = 0;
         let mut examine_all = true;
@@ -455,9 +622,11 @@ impl BinarySVC {
                             continue;
                         }
 
-                        // Compute eta
-                        let eta = 2.0f64.mul_add(kernel_matrix[[i, j]], -kernel_matrix[[i, i]])
-                            - kernel_matrix[[j, j]];
+                        // Compute eta using kernel values
+                        let k_ij = kernel.get(i, j);
+                        let k_ii = kernel.get(i, i);
+                        let k_jj = kernel.get(j, j);
+                        let eta = 2.0f64.mul_add(k_ij, -k_ii) - k_jj;
 
                         if eta >= 0.0 {
                             continue;
@@ -477,15 +646,13 @@ impl BinarySVC {
                         // Update threshold (save old b for incremental error update)
                         let b_old = b;
                         let b1 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
-                            -kernel_matrix[[i, j]],
-                            (y[i] * (alpha[i] - alpha_i_old))
-                                .mul_add(-kernel_matrix[[i, i]], b - ei),
+                            -k_ij,
+                            (y[i] * (alpha[i] - alpha_i_old)).mul_add(-k_ii, b - ei),
                         );
 
                         let b2 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
-                            -kernel_matrix[[j, j]],
-                            (y[i] * (alpha[i] - alpha_i_old))
-                                .mul_add(-kernel_matrix[[i, j]], b - ej),
+                            -k_jj,
+                            (y[i] * (alpha[i] - alpha_i_old)).mul_add(-k_ij, b - ej),
                         );
 
                         b = if alpha[i] > 0.0 && alpha[i] < c[i] {
@@ -503,9 +670,13 @@ impl BinarySVC {
                             let di = (alpha[i] - alpha_i_old) * y[i];
                             let dj = (alpha[j] - alpha_j_old) * y[j];
                             let db = b - b_old;
+
+                            // Fill row buffers for i and j
+                            kernel.fill_row(i, &mut row_i_buf);
+                            kernel.fill_row(j, &mut row_j_buf);
+
                             for k in 0..n_samples {
-                                errors[k] +=
-                                    di * kernel_matrix[[i, k]] + dj * kernel_matrix[[j, k]] + db;
+                                errors[k] += di * row_i_buf[k] + dj * row_j_buf[k] + db;
                             }
                         }
 
@@ -801,6 +972,10 @@ pub struct SVC {
     pub multiclass_strategy: MulticlassStrategy,
     /// Class weight specification
     pub class_weight: ClassWeight,
+    /// Maximum number of kernel rows to cache during SMO (0 = auto, default 1000).
+    /// For datasets smaller than 500 samples, the full kernel matrix is precomputed
+    /// regardless of this setting.
+    pub cache_size: usize,
 
     // Fitted state
     /// Unique class labels
@@ -833,6 +1008,7 @@ impl SVC {
             probability: false,
             multiclass_strategy: MulticlassStrategy::OneVsOne,
             class_weight: ClassWeight::Uniform,
+            cache_size: DEFAULT_CACHE_SIZE,
             classes: None,
             classifiers: Vec::new(),
             class_pairs: Vec::new(),
@@ -887,6 +1063,19 @@ impl SVC {
     #[must_use]
     pub fn with_class_weight(mut self, class_weight: ClassWeight) -> Self {
         self.class_weight = class_weight;
+        self
+    }
+
+    /// Set the maximum number of kernel rows to cache during SMO.
+    ///
+    /// For datasets with fewer than 500 samples, the full kernel matrix is always
+    /// precomputed regardless of this setting. For larger datasets, this controls
+    /// memory usage during training: each cached row uses `n_samples * 8` bytes.
+    ///
+    /// Default: 1000 rows.
+    #[must_use]
+    pub fn with_cache_size(mut self, cache_size: usize) -> Self {
+        self.cache_size = cache_size.max(1);
         self
     }
 
@@ -1010,7 +1199,13 @@ impl SVC {
                     .collect();
 
                 // Train binary classifier
-                let mut binary_clf = BinarySVC::new(self.c, self.kernel, self.tol, self.max_iter);
+                let mut binary_clf = BinarySVC::new(
+                    self.c,
+                    self.kernel,
+                    self.tol,
+                    self.max_iter,
+                    self.cache_size,
+                );
                 binary_clf.fit(
                     &x_binary,
                     &y_binary,
@@ -1059,7 +1254,13 @@ impl SVC {
                 .collect();
 
             // Train binary classifier
-            let mut binary_clf = BinarySVC::new(self.c, self.kernel, self.tol, self.max_iter);
+            let mut binary_clf = BinarySVC::new(
+                self.c,
+                self.kernel,
+                self.tol,
+                self.max_iter,
+                self.cache_size,
+            );
             binary_clf.fit(x, &y_binary, class, -1.0, Some(&sample_weights))?;
 
             if self.probability {
@@ -1289,6 +1490,7 @@ impl Model for SVC {
                 "kernel",
                 vec!["linear".to_string(), "rbf".to_string(), "poly".to_string()],
             )
+            .int("cache_size", 100, 2000)
     }
 }
 
@@ -3238,7 +3440,7 @@ mod tests {
         .unwrap();
         let y = Array1::from_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
 
-        let mut clf = BinarySVC::new(1.0, Kernel::Linear, 1e-3, 1000);
+        let mut clf = BinarySVC::new(1.0, Kernel::Linear, 1e-3, 1000, DEFAULT_CACHE_SIZE);
         clf.fit(&x, &y, 1.0, 0.0, None).unwrap();
 
         let predictions = clf.predict(&x).unwrap();

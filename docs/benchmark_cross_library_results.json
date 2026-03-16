@@ -4,7 +4,7 @@
     "python_version": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
     "cpu": "x86_64",
     "numpy_version": "2.4.2",
-    "timestamp": "2026-03-14T14:20:33.241621",
+    "timestamp": "2026-03-15T18:06:04.151235",
     "sklearn_version": "1.8.0",
     "xgboost_version": "3.2.0",
     "lightgbm_version": "4.6.0"
@@ -16,8 +16,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.949,
-      "predict_time_ms": 0.006,
+      "fit_time_ms": 3.636,
+      "predict_time_ms": 0.04,
       "score": 0.999572
     },
     {
@@ -26,8 +26,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.643,
-      "predict_time_ms": 0.053,
+      "fit_time_ms": 1.326,
+      "predict_time_ms": 0.097,
       "score": 0.999572
     },
     {
@@ -36,8 +36,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.216,
-      "predict_time_ms": 0.006,
+      "fit_time_ms": 0.378,
+      "predict_time_ms": 0.008,
       "score": 0.999573
     },
     {
@@ -46,8 +46,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.511,
-      "predict_time_ms": 0.086,
+      "fit_time_ms": 1.283,
+      "predict_time_ms": 0.09,
       "score": 0.999573
     },
     {
@@ -56,8 +56,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.066,
-      "predict_time_ms": 0.005,
+      "fit_time_ms": 0.1,
+      "predict_time_ms": 0.008,
       "score": 0.486227
     },
     {
@@ -66,8 +66,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.422,
-      "predict_time_ms": 0.051,
+      "fit_time_ms": 1.113,
+      "predict_time_ms": 0.111,
       "score": 0.486227
     },
     {
@@ -76,8 +76,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.721,
-      "predict_time_ms": 0.007,
+      "fit_time_ms": 0.746,
+      "predict_time_ms": 0.006,
       "score": 0.83
     },
     {
@@ -86,8 +86,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 3.153,
-      "predict_time_ms": 0.11,
+      "fit_time_ms": 19.478,
+      "predict_time_ms": 0.097,
       "score": 0.835
     },
     {
@@ -96,8 +96,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 7.13,
-      "predict_time_ms": 0.02,
+      "fit_time_ms": 8.393,
+      "predict_time_ms": 0.029,
       "score": 0.024593
     },
     {
@@ -106,9 +106,9 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 8.891,
-      "predict_time_ms": 0.081,
-      "score": -0.051087
+      "fit_time_ms": 9.85,
+      "predict_time_ms": 0.153,
+      "score": 0.014891
     },
     {
       "algorithm": "DecisionTreeClassifier",
@@ -116,8 +116,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 5.333,
-      "predict_time_ms": 0.012,
+      "fit_time_ms": 9.08,
+      "predict_time_ms": 0.015,
       "score": 0.855
     },
     {
@@ -126,8 +126,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 8.405,
-      "predict_time_ms": 0.087,
+      "fit_time_ms": 12.402,
+      "predict_time_ms": 0.164,
       "score": 0.84
     },
     {
@@ -136,9 +136,9 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 24.007,
-      "predict_time_ms": 1.016,
-      "score": 0.39277
+      "fit_time_ms": 44.663,
+      "predict_time_ms": 2.617,
+      "score": 0.391282
     },
     {
       "algorithm": "RandomForestRegressor",
@@ -146,8 +146,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 485.605,
-      "predict_time_ms": 6.969,
+      "fit_time_ms": 833.144,
+      "predict_time_ms": 12.54,
       "score": 0.643418
     },
     {
@@ -156,8 +156,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 1260.742,
-      "predict_time_ms": 0.94,
+      "fit_time_ms": 21838.402,
+      "predict_time_ms": 23.883,
       "score": 0.654008
     },
     {
@@ -166,8 +166,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 32.865,
-      "predict_time_ms": 0.722,
+      "fit_time_ms": 60.215,
+      "predict_time_ms": 1.068,
       "score": 0.463732
     },
     {
@@ -176,9 +176,9 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 20.824,
-      "predict_time_ms": 0.569,
-      "score": 0.925
+      "fit_time_ms": 29.401,
+      "predict_time_ms": 1.512,
+      "score": 0.86
     },
     {
       "algorithm": "RandomForestClassifier",
@@ -186,8 +186,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 173.921,
-      "predict_time_ms": 5.746,
+      "fit_time_ms": 239.378,
+      "predict_time_ms": 7.631,
       "score": 0.95
     },
     {
@@ -196,8 +196,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 157.366,
-      "predict_time_ms": 0.575,
+      "fit_time_ms": 18994.865,
+      "predict_time_ms": 35.985,
       "score": 0.92
     },
     {
@@ -206,8 +206,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 36.014,
-      "predict_time_ms": 0.834,
+      "fit_time_ms": 53.75,
+      "predict_time_ms": 2.347,
       "score": 0.85
     },
     {
@@ -216,8 +216,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 353.49,
-      "predict_time_ms": 1.046,
+      "fit_time_ms": 410.15,
+      "predict_time_ms": 1.189,
       "score": 0.769032
     },
     {
@@ -226,8 +226,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 490.717,
-      "predict_time_ms": 0.677,
+      "fit_time_ms": 579.913,
+      "predict_time_ms": 0.858,
       "score": 0.768562
     },
     {
@@ -236,8 +236,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 80.799,
-      "predict_time_ms": 0.443,
+      "fit_time_ms": 17594.334,
+      "predict_time_ms": 0.764,
       "score": 0.781563
     },
     {
@@ -246,8 +246,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 24.433,
-      "predict_time_ms": 0.551,
+      "fit_time_ms": 28.863,
+      "predict_time_ms": 0.905,
       "score": 0.817619
     },
     {
@@ -256,8 +256,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 337.509,
-      "predict_time_ms": 0.847,
+      "fit_time_ms": 371.824,
+      "predict_time_ms": 1.319,
       "score": 0.885
     },
     {
@@ -266,8 +266,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 548.285,
-      "predict_time_ms": 0.663,
+      "fit_time_ms": 1081.592,
+      "predict_time_ms": 1.339,
       "score": 0.94
     },
     {
@@ -276,8 +276,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 53.533,
-      "predict_time_ms": 0.462,
+      "fit_time_ms": 29762.604,
+      "predict_time_ms": 0.894,
       "score": 0.945
     },
     {
@@ -286,8 +286,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 21.53,
-      "predict_time_ms": 0.922,
+      "fit_time_ms": 28.324,
+      "predict_time_ms": 1.145,
       "score": 0.95
     },
     {
@@ -296,8 +296,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 1167.887,
-      "predict_time_ms": 0.635,
+      "fit_time_ms": 136.833,
+      "predict_time_ms": 0.486,
       "score": 0.820317
     },
     {
@@ -306,8 +306,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 100.422,
-      "predict_time_ms": 1.124,
+      "fit_time_ms": 107.128,
+      "predict_time_ms": 1.215,
       "score": 0.809532
     },
     {
@@ -316,8 +316,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 781.87,
-      "predict_time_ms": 0.948,
+      "fit_time_ms": 484.561,
+      "predict_time_ms": 1.068,
       "score": 0.781563
     },
     {
@@ -326,8 +326,8 @@
       "task": "regression",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 23.385,
-      "predict_time_ms": 0.605,
+      "fit_time_ms": 24.414,
+      "predict_time_ms": 0.732,
       "score": 0.817619
     },
     {
@@ -336,8 +336,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 1206.238,
-      "predict_time_ms": 0.707,
+      "fit_time_ms": 124.561,
+      "predict_time_ms": 0.601,
       "score": 0.935
     },
     {
@@ -346,8 +346,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 94.254,
-      "predict_time_ms": 0.844,
+      "fit_time_ms": 104.498,
+      "predict_time_ms": 0.906,
       "score": 0.94
     },
     {
@@ -356,8 +356,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 917.843,
-      "predict_time_ms": 1.125,
+      "fit_time_ms": 342.516,
+      "predict_time_ms": 1.353,
       "score": 0.945
     },
     {
@@ -366,8 +366,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 23.763,
-      "predict_time_ms": 0.73,
+      "fit_time_ms": 28.328,
+      "predict_time_ms": 0.9,
       "score": 0.95
     },
     {
@@ -376,8 +376,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.113,
-      "predict_time_ms": 1.529,
+      "fit_time_ms": 0.174,
+      "predict_time_ms": 1.389,
       "score": 0.905
     },
     {
@@ -387,7 +387,7 @@
       "n_samples": 1000,
       "n_features": 20,
       "fit_time_ms": 0.305,
-      "predict_time_ms": 1.436,
+      "predict_time_ms": 1.838,
       "score": 0.905
     },
     {
@@ -396,8 +396,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 14.229,
-      "predict_time_ms": 2.128,
+      "fit_time_ms": 32.34,
+      "predict_time_ms": 2.264,
       "score": 0.955
     },
     {
@@ -406,8 +406,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 6.819,
-      "predict_time_ms": 2.241,
+      "fit_time_ms": 8.021,
+      "predict_time_ms": 2.882,
       "score": 0.945
     },
     {
@@ -416,8 +416,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.073,
-      "predict_time_ms": 0.021,
+      "fit_time_ms": 0.072,
+      "predict_time_ms": 0.019,
       "score": 0.83
     },
     {
@@ -426,8 +426,8 @@
       "task": "classification",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.655,
-      "predict_time_ms": 0.122,
+      "fit_time_ms": 0.956,
+      "predict_time_ms": 0.16,
       "score": 0.83
     },
     {
@@ -436,8 +436,8 @@
       "task": "preprocessing",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.015,
-      "predict_time_ms": 0.007,
+      "fit_time_ms": 0.023,
+      "predict_time_ms": 0.009,
       "score": null
     },
     {
@@ -446,8 +446,8 @@
       "task": "preprocessing",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.353,
-      "predict_time_ms": 0.077,
+      "fit_time_ms": 0.39,
+      "predict_time_ms": 0.114,
       "score": null
     },
     {
@@ -456,8 +456,8 @@
       "task": "preprocessing",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.412,
-      "predict_time_ms": 0.007,
+      "fit_time_ms": 0.461,
+      "predict_time_ms": 0.008,
       "score": null
     },
     {
@@ -466,8 +466,8 @@
       "task": "preprocessing",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 0.588,
-      "predict_time_ms": 0.094,
+      "fit_time_ms": 0.493,
+      "predict_time_ms": 0.084,
       "score": null
     },
     {
@@ -476,8 +476,8 @@
       "task": "clustering",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 29.256,
-      "predict_time_ms": 0.009,
+      "fit_time_ms": 1.433,
+      "predict_time_ms": 0.01,
       "score": 16074.907144
     },
     {
@@ -486,8 +486,8 @@
       "task": "clustering",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 11.892,
-      "predict_time_ms": 0.121,
+      "fit_time_ms": 11.89,
+      "predict_time_ms": 0.113,
       "score": 16074.907144
     },
     {
@@ -496,8 +496,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 1.823,
-      "predict_time_ms": 0.02,
+      "fit_time_ms": 2.25,
+      "predict_time_ms": 0.021,
       "score": 0.999688
     },
     {
@@ -506,8 +506,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 1.459,
-      "predict_time_ms": 0.063,
+      "fit_time_ms": 1.385,
+      "predict_time_ms": 0.091,
       "score": 0.999688
     },
     {
@@ -516,7 +516,7 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 0.821,
+      "fit_time_ms": 0.861,
       "predict_time_ms": 0.019,
       "score": 0.999688
     },
@@ -526,7 +526,7 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 0.92,
+      "fit_time_ms": 0.925,
       "predict_time_ms": 0.062,
       "score": 0.999688
     },
@@ -536,8 +536,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 0.324,
-      "predict_time_ms": 0.019,
+      "fit_time_ms": 0.322,
+      "predict_time_ms": 0.047,
       "score": 0.604452
     },
     {
@@ -546,8 +546,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 0.608,
-      "predict_time_ms": 0.073,
+      "fit_time_ms": 0.976,
+      "predict_time_ms": 0.066,
       "score": 0.604453
     },
     {
@@ -556,8 +556,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 13.617,
-      "predict_time_ms": 0.041,
+      "fit_time_ms": 16.595,
+      "predict_time_ms": 0.026,
       "score": 0.835
     },
     {
@@ -566,8 +566,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 5.402,
-      "predict_time_ms": 0.086,
+      "fit_time_ms": 7.793,
+      "predict_time_ms": 0.106,
       "score": 0.835
     },
     {
@@ -576,8 +576,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 39.325,
-      "predict_time_ms": 0.101,
+      "fit_time_ms": 42.7,
+      "predict_time_ms": 0.105,
       "score": 0.50461
     },
     {
@@ -586,9 +586,9 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 43.752,
-      "predict_time_ms": 0.157,
-      "score": 0.504336
+      "fit_time_ms": 45.289,
+      "predict_time_ms": 0.143,
+      "score": 0.491
     },
     {
       "algorithm": "DecisionTreeClassifier",
@@ -596,8 +596,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 42.141,
-      "predict_time_ms": 0.068,
+      "fit_time_ms": 42.673,
+      "predict_time_ms": 0.063,
       "score": 0.902
     },
     {
@@ -606,9 +606,9 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 53.427,
-      "predict_time_ms": 0.131,
-      "score": 0.898
+      "fit_time_ms": 57.18,
+      "predict_time_ms": 0.163,
+      "score": 0.897
     },
     {
       "algorithm": "RandomForestRegressor",
@@ -616,9 +616,9 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 136.408,
-      "predict_time_ms": 2.155,
-      "score": 0.410397
+      "fit_time_ms": 148.442,
+      "predict_time_ms": 2.486,
+      "score": 0.418988
     },
     {
       "algorithm": "RandomForestRegressor",
@@ -626,8 +626,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 2664.356,
-      "predict_time_ms": 13.657,
+      "fit_time_ms": 2826.793,
+      "predict_time_ms": 14.024,
       "score": 0.78934
     },
     {
@@ -636,8 +636,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 3120.603,
-      "predict_time_ms": 2.049,
+      "fit_time_ms": 6408.747,
+      "predict_time_ms": 1.486,
       "score": 0.780632
     },
     {
@@ -646,8 +646,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 76.822,
-      "predict_time_ms": 1.236,
+      "fit_time_ms": 86.688,
+      "predict_time_ms": 1.608,
       "score": 0.62346
     },
     {
@@ -656,9 +656,9 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 135.953,
-      "predict_time_ms": 1.853,
-      "score": 0.908
+      "fit_time_ms": 165.94,
+      "predict_time_ms": 2.066,
+      "score": 0.918
     },
     {
       "algorithm": "RandomForestClassifier",
@@ -666,8 +666,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 760.45,
-      "predict_time_ms": 9.935,
+      "fit_time_ms": 840.422,
+      "predict_time_ms": 12.084,
       "score": 0.94
     },
     {
@@ -676,8 +676,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 1663.892,
-      "predict_time_ms": 2.001,
+      "fit_time_ms": 1899.811,
+      "predict_time_ms": 28.049,
       "score": 0.935
     },
     {
@@ -686,8 +686,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 70.068,
-      "predict_time_ms": 1.284,
+      "fit_time_ms": 99.94,
+      "predict_time_ms": 1.691,
       "score": 0.892
     },
     {
@@ -696,8 +696,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 2378.832,
-      "predict_time_ms": 1.031,
+      "fit_time_ms": 2590.246,
+      "predict_time_ms": 1.439,
       "score": 0.917818
     },
     {
@@ -706,8 +706,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 2795.704,
-      "predict_time_ms": 2.539,
+      "fit_time_ms": 2999.676,
+      "predict_time_ms": 2.94,
       "score": 0.918068
     },
     {
@@ -716,8 +716,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 163.196,
-      "predict_time_ms": 0.444,
+      "fit_time_ms": 990.31,
+      "predict_time_ms": 6.113,
       "score": 0.918111
     },
     {
@@ -726,8 +726,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 39.369,
-      "predict_time_ms": 1.072,
+      "fit_time_ms": 51.486,
+      "predict_time_ms": 1.576,
       "score": 0.922467
     },
     {
@@ -736,8 +736,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 2312.301,
-      "predict_time_ms": 1.015,
+      "fit_time_ms": 2570.452,
+      "predict_time_ms": 1.711,
       "score": 0.917
     },
     {
@@ -746,8 +746,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 2870.917,
-      "predict_time_ms": 2.491,
+      "fit_time_ms": 3118.564,
+      "predict_time_ms": 2.696,
       "score": 0.956
     },
     {
@@ -756,8 +756,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 283.729,
-      "predict_time_ms": 0.559,
+      "fit_time_ms": 503.829,
+      "predict_time_ms": 0.834,
       "score": 0.956
     },
     {
@@ -766,8 +766,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 38.704,
-      "predict_time_ms": 1.462,
+      "fit_time_ms": 50.215,
+      "predict_time_ms": 1.622,
       "score": 0.954
     },
     {
@@ -776,8 +776,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 2047.426,
-      "predict_time_ms": 3.03,
+      "fit_time_ms": 449.988,
+      "predict_time_ms": 2.651,
       "score": 0.921073
     },
     {
@@ -786,8 +786,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 212.343,
-      "predict_time_ms": 1.903,
+      "fit_time_ms": 263.334,
+      "predict_time_ms": 2.746,
       "score": 0.924706
     },
     {
@@ -796,8 +796,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 1273.914,
-      "predict_time_ms": 1.573,
+      "fit_time_ms": 642.185,
+      "predict_time_ms": 2.814,
       "score": 0.918111
     },
     {
@@ -806,8 +806,8 @@
       "task": "regression",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 43.506,
-      "predict_time_ms": 1.254,
+      "fit_time_ms": 57.445,
+      "predict_time_ms": 1.246,
       "score": 0.922467
     },
     {
@@ -816,8 +816,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 1852.2,
-      "predict_time_ms": 3.07,
+      "fit_time_ms": 414.784,
+      "predict_time_ms": 2.415,
       "score": 0.951
     },
     {
@@ -826,8 +826,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 122.263,
-      "predict_time_ms": 1.72,
+      "fit_time_ms": 162.099,
+      "predict_time_ms": 2.084,
       "score": 0.952
     },
     {
@@ -836,8 +836,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 187.945,
-      "predict_time_ms": 1.169,
+      "fit_time_ms": 13228.041,
+      "predict_time_ms": 1.587,
       "score": 0.956
     },
     {
@@ -846,8 +846,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 37.071,
-      "predict_time_ms": 1.58,
+      "fit_time_ms": 50.841,
+      "predict_time_ms": 1.804,
       "score": 0.954
     },
     {
@@ -856,8 +856,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 1.131,
-      "predict_time_ms": 8.223,
+      "fit_time_ms": 0.942,
+      "predict_time_ms": 10.156,
       "score": 0.954
     },
     {
@@ -866,8 +866,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 0.437,
-      "predict_time_ms": 4.188,
+      "fit_time_ms": 0.419,
+      "predict_time_ms": 4.975,
       "score": 0.954
     },
     {
@@ -876,8 +876,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 405.879,
-      "predict_time_ms": 39.061,
+      "fit_time_ms": 1825.781,
+      "predict_time_ms": 40.198,
       "score": 0.969
     },
     {
@@ -886,8 +886,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 99.658,
-      "predict_time_ms": 33.134,
+      "fit_time_ms": 103.945,
+      "predict_time_ms": 35.337,
       "score": 0.956
     },
     {
@@ -896,8 +896,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 0.313,
-      "predict_time_ms": 0.127,
+      "fit_time_ms": 0.333,
+      "predict_time_ms": 0.091,
       "score": 0.815
     },
     {
@@ -906,8 +906,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 1.349,
-      "predict_time_ms": 0.305,
+      "fit_time_ms": 1.252,
+      "predict_time_ms": 0.226,
       "score": 0.815
     },
     {
@@ -916,8 +916,8 @@
       "task": "preprocessing",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 0.07,
-      "predict_time_ms": 0.039,
+      "fit_time_ms": 0.09,
+      "predict_time_ms": 0.04,
       "score": null
     },
     {
@@ -926,8 +926,8 @@
       "task": "preprocessing",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 0.622,
-      "predict_time_ms": 0.113,
+      "fit_time_ms": 0.851,
+      "predict_time_ms": 0.139,
       "score": null
     },
     {
@@ -936,8 +936,8 @@
       "task": "preprocessing",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 1.895,
-      "predict_time_ms": 0.03,
+      "fit_time_ms": 2.075,
+      "predict_time_ms": 0.081,
       "score": null
     },
     {
@@ -946,29 +946,509 @@
       "task": "preprocessing",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 0.624,
+      "fit_time_ms": 1.03,
+      "predict_time_ms": 0.123,
+      "score": null
+    },
+    {
+      "algorithm": "KMeans",
+      "library": "ferroml",
+      "task": "clustering",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 5.602,
+      "predict_time_ms": 0.04,
+      "score": 80200.918078
+    },
+    {
+      "algorithm": "KMeans",
+      "library": "sklearn",
+      "task": "clustering",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 19.091,
+      "predict_time_ms": 0.193,
+      "score": 80200.918078
+    },
+    {
+      "algorithm": "LinearRegression",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 5.056,
+      "predict_time_ms": 0.038,
+      "score": 0.999297
+    },
+    {
+      "algorithm": "LinearRegression",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 2.869,
+      "predict_time_ms": 0.114,
+      "score": 0.999297
+    },
+    {
+      "algorithm": "Ridge",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 2.287,
+      "predict_time_ms": 0.039,
+      "score": 0.999297
+    },
+    {
+      "algorithm": "Ridge",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1.518,
       "predict_time_ms": 0.101,
+      "score": 0.999297
+    },
+    {
+      "algorithm": "Lasso",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.805,
+      "predict_time_ms": 0.038,
+      "score": 0.388931
+    },
+    {
+      "algorithm": "Lasso",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1.156,
+      "predict_time_ms": 0.108,
+      "score": 0.388931
+    },
+    {
+      "algorithm": "LogisticRegression",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 21.355,
+      "predict_time_ms": 0.052,
+      "score": 0.8175
+    },
+    {
+      "algorithm": "LogisticRegression",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 9.002,
+      "predict_time_ms": 0.194,
+      "score": 0.8175
+    },
+    {
+      "algorithm": "DecisionTreeRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 88.012,
+      "predict_time_ms": 0.254,
+      "score": 0.502125
+    },
+    {
+      "algorithm": "DecisionTreeRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 98.56,
+      "predict_time_ms": 0.207,
+      "score": 0.498803
+    },
+    {
+      "algorithm": "DecisionTreeClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 98.936,
+      "predict_time_ms": 0.148,
+      "score": 0.866
+    },
+    {
+      "algorithm": "DecisionTreeClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 125.88,
+      "predict_time_ms": 0.189,
+      "score": 0.8675
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 378.349,
+      "predict_time_ms": 3.237,
+      "score": 0.424183
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 6109.065,
+      "predict_time_ms": 23.162,
+      "score": 0.786271
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 4705.086,
+      "predict_time_ms": 3.782,
+      "score": 0.778473
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 109.589,
+      "predict_time_ms": 1.95,
+      "score": 0.553714
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 394.855,
+      "predict_time_ms": 3.824,
+      "score": 0.8915
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1689.898,
+      "predict_time_ms": 17.828,
+      "score": 0.93
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 41007.487,
+      "predict_time_ms": 24.217,
+      "score": 0.921
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 107.418,
+      "predict_time_ms": 2.048,
+      "score": 0.865
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 6310.359,
+      "predict_time_ms": 2.423,
+      "score": 0.929753
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 6511.595,
+      "predict_time_ms": 5.152,
+      "score": 0.929611
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 447.784,
+      "predict_time_ms": 2.339,
+      "score": 0.932335
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 58.537,
+      "predict_time_ms": 2.254,
+      "score": 0.933587
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 5633.699,
+      "predict_time_ms": 1.877,
+      "score": 0.906
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 6561.477,
+      "predict_time_ms": 4.731,
+      "score": 0.9285
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1144.125,
+      "predict_time_ms": 1.13,
+      "score": 0.9335
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 61.38,
+      "predict_time_ms": 2.469,
+      "score": 0.939
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 660.659,
+      "predict_time_ms": 4.767,
+      "score": 0.930093
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 176.993,
+      "predict_time_ms": 2.216,
+      "score": 0.93129
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 350.592,
+      "predict_time_ms": 1.0,
+      "score": 0.932335
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 62.55,
+      "predict_time_ms": 2.374,
+      "score": 0.933587
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 628.852,
+      "predict_time_ms": 4.671,
+      "score": 0.931
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 169.042,
+      "predict_time_ms": 2.524,
+      "score": 0.9355
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 286.347,
+      "predict_time_ms": 0.79,
+      "score": 0.9335
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 57.437,
+      "predict_time_ms": 2.285,
+      "score": 0.939
+    },
+    {
+      "algorithm": "KNeighborsClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 2.341,
+      "predict_time_ms": 32.816,
+      "score": 0.9425
+    },
+    {
+      "algorithm": "KNeighborsClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.572,
+      "predict_time_ms": 14.664,
+      "score": 0.9425
+    },
+    {
+      "algorithm": "SVC",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1727.138,
+      "predict_time_ms": 39.893,
+      "score": 0.969
+    },
+    {
+      "algorithm": "SVC",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 103.676,
+      "predict_time_ms": 36.568,
+      "score": 0.956
+    },
+    {
+      "algorithm": "GaussianNB",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.669,
+      "predict_time_ms": 0.185,
+      "score": 0.7995
+    },
+    {
+      "algorithm": "GaussianNB",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 2.296,
+      "predict_time_ms": 0.393,
+      "score": 0.7995
+    },
+    {
+      "algorithm": "StandardScaler",
+      "library": "ferroml",
+      "task": "preprocessing",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.242,
+      "predict_time_ms": 0.077,
+      "score": null
+    },
+    {
+      "algorithm": "StandardScaler",
+      "library": "sklearn",
+      "task": "preprocessing",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1.538,
+      "predict_time_ms": 0.169,
+      "score": null
+    },
+    {
+      "algorithm": "PCA",
+      "library": "ferroml",
+      "task": "preprocessing",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 4.886,
+      "predict_time_ms": 0.064,
+      "score": null
+    },
+    {
+      "algorithm": "PCA",
+      "library": "sklearn",
+      "task": "preprocessing",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.731,
+      "predict_time_ms": 0.139,
       "score": null
     },
     {
       "algorithm": "KMeans",
       "library": "ferroml",
       "task": "clustering",
-      "n_samples": 5000,
+      "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 33.841,
-      "predict_time_ms": 0.075,
-      "score": 80200.918078
+      "fit_time_ms": 19.466,
+      "predict_time_ms": 0.08,
+      "score": 159775.178721
     },
     {
       "algorithm": "KMeans",
       "library": "sklearn",
       "task": "clustering",
-      "n_samples": 5000,
+      "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 15.447,
-      "predict_time_ms": 0.228,
-      "score": 80200.918078
+      "fit_time_ms": 23.112,
+      "predict_time_ms": 0.569,
+      "score": 159775.178721
     }
   ]
 }

@@ -45,11 +45,12 @@
 //!
 //! ## Data Loading Utilities
 //!
-//! The module provides utilities for loading data from external sources:
+//! The module provides utilities for loading data from external sources
+//! (requires the `datasets` feature flag, enabled by default):
 //!
-//! - [`load_csv`], [`load_csv_with_options`] - Load CSV files with automatic type inference
-//! - [`load_parquet`], [`load_parquet_with_options`] - Load Parquet files efficiently
-//! - [`load_file`] - Automatically detect format from file extension
+//! - `load_csv`, `load_csv_with_options` - Load CSV files with automatic type inference
+//! - `load_parquet`, `load_parquet_with_options` - Load Parquet files efficiently
+//! - `load_file` - Automatically detect format from file extension
 //! - NumPy arrays (through Python bindings)
 //!
 //! ## Memory-Mapped Datasets
@@ -89,14 +90,9 @@
 //!
 //! ### Loading from Files
 //!
-//! ```
-//! # fn main() -> ferroml_core::Result<()> {
-//! # use std::io::Write;
-//! # let dir = tempfile::tempdir()?;
-//! # let path = dir.path().join("data.csv");
-//! # let mut f = std::fs::File::create(&path)?;
-//! # writeln!(f, "a,b,target_column\n1,2,0\n3,4,1")?;
-//! # drop(f);
+//! Requires the `datasets` feature (enabled by default):
+//!
+//! ```ignore
 //! use ferroml_core::datasets::{load_csv, load_csv_with_options, load_file, CsvOptions};
 //!
 //! // Load CSV file
@@ -108,8 +104,6 @@
 //!
 //! // Auto-detect format
 //! let (dataset, info) = load_file(&path, Some("target_column"))?;
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! ## Statistical Rigor
@@ -120,10 +114,12 @@
 //! - Recommended train/test splits for reproducibility
 //! - Citation information where applicable
 
+#[cfg(feature = "datasets")]
 mod loaders;
 pub mod mmap;
 mod toy;
 
+#[cfg(feature = "datasets")]
 pub use loaders::{
     load_csv, load_csv_with_options, load_file, load_parquet, load_parquet_with_options,
     CsvEncoding, CsvOptions, ParquetOptions,

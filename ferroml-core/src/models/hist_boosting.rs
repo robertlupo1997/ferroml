@@ -321,12 +321,13 @@ impl BinMapper {
                     // Missing values go to the missing bin
                     binned[[row_idx, col_idx]] = self.missing_bin as u8;
                 } else {
-                    // Binary search for the correct bin
-                    let bin = edges
-                        .iter()
-                        .position(|&e| value < e)
-                        .unwrap_or(edges.len())
-                        .saturating_sub(1);
+                    // Binary search for the correct bin (O(log n) vs O(n) linear scan)
+                    let bin = match edges.binary_search_by(|e| {
+                        e.partial_cmp(&value).unwrap_or(std::cmp::Ordering::Greater)
+                    }) {
+                        Ok(pos) => pos,
+                        Err(pos) => pos.saturating_sub(1),
+                    };
                     binned[[row_idx, col_idx]] = bin as u8;
                 }
             }
@@ -368,19 +369,22 @@ impl BinMapperInfo for BinMapper {
     }
 }
 
-/// Convert row-major binned Array2 to column-major Vec<Vec<u8>> for cache-friendly histogram building
+/// Convert binned Array2 to column-major Vec<Vec<u8>> for cache-friendly histogram building.
+/// When the input is already in column-major (Fortran) order, each column is contiguous in memory,
+/// so `as_slice().unwrap()` provides a direct view that is then cheaply memcpy'd into a Vec.
 fn to_col_major(x_binned: &Array2<u8>) -> Vec<Vec<u8>> {
-    let n_samples = x_binned.nrows();
-    let n_features = x_binned.ncols();
-    let mut cols = Vec::with_capacity(n_features);
-    for f in 0..n_features {
-        let mut col = Vec::with_capacity(n_samples);
-        for i in 0..n_samples {
-            col.push(x_binned[[i, f]]);
-        }
-        cols.push(col);
-    }
-    cols
+    x_binned
+        .columns()
+        .into_iter()
+        .map(|col| {
+            // If column is contiguous (column-major layout), use fast slice copy
+            if let Some(slice) = col.as_slice() {
+                slice.to_vec()
+            } else {
+                col.to_vec()
+            }
+        })
+        .collect()
 }
 
 /// Histogram for a single node
@@ -1269,7 +1273,7 @@ impl HistTreeBuilder {
 
         #[cfg(feature = "parallel")]
         {
-            if indices.len() > 10_000 && n_features >= 8 {
+            if indices.len() > 1_000 && n_features >= 4 {
                 // Parallel over features for large datasets
                 return (0..n_features)
                     .into_par_iter()
@@ -3245,11 +3249,13 @@ impl CategoricalBinMapper {
                                 .categorical_handler
                                 .compute_target_encoding(col_idx, value);
                             let edges = &self.continuous_mapper.bin_edges[col_idx];
-                            edges
-                                .iter()
-                                .position(|&e| encoded < e)
-                                .unwrap_or(edges.len())
-                                .saturating_sub(1) as u8
+                            match edges.binary_search_by(|e| {
+                                e.partial_cmp(&encoded)
+                                    .unwrap_or(std::cmp::Ordering::Greater)
+                            }) {
+                                Ok(pos) => pos as u8,
+                                Err(pos) => pos.saturating_sub(1) as u8,
+                            }
                         });
 
                     binned[[row_idx, col_idx]] = bin;
@@ -3263,11 +3269,12 @@ impl CategoricalBinMapper {
                     if value.is_nan() {
                         binned[[row_idx, col_idx]] = self.continuous_mapper.missing_bin as u8;
                     } else {
-                        let bin = edges
-                            .iter()
-                            .position(|&e| value < e)
-                            .unwrap_or(edges.len())
-                            .saturating_sub(1);
+                        let bin = match edges.binary_search_by(|e| {
+                            e.partial_cmp(&value).unwrap_or(std::cmp::Ordering::Greater)
+                        }) {
+                            Ok(pos) => pos,
+                            Err(pos) => pos.saturating_sub(1),
+                        };
                         binned[[row_idx, col_idx]] = bin as u8;
                     }
                 }

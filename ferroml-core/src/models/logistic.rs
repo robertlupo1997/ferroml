@@ -43,8 +43,55 @@ use crate::models::{
 };
 use crate::pipeline::PipelineModel;
 use crate::{FerroError, Result};
+use argmin::core::{CostFunction, Executor, Gradient, State};
+use argmin::solver::linesearch::MoreThuenteLineSearch;
+use argmin::solver::quasinewton::LBFGS;
 use ndarray::{s, Array1, Array2};
 use serde::{Deserialize, Serialize};
+
+/// Solver strategy for logistic regression optimization.
+///
+/// - `Irls`: Iteratively Reweighted Least Squares (exact Hessian via Cholesky).
+///   Best for small feature counts (d < 50) where O(d^3) per iteration is cheap.
+/// - `Lbfgs`: Limited-memory BFGS quasi-Newton method. O(d) per iteration,
+///   better for high-dimensional problems.
+/// - `Auto` (default): Automatically selects IRLS for d < 50, L-BFGS for d >= 50.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LogisticSolver {
+    /// IRLS with Cholesky decomposition (exact second-order)
+    Irls,
+    /// L-BFGS quasi-Newton (first-order, memory-efficient)
+    Lbfgs,
+    /// Auto-select based on feature dimensionality
+    Auto,
+}
+
+impl Default for LogisticSolver {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl std::fmt::Display for LogisticSolver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Irls => write!(f, "irls"),
+            Self::Lbfgs => write!(f, "lbfgs"),
+            Self::Auto => write!(f, "auto"),
+        }
+    }
+}
+
+impl LogisticSolver {
+    /// Parse from a string (case-insensitive).
+    pub fn from_str_lossy(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "irls" => Self::Irls,
+            "lbfgs" | "l-bfgs" => Self::Lbfgs,
+            _ => Self::Auto,
+        }
+    }
+}
 
 /// Logistic Regression with full statistical diagnostics
 ///
@@ -89,6 +136,8 @@ pub struct LogisticRegression {
     pub class_weight: ClassWeight,
     /// Whether to reuse the solution of the previous call to fit as initialization
     pub warm_start: bool,
+    /// Solver strategy for optimization
+    pub solver: LogisticSolver,
 
     // Fitted parameters (None before fit)
     coefficients: Option<Array1<f64>>,
@@ -156,6 +205,7 @@ impl LogisticRegression {
             n_bootstrap: 1000,
             class_weight: ClassWeight::Uniform,
             warm_start: false,
+            solver: LogisticSolver::Auto,
             coefficients: None,
             intercept: None,
             n_features: None,
@@ -265,6 +315,19 @@ impl LogisticRegression {
     #[must_use]
     pub fn with_warm_start(mut self, warm_start: bool) -> Self {
         self.warm_start = warm_start;
+        self
+    }
+
+    /// Set the solver strategy for optimization.
+    ///
+    /// # Arguments
+    /// * `solver` - [`LogisticSolver::Irls`], [`LogisticSolver::Lbfgs`], or [`LogisticSolver::Auto`] (default)
+    ///
+    /// `Auto` selects IRLS for d < 50 features (exact Hessian is cheap) and
+    /// L-BFGS for d >= 50 (O(d) per iteration instead of O(d^3)).
+    #[must_use]
+    pub fn with_solver(mut self, solver: LogisticSolver) -> Self {
+        self.solver = solver;
         self
     }
 
@@ -679,6 +742,267 @@ impl LogisticRegression {
 
         Ok(())
     }
+
+    /// Fit using L-BFGS quasi-Newton method via the argmin crate.
+    ///
+    /// More efficient than IRLS for high-dimensional problems because it
+    /// avoids the O(d^3) Cholesky decomposition per iteration.
+    fn fit_lbfgs(
+        &mut self,
+        x_design: &Array2<f64>,
+        y: &Array1<f64>,
+        sample_weights: &Array1<f64>,
+    ) -> Result<()> {
+        let n = x_design.nrows();
+        let p = x_design.ncols();
+
+        let l2_override = if n < p && self.l2_penalty < 1e-6 {
+            eprintln!(
+                "Warning: LogisticRegression has fewer samples ({}) than features ({}). \
+                 Auto-applying L2 regularization (1e-4) to prevent singular X'WX.",
+                n, p
+            );
+            1e-4
+        } else {
+            self.l2_penalty
+        };
+
+        let cost = LogisticCost {
+            x: x_design.clone(),
+            y: y.clone(),
+            sample_weights: sample_weights.clone(),
+            l2_penalty: l2_override,
+            fit_intercept: self.fit_intercept,
+        };
+
+        // Initialize coefficients (warm_start reuses previous fit)
+        let init_param = if self.warm_start {
+            if let (Some(ref coef), Some(intercept)) = (&self.coefficients, self.intercept) {
+                if self.fit_intercept && coef.len() + 1 == p {
+                    let mut b = vec![0.0; p];
+                    b[0] = intercept;
+                    for (i, &c) in coef.iter().enumerate() {
+                        b[i + 1] = c;
+                    }
+                    b
+                } else if !self.fit_intercept && coef.len() == p {
+                    coef.to_vec()
+                } else {
+                    vec![0.0; p]
+                }
+            } else {
+                vec![0.0; p]
+            }
+        } else {
+            vec![0.0; p]
+        };
+
+        let linesearch: MoreThuenteLineSearch<Vec<f64>, Vec<f64>, f64> =
+            MoreThuenteLineSearch::new();
+        let solver: LBFGS<_, Vec<f64>, Vec<f64>, f64> = LBFGS::new(linesearch, 10)
+            .with_tolerance_grad(self.tol.sqrt())
+            .map_err(|e| FerroError::numerical(format!("L-BFGS setup: {e}")))?
+            .with_tolerance_cost(self.tol)
+            .map_err(|e| FerroError::numerical(format!("L-BFGS setup: {e}")))?;
+
+        let result = Executor::new(cost, solver)
+            .configure(|state| state.param(init_param).max_iters(self.max_iter as u64))
+            .run()
+            .map_err(|e| FerroError::numerical(format!("L-BFGS failed: {e}")))?;
+
+        let best_param = result
+            .state
+            .get_best_param()
+            .ok_or_else(|| FerroError::numerical("L-BFGS produced no result"))?;
+
+        let n_iter = result.state.get_iter() as usize;
+        let converged = result.state.get_iter() < self.max_iter as u64;
+
+        let beta = Array1::from_vec(best_param.clone());
+
+        // Compute final probabilities and diagnostics (same as IRLS post-processing)
+        let eta = x_design.dot(&beta);
+        let mu = eta.mapv(sigmoid);
+
+        let log_likelihood = compute_weighted_log_likelihood(y, &mu, sample_weights);
+
+        let total_weight: f64 = sample_weights.sum();
+        let p_bar = if total_weight > 0.0 {
+            y.iter()
+                .zip(sample_weights.iter())
+                .map(|(&yi, &wi)| yi * wi)
+                .sum::<f64>()
+                / total_weight
+        } else {
+            y.mean().unwrap_or(0.5)
+        };
+        let null_log_likelihood = y
+            .iter()
+            .zip(sample_weights.iter())
+            .map(|(&yi, &wi)| {
+                wi * if yi > 0.5 {
+                    p_bar.max(1e-15).ln()
+                } else {
+                    (1.0 - p_bar).max(1e-15).ln()
+                }
+            })
+            .sum::<f64>();
+
+        let deviance = -2.0 * log_likelihood;
+        let null_deviance = -2.0 * null_log_likelihood;
+
+        // Fisher information for standard errors
+        let w_final = &mu * &(1.0 - &mu) * sample_weights;
+        let w_clamped_final: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
+
+        let mut scaled_x = x_design.clone();
+        for i in 0..n {
+            let w_sqrt = w_clamped_final[i].sqrt();
+            scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
+        }
+        let mut fisher_info = scaled_x.t().dot(&scaled_x);
+
+        if l2_override > 0.0 {
+            let start = usize::from(self.fit_intercept);
+            for i in start..p {
+                fisher_info[[i, i]] += l2_override;
+            }
+        }
+
+        let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
+        let mut coef_std_errors = Array1::zeros(p);
+        for i in 0..p {
+            coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
+        }
+
+        let deviance_residuals = compute_deviance_residuals(y, &mu);
+        let pearson_residuals = compute_pearson_residuals(y, &mu);
+
+        let n_orig = if self.fit_intercept { p - 1 } else { p };
+        if self.fit_intercept {
+            self.intercept = Some(beta[0]);
+            self.coefficients = Some(beta.slice(s![1..]).to_owned());
+        } else {
+            self.intercept = Some(0.0);
+            self.coefficients = Some(beta);
+        }
+
+        self.n_features = Some(n_orig);
+
+        self.fitted_data = Some(FittedLogisticData {
+            n_samples: n,
+            n_features: n_orig,
+            n_iterations: n_iter,
+            converged,
+            fitted_probabilities: mu,
+            y: y.clone(),
+            deviance_residuals,
+            pearson_residuals,
+            coef_std_errors,
+            coef_covariance,
+            log_likelihood,
+            null_log_likelihood,
+            deviance,
+            null_deviance,
+            df_residuals: n.saturating_sub(p),
+            df_null: n.saturating_sub(1),
+        });
+
+        Ok(())
+    }
+
+    /// Resolve solver strategy based on the number of features.
+    fn resolve_solver(&self, n_features: usize) -> LogisticSolver {
+        match self.solver {
+            LogisticSolver::Auto => {
+                if n_features < 50 {
+                    LogisticSolver::Irls
+                } else {
+                    LogisticSolver::Lbfgs
+                }
+            }
+            other => other,
+        }
+    }
+}
+
+// =============================================================================
+// L-BFGS Cost Function
+// =============================================================================
+
+/// Cost function for logistic regression used with the argmin L-BFGS solver.
+struct LogisticCost {
+    x: Array2<f64>,
+    y: Array1<f64>,
+    sample_weights: Array1<f64>,
+    l2_penalty: f64,
+    fit_intercept: bool,
+}
+
+impl CostFunction for LogisticCost {
+    type Param = Vec<f64>;
+    type Output = f64;
+
+    fn cost(&self, param: &Self::Param) -> std::result::Result<Self::Output, argmin::core::Error> {
+        let beta = Array1::from_vec(param.clone());
+        let eta = self.x.dot(&beta);
+        let mu = eta.mapv(sigmoid);
+
+        // Negative log-likelihood (we minimize)
+        let nll: f64 = self
+            .y
+            .iter()
+            .zip(mu.iter())
+            .zip(self.sample_weights.iter())
+            .map(|((&yi, &mi), &wi)| {
+                let mi_c = mi.clamp(1e-15, 1.0 - 1e-15);
+                -wi * if yi > 0.5 {
+                    mi_c.ln()
+                } else {
+                    (1.0 - mi_c).ln()
+                }
+            })
+            .sum();
+
+        // L2 regularization (skip intercept if present)
+        let l2 = if self.l2_penalty > 0.0 {
+            let start = usize::from(self.fit_intercept);
+            0.5 * self.l2_penalty * param[start..].iter().map(|&b| b * b).sum::<f64>()
+        } else {
+            0.0
+        };
+
+        Ok(nll + l2)
+    }
+}
+
+impl Gradient for LogisticCost {
+    type Param = Vec<f64>;
+    type Gradient = Vec<f64>;
+
+    fn gradient(
+        &self,
+        param: &Self::Param,
+    ) -> std::result::Result<Self::Gradient, argmin::core::Error> {
+        let p = self.x.ncols();
+        let beta = Array1::from_vec(param.clone());
+        let eta = self.x.dot(&beta);
+        let mu = eta.mapv(sigmoid);
+
+        // Gradient of negative log-likelihood: X^T (W (mu - y))
+        let residual: Array1<f64> = (&mu - &self.y) * &self.sample_weights;
+        let mut grad = self.x.t().dot(&residual);
+
+        // L2 regularization gradient (skip intercept)
+        if self.l2_penalty > 0.0 {
+            let start = usize::from(self.fit_intercept);
+            for i in start..p {
+                grad[i] += self.l2_penalty * beta[i];
+            }
+        }
+
+        Ok(grad.to_vec())
+    }
 }
 
 impl Model for LogisticRegression {
@@ -720,8 +1044,13 @@ impl Model for LogisticRegression {
         let classes = get_unique_classes(y);
         let sample_weights = compute_sample_weights(y, &classes, &self.class_weight);
 
-        // Fit using IRLS
-        self.fit_irls(&x_design, y, &sample_weights)
+        // Select solver based on strategy
+        match self.resolve_solver(p_orig) {
+            LogisticSolver::Irls | LogisticSolver::Auto => {
+                self.fit_irls(&x_design, y, &sample_weights)
+            }
+            LogisticSolver::Lbfgs => self.fit_lbfgs(&x_design, y, &sample_weights),
+        }
     }
 
     fn fit_weighted(
@@ -782,8 +1111,11 @@ impl Model for LogisticRegression {
         let class_weights = compute_sample_weights(y, &classes, &self.class_weight);
         let combined = &class_weights * sample_weight;
 
-        // Fit using IRLS
-        self.fit_irls(&x_design, y, &combined)
+        // Select solver based on strategy
+        match self.resolve_solver(p_orig) {
+            LogisticSolver::Irls | LogisticSolver::Auto => self.fit_irls(&x_design, y, &combined),
+            LogisticSolver::Lbfgs => self.fit_lbfgs(&x_design, y, &combined),
+        }
     }
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
@@ -809,8 +1141,9 @@ impl Model for LogisticRegression {
     }
 
     fn search_space(&self) -> SearchSpace {
-        // Add L2 penalty as tunable parameter
-        SearchSpace::new().float_log("l2_penalty", 1e-5, 10.0)
+        SearchSpace::new()
+            .float_log("l2_penalty", 1e-5, 10.0)
+            .categorical("solver", vec!["irls".into(), "lbfgs".into(), "auto".into()])
     }
 
     fn feature_names(&self) -> Option<&[String]> {
@@ -1306,6 +1639,16 @@ impl PipelineModel for LogisticRegression {
                     Err(FerroError::invalid_input("max_iter must be an integer"))
                 }
             }
+            "solver" => {
+                if let Some(s) = value.as_str() {
+                    self.solver = LogisticSolver::from_str_lossy(s);
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input(
+                        "solver must be a string ('irls', 'lbfgs', or 'auto')",
+                    ))
+                }
+            }
             _ => Err(FerroError::invalid_input(format!(
                 "Unknown parameter: {}",
                 name
@@ -1642,6 +1985,16 @@ impl crate::pipeline::PipelineSparseModel for LogisticRegression {
                     Ok(())
                 } else {
                     Err(FerroError::invalid_input("max_iter must be an integer"))
+                }
+            }
+            "solver" => {
+                if let Some(s) = value.as_str() {
+                    self.solver = LogisticSolver::from_str_lossy(s);
+                    Ok(())
+                } else {
+                    Err(FerroError::invalid_input(
+                        "solver must be a string ('irls', 'lbfgs', or 'auto')",
+                    ))
                 }
             }
             _ => Err(FerroError::invalid_input(format!(

@@ -61,7 +61,7 @@ pub use dbscan::DBSCAN;
 pub use diagnostics::ClusterDiagnostics;
 pub use gmm::{CovarianceType, GaussianMixture, GmmInit};
 pub use hdbscan::HDBSCAN;
-pub use kmeans::KMeans;
+pub use kmeans::{KMeans, KMeansAlgorithm};
 pub use metrics::{
     adjusted_rand_index, calinski_harabasz_score, davies_bouldin_score, hopkins_statistic,
     normalized_mutual_info, silhouette_samples, silhouette_score,
