@@ -62,6 +62,7 @@ pub mod polars_utils;
 mod preprocessing;
 #[cfg(feature = "sparse")]
 pub mod sparse_utils;
+mod stats;
 mod svm;
 pub(crate) mod trees;
 
@@ -89,6 +90,7 @@ fn ferroml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     anomaly::register_anomaly_module(m)?;
     gaussian_process::register_gaussian_process_module(m)?;
     multioutput::register_multioutput_module(m)?;
+    stats::register_stats_module(m)?;
 
     Ok(())
 }

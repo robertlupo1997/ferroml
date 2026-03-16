@@ -142,14 +142,20 @@ impl KernelCache {
     /// Returns a reference to the cached row.
     fn get_row(&mut self, i: usize) -> &[f64] {
         if self.cache.contains_key(&i) {
-            // Move to back (most recently used)
-            self.order.retain(|&x| x != i);
+            // Don't bother removing from order — just push to back
+            // Duplicates are harmless and cleaned up during eviction
             self.order.push_back(i);
         } else {
-            // Evict if at capacity
-            if self.cache.len() >= self.capacity {
+            // Evict LRU entries until we have space
+            while self.cache.len() >= self.capacity {
                 if let Some(evicted) = self.order.pop_front() {
+                    // Skip if this entry appears again later in order (not truly LRU)
+                    if self.order.contains(&evicted) {
+                        continue;
+                    }
                     self.cache.remove(&evicted);
+                } else {
+                    break;
                 }
             }
 
@@ -429,10 +435,11 @@ fn select_j_active(
     c: &Array1<f64>,
     active: &[bool],
     kernel: &mut KernelProvider,
+    k_diag: &[f64],
 ) -> Option<usize> {
     let ei = errors[i];
     let n_samples = errors.len();
-    let k_ii = kernel.get(i, i);
+    let k_ii = k_diag[i];
 
     let mut best_j = None;
     let mut best_gain = 0.0_f64;
@@ -454,7 +461,7 @@ fn select_j_active(
             continue;
         }
 
-        let k_jj = kernel.get(j, j);
+        let k_jj = k_diag[j];
         let k_ij = kernel.get(i, j);
         let eta = k_ii + k_jj - 2.0 * k_ij;
 
@@ -487,7 +494,7 @@ fn select_j_active(
             continue;
         }
 
-        let k_jj = kernel.get(j, j);
+        let k_jj = k_diag[j];
         let k_ij = kernel.get(i, j);
         let eta = k_ii + k_jj - 2.0 * k_ij;
 
@@ -668,6 +675,9 @@ impl BinarySVC {
         // Error cache
         let mut errors: Array1<f64> = -y.clone();
 
+        // Precompute kernel diagonal for WSS3 (avoids repeated cache lookups)
+        let k_diag: Vec<f64> = (0..n_samples).map(|i| kernel.get(i, i)).collect();
+
         // Buffers for kernel rows (used in incremental error update)
         let mut row_i_buf = vec![0.0; n_samples];
         let mut row_j_buf = vec![0.0; n_samples];
@@ -720,7 +730,7 @@ impl BinarySVC {
                 // Check KKT conditions
                 if (ri < -self.tol && alpha[i] < c[i]) || (ri > self.tol && alpha[i] > 0.0) {
                     // Select j using WSS3 (second-order working set selection)
-                    let j = select_j_active(i, &errors, &alpha, c, &active, kernel);
+                    let j = select_j_active(i, &errors, &alpha, c, &active, kernel, &k_diag);
 
                     if let Some(j) = j {
                         let ej = errors[j];
