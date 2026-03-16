@@ -67,6 +67,7 @@ RecursiveFeatureElimination = _native.preprocessing.RecursiveFeatureElimination
 TfidfTransformer = _native.preprocessing.TfidfTransformer
 CountVectorizer = _native.preprocessing.CountVectorizer
 TfidfVectorizer = _native.preprocessing.TfidfVectorizer
+Normalizer = _native.preprocessing.Normalizer
 
 __all__ = [
     "StandardScaler",
@@ -94,4 +95,5 @@ __all__ = [
     "TfidfTransformer",
     "CountVectorizer",
     "TfidfVectorizer",
+    "Normalizer",
 ]

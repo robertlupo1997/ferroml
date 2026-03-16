@@ -42,13 +42,17 @@ mod array_utils;
 mod automl;
 mod calibration;
 mod clustering;
+mod cv;
 mod datasets;
 mod decomposition;
 mod ensemble;
 pub(crate) mod errors;
 mod explainability;
 mod gaussian_process;
+mod hpo;
 mod linear;
+mod metrics;
+mod model_selection;
 mod multioutput;
 mod naive_bayes;
 mod neighbors;
@@ -91,6 +95,10 @@ fn ferroml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     gaussian_process::register_gaussian_process_module(m)?;
     multioutput::register_multioutput_module(m)?;
     stats::register_stats_module(m)?;
+    metrics::register_metrics_module(m)?;
+    cv::register_cv_module(m)?;
+    hpo::register_hpo_module(m)?;
+    model_selection::register_model_selection_module(m)?;
 
     Ok(())
 }

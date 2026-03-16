@@ -85,6 +85,10 @@ from ferroml import calibration
 from ferroml import anomaly
 from ferroml import multioutput
 from ferroml import stats
+from ferroml import metrics
+from ferroml import cv
+from ferroml import hpo
+from ferroml import model_selection
 
 __all__ = [
     "__version__",
@@ -106,4 +110,8 @@ __all__ = [
     "anomaly",
     "multioutput",
     "stats",
+    "metrics",
+    "cv",
+    "hpo",
+    "model_selection",
 ]

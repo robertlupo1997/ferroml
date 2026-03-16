@@ -33,7 +33,7 @@ use ferroml_core::preprocessing::{
     polynomial::PolynomialFeatures,
     power::PowerTransformer,
     quantile::QuantileTransformer,
-    scalers::{MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler},
+    scalers::{MaxAbsScaler, MinMaxScaler, NormType, Normalizer, RobustScaler, StandardScaler},
     selection::{ClosureEstimator, RecursiveFeatureElimination, SelectKBest, VarianceThreshold},
     Transformer, UnknownCategoryHandling,
 };
@@ -4096,7 +4096,91 @@ impl PyTfidfVectorizer {
 // Module registration
 // =============================================================================
 
-/// Register the preprocessing submodule.
+// =============================================================================
+// Normalizer
+// =============================================================================
+
+/// Normalize samples individually to unit norm.
+///
+/// Each sample (row) is scaled independently to have unit norm.
+///
+/// Parameters
+/// ----------
+/// norm : str, optional (default="l2")
+///     The norm to use: "l1", "l2", or "max".
+#[pyclass(name = "Normalizer")]
+pub struct PyNormalizer {
+    inner: Normalizer,
+}
+
+#[pymethods]
+impl PyNormalizer {
+    #[new]
+    #[pyo3(signature = (norm="l2"))]
+    fn new(norm: &str) -> PyResult<Self> {
+        let norm_type = match norm {
+            "l1" => NormType::L1,
+            "l2" => NormType::L2,
+            "max" => NormType::Max,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Unknown norm '{}'. Use 'l1', 'l2', or 'max'.",
+                    norm
+                )));
+            }
+        };
+        Ok(Self {
+            inner: Normalizer::new().with_norm(norm_type),
+        })
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn fit_transform<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let x_arr = to_owned_array_2d(x);
+        let result = slf
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn __repr__(&self) -> String {
+        let norm_str = match self.inner.norm {
+            NormType::L1 => "l1",
+            NormType::L2 => "l2",
+            NormType::Max => "max",
+        };
+        format!("Normalizer(norm='{}')", norm_str)
+    }
+}
+
 pub fn register_preprocessing_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
     let preprocessing_module = PyModule::new(parent_module.py(), "preprocessing")?;
 
@@ -4148,6 +4232,9 @@ pub fn register_preprocessing_module(parent_module: &Bound<'_, PyModule>) -> PyR
 
     // TfidfVectorizer
     preprocessing_module.add_class::<PyTfidfVectorizer>()?;
+
+    // Normalizer
+    preprocessing_module.add_class::<PyNormalizer>()?;
 
     parent_module.add_submodule(&preprocessing_module)?;
 
