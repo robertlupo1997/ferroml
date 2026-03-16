@@ -83,8 +83,12 @@ use std::collections::{HashMap, VecDeque};
 /// Default number of kernel rows to cache when using the LRU cache.
 const DEFAULT_CACHE_SIZE: usize = 1000;
 
-/// Threshold below which the full kernel matrix is precomputed (cache overhead not worth it).
-const FULL_MATRIX_THRESHOLD: usize = 10_000;
+/// Threshold below which the full kernel matrix is precomputed.
+/// Above this, the LRU cache is used with shrinking to limit memory.
+/// Full matrix costs O(n^2) memory but O(1) access; cache costs O(cache_size * n)
+/// but O(n_features) per miss. With shrinking, cache hit rates are high because
+/// the active set converges to ~n_sv (support vectors).
+const FULL_MATRIX_THRESHOLD: usize = 4_000;
 
 /// LRU cache for kernel matrix rows.
 ///
@@ -407,6 +411,101 @@ pub(crate) struct BinarySVC {
     probability_fitted: bool,
 }
 
+/// WSS3: Second-order working set selection (libsvm-style).
+///
+/// Given i (the first index, selected by max KKT violation), find j that
+/// maximizes the objective function decrease. Uses second-order information
+/// (curvature via kernel diagonal) for better convergence.
+///
+/// Objective decrease for pair (i,j) ~ -(Ei - Ej)^2 / (Kii + Kjj - 2*Kij)
+/// We want to maximize this, which means maximizing (Ei - Ej)^2 / eta.
+///
+/// This is a free function to avoid borrow-checker conflicts with `&mut KernelProvider`
+/// already borrowed in the `smo` method.
+fn select_j_active(
+    i: usize,
+    errors: &Array1<f64>,
+    alpha: &ndarray::ArrayViewMut1<f64>,
+    c: &Array1<f64>,
+    active: &[bool],
+    kernel: &mut KernelProvider,
+) -> Option<usize> {
+    let ei = errors[i];
+    let n_samples = errors.len();
+    let k_ii = kernel.get(i, i);
+
+    let mut best_j = None;
+    let mut best_gain = 0.0_f64;
+
+    // First pass: try non-bound active samples
+    for j in 0..n_samples {
+        if j == i || !active[j] {
+            continue;
+        }
+        // Prefer non-bound samples
+        if alpha[j] <= 0.0 || alpha[j] >= c[j] {
+            continue;
+        }
+
+        let ej = errors[j];
+        let diff = ei - ej;
+
+        if diff.abs() < 1e-12 {
+            continue;
+        }
+
+        let k_jj = kernel.get(j, j);
+        let k_ij = kernel.get(i, j);
+        let eta = k_ii + k_jj - 2.0 * k_ij;
+
+        let gain = if eta > 1e-12 {
+            diff * diff / eta
+        } else {
+            diff * diff
+        };
+
+        if gain > best_gain {
+            best_gain = gain;
+            best_j = Some(j);
+        }
+    }
+
+    if best_j.is_some() {
+        return best_j;
+    }
+
+    // Second pass: try all active samples
+    for j in 0..n_samples {
+        if j == i || !active[j] {
+            continue;
+        }
+
+        let ej = errors[j];
+        let diff = ei - ej;
+
+        if diff.abs() < 1e-12 {
+            continue;
+        }
+
+        let k_jj = kernel.get(j, j);
+        let k_ij = kernel.get(i, j);
+        let eta = k_ii + k_jj - 2.0 * k_ij;
+
+        let gain = if eta > 1e-12 {
+            diff * diff / eta
+        } else {
+            diff * diff
+        };
+
+        if gain > best_gain {
+            best_gain = gain;
+            best_j = Some(j);
+        }
+    }
+
+    best_j
+}
+
 impl BinarySVC {
     /// Create a new binary SVC.
     fn new(c: f64, kernel: Kernel, tol: f64, max_iter: usize, cache_size: usize) -> Self {
@@ -577,14 +676,39 @@ impl BinarySVC {
         let mut examine_all = true;
         let mut iter = 0;
 
+        // Shrinking: track which samples are "active" (may change) vs "shrunk" (at bounds)
+        let mut active: Vec<bool> = vec![true; n_samples];
+        let mut active_set: Vec<usize> = (0..n_samples).collect();
+        let shrink_interval = 100.min(self.max_iter); // Re-evaluate shrinking every 100 iters
+
         while (n_changed > 0 || examine_all) && iter < self.max_iter {
             n_changed = 0;
 
+            // Periodically shrink the active set
+            if iter > 0 && iter % shrink_interval == 0 && !examine_all {
+                Self::shrink_active_set(
+                    &mut active,
+                    &mut active_set,
+                    &alpha,
+                    &errors,
+                    y,
+                    c,
+                    self.tol,
+                );
+            }
+
             let indices: Vec<usize> = if examine_all {
+                // Full pass: unshrink all samples to re-evaluate
+                for i in 0..n_samples {
+                    active[i] = true;
+                }
+                active_set = (0..n_samples).collect();
                 (0..n_samples).collect()
             } else {
-                // Only examine non-bound examples
-                (0..n_samples)
+                // Only examine non-bound active examples
+                active_set
+                    .iter()
+                    .copied()
                     .filter(|&i| alpha[i] > 0.0 && alpha[i] < c[i])
                     .collect()
             };
@@ -595,8 +719,8 @@ impl BinarySVC {
 
                 // Check KKT conditions
                 if (ri < -self.tol && alpha[i] < c[i]) || (ri > self.tol && alpha[i] > 0.0) {
-                    // Select j using heuristic
-                    let j = self.select_j(i, &errors, &alpha, c);
+                    // Select j using WSS3 (second-order working set selection)
+                    let j = select_j_active(i, &errors, &alpha, c, &active, kernel);
 
                     if let Some(j) = j {
                         let ej = errors[j];
@@ -697,7 +821,41 @@ impl BinarySVC {
         Ok((alpha.to_owned(), b))
     }
 
-    /// Select second alpha using heuristic.
+    /// Shrink samples that are firmly at their bounds and unlikely to change.
+    /// A sample is shrinkable if:
+    /// - alpha[i] == 0 and y[i] * error[i] >= 0 (correctly classified, won't enter)
+    /// - alpha[i] == c[i] and y[i] * error[i] <= 0 (at upper bound, won't decrease)
+    fn shrink_active_set(
+        active: &mut [bool],
+        active_set: &mut Vec<usize>,
+        alpha: &ndarray::ArrayViewMut1<f64>,
+        errors: &Array1<f64>,
+        y: &Array1<f64>,
+        c: &Array1<f64>,
+        tol: f64,
+    ) {
+        let threshold = 1e-8;
+        for &i in active_set.iter() {
+            if !active[i] {
+                continue;
+            }
+            let ri = errors[i] * y[i]; // KKT residual
+
+            // At lower bound (alpha = 0) and gradient says "stay"
+            let at_lower = alpha[i] < threshold && ri >= -tol;
+            // At upper bound (alpha = C) and gradient says "stay"
+            let at_upper = (alpha[i] - c[i]).abs() < threshold && ri <= tol;
+
+            if at_lower || at_upper {
+                active[i] = false;
+            }
+        }
+        // Rebuild active_set from active flags
+        active_set.retain(|&i| active[i]);
+    }
+
+    /// Select second alpha using heuristic (first-order, legacy).
+    #[allow(dead_code)]
     fn select_j(
         &self,
         i: usize,
