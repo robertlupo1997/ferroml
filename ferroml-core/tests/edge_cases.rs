@@ -1043,7 +1043,9 @@ mod edge_case_matrix {
         #[test]
         fn regressor_nan_predict_rejected() {
             let (x_train, y_train, _) = gen_normal_data();
-            let mut model = LinearRegression::new();
+            // Use RidgeRegression because gen_normal_data() has collinear features
+            // which LinearRegression correctly rejects as rank-deficient
+            let mut model = RidgeRegression::new(1.0);
             model.fit(&x_train, &y_train).expect("fit should succeed");
 
             let x_nan =
@@ -1055,7 +1057,9 @@ mod edge_case_matrix {
         #[test]
         fn regressor_inf_predict_rejected() {
             let (x_train, y_train, _) = gen_normal_data();
-            let mut model = LinearRegression::new();
+            // Use RidgeRegression because gen_normal_data() has collinear features
+            // which LinearRegression correctly rejects as rank-deficient
+            let mut model = RidgeRegression::new(1.0);
             model.fit(&x_train, &y_train).expect("fit should succeed");
 
             let x_inf =
@@ -1278,7 +1282,9 @@ mod edge_case_matrix {
         #[test]
         fn regressor_feature_mismatch() {
             let (x_train, y_train, _) = gen_normal_data(); // 3 features
-            let mut model = LinearRegression::new();
+                                                           // Use RidgeRegression because gen_normal_data() has collinear features
+                                                           // which LinearRegression correctly rejects as rank-deficient
+            let mut model = RidgeRegression::new(1.0);
             model.fit(&x_train, &y_train).expect("fit should succeed");
 
             // Predict with 5 features instead of 3

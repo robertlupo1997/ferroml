@@ -1072,7 +1072,11 @@ mod sklearn_correctness {
     const TOL_CLOSED_FORM: f64 = 1e-8;
 
     /// Tolerance for iterative solutions (regularized regression, gradient descent)
+    #[allow(dead_code)]
     const TOL_ITERATIVE: f64 = 1e-4;
+
+    /// Tolerance for deterministic preprocessing (scalers, encoders, imputers)
+    const TOL_PREPROCESSING: f64 = 1e-10;
 
     /// Tolerance for tree-based predictions
     const TOL_TREE: f64 = 1e-10;
@@ -1382,8 +1386,8 @@ mod sklearn_correctness {
         let mean_col0: f64 = x_scaled.column(0).mean().unwrap();
         let mean_col1: f64 = x_scaled.column(1).mean().unwrap();
 
-        assert_relative_eq!(mean_col0, 0.0, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(mean_col1, 0.0, epsilon = TOL_ITERATIVE);
+        assert_relative_eq!(mean_col0, 0.0, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(mean_col1, 0.0, epsilon = TOL_PREPROCESSING);
         assert!(x_scaled[[0, 0]] < 0.0 && x_scaled[[2, 0]] > 0.0);
     }
 
@@ -1396,7 +1400,7 @@ mod sklearn_correctness {
         let x_restored = scaler.inverse_transform(&x_scaled).unwrap();
 
         for (original, restored) in x.iter().zip(x_restored.iter()) {
-            assert_relative_eq!(*original, *restored, epsilon = TOL_ITERATIVE);
+            assert_relative_eq!(*original, *restored, epsilon = TOL_PREPROCESSING);
         }
     }
 
@@ -1407,12 +1411,12 @@ mod sklearn_correctness {
         let mut scaler = MinMaxScaler::new();
         let x_scaled = scaler.fit_transform(&x).unwrap();
 
-        assert_relative_eq!(x_scaled[[0, 0]], 0.0, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(x_scaled[[0, 1]], 0.0, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(x_scaled[[1, 0]], 0.5, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(x_scaled[[1, 1]], 0.5, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(x_scaled[[2, 0]], 1.0, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(x_scaled[[2, 1]], 1.0, epsilon = TOL_ITERATIVE);
+        assert_relative_eq!(x_scaled[[0, 0]], 0.0, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(x_scaled[[0, 1]], 0.0, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(x_scaled[[1, 0]], 0.5, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(x_scaled[[1, 1]], 0.5, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(x_scaled[[2, 0]], 1.0, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(x_scaled[[2, 1]], 1.0, epsilon = TOL_PREPROCESSING);
     }
 
     #[test]
@@ -1436,10 +1440,10 @@ mod sklearn_correctness {
         let mut scaler = MaxAbsScaler::new();
         let x_scaled = scaler.fit_transform(&x).unwrap();
 
-        assert_relative_eq!(x_scaled[[0, 0]], 0.2, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(x_scaled[[0, 1]], -2.0 / 6.0, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(x_scaled[[2, 0]], 1.0, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(x_scaled[[2, 1]], -1.0, epsilon = TOL_ITERATIVE);
+        assert_relative_eq!(x_scaled[[0, 0]], 0.2, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(x_scaled[[0, 1]], -2.0 / 6.0, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(x_scaled[[2, 0]], 1.0, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(x_scaled[[2, 1]], -1.0, epsilon = TOL_PREPROCESSING);
     }
 
     // =============================================================================
@@ -1460,7 +1464,7 @@ mod sklearn_correctness {
         let ss_tot: f64 = y_true.iter().map(|t: &f64| (*t - y_mean).powi(2)).sum();
         let r_squared = 1.0 - ss_res / ss_tot;
 
-        assert_relative_eq!(r_squared, 0.9486081370449679, epsilon = TOL_ITERATIVE);
+        assert_relative_eq!(r_squared, 0.9486081370449679, epsilon = TOL_PREPROCESSING);
     }
 
     // =============================================================================
@@ -1475,10 +1479,10 @@ mod sklearn_correctness {
         let x_scaled = scaler.fit_transform(&x).unwrap();
 
         let mean_col0: f64 = x_scaled.column(0).mean().unwrap();
-        assert_relative_eq!(mean_col0, 0.0, epsilon = TOL_ITERATIVE);
+        assert_relative_eq!(mean_col0, 0.0, epsilon = TOL_PREPROCESSING);
 
         for &val in x_scaled.column(1).iter() {
-            assert!(val.abs() < TOL_ITERATIVE || val.is_nan());
+            assert!(val.abs() < TOL_PREPROCESSING || val.is_nan());
         }
     }
 
@@ -1489,11 +1493,11 @@ mod sklearn_correctness {
         let mut scaler = MinMaxScaler::new();
         let x_scaled = scaler.fit_transform(&x).unwrap();
 
-        assert_relative_eq!(x_scaled[[0, 0]], 0.0, epsilon = TOL_ITERATIVE);
-        assert_relative_eq!(x_scaled[[2, 0]], 1.0, epsilon = TOL_ITERATIVE);
+        assert_relative_eq!(x_scaled[[0, 0]], 0.0, epsilon = TOL_PREPROCESSING);
+        assert_relative_eq!(x_scaled[[2, 0]], 1.0, epsilon = TOL_PREPROCESSING);
 
         for &val in x_scaled.column(1).iter() {
-            assert!(val.abs() < TOL_ITERATIVE || val.is_nan());
+            assert!(val.abs() < TOL_PREPROCESSING || val.is_nan());
         }
     }
 

@@ -39,8 +39,8 @@ use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    check_is_fitted, check_non_empty, check_shape, column_max, column_median, column_min,
-    column_quantile, compute_column_statistics, generate_feature_names, Transformer,
+    check_finite, check_is_fitted, check_non_empty, check_shape, column_max, column_median,
+    column_min, column_quantile, compute_column_statistics, generate_feature_names, Transformer,
 };
 use crate::pipeline::PipelineTransformer;
 use crate::Result;
@@ -165,6 +165,7 @@ impl Default for StandardScaler {
 impl Transformer for StandardScaler {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
         check_non_empty(x)?;
+        check_finite(x)?;
 
         let (mean, variance, n_samples) = compute_column_statistics(x);
         let std = variance.mapv(f64::sqrt);
@@ -187,6 +188,7 @@ impl Transformer for StandardScaler {
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
         check_shape(x, self.n_features_in.unwrap())?;
+        check_finite(x)?;
 
         let mean = self.mean.as_ref().unwrap();
         let std = self.std.as_ref().unwrap();
@@ -376,6 +378,7 @@ impl Default for MinMaxScaler {
 impl Transformer for MinMaxScaler {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
         check_non_empty(x)?;
+        check_finite(x)?;
 
         let data_min = column_min(x);
         let data_max = column_max(x);
@@ -605,6 +608,7 @@ impl Default for RobustScaler {
 impl Transformer for RobustScaler {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
         check_non_empty(x)?;
+        check_finite(x)?;
 
         // Compute median
         let center = column_median(x);
@@ -775,6 +779,7 @@ impl Default for MaxAbsScaler {
 impl Transformer for MaxAbsScaler {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
         check_non_empty(x)?;
+        check_finite(x)?;
 
         let n_features = x.ncols();
         let mut max_abs = Array1::zeros(n_features);

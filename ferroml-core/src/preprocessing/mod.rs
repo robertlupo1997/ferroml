@@ -360,6 +360,27 @@ pub fn check_non_empty(x: &Array2<f64>) -> Result<()> {
     }
 }
 
+/// Validate that an input array contains only finite values (no NaN or Inf).
+///
+/// # Arguments
+///
+/// * `x` - Input array to validate
+///
+/// # Returns
+///
+/// * `Ok(())` if all values are finite
+/// * `Err(FerroError::InvalidInput)` if any NaN or Inf values are found
+#[inline]
+pub fn check_finite(x: &Array2<f64>) -> Result<()> {
+    if x.iter().any(|v| !v.is_finite()) {
+        Err(FerroError::invalid_input(
+            "Input contains NaN or infinite values",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 /// Generates default feature names like ["x0", "x1", "x2", ...].
 ///
 /// # Arguments

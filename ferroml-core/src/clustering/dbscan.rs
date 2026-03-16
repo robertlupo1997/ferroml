@@ -438,6 +438,17 @@ impl DBSCAN {
 
 impl ClusteringModel for DBSCAN {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
+        if x.is_empty() || x.nrows() == 0 {
+            return Err(FerroError::InvalidInput(
+                "Input array cannot be empty".to_string(),
+            ));
+        }
+        if x.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::InvalidInput(
+                "Input contains NaN or infinite values".to_string(),
+            ));
+        }
+
         let n_samples = x.nrows();
 
         if self.eps <= 0.0 {

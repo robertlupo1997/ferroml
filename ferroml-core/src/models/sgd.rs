@@ -1080,6 +1080,13 @@ impl Model for SGDRegressor {
             }
         }
 
+        // Check for numerical overflow during training
+        if coef.iter().any(|v| !v.is_finite()) || !intercept.is_finite() {
+            return Err(FerroError::numerical(
+                "SGD coefficients diverged (NaN/Inf) — try reducing learning_rate or scaling input data",
+            ));
+        }
+
         self.coef = Some(coef);
         self.intercept = Some(intercept);
         self.n_features = Some(n_features);

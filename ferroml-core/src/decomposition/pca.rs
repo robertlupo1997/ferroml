@@ -54,7 +54,9 @@
 use ndarray::{s, Array1, Array2, Axis};
 use serde::{Deserialize, Serialize};
 
-use crate::preprocessing::{check_is_fitted, check_non_empty, check_shape, Transformer};
+use crate::preprocessing::{
+    check_finite, check_is_fitted, check_non_empty, check_shape, Transformer,
+};
 use crate::{FerroError, Result};
 
 /// SVD solver strategy for PCA.
@@ -395,7 +397,9 @@ impl PCA {
         // Choose solver based on data size if Auto
         let solver = match self.svd_solver {
             SvdSolver::Auto => {
-                if n_samples > 500 && n_features > 500 {
+                if (n_samples > 500 && n_features > 500)
+                    || (n_features > 100 && n_features > 2 * n_samples)
+                {
                     SvdSolver::Randomized
                 } else {
                     SvdSolver::Full
@@ -542,6 +546,7 @@ impl Default for PCA {
 impl Transformer for PCA {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
         check_non_empty(x)?;
+        check_finite(x)?;
 
         let (n_samples, n_features) = x.dim();
 
