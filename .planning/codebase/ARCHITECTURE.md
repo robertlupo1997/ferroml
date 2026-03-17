@@ -1,363 +1,285 @@
 # Architecture
 
-**Analysis Date:** 2026-03-15
+**Analysis Date:** 2026-03-16
 
 ## Pattern Overview
 
-**Overall:** Layered trait-based architecture with clear separation of concerns across statistical modeling, transformation, hyperparameter optimization, and cross-validation layers.
+**Overall:** Layered architecture with trait-based polymorphism
 
 **Key Characteristics:**
-- **Trait-driven design**: Core abstractions (Model, Transformer, ClusteringModel, etc.) define contracts for all implementations
-- **Fit/Transform pattern**: Stateful learning phase followed by deterministic transformation/prediction phase
-- **Statistical rigor first**: Every model includes diagnostics, uncertainty quantification, and assumption testing
-- **Pipeline composability**: Transformers and models chain through a unified interface
-- **Zero-copy Python integration**: PyO3 bindings with optimized array handling between Python and Rust
-- **Multi-fidelity optimization**: Hyperparameter optimization supports Bayesian, grid, random, ASHA, and BOHB strategies
+- Core-shell design: `ferroml-core` library + `ferroml-python` PyO3 bindings
+- Trait-based model abstraction enabling diverse algorithm implementations
+- Fit/transform separation with consistent API across all transformers
+- Zero-copy array handling between Python and Rust where possible
+- Comprehensive error types with ML-specific variants (FerroError)
+- Statistical diagnostics integrated into model layer (not bolted-on)
 
 ## Layers
 
-**Core Traits (foundational contracts):**
-- Location: `ferroml-core/src/models/traits.rs`, `ferroml-core/src/preprocessing/mod.rs`, `ferroml-core/src/clustering/mod.rs`
-- Purpose: Define interfaces for models, transformers, and clustering algorithms
-- Contains: `Model` (fit/predict), `StatisticalModel` (diagnostics), `ProbabilisticModel` (probabilities), `Transformer` (fit/transform), `ClusteringModel` (fit/predict labels)
-- Depends on: ndarray, serde
-- Used by: All algorithm implementations, pipelines, cross-validation, hyperparameter optimization
-
-**Models Layer:**
-- Location: `ferroml-core/src/models/`
-- Purpose: Machine learning algorithms with full statistical diagnostics
-- Contains:
-  - Linear models (LinearRegression, Ridge, Lasso, ElasticNet, LogisticRegression, Perceptron)
-  - Tree-based (DecisionTree, RandomForest, ExtraTrees, GradientBoosting, HistGradientBoosting, AdaBoost)
-  - Probabilistic (GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB, GaussianProcess, QDA)
-  - Support Vector Machines (SVC, SVR, LinearSVC, LinearSVR)
-  - Ensemble (SGD, PassiveAggressive, MultiOutput wrappers)
-  - Specialized (KNeighbors, IsotonicRegression, QuantileRegression, RobustRegression)
-- Depends on: Core traits, stats module, metrics, linalg
-- Used by: Pipelines, cross-validation, AutoML, Python bindings
-
-**Preprocessing Layer:**
-- Location: `ferroml-core/src/preprocessing/`
-- Purpose: Feature transformations with statistically rigorous handling
-- Contains:
-  - Scalers (StandardScaler, MinMaxScaler, RobustScaler, Normalizer)
-  - Encoders (OneHotEncoder, OrdinalEncoder, TargetEncoder, BinaryEncoder)
-  - Imputers (SimpleImputer, KNNImputer, IterativeImputer)
-  - Feature selection (VarianceThreshold, SelectKBest, RFE, RFECV)
-  - Power transforms (BoxCox, YeoJohnson)
-  - Polynomial features, discretizers, quantile transformers
-  - Text processors (CountVectorizer, TfidfVectorizer - sparse feature)
-- Depends on: Core traits, sparse module (optional)
-- Used by: Pipelines, feature engineering workflows, Python bindings
-
-**Clustering Layer:**
-- Location: `ferroml-core/src/clustering/`
-- Purpose: Clustering algorithms with statistical quality assessment
-- Contains: KMeans, DBSCAN, Agglomerative, HDBSCAN, GaussianMixture, diagnostics, metrics
-- Depends on: Core traits, metrics
-- Used by: AutoML, Python bindings
-
-**Dimensionality Reduction Layer:**
-- Location: `ferroml-core/src/decomposition/`
-- Purpose: Feature extraction and dimensionality reduction
-- Contains: PCA, IncrementalPCA, TruncatedSVD, NMF, LDA, FactorAnalysis, TSNE, UMAP
-- Depends on: Core traits, linalg
-- Used by: Pipelines, feature engineering, Python bindings
-
-**Pipeline Layer:**
-- Location: `ferroml-core/src/pipeline/`
-- Purpose: Composition of transformers and estimators with unified fit/predict interface
-- Contains:
-  - `Pipeline`: Sequential chaining of transformers + final estimator
-  - `FeatureUnion`: Parallel feature extraction with concatenation
-  - `ColumnTransformer`: Column-specific transformations
-  - `TextPipeline` (sparse): Text-specific preprocessing pipeline
-- Depends on: Models, preprocessing, core traits
-- Used by: AutoML, end-user workflows, Python bindings
-
-**Cross-Validation Layer:**
-- Location: `ferroml-core/src/cv/`
-- Purpose: Statistical validation strategies with reproducibility
-- Contains:
-  - Splitters (KFold, StratifiedKFold, TimeSeriesSplit, GroupKFold, LeaveOneOut, ShuffleSplit)
-  - Search methods (GridSearchCV, RandomizedSearchCV)
-  - Curves (learning_curve, validation_curve)
-  - Nested CV for unbiased performance estimation
-- Depends on: Models, metrics
-- Used by: Model evaluation, hyperparameter optimization selection
-
-**Hyperparameter Optimization Layer:**
-- Location: `ferroml-core/src/hpo/`
-- Purpose: Statistical hyperparameter optimization with uncertainty quantification
-- Contains:
-  - `SearchSpace`: Parameter definitions
-  - `BayesianOptimizer`: Gaussian Process-based optimization
-  - `GridSampler`, `RandomSampler`, `TPESampler`: Parameter samplers
-  - `HyperbandScheduler`, `ASHAScheduler`, `BOHBScheduler`: Multi-fidelity schedulers
-- Depends on: Models, core traits
-- Used by: AutoML, model hyperparameter tuning, Python bindings
-
-**Statistical Testing Layer:**
-- Location: `ferroml-core/src/stats/`
-- Purpose: Hypothesis testing and statistical diagnostics
-- Contains: Normality tests (Shapiro-Wilk), hypothesis tests, confidence intervals, diagnostics
-- Depends on: distributions (statrs), ndarray
-- Used by: Models, preprocessing, validation workflows
-
-**Metrics Layer:**
-- Location: `ferroml-core/src/metrics/`
-- Purpose: Performance evaluation and model comparison
-- Contains:
-  - Classification metrics (accuracy, precision, recall, F1, ROC-AUC, log-loss)
-  - Regression metrics (MSE, MAE, R², RMSE)
-  - Probabilistic metrics (log-loss, Brier score)
-  - Comparison utilities (paired tests, bootstrap confidence intervals)
-- Depends on: Core traits, stats
-- Used by: Cross-validation, AutoML, model evaluation, Python bindings
-
-**Explainability Layer:**
-- Location: `ferroml-core/src/explainability/`
-- Purpose: Model interpretability tools
-- Contains: TreeSHAP, permutation importance, partial dependence, ALE plots
-- Depends on: Models, preprocessing
-- Used by: Model analysis, Python bindings
-
-**AutoML Layer:**
-- Location: `ferroml-core/src/automl/`
-- Purpose: Automated machine learning with statistical rigor
-- Contains: Algorithm selection, ensemble construction, feature importance aggregation, statistical testing
-- Depends on: All model/preprocessing layers, CV, HPO, metrics
-- Used by: High-level API, Python bindings
-
-**Serialization Layer:**
-- Location: `ferroml-core/src/serialization/`
-- Purpose: Model persistence with metadata tracking
-- Contains: Binary serialization (bincode), JSON export, ONNX export (feature-gated)
-- Depends on: Models, serde
-- Used by: Model persistence, inference, Python pickling
-
-**Python Bindings Layer:**
+**Presentation Layer (Python Bindings):**
+- Purpose: Python API surface via PyO3
 - Location: `ferroml-python/src/`
-- Purpose: PyO3 bindings exposing FerroML to Python ecosystem
-- Contains: 14 submodules mirroring Rust structure (linear, trees, ensemble, etc.)
-- Depends on: ferroml-core, PyO3, numpy, polars (optional)
-- Used by: Python users via `import ferroml`
+- Contains: 24 PyO3 module files (linear.rs, trees.rs, preprocessing.rs, etc.)
+- Depends on: ferroml-core types, numpy/pyo3
+- Used by: End users via `import ferroml`
+- Responsibility: Array marshalling, error translation, module registration
+
+**Core Algorithm Layer (Models):**
+- Purpose: ML algorithm implementations
+- Location: `ferroml-core/src/models/`
+- Contains: 25+ model files (linear.rs, svm.rs, tree.rs, forest.rs, etc.)
+- Depends on: traits, linalg, preprocessing (for pipelines)
+- Used by: Pipeline, AutoML, Python bindings
+- Responsibility: Model fitting, prediction, statistical diagnostics
+
+**Feature Engineering Layer (Preprocessing):**
+- Purpose: Feature transformers and scaling
+- Location: `ferroml-core/src/preprocessing/`
+- Contains: scalers, encoders, imputers, selection, sampling, polynomial, power, quantile, tfidf, count_vectorizer
+- Depends on: ndarray, sparse matrices (optional)
+- Used by: Pipelines, feature engineering workflows
+- Responsibility: Fit/transform stateless operations, feature name tracking
+
+**Orchestration Layer (Pipeline & AutoML):**
+- Purpose: Composite model building and hyperparameter optimization
+- Location: `ferroml-core/src/pipeline/` and `ferroml-core/src/automl/`
+- Contains: Pipeline, FeatureUnion, TextPipeline, AutoML
+- Depends on: models, preprocessing, CV, HPO, metrics
+- Used by: End users building composite workflows
+- Responsibility: Step sequencing, search space merging, cross-validation integration
+
+**Statistical Foundation Layer:**
+- Purpose: Hypothesis tests, statistical diagnostics, metrics
+- Location: `ferroml-core/src/stats/`, `ferroml-core/src/metrics/`, `ferroml-core/src/cv/`
+- Contains: Diagnostics (normality, homoscedasticity), confidence intervals, CV splitters, scoring functions
+- Depends on: statrs, ndarray
+- Used by: Models (for residual analysis), evaluation functions
+- Responsibility: Test implementation, assumption validation
+
+**Support Layer:**
+- Purpose: Cross-cutting concerns
+- Location: `ferroml-core/src/{error, schema, serialization, linalg, simd, sparse, testing}`
+- Contains: Error types, input validation, serialization formats, linear algebra wrappers, SIMD ops
+- Depends on: thiserror, serde, ndarray, nalgebra
+- Used by: All other layers
+- Responsibility: Type safety, numerical correctness, data persistence
 
 ## Data Flow
 
-**Training Flow (fit → fit_transform → predict):**
+**Training Flow:**
 
-1. **Input validation**: Data enters through model/transformer `fit()` method
-   - Shape validation: `validate_fit_input()` ensures (n_samples, n_features)
-   - Type checking: Array bounds and dtype verification
-   - Feature name tracking: Optional feature names propagated through pipeline
+1. **Input** → User provides Array2<f64> features (X) and Array1<f64> targets (y)
+2. **Validation** → `validate_fit_input()` checks shapes, NaN/Inf values, dimensionality
+3. **Model Fitting** → Model trait's `fit(&mut self, x, y)` implementation runs
+   - Linear models: QR decomposition via nalgebra
+   - Tree models: Recursive splitting via entropy/gini calculation
+   - Distance-based: Spatial indexing (KDTree, BallTree) or clustering (KMeans)
+4. **Diagnostics** → If statistical model, compute residuals, test assumptions, generate warnings
+5. **State Storage** → Store coefficients, thresholds, means/stds in model struct fields
+6. **Return** → `Result<()>` with error context if convergence/numerical issues occur
 
-2. **Fit phase (Parameter Learning):**
-   - Transformer learns statistics: means, stds, encodings, etc. (stored in struct fields)
-   - Model estimates parameters: coefficients, tree splits, cluster centers, etc.
-   - Diagnostics calculated: residuals, covariance matrices, assumption tests
-   - State transitions from unfitted → fitted (checked by `check_is_fitted()`)
+**Prediction Flow:**
 
-3. **Transform/Prediction phase (Deterministic Application):**
-   - Transformer applies learned parameters: centering, scaling, encoding
-   - Model uses fitted parameters to predict: dot product (linear), tree traversal, etc.
-   - Output validation: predictions checked for NaN/inf (hardened in Plan V)
-   - Shape preservation: (n_test, n_features_in) → (n_test, n_features_out) or (n_test,)
+1. **Input** → User provides Array2<f64> test features
+2. **Validation** → `validate_predict_input()` checks fit status, feature count
+3. **Schema Check** (optional) → `FeatureSchema::validate()` against training distribution
+4. **Transformation** → If in pipeline, apply all preprocessing steps sequentially
+5. **Prediction** → Model trait's `predict(x)` returns Array1<f64> predictions
+6. **Uncertainty** (optional) → `predict_with_uncertainty()` returns PredictionWithUncertainty (confidence intervals)
+7. **Return** → Array as PyArray via numpy interop in Python layer
 
-4. **Pipeline Flow** (composite operations):
-   ```
-   Input Data (X, y)
-        ↓
-   Transformer 1.fit(X) → stores params
-        ↓
-   X_transformed = Transformer 1.transform(X)
-        ↓
-   Transformer 2.fit(X_transformed) → stores params
-        ↓
-   X_transformed2 = Transformer 2.transform(X_transformed)
-        ↓
-   Model.fit(X_transformed2, y) → stores coefficients, diagnostics
-        ↓
-   Predictions = Model.predict(new_X → T1.transform → T2.transform)
-   ```
+**Preprocessing Flow:**
 
-5. **Cross-Validation Flow:**
-   - CV splitter generates k (train_idx, test_idx) pairs
-   - For each fold:
-     - Model.fit(X[train_idx], y[train_idx])
-     - Predictions = Model.predict(X[test_idx])
-     - Metric(y[test_idx], predictions) → fold score
-   - Aggregate fold scores → mean, std, CI via bootstrap
+1. **Fit** → `fit(&mut self, x)` learns statistics (mean, std, categories, thresholds) and stores as struct fields
+2. **Transform** → `transform(&self, x)` applies fitted parameters stateless
+   - Can be called concurrently (Sync trait)
+   - Validates input shape against n_features_in()
+3. **Fit+Transform** → `fit_transform()` chains fit→transform efficiently
+4. **Inverse** (optional) → `inverse_transform()` reverses transformation for reversible ops (scaling, rotation)
 
-6. **Hyperparameter Optimization Flow:**
-   - Sampler generates hyperparameter values from SearchSpace
-   - Trial: CV evaluates model with params → fold scores → aggregated metric
-   - Optimizer observes metric, updates belief (Bayesian), suggests next params
-   - Repeat until budget exhausted or convergence
+**HPO Flow (Hyperparameter Optimization):**
 
-**State Management:**
+1. **Search Space** → `search_space()` returns SearchSpace with parameter bounds
+   - Each model exposes its own search space (n_estimators, learning_rate, etc.)
+   - Pipelines merge component search spaces with "__" naming
+2. **Iteration** → HPO sampler (Bayesian, random, grid) suggests parameter combinations
+3. **Evaluation** → Cross-validation loop:
+   - For each fold: fit on train split, score on validation split
+   - Collect scores across folds, compute mean+std
+   - Return metric value to optimizer
+4. **Best Model** → HPO selects model with best cross-validated metric
 
-- **Unfitted**: Created via `Model::new()`, no parameters stored
-- **In-Progress**: `fit()` called, learnable parameters being calculated
-- **Fitted**: All parameters stored (coefficients, centers, encodings), ready for prediction
-- **Prediction**: Deterministic application of learned parameters
+## State Management
 
-State is verified by `check_is_fitted()` which panics if predict called before fit.
+**Model State:**
+- Before fit: Option::None for all learned parameters
+- After fit: Option::Some with concrete values (coefficients, intercepts, statistics)
+- Fitness check: Models implement `is_fitted() -> bool` checking Option state
+- Fitted data: Some models cache training statistics for diagnostics (residuals, leverage, VIF)
+
+**Transformer State:**
+- Before fit: None, with `is_fitted() = false`
+- After fit: Stores learned parameters (means, stds, category maps, thresholds)
+- Feature tracking: Optional feature_names stored, n_features_in cached
+- Thread-safe: Multiple transform() calls on fitted transformer are concurrent-safe (Sync)
+
+**Pipeline State:**
+- Steps are stored as trait objects (Box<dyn PipelineTransformer>, Box<dyn PipelineModel>)
+- Each step manages its own fit state independently
+- Pipeline.fit() calls fit() on each transformer sequentially, passing transformed output to next
+- Pipeline.predict() calls transform() on transformers, then predict() on final model
 
 ## Key Abstractions
 
-**Model Trait Family:**
-- Location: `ferroml-core/src/models/traits.rs`
-- Purpose: Define core contract for trainable algorithms
-- Examples: `LinearRegression`, `RandomForest`, `KMeans`, all implement `Model` or `ClusteringModel`
-- Pattern: `fit(&mut self, X, y) → Result<()>` mutates self with learned params; `predict(&self, X) → Result<Array1<f64>>` applies them
+**Model Trait:**
+- Purpose: Unified interface for all supervised learning algorithms
+- Examples: `ferroml-core/src/models/linear.rs`, `ferroml-core/src/models/svm.rs`, `ferroml-core/src/models/tree.rs`
+- Pattern: fit(&mut self, x, y) → Result<()>, predict(&self, x) → Result<Array1<f64>>
+- Implemented by: 50+ model types (LinearRegression, SVC, RandomForestClassifier, etc.)
 
 **Transformer Trait:**
-- Location: `ferroml-core/src/preprocessing/mod.rs`
-- Purpose: Define contract for feature transformations
-- Examples: `StandardScaler`, `OneHotEncoder`, all implement `Transformer`
-- Pattern: `fit(&mut self, X) → Result<()>` learns params (no y needed); `transform(&self, X) → Array2<f64>` applies
+- Purpose: Unified interface for feature transformers
+- Examples: `ferroml-core/src/preprocessing/scalers.rs`, `ferroml-core/src/preprocessing/encoders.rs`
+- Pattern: fit(&mut self, x) → (), transform(&self, x) → Array2<f64>
+- Implemented by: 20+ transformer types (StandardScaler, OneHotEncoder, SimpleImputer, etc.)
 
-**SearchSpace:**
-- Location: `ferroml-core/src/hpo/search_space.rs`
-- Purpose: Parameterize hyperparameter search domain
-- Examples: `SearchSpace::new().add_int("n_estimators", 10, 500)`
-- Pattern: Every `Model` exposes `search_space()` for HPO integration
+**Statistical Model Trait (extending Model):**
+- Purpose: Models that provide residual diagnostics and assumption tests
+- Examples: `ferroml-core/src/models/linear.rs` implements StatisticalModel
+- Pattern: Additional methods for coefficient_std_errors(), assumption_tests(), diagnostics()
+- Distinguishes: Models with full R-style statistical output vs. black-box predictions
 
-**CVFold:**
-- Location: `ferroml-core/src/cv/mod.rs`
-- Purpose: Represent single train/test split
-- Contains: `train_indices: Vec<usize>`, `test_indices: Vec<usize>`
-- Pattern: CV splitter generates vector of CVFold, executor iterates them
+**Probabilistic Model Trait (extending Model):**
+- Purpose: Classifiers that output class probabilities
+- Examples: LogisticRegression, RandomForestClassifier, SVC with probability=True
+- Pattern: predict_proba(&self, x) → Result<Array2<f64>> (n_samples × n_classes)
+- Used by: ROC curves, calibration, soft voting ensembles
 
-**FerroError Enum:**
-- Location: `ferroml-core/src/error.rs`
-- Purpose: Structured error handling with statistical context
-- Variants: `ShapeMismatch`, `AssumptionViolation`, `ConvergenceFailure`, `NotFitted`, `NumericalError`
-- Pattern: All operations return `Result<T> = std::result::Result<T, FerroError>`
+**PipelineTransformer & PipelineModel Traits:**
+- Purpose: Wrapping trait objects for runtime polymorphism in pipelines
+- Pattern: Box<dyn PipelineTransformer>, Box<dyn PipelineModel>
+- Contains: search_space(), clone(), n_estimators_fitted() (ensemble models)
+- Enables: Heterogeneous step composition, nested hyperparameter access
 
-**Pipeline:**
-- Location: `ferroml-core/src/pipeline/mod.rs`
-- Purpose: Compose transformers and models into workflows
-- Contains: `steps: Vec<(String, PipelineStep)>` (named, ordered)
-- Pattern: Acts as proxy `Model` (implements fit/predict) by delegating to steps
-
-**ModelContainer:**
-- Location: `ferroml-core/src/serialization/mod.rs`
-- Purpose: Wrap models with metadata for persistence
-- Contains: Model bytes, feature names, schema, version, creation date
-- Pattern: Enables model export/import with reproducibility tracking
+**CrossValidator Trait:**
+- Purpose: CV splitter interface
+- Examples: `ferroml-core/src/cv/` implements KFold, StratifiedKFold, TimeSeriesSplit
+- Pattern: split(n_samples, groups, times) → Vec<(train_indices, test_indices)>
+- Used by: cross_val_score, AutoML evaluation loops
 
 ## Entry Points
 
-**Rust API Entry Points:**
+**Rust Entry Points:**
 
-**Library root (`ferroml-core/src/lib.rs`):**
-- Location: `ferroml-core/src/lib.rs`
-- Triggers: `use ferroml_core::{models::..., preprocessing::..., cv::..., hpo::..., metrics::...}`
-- Responsibilities: Re-exports all public modules, defines core traits, defines PredictionWithUncertainty
+**ferroml-core/src/lib.rs:**
+- Location: Root of algorithm library
+- Triggers: `use ferroml_core::models::LinearRegression; let mut m = LinearRegression::new();`
+- Responsibilities: Module re-exports, public API surface, top-level types (AutoMLConfig, Task, Metric)
 
-**AutoML High-Level API (`ferroml-core/src/automl/mod.rs`):**
-- Location: `ferroml-core/src/automl/mod.rs`
-- Triggers: `automl.fit(X, y, cv=5)` in Python or direct instantiation in Rust
-- Responsibilities: Algorithm selection, ensemble construction, cross-validation orchestration, statistical testing
+**ferroml-core/src/models/mod.rs:**
+- Location: Model module registry
+- Triggers: Creating any supervised learning model
+- Responsibilities: Trait definitions (Model, StatisticalModel, ProbabilisticModel), model re-exports
 
-**Individual Model Constructors:**
-- Location: Each model file (e.g., `ferroml-core/src/models/linear.rs`)
-- Triggers: `LinearRegression::new()`, `RandomForest::new()`
-- Responsibilities: Default initialization, builder pattern chain setup
+**ferroml-core/src/preprocessing/mod.rs:**
+- Location: Transformer module registry
+- Triggers: Creating any feature transformer
+- Responsibilities: Transformer trait, module re-exports, validation helpers (check_is_fitted, check_shape)
 
-**Python Entry Point:**
+**Python Entry Points:**
 
-**PyO3 Module (`ferroml-python/src/lib.rs`):**
-- Location: `ferroml-python/src/lib.rs`, function `ferroml(m: &Bound<'_, PyModule>)`
-- Triggers: `import ferroml` in Python
-- Responsibilities: Register all 14 submodules, expose `__version__`, initialize PyO3 runtime
-- Creates: Python modules ferroml.linear, ferroml.trees, ferroml.ensemble, ferroml.clustering, etc.
+**ferroml-python/src/lib.rs (pymodule):**
+- Location: Root of Python extension
+- Triggers: `import ferroml`
+- Responsibilities: Module initialization, submodule registration (linear, trees, preprocessing, etc.)
 
-**Submodule Registration:**
-- Location: Each `ferroml-python/src/{module_name}.rs` file
-- Triggers: Called by `ferroml()` via `register_{module}_module(m)?`
-- Responsibilities: Create Python classes, bind methods with PyO3 decorators, register with parent module
+**ferroml-python/src/linear.rs:**
+- Location: Linear models Python wrapper
+- Triggers: `from ferroml.linear import LinearRegression`
+- Responsibilities: PyClass wrapping of Rust models, pyo3 methods (__init__, fit, predict, summary)
+
+**ferroml-python/src/preprocessing.rs:**
+- Location: Preprocessing transformers Python wrapper
+- Triggers: `from ferroml.preprocessing import StandardScaler`
+- Responsibilities: Wrapping transformer types, fit/transform/fit_transform methods, feature name tracking
 
 ## Error Handling
 
-**Strategy:** Fail-fast with structured, actionable errors. All operations return `Result<T>`.
+**Strategy:** Result<T> type alias wrapping FerroError enum
 
 **Patterns:**
 
 1. **Input Validation Errors:**
-   ```rust
-   // In Model::fit()
-   validate_fit_input(x, y)?;  // Raises ShapeMismatch if x.nrows() != y.len()
-   validate_predict_input(x)?;  // Raises NotFitted if model.coefficients.is_none()
-   ```
+   - `FerroError::InvalidInput(String)` - Empty arrays, mismatched dimensions
+   - `FerroError::ShapeMismatch { expected, actual }` - Feature count mismatch at predict time
+   - Code: `validate_fit_input(x, y)` in models, `check_shape(x, n_features)` in transformers
 
-2. **Numerical Stability Errors:**
-   ```rust
-   // Hardened output validation (Plan V)
-   if prediction.iter().any(|p| p.is_nan() || p.is_infinite()) {
-       return Err(FerroError::NumericalError("NaN in predictions".into()));
-   }
-   ```
+2. **Statistical Errors:**
+   - `FerroError::AssumptionViolation { assumption, test, p_value }` - Normality/homoscedasticity failed
+   - `FerroError::NumericalError(String)` - Singular matrix, zero variance, numerical instability
+   - Code: Logged in LinearRegression diagnostics, doesn't fail fit (warnings)
 
-3. **Statistical Assumption Violations:**
-   ```rust
-   // LinearRegression::diagnostics()
-   if shapiro_wilk_p < 0.05 {
-       return Err(FerroError::assumption_violation(
-           "Normality of residuals",
-           "Shapiro-Wilk",
-           shapiro_wilk_p
-       ));
-   }
-   ```
+3. **Convergence Errors:**
+   - `FerroError::ConvergenceFailure { iterations, reason }` - Optimizer didn't converge
+   - Code: SVM, LogisticRegression iterative solvers; raised if iterations exhausted
 
-4. **Convergence Failures:**
-   ```rust
-   // LogisticRegression::fit()
-   if !converged && iterations >= max_iterations {
-       return Err(FerroError::convergence_failure(iterations, "Loss did not decrease"));
-   }
-   ```
+4. **State Errors:**
+   - `FerroError::NotFitted { operation }` - predict() called before fit()
+   - Code: `check_is_fitted(self.intercept.is_some(), "predict")?` in model.predict()
 
-5. **Not Fitted Check:**
-   ```rust
-   // Before any prediction
-   check_is_fitted(self.coefficients.as_ref(), "fit")?;
-   ```
+5. **Not Implemented Errors:**
+   - `FerroError::NotImplemented(String)` - Feature not yet in library
+   - `FerroError::NotImplementedFor { feature, model }` - Feature for specific model
+   - Code: `inverse_transform()` on feature selectors, some model methods
 
-**Python Error Translation:**
-- Location: `ferroml-python/src/errors.rs`
-- Rust `FerroError::*` variants mapped to Python exceptions via `PyErr::from()`
+6. **Configuration Errors:**
+   - `FerroError::ConfigError(String)` - Invalid hyperparameter combination
+   - Code: Solver + penalty incompatibility checks in logistic/SVM
+
+**Error Propagation:**
+
+- Errors bubble up as `Result<T>` through layers
+- Python bindings catch Result errors, translate to PyErr (pyo3 automatic via impl From)
+- User sees Python exception with error message from .to_string()
+
+**Example Error Flow:**
+```
+LinearRegression::fit() fails due to singular matrix
+  ↓ raises FerroError::NumericalError("Singular matrix in QR decomposition")
+  ↓ returns Err(FerroError) from fit()
+  ↓ Python binding receives Err, pyo3 converts to PyException
+  ↓ User sees: "Exception: Numerical error: Singular matrix in QR decomposition"
+```
 
 ## Cross-Cutting Concerns
 
-**Logging:**
-- Framework: tracing crate for structured logging
-- Implementation: Models log convergence progress, CV logs fold completion
-- Not heavily used yet; available for debugging
+**Logging:** Uses `tracing` crate (integrated but not active by default)
+- Models log convergence progress, warn on assumption violations
+- No stdout spam by default; requires tracing-subscriber initialization
 
-**Validation:**
-- Centralized: `ferroml-core/src/schema.rs` defines `ValidationMode`, `ValidationIssue`
-- Applied to: Input data, feature names, model parameters
-- Returns: `ValidationResult` with list of issues and severity levels
+**Validation:** Defensive checks at layer boundaries
+- fit/predict input validation in models
+- shape/fit checks in transformers and pipelines
+- Feature schema optional validation before prediction
 
-**Authentication (N/A):**
-- Not applicable; library is self-contained
+**Serialization:** serde traits + custom Format enum
+- Models serialize with bincode (binary), msgpack (compact), JSON (human-readable)
+- Preserves fitted state: coefficients, thresholds, learned statistics
+- Round-trip: save_model(path) → load_model(path) with version checking
+
+**Numerical Stability:**
+- Linear algebra via nalgebra (more stable than ndarray-linalg)
+- QR decomposition for LinearRegression (more stable than normal equations)
+- Welford's algorithm for mean/variance (numerical stability)
+- Epsilon comparisons in comparisons (not direct f64 == checks)
 
 **Thread Safety:**
-- All trait objects require `Send + Sync`
-- Data parallelization via rayon (e.g., `par_iter()` in random forests)
-- CV and HPO use rayon for fold/trial parallel execution
-- No mutable shared state across threads
-
-**Reproducibility:**
-- All models accept optional `seed` parameter for deterministic behavior
-- CV splitters accept `random_state` for reproducible fold generation
-- HPO trials tracked with IDs for result reproduction
-- Serialization preserves all state via `ModelContainer` with metadata
+- All trait objects are Send + Sync
+- Models are Send (safe to move between threads)
+- Transformers are Sync (same transformer instance can be used in parallel transform() calls)
+- Pipelines use rayon for parallel FeatureUnion execution
+- HPO uses rayon for parallel fold evaluation
 
 ---
 
-*Architecture analysis: 2026-03-15*
+*Architecture analysis: 2026-03-16*

@@ -1,489 +1,389 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-15
+**Analysis Date:** 2026-03-16
 
 ## Directory Layout
 
 ```
-ferroml/                               # Cargo workspace root
-├── ferroml-core/                      # Core Rust library (primary)
+ferroml/
+├── ferroml-core/                    # Core Rust library
 │   ├── src/
-│   │   ├── lib.rs                     # Main library entry, module declarations
-│   │   ├── error.rs                   # FerroError enum, Result type alias
-│   │   ├── linalg.rs                  # Linear algebra utilities (SVD, QR, etc.)
-│   │   ├── schema.rs                  # Feature schema validation
-│   │   ├── serialization.rs           # Model persistence (bincode, JSON, ONNX)
-│   │   ├── simd.rs                    # SIMD operations (wide crate)
-│   │   ├── sparse.rs                  # Sparse matrix types (sprs CSR/CSC)
-│   │   │
-│   │   ├── models/                    # Machine learning algorithms (55+)
-│   │   │   ├── mod.rs                 # Module exports, Model trait
-│   │   │   ├── traits.rs              # Model, StatisticalModel, ProbabilisticModel traits
-│   │   │   ├── linear.rs              # LinearRegression with diagnostics
-│   │   │   ├── regularized.rs         # Ridge, Lasso, ElasticNet with CV variants
-│   │   │   ├── logistic.rs            # LogisticRegression with odds ratios
-│   │   │   ├── sgd.rs                 # SGDClassifier, SGDRegressor, Perceptron
-│   │   │   ├── tree.rs                # DecisionTreeClassifier/Regressor
-│   │   │   ├── forest.rs              # RandomForestClassifier/Regressor
-│   │   │   ├── extra_trees.rs         # ExtraTreesClassifier/Regressor
-│   │   │   ├── boosting.rs            # GradientBoostingClassifier/Regressor
-│   │   │   ├── hist_boosting.rs       # HistGradientBoostingClassifier/Regressor
-│   │   │   ├── adaboost.rs            # AdaBoostClassifier/Regressor
-│   │   │   ├── svm.rs                 # SVC, SVR, LinearSVC, LinearSVR
-│   │   │   ├── knn.rs                 # KNeighborsClassifier/Regressor, KDTree, BallTree
-│   │   │   ├── naive_bayes.rs         # GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB
-│   │   │   ├── gaussian_process.rs    # GaussianProcessClassifier/Regressor with kernels
-│   │   │   ├── qda.rs                 # QuadraticDiscriminantAnalysis
-│   │   │   ├── isotonic.rs            # IsotonicRegression
-│   │   │   ├── quantile.rs            # QuantileRegression (multi-quantile)
-│   │   │   ├── robust.rs              # RobustRegression (Huber, M-estimators)
-│   │   │   ├── multioutput.rs         # MultiOutputClassifier, MultiOutputRegressor
-│   │   │   ├── calibration.rs         # CalibratedClassifierCV with Sigmoid/Isotonic
-│   │   │   ├── lof.rs                 # LocalOutlierFactor (anomaly detection)
-│   │   │   ├── isolation_forest.rs    # IsolationForest (anomaly detection)
-│   │   │   └── compliance_tests/      # Internal trait compliance test suite
-│   │   │
-│   │   ├── clustering/                # Clustering algorithms
-│   │   │   ├── mod.rs                 # ClusteringModel trait
-│   │   │   ├── kmeans.rs              # KMeans with kmeans++ init
-│   │   │   ├── dbscan.rs              # DBSCAN with epsilon tuning
-│   │   │   ├── agglomerative.rs       # Agglomerative with linkage variants
-│   │   │   ├── gmm.rs                 # Gaussian Mixture Model
-│   │   │   ├── hdbscan.rs             # Hierarchical DBSCAN
-│   │   │   ├── diagnostics.rs         # Silhouette, CalinskiHarabasz, Davies-Bouldin
-│   │   │   └── metrics.rs             # Adjusted Rand, NMI, Hopkins statistic
-│   │   │
-│   │   ├── preprocessing/             # Feature transformation
-│   │   │   ├── mod.rs                 # Transformer trait
-│   │   │   ├── scalers.rs             # StandardScaler, MinMax, RobustScaler, Normalizer
-│   │   │   ├── encoders.rs            # OneHot, Ordinal, Target, Binary encoders
-│   │   │   ├── imputers.rs            # SimpleImputer, KNNImputer, IterativeImputer
-│   │   │   ├── selection.rs           # Variance, SelectKBest, RFE, RFECV
-│   │   │   ├── power.rs               # BoxCox, YeoJohnson transforms
-│   │   │   ├── polynomial.rs          # PolynomialFeatures generator
-│   │   │   ├── discretizers.rs        # KBinsDiscretizer, QuantileDiscretizer
-│   │   │   ├── quantile.rs            # QuantileTransformer
-│   │   │   ├── sampling.rs            # RandomUnderSampler, SMOTE
-│   │   │   ├── tfidf.rs               # TfidfTransformer (dense)
-│   │   │   ├── count_vectorizer.rs    # CountVectorizer (sparse, gated)
-│   │   │   ├── tfidf_vectorizer.rs    # TfidfVectorizer (sparse, gated)
-│   │   │   └── compliance_tests/      # Internal test suite
-│   │   │
-│   │   ├── decomposition/             # Dimensionality reduction
-│   │   │   ├── mod.rs                 # Module exports
-│   │   │   ├── pca.rs                 # PCA, IncrementalPCA
-│   │   │   ├── truncated_svd.rs       # TruncatedSVD
-│   │   │   ├── nmf.rs                 # Non-Negative Matrix Factorization
-│   │   │   ├── lda.rs                 # Linear Discriminant Analysis
-│   │   │   ├── factor_analysis.rs     # FactorAnalysis
-│   │   │   ├── tsne.rs                # t-SNE (Barnes-Hut optimized)
-│   │   │   └── umap.rs                # UMAP (if available)
-│   │   │
-│   │   ├── pipeline/                  # Workflow composition
-│   │   │   ├── mod.rs                 # Pipeline, FeatureUnion, ColumnTransformer
-│   │   │   └── text_pipeline.rs       # TextPipeline for text data (sparse, gated)
-│   │   │
-│   │   ├── cv/                        # Cross-validation
-│   │   │   ├── mod.rs                 # CVFold, CrossValidator trait
-│   │   │   ├── kfold.rs               # KFold, RepeatedKFold
-│   │   │   ├── stratified.rs          # StratifiedKFold, RepeatedStratifiedKFold
-│   │   │   ├── timeseries.rs          # TimeSeriesSplit
-│   │   │   ├── group.rs               # GroupKFold, StratifiedGroupKFold
-│   │   │   ├── loo.rs                 # LeaveOneOut, LeavePOut, ShuffleSplit
-│   │   │   ├── nested.rs              # nested_cv_score
-│   │   │   ├── curves.rs              # learning_curve, validation_curve
-│   │   │   └── search.rs              # GridSearchCV, RandomizedSearchCV
-│   │   │
-│   │   ├── hpo/                       # Hyperparameter optimization
-│   │   │   ├── mod.rs                 # Trial, TrialState, ParameterValue
-│   │   │   ├── search_space.rs        # SearchSpace, Parameter, ParameterType
-│   │   │   ├── bayesian.rs            # BayesianOptimizer, GaussianProcessRegressor
-│   │   │   ├── samplers.rs            # Sampler trait, GridSampler, RandomSampler, TPESampler
-│   │   │   └── schedulers.rs          # HyperbandScheduler, ASHAScheduler, BOHBScheduler
-│   │   │
-│   │   ├── metrics/                   # Performance metrics
-│   │   │   ├── mod.rs                 # Metric trait
-│   │   │   ├── classification.rs      # Accuracy, Precision, Recall, F1, ROC-AUC, etc.
-│   │   │   ├── regression.rs          # MSE, MAE, R², RMSE
-│   │   │   ├── probabilistic.rs       # Log-loss, Brier score
-│   │   │   └── comparison.rs          # Paired tests, bootstrap CIs
-│   │   │
-│   │   ├── stats/                     # Statistical testing
-│   │   │   ├── mod.rs                 # Module exports
-│   │   │   └── diagnostics.rs         # Shapiro-Wilk, Durbin-Watson, etc.
-│   │   │
-│   │   ├── automl/                    # Automated machine learning
-│   │   │   ├── mod.rs                 # AutoML struct, fit orchestration
-│   │   │   ├── selector.rs            # Algorithm selection logic
-│   │   │   ├── ensemble.rs            # Ensemble construction
-│   │   │   └── utils.rs               # Utilities
-│   │   │
-│   │   ├── explainability/            # Model interpretability
-│   │   │   ├── mod.rs                 # Module exports
-│   │   │   ├── shap.rs                # TreeSHAP for tree models
-│   │   │   ├── permutation.rs         # Permutation importance
-│   │   │   └── pdp.rs                 # Partial dependence plots, ALE
-│   │   │
-│   │   ├── ensemble/                  # Ensemble utilities
-│   │   │   ├── mod.rs                 # Ensemble trait
-│   │   │   └── stacking.rs            # StackingClassifier/Regressor
-│   │   │
-│   │   ├── testing/                   # Test utilities (30+ modules)
-│   │   │   ├── mod.rs                 # Module exports
-│   │   │   ├── sklearn_fixtures.rs    # Sklearn fixture loading
-│   │   │   ├── correctness.rs         # Correctness utilities
-│   │   │   └── [24 more test helper modules]
-│   │   │
-│   │   ├── neural/                    # Neural networks
-│   │   │   ├── mod.rs                 # MLPClassifier, MLPRegressor
-│   │   │   └── mlp.rs                 # MLP implementation
-│   │   │
-│   │   ├── datasets/                  # Dataset utilities
-│   │   │   ├── mod.rs                 # Module exports
-│   │   │   ├── synthetic.rs           # make_classification, make_regression
-│   │   │   └── loaders.rs             # Dataset loading
-│   │   │
-│   │   ├── gpu/                       # GPU acceleration (feature-gated)
-│   │   │   ├── mod.rs                 # GpuDispatcher, kernel registry
-│   │   │   └── shaders/               # Wgpu compute shaders
-│   │   │
-│   │   ├── inference/                 # ONNX inference (feature-gated)
-│   │   │   ├── mod.rs                 # InferenceSession, Tensor types
-│   │   │   └── session.rs             # ONNX runtime wrapping
-│   │   │
-│   │   ├── onnx/                      # ONNX export (feature-gated)
-│   │   │   ├── mod.rs                 # OnnxExportable trait
-│   │   │   └── exporter.rs            # Model → ONNX conversion
-│   │   │
-│   │   └── neural/                    # Neural networks
-│   │       ├── mod.rs
-│   │       └── mlp.rs
-│   │
-│   ├── tests/                         # Integration tests (26 test files)
-│   │   ├── correctness_*.rs           # Cross-library correctness tests vs sklearn/scipy
-│   │   ├── vs_linfa_*.rs              # linfa 0.8.1 compatibility tests
-│   │   ├── adversarial_*.rs           # Edge case testing
-│   │   ├── real_dataset_validation.rs # Real-world dataset testing
-│   │   └── regression/                # Specific regression test files
-│   │
-│   ├── benches/                       # Criterion.rs benchmarks (86+ functions)
-│   │   ├── benches_*.rs               # Performance benchmarks
-│   │   └── fixtures/                  # Benchmark data
-│   │
-│   └── Cargo.toml                     # Core crate manifest
+│   │   ├── lib.rs                   # Root module, public API re-exports
+│   │   ├── automl/                  # Automated machine learning
+│   │   ├── clustering/              # Clustering algorithms (KMeans, DBSCAN, etc.)
+│   │   ├── cv/                      # Cross-validation splitters
+│   │   ├── datasets/                # Dataset loading (Iris, HuggingFace, synthetic)
+│   │   ├── decomposition/           # Dimensionality reduction (PCA, t-SNE, LDA, etc.)
+│   │   ├── ensemble/                # Ensemble methods (RandomForest, GradientBoosting, Bagging)
+│   │   ├── error.rs                 # FerroError type and Result alias
+│   │   ├── explainability/          # Model explanations (TreeSHAP, SHAP, permutation importance)
+│   │   ├── gpu/                     # GPU shader implementations (when feature enabled)
+│   │   ├── hpo/                     # Hyperparameter optimization (Bayesian, Hyperband, ASHA)
+│   │   ├── inference/               # ONNX model inference (when feature enabled)
+│   │   ├── linalg.rs                # Linear algebra wrappers (nalgebra, QR decomposition)
+│   │   ├── metrics/                 # Evaluation metrics (accuracy, ROC-AUC, MSE, etc.)
+│   │   ├── models/                  # Supervised learning models
+│   │   │   ├── mod.rs               # Model trait, re-exports
+│   │   │   ├── linear.rs            # LinearRegression with diagnostics
+│   │   │   ├── logistic.rs          # LogisticRegression, multinomial
+│   │   │   ├── svm.rs               # SVC, SVR, LinearSVC, LinearSVR
+│   │   │   ├── tree.rs              # DecisionTreeClassifier, Regressor
+│   │   │   ├── forest.rs            # RandomForestClassifier, Regressor
+│   │   │   ├── extra_trees.rs       # ExtraTreesClassifier, Regressor
+│   │   │   ├── knn.rs               # KNeighborsClassifier, Regressor, NearestCentroid
+│   │   │   ├── gaussian_process.rs  # GaussianProcessRegressor, Classifier
+│   │   │   ├── ensemble/ (moved to ensemble module)
+│   │   │   ├── boosting.rs          # GradientBoostingClassifier, Regressor
+│   │   │   ├── hist_boosting.rs     # HistGradientBoosting (histogram-based)
+│   │   │   ├── adaboost.rs          # AdaBoostClassifier, Regressor
+│   │   │   ├── naive_bayes/         # GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB
+│   │   │   ├── regularized.rs       # Ridge, Lasso, ElasticNet + CV variants
+│   │   │   ├── robust.rs            # RobustRegression (M-estimators)
+│   │   │   ├── quantile.rs          # QuantileRegression
+│   │   │   ├── sgd.rs               # SGDClassifier, SGDRegressor, Perceptron
+│   │   │   ├── neural.rs            # MLPClassifier, MLPRegressor (simple)
+│   │   │   ├── isotonic.rs          # IsotonicRegression
+│   │   │   ├── isolation_forest.rs  # IsolationForest (anomaly detection)
+│   │   │   ├── lof.rs               # LocalOutlierFactor (anomaly detection)
+│   │   │   ├── qda.rs               # QuadraticDiscriminantAnalysis
+│   │   │   ├── calibration.rs       # CalibratedClassifierCV, TemperatureScaling
+│   │   │   ├── multioutput.rs       # MultiOutputRegressor, MultiOutputClassifier
+│   │   │   ├── traits.rs            # Extended traits (LinearModel, IncrementalModel, etc.)
+│   │   │   └── compliance_tests/    # Model compliance test fixtures
+│   │   ├── neural/                  # Neural network utilities (activation, loss)
+│   │   ├── onnx/                    # ONNX model export (when feature enabled)
+│   │   ├── pipeline/                # Pipeline and FeatureUnion
+│   │   │   └── text_pipeline.rs     # Text pipeline for sparse features
+│   │   ├── preprocessing/           # Feature transformers
+│   │   │   ├── mod.rs               # Transformer trait, helpers
+│   │   │   ├── scalers.rs           # StandardScaler, MinMaxScaler, RobustScaler, etc.
+│   │   │   ├── encoders.rs          # OneHotEncoder, OrdinalEncoder, LabelEncoder, TargetEncoder
+│   │   │   ├── imputers.rs          # SimpleImputer, KNNImputer, IterativeImputer
+│   │   │   ├── selection.rs         # VarianceThreshold, SelectKBest, RFE
+│   │   │   ├── polynomial.rs        # PolynomialFeatures
+│   │   │   ├── power.rs             # PowerTransformer (Box-Cox, Yeo-Johnson)
+│   │   │   ├── quantile.rs          # QuantileTransformer
+│   │   │   ├── discretizers.rs      # KBinsDiscretizer, Binarizer
+│   │   │   ├── sampling.rs          # RandomUnderSampler, SMOTE, etc.
+│   │   │   ├── tfidf.rs             # TfidfTransformer
+│   │   │   ├── count_vectorizer.rs  # CountVectorizer (sparse text)
+│   │   │   ├── tfidf_vectorizer.rs  # TfidfVectorizer (sparse text)
+│   │   │   └── compliance_tests/    # Transformer compliance test fixtures
+│   │   ├── schema.rs                # FeatureSchema, validation modes
+│   │   ├── serialization.rs         # Model save/load (bincode, msgpack, JSON, ONNX)
+│   │   ├── simd.rs                  # SIMD operations (feature gated)
+│   │   ├── sparse.rs                # Sparse matrix types (CSR, CsrMatrix wrapper)
+│   │   ├── stats/                   # Statistical tests and diagnostics
+│   │   ├── testing/                 # Test utilities and synthetic data generators
+│   │   └── linalg.rs                # Linear algebra (QR, SVD, eigendecomposition)
+│   ├── tests/                       # Integration tests (6 consolidated files)
+│   │   ├── correctness.rs           # Correctness tests (3,000+ assertions)
+│   │   ├── adversarial.rs           # Edge cases and adversarial inputs
+│   │   ├── edge_cases.rs            # Boundary conditions, numerical edge cases
+│   │   ├── integration.rs           # End-to-end workflows
+│   │   ├── vs_linfa.rs              # Cross-library comparison (linfa)
+│   │   ├── regression_tests.rs      # Regression tracking for fixed bugs
+│   │   ├── regression/              # Per-issue regression fixtures
+│   │   └── sklearn_comparison.py    # Python comparison runner script
+│   ├── fuzz/                        # Fuzzing harnesses (optional)
+│   └── Cargo.toml                   # Core library manifest
 │
-├── ferroml-python/                    # PyO3 Python bindings
+├── ferroml-python/                  # PyO3 Python bindings
 │   ├── src/
-│   │   ├── lib.rs                     # PyModule registration entry point
-│   │   ├── array_utils.rs             # Zero-copy array handling
-│   │   ├── errors.rs                  # Rust→Python error translation
-│   │   ├── pickle.rs                  # Custom pickling for models
-│   │   ├── pandas_utils.rs            # Pandas interop (feature-gated)
-│   │   ├── polars_utils.rs            # Polars interop (feature-gated)
-│   │   ├── sparse_utils.rs            # Sparse matrix handling (feature-gated)
-│   │   │
-│   │   ├── linear.rs                  # ferroml.linear module
-│   │   ├── trees.rs                   # ferroml.trees module (GB models here, not ensemble)
-│   │   ├── ensemble.rs                # ferroml.ensemble module (non-GB models)
-│   │   ├── neighbors.rs               # ferroml.neighbors module
-│   │   ├── naive_bayes.rs             # ferroml.naive_bayes module
-│   │   ├── svm.rs                     # ferroml.svm module
-│   │   ├── clustering.rs              # ferroml.clustering module
-│   │   ├── decomposition.rs           # ferroml.decomposition module
-│   │   ├── preprocessing.rs           # ferroml.preprocessing module
-│   │   ├── gaussian_process.rs        # ferroml.gaussian_process module
-│   │   ├── calibration.rs             # ferroml.calibration module
-│   │   ├── anomaly.rs                 # ferroml.anomaly module
-│   │   ├── multioutput.rs             # ferroml.multioutput module
-│   │   ├── explainability.rs          # ferroml.explainability module
-│   │   ├── pipeline.rs                # ferroml.pipeline module
-│   │   ├── automl.rs                  # ferroml.automl module
-│   │   ├── datasets.rs                # ferroml.datasets module
-│   │   └── neural.rs                  # ferroml.neural module
-│   │
-│   ├── python/
-│   │   └── ferroml/                   # Python package (pure Python)
-│   │       ├── __init__.py            # ferroml top-level re-exports
-│   │       ├── linear/
-│   │       ├── trees/
-│   │       ├── ensemble/
-│   │       ├── neighbors/
-│   │       ├── naive_bayes/
-│   │       ├── svm/
-│   │       ├── clustering/
-│   │       ├── decomposition/
-│   │       ├── preprocessing/
-│   │       ├── gaussian_process/
-│   │       ├── calibration/
-│   │       ├── anomaly/
-│   │       ├── multioutput/
-│   │       ├── explainability/
-│   │       ├── pipeline/
-│   │       ├── automl/
-│   │       ├── datasets/
-│   │       ├── neural/
-│   │       └── [14 __init__.py files re-exporting Rust bindings]
-│   │
-│   ├── tests/                         # Python tests (50+ files)
-│   │   ├── test_*.py                  # Pytest test files
-│   │   ├── test_vs_*.py               # Cross-library validation (xgboost, lightgbm, sklearn, statsmodels, scipy)
-│   │   ├── test_score_all_models.py   # sklearn.score() API parity (Plan U)
-│   │   ├── test_partial_fit.py        # Incremental learning tests (Plan U)
-│   │   └── test_decision_function.py  # Decision function tests (Plan U)
-│   │
-│   ├── examples/
-│   │   └── notebooks/                 # Jupyter notebooks
-│   │
-│   ├── python/ferroml/
-│   │   ├── [14 submodules with pure Python wrappers]
-│   │   └── ferroml.abi3.so            # Compiled PyO3 extension
-│   │
-│   └── Cargo.toml                     # Python crate manifest (PyO3)
+│   │   ├── lib.rs                   # pymodule root, submodule registration
+│   │   ├── linear.rs                # Linear models wrapper
+│   │   ├── trees.rs                 # Tree models wrapper
+│   │   ├── ensemble.rs              # Ensemble models wrapper
+│   │   ├── svm.rs                   # SVM models wrapper
+│   │   ├── neighbors.rs             # KNN models wrapper
+│   │   ├── naive_bayes.rs           # Naive Bayes models wrapper
+│   │   ├── neural.rs                # Neural network models wrapper
+│   │   ├── clustering.rs            # Clustering models + metrics wrapper
+│   │   ├── decomposition.rs         # Decomposition models wrapper
+│   │   ├── preprocessing.rs         # Preprocessing transformers wrapper
+│   │   ├── explainability.rs        # Explainability methods wrapper
+│   │   ├── pipeline.rs              # Pipeline and FeatureUnion wrapper
+│   │   ├── automl.rs                # AutoML wrapper
+│   │   ├── datasets.rs              # Dataset loading wrapper
+│   │   ├── calibration.rs           # Calibration wrapper
+│   │   ├── anomaly.rs               # Anomaly detection wrapper
+│   │   ├── gaussian_process.rs      # Gaussian process wrapper
+│   │   ├── multioutput.rs           # Multi-output wrapper
+│   │   ├── stats.rs                 # Statistical tests wrapper
+│   │   ├── metrics.rs               # Metrics wrapper
+│   │   ├── cv.rs                    # CV splitters wrapper
+│   │   ├── hpo.rs                   # HPO wrapper
+│   │   ├── model_selection.rs       # Model selection utilities (train_test_split, cross_validate)
+│   │   ├── array_utils.rs           # Array marshalling (numpy ↔ ndarray)
+│   │   ├── pandas_utils.rs          # Pandas DataFrame conversion (feature gated)
+│   │   ├── polars_utils.rs          # Polars DataFrame conversion (feature gated)
+│   │   ├── sparse_utils.rs          # Sparse matrix utils (feature gated)
+│   │   ├── pickle.rs                # Pickle protocol support
+│   │   ├── errors.rs                # Python error translation
+│   │   └── Cargo.toml               # Python bindings manifest
+│   ├── tests/                       # Python integration tests (60+ files, 2,100+ tests)
+│   │   ├── test_*.py                # Per-module tests (linear, clustering, preprocessing, etc.)
+│   │   ├── test_bindings_correctness.py  # Binding-specific tests (pickle, threads, state)
+│   │   ├── test_comparison_*.py     # Cross-library comparison vs sklearn, linfa, xgboost, etc.
+│   │   ├── test_cross_library_edge_cases.py  # Adversarial inputs across libraries
+│   │   ├── conftest.py              # pytest fixtures
+│   │   └── conftest_comparison.py   # Comparison test configuration
+│   └── python/                      # Pure Python wrapper code
+│       ├── ferroml/
+│       │   ├── __init__.py          # Package root, module re-exports
+│       │   ├── linear/
+│       │   ├── trees/
+│       │   ├── ensemble/
+│       │   ├── preprocessing/
+│       │   ├── pipeline/
+│       │   └── [14 submodules]      # Each matches ferroml-python/src/
+│       └── setup.py                 # Installation metadata
 │
-├── scripts/                           # Utility scripts
-│   ├── benchmark_cross_library.py     # Multi-library performance benchmarks
-│   └── [other automation scripts]
+├── .planning/                       # GSD planning system
+│   ├── codebase/                    # This file and analysis docs
+│   └── phase-*/                     # Implementation phase details
 │
-├── benchmarks/                        # Criterion.rs benchmark configs
-│   └── fixtures/                      # Benchmark data files
+├── benchmarks/                      # Criterion benchmark suite
+│   ├── benches/
+│   │   ├── linear_bench.rs          # LinearRegression, Ridge, Lasso benchmarks
+│   │   ├── tree_bench.rs            # DecisionTree, RandomForest benchmarks
+│   │   ├── ensemble_bench.rs        # GradientBoosting, AdaBoost benchmarks
+│   │   ├── clustering_bench.rs      # KMeans, DBSCAN, Hierarchical benchmarks
+│   │   └── preprocessing_bench.rs   # Scaler, Encoder, Imputer benchmarks
+│   └── Cargo.toml
 │
-├── thoughts/shared/                   # Implementation planning docs
-│   ├── plans/                         # Phase plans A-U (completed)
-│   ├── audit-report.md                # Robustness audit (Plan O, complete)
-│   └── handoffs/                      # Phase completion handoffs
+├── tests/                           # Top-level integration tests
+│   ├── correctness/ (consolidated into ferroml-core/tests/)
+│   └── vs_sklearn_gaps_phase2.py    # Cross-library compatibility gaps
 │
-├── .planning/codebase/                # GSD documentation (this directory)
-│   ├── ARCHITECTURE.md                # This document
-│   ├── STRUCTURE.md                   # This document
-│   └── [other analysis docs]
+├── notebooks/                       # Tutorial and usage notebooks
+│   ├── 01-getting-started.ipynb
+│   ├── 02-statistical-diagnostics.ipynb
+│   ├── 03-automated-ml.ipynb
+│   └── 04-production-deployment.ipynb
 │
-├── Cargo.toml                         # Workspace manifest
-├── Cargo.lock                         # Dependency lock file
-├── README.md                          # Project overview
-└── .gitignore                         # Git exclusions
+├── docs/                            # Documentation
+│   ├── plans/                       # Implementation plans (Phase A-X complete)
+│   └── guides/                      # User guides and API documentation
+│
+├── scripts/                         # Utility scripts
+│   ├── benchmark_cross_library.py   # Multi-library performance comparison
+│   ├── generate_fixtures.py         # Test fixture generation
+│   └── validate_fixtures.py         # Fixture validation
+│
+├── REPO_MAP.md                      # Complete structural skeleton (4,699 lines)
+├── IMPLEMENTATION_PLAN.md           # Master implementation plan
+├── README.md                        # Project overview
+├── Cargo.toml                       # Workspace manifest
+├── Cargo.lock                       # Dependency lock
+├── .pre-commit-config.yaml          # Pre-commit hooks (cargo fmt, clippy)
+├── CHANGELOG.md                     # Release notes
+└── [Standard files]                 # LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, etc.
 ```
 
 ## Directory Purposes
 
-**ferroml-core/src/**
-- Purpose: Core Rust library implementation
-- Contains: 55+ ML algorithms, preprocessing, CV, HPO, metrics, AutoML
-- Entry point: `lib.rs` - declares all modules, re-exports public API
+**ferroml-core/src/models/:**
+- Purpose: Supervised learning algorithm implementations
+- Contains: 25+ model types, each in its own .rs file (linear.rs, svm.rs, tree.rs, etc.)
+- Key files:
+  - `mod.rs`: Model trait, re-exports for public API
+  - `traits.rs`: Extended traits (LinearModel, TreeModel, IncrementalModel, SparseModel, OutlierDetector, WarmStartModel)
+  - Individual files: Each model in isolated implementation (150-3,000 lines depending on complexity)
+- Responsibility: Algorithm correctness, statistical diagnostics, hyperparameter search spaces
 
-**ferroml-core/src/models/**
-- Purpose: Machine learning algorithms with statistical diagnostics
-- Key pattern: Each model is a struct implementing `Model`, `StatisticalModel`, or `ProbabilisticModel` trait
-- Build pattern: Builder-style methods for configuration (e.g., `LinearRegression::new().with_fit_intercept(false)`)
+**ferroml-core/src/preprocessing/:**
+- Purpose: Feature preprocessing and transformation
+- Contains: Scalers (5 types), encoders (5 types), imputers (3 types), selectors, polynomial, power, quantile
+- Key files:
+  - `mod.rs`: Transformer trait, validation helpers, common operations
+  - `scalers.rs`: StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler, Normalizer
+  - `encoders.rs`: OneHotEncoder, OrdinalEncoder, TargetEncoder, LabelEncoder, BinaryEncoder
+- Responsibility: Fit/transform pattern, feature name tracking, sparse matrix support (optional)
 
-**ferroml-core/src/preprocessing/**
-- Purpose: Feature transformations following sklearn API
-- Key pattern: Each transformer implements `Transformer` trait with `fit()` and `transform()` methods
-- Feature: Stateless after fit (all state stored in struct fields), reusable
+**ferroml-core/src/stats/:**
+- Purpose: Statistical testing, diagnostics, confidence intervals
+- Contains: Hypothesis tests (Shapiro-Wilk, Breusch-Pagan, Durbin-Watson), assumption tests, diagnostic plots
+- Responsibility: Assumption validation, effect size computation, p-value calculation
 
-**ferroml-core/src/pipeline/**
-- Purpose: Composable workflows (Pipeline, FeatureUnion, ColumnTransformer)
-- Key pattern: Acts as proxy `Model` by delegating fit/predict to internal steps
-- Use case: Chain scalers + models, parallel feature extraction, column-specific transforms
+**ferroml-core/src/cv/:**
+- Purpose: Cross-validation splitter implementations
+- Contains: KFold, StratifiedKFold, TimeSeriesSplit, LeaveOneOut, GroupKFold, ShuffleSplit
+- Responsibility: Fold generation, stratification, group/time series handling
 
-**ferroml-core/src/cv/**
-- Purpose: Cross-validation splitters and search methods
-- Key pattern: Splitters generate `CVFold` vectors; search methods iterate folds evaluating models
-- Re-exports: KFold, StratifiedKFold, TimeSeriesSplit, GridSearchCV, RandomizedSearchCV
+**ferroml-core/src/metrics/:**
+- Purpose: Evaluation metrics and scoring functions
+- Contains: Classification metrics (accuracy, ROC-AUC, F1, log loss, MCC), regression metrics (MSE, MAE, R²), clustering metrics
+- Responsibility: Metric computation, threshold-independent scoring
 
-**ferroml-core/src/hpo/**
-- Purpose: Hyperparameter optimization with multiple strategies
-- Strategies: Bayesian (GP-based), Grid, Random, TPE, ASHA, BOHB
-- Pattern: Trial abstraction with state tracking (Running, Complete, Pruned, Failed)
+**ferroml-core/src/pipeline/:**
+- Purpose: Composite model building
+- Contains: Pipeline (sequential steps), FeatureUnion (parallel features), TextPipeline (sparse text)
+- Responsibility: Step sequencing, hyperparameter nesting, cross-validation integration
 
-**ferroml-core/src/metrics/**
-- Purpose: Performance evaluation metrics
-- Organization: classification.rs, regression.rs, probabilistic.rs, comparison.rs
-- Pattern: Each metric is a function `fn metric(y_true, y_pred) -> f64`
+**ferroml-core/tests/:**
+- Purpose: Comprehensive testing
+- Contains: 6 consolidated test files (consolidation from 19 files in previous iterations)
+- Files:
+  - `correctness.rs`: 3,000+ tests verifying algorithm correctness against known results
+  - `adversarial.rs`: Edge cases and pathological inputs
+  - `edge_cases.rs`: Boundary conditions (1 sample, all NaN, single feature, etc.)
+  - `integration.rs`: End-to-end workflows (pipeline → AutoML → evaluation)
+  - `vs_linfa.rs`: Cross-library comparison with linfa 0.8.1
+  - `regression_tests.rs`: Tracking for previously fixed bugs
+- Responsibility: Quality assurance, regression prevention, cross-library validation
 
-**ferroml-core/src/stats/**
-- Purpose: Statistical hypothesis testing and diagnostics
-- Key: Normality tests (Shapiro-Wilk), autocorrelation (Durbin-Watson), assumption validation
-- Used by: Linear regression diagnostics, model validation
+**ferroml-python/src/:**
+- Purpose: PyO3 bindings to expose Rust models to Python
+- Contains: 24 module files, each wrapping one Rust module
+- Pattern: Each file mirrors core module structure:
+  - `register_X_module()` function for initialization
+  - `#[pyclass]` wrappers for public types
+  - `#[pymethods]` implementations of fit/predict/transform/score
+  - Array marshalling via numpy interop
+- Responsibility: Python API surface, error translation, array semantics
 
-**ferroml-core/tests/**
-- Purpose: Integration tests and cross-library validation
-- Correctness tests: Verify against sklearn/scipy fixtures (26 test files)
-- Linfa tests: Verify compatibility with linfa 0.8.1 (6 test files)
-- Adversarial tests: Edge cases, numerical stability, robustness
-
-**ferroml-python/src/**
-- Purpose: PyO3 bindings exposing Rust library to Python
-- Organization: One module per Python submodule (linear.rs → ferroml.linear)
-- Pattern: Each Rust struct wrapped as Python class with methods bound via `#[pymethods]`
-
-**ferroml-python/python/ferroml/**
-- Purpose: Pure Python wrappers and re-exports
-- Organization: 14 submodules mirroring Rust structure
-- Pattern: Each `__init__.py` re-exports classes from compiled `.so` extension
-
-**ferroml-python/tests/**
-- Purpose: Python test suite
-- Cross-library tests: Validate against xgboost, lightgbm, sklearn, statsmodels, scipy
-- API tests: Verify sklearn compatibility (score, partial_fit, decision_function)
-- Coverage: ~1,923 tests across 50+ test files
+**ferroml-python/tests/:**
+- Purpose: Python integration and cross-library testing
+- Contains: 60+ .py files, 2,100+ tests
+- File types:
+  - `test_*.py`: Per-module tests (test_linear.py, test_clustering.py, etc.)
+  - `test_comparison_*.py`: sklearn parity tests (features, output, edge cases)
+  - `test_bindings_correctness.py`: Binding-specific tests (state, pickle, threads)
+  - `conftest.py`: Fixtures (toy datasets, model instances)
+- Responsibility: Python API correctness, cross-library compatibility
 
 ## Key File Locations
 
 **Entry Points:**
-- `ferroml-core/src/lib.rs`: Rust library entry (module declarations, trait re-exports)
-- `ferroml-python/src/lib.rs`: Python module entry (PyO3 registration, submodule setup)
-- `ferroml-python/python/ferroml/__init__.py`: Python package entry (high-level imports)
+
+- `ferroml-core/src/lib.rs`: Root of Rust library, public API surface (508 lines)
+- `ferroml-python/src/lib.rs`: Root of Python extension, pymodule registration (104 lines)
+- `ferroml-python/python/ferroml/__init__.py`: Python package root, re-exports
+- `notebooks/01-getting-started.ipynb`: First user touch point
 
 **Configuration:**
-- `Cargo.toml` (root): Workspace manifest, workspace dependencies, profiles
-- `Cargo.toml` (ferroml-core): Core library manifest, features (onnx, gpu, sparse, simd)
-- `Cargo.toml` (ferroml-python): Python bindings manifest, PyO3 config
-- `pyproject.toml` (if exists): Python build metadata, maturin config
+
+- `Cargo.toml` (workspace root): Workspace members, shared dependencies
+- `ferroml-core/Cargo.toml`: Core library features (sparse, gpu, onnx, simd)
+- `ferroml-python/Cargo.toml`: Python extension metadata (extension-module, abi3-py310)
+- `ferroml-python/python/setup.py`: pip installation metadata
+- `.pre-commit-config.yaml`: Linting/formatting hooks (cargo fmt, clippy -D warnings)
 
 **Core Logic:**
-- `ferroml-core/src/models/linear.rs`: LinearRegression reference implementation
-- `ferroml-core/src/models/forest.rs`: RandomForest reference implementation
-- `ferroml-core/src/preprocessing/scalers.rs`: StandardScaler reference preprocessing
-- `ferroml-core/src/pipeline/mod.rs`: Pipeline composition engine
-- `ferroml-core/src/cv/search.rs`: GridSearchCV / RandomizedSearchCV optimization loops
 
-**Error Handling:**
-- `ferroml-core/src/error.rs`: FerroError enum, Result type alias
-- `ferroml-python/src/errors.rs`: Rust→Python error translation
+- `ferroml-core/src/models/linear.rs`: LinearRegression with diagnostics (2,000+ lines)
+- `ferroml-core/src/models/svm.rs`: SVM implementations (3,500+ lines)
+- `ferroml-core/src/models/tree.rs`: DecisionTree implementation (2,200+ lines)
+- `ferroml-core/src/models/forest.rs`: RandomForest ensemble (1,900+ lines)
+- `ferroml-core/src/models/hist_boosting.rs`: HistGradientBoosting (3,700+ lines, most complex)
+- `ferroml-core/src/models/boosting.rs`: GradientBoosting (2,400+ lines)
+- `ferroml-core/src/preprocessing/scalers.rs`: Feature scaling (1,600+ lines)
 
-**Testing & Validation:**
-- `ferroml-core/src/testing/mod.rs`: Test utilities (30+ helper modules)
-- `ferroml-core/tests/correctness_*.rs`: Cross-library validation (sklearn/scipy)
-- `ferroml-core/tests/vs_linfa_*.rs`: linfa compatibility tests
-- `ferroml-python/tests/test_vs_*.py`: Python cross-library tests
+**Testing:**
 
-**Serialization & Persistence:**
-- `ferroml-core/src/serialization.rs`: Model save/load (bincode, JSON, ONNX)
-- `ferroml-python/src/pickle.rs`: Custom pickling for Python objects
+- `ferroml-core/tests/correctness.rs`: Comprehensive algorithm tests (6,000+ lines)
+- `ferroml-core/tests/edge_cases.rs`: Boundary condition tests (2,400+ lines)
+- `ferroml-core/tests/vs_linfa.rs`: Cross-library validation (1,600+ lines)
+- `ferroml-python/tests/test_bindings_correctness.py`: Binding fidelity (400+ lines)
+- `ferroml-python/tests/test_comparison_*.py`: sklearn parity (5,000+ combined lines)
 
-**Performance & Optimization:**
-- `ferroml-core/src/linalg.rs`: Linear algebra primitives (SVD, QR, Cholesky)
-- `ferroml-core/src/simd.rs`: SIMD operations via `wide` crate (feature-gated)
-- `ferroml-core/src/sparse.rs`: Sparse matrix types using `sprs` (feature-gated)
-- `ferroml-core/src/gpu/mod.rs`: GPU acceleration framework (feature-gated)
+**Serialization & Schema:**
+
+- `ferroml-core/src/serialization.rs`: save_model/load_model with formats (2,000+ lines)
+- `ferroml-core/src/schema.rs`: FeatureSchema validation (1,400+ lines)
 
 ## Naming Conventions
 
 **Files:**
-- Model implementations: `{lowercase_algorithm_name}.rs` (e.g., `linear.rs`, `forest.rs`)
-- Submodule aggregators: `mod.rs` at directory root (re-exports, trait definitions)
-- Test files: `test_*.py` (Python), inline in Rust source with `#[cfg(test)]` modules
-- Utility modules: Descriptive names like `scalers.rs`, `encoders.rs`, `diagnostics.rs`
+
+- Model implementations: snake_case matching struct name (linear.rs for LinearRegression, svm.rs for SVC)
+- Transformer implementations: snake_case matching type group (scalers.rs for all scaler types)
+- Test files: test_*.py for Python, module_name.rs for Rust (tests in single file per logical group)
+- Utilities: short names (error.rs, schema.rs, linalg.rs, simd.rs)
 
 **Directories:**
-- Algorithm groups: `{category}` (models, preprocessing, clustering, decomposition)
-- Test suites: `tests/` at crate root
-- Internal organization: Flat structure with clear module boundaries (no deeply nested dirs)
 
-**Rust Types:**
-- Structs: PascalCase (e.g., `LinearRegression`, `StandardScaler`, `KMeans`)
-- Methods: snake_case (e.g., `fit()`, `predict()`, `transform()`)
-- Traits: PascalCase (e.g., `Model`, `Transformer`, `ClusteringModel`)
-- Enums: PascalCase variants (e.g., `FerroError::ShapeMismatch`, `TrialState::Complete`)
+- Feature grouping: domain-specific (models/, preprocessing/, stats/, clustering/, decomposition/)
+- Python binding mirrors: Same names as core modules (ferroml-python/src/linear.rs ↔ ferroml-core/src/models/linear.rs)
+- Test directory: tests/ at repo root for both crates
+- Module subdirs: Only for large feature areas (models/naive_bayes/, preprocessing/compliance_tests/)
 
-**Python Classes:**
-- Mimic sklearn naming: PascalCase (e.g., `LinearRegression`, `StandardScaler`)
-- Maintain submodule organization: `ferroml.linear.LinearRegression`, `ferroml.preprocessing.StandardScaler`
-- Methods: snake_case (e.g., `fit()`, `predict()`, `transform()`)
+**Code Symbols:**
+
+- Model types: PascalCase (LinearRegression, RandomForestClassifier)
+- Hyperparameters: snake_case (n_estimators, max_depth, learning_rate)
+- Methods: snake_case (fit, predict, transform, score, fit_predict)
+- Traits: PascalCase (Model, Transformer, StatisticalModel, ProbabilisticModel)
+- Internal helpers: snake_case with leading _ if private (e.g., _compute_residuals)
+- Constants: SCREAMING_SNAKE_CASE (DEFAULT_RANDOM_STATE, MAX_ITERATIONS)
 
 ## Where to Add New Code
 
-**New ML Algorithm:**
-1. Create file: `ferroml-core/src/models/{algorithm_name}.rs`
-2. Implement struct with configuration fields
-3. Implement `Model` trait: `fn fit(&mut self, x, y) -> Result<()>`, `fn predict(&self, x) -> Result<Array1<f64>>`
-4. Implement `StatisticalModel` or `ProbabilisticModel` if applicable
-5. Add `fn search_space(&self) -> SearchSpace` for HPO
-6. Add to `ferroml-core/src/models/mod.rs` re-exports
-7. Add Python bindings: `ferroml-python/src/ensemble.rs` or appropriate module
-8. Add tests: `ferroml-core/tests/correctness_*.rs` and `ferroml-python/tests/test_*.py`
+**New Model:**
+- Primary implementation: `ferroml-core/src/models/{model_name}.rs`
+- Register in: `ferroml-core/src/models/mod.rs` (pub use, pub mod statements)
+- Python binding: Add file `ferroml-python/src/{domain}.rs` if new domain, or extend existing
+- Register Python: Add to `ferroml-python/src/lib.rs` pymodule function
+- Tests: Add correctness tests to `ferroml-core/tests/correctness.rs` module
+- Python tests: Add to `ferroml-python/tests/test_{domain}.py`
 
-**New Preprocessing Transformer:**
-1. Create file: `ferroml-core/src/preprocessing/{transformer_name}.rs` or add to existing file (e.g., `scalers.rs`)
-2. Implement struct with configuration and learned parameters
-3. Implement `Transformer` trait: `fn fit(&mut self, x) -> Result<()>`, `fn transform(&self, x) -> Result<Array2<f64>>`
-4. Implement `inverse_transform()` if applicable
-5. Add to `ferroml-core/src/preprocessing/mod.rs` re-exports
-6. Add Python bindings: `ferroml-python/src/preprocessing.rs`
-7. Add tests: `ferroml-core/tests/correctness_preprocessing.rs` and `ferroml-python/tests/test_preprocessing.py`
-
-**New Clustering Algorithm:**
-1. Create file: `ferroml-core/src/clustering/{algorithm_name}.rs`
-2. Implement struct with configuration
-3. Implement `ClusteringModel` trait: `fn fit(&mut self, x) -> Result<()>`, `fn predict(&self, x) -> Result<Array1<usize>>`
-4. Add diagnostics in `ferroml-core/src/clustering/diagnostics.rs` if needed
-5. Add to `ferroml-core/src/clustering/mod.rs` re-exports
-6. Add Python bindings: `ferroml-python/src/clustering.rs`
-7. Add tests: `ferroml-core/tests/correctness_clustering.rs`
+**New Transformer:**
+- Primary implementation: `ferroml-core/src/preprocessing/{group}.rs` (e.g., add to scalers.rs)
+- Register in: `ferroml-core/src/preprocessing/mod.rs` (pub use statement)
+- Python binding: Add wrapper in `ferroml-python/src/preprocessing.rs`
+- Tests: Add correctness tests in `ferroml-core/tests/correctness.rs` → preprocessing module
+- Python tests: Add to `ferroml-python/tests/test_comparison_preprocessing.py`
 
 **New Metric:**
-1. Add to `ferroml-core/src/metrics/{category}.rs` (classification/regression/probabilistic)
-2. Function signature: `pub fn metric_name(y_true: &Array1<f64>, y_pred: &Array1<f64>) -> Result<f64>`
-3. Add to `ferroml-core/src/metrics/mod.rs` re-exports and `Metric` enum if applicable
-4. Add tests: inline in metrics file with `#[cfg(test)]` module
+- Primary implementation: `ferroml-core/src/metrics/mod.rs`
+- Register in: Public fn in metrics module
+- Python binding: Add wrapper in `ferroml-python/src/metrics.rs`
+- Tests: Add to `ferroml-core/tests/correctness.rs` → metrics module
 
-**New Cross-Validation Strategy:**
-1. Create file: `ferroml-core/src/cv/{strategy_name}.rs`
-2. Implement struct
-3. Implement `CrossValidator` trait: `fn split(...) -> Result<Vec<CVFold>>`
-4. Add to `ferroml-core/src/cv/mod.rs` re-exports
-5. Add tests: inline in cv module or dedicated test file
-
-**New Hyperparameter Optimization Method:**
-1. Add to `ferroml-core/src/hpo/samplers.rs` (for sampling strategies) or `schedulers.rs` (for multi-fidelity)
-2. Implement `Sampler` or `Scheduler` trait
-3. Add to module re-exports
-4. Add tests: inline in HPO module
+**Utilities:**
+- Shared helpers: `ferroml-core/src/testing/mod.rs` (fixtures, generators)
+- Validation: Add check_* function to relevant module's mod.rs
+- Linear algebra: Add to `ferroml-core/src/linalg.rs`
 
 ## Special Directories
 
-**ferroml-core/src/models/compliance_tests/ (Generated tests)**
-- Purpose: Automatically generated compliance tests for all models
-- Generated: Yes (by internal test utility)
+**ferroml-core/fuzz/:**
+- Purpose: Fuzzing harnesses for finding edge cases
+- Generated: No (static fuzzing code)
 - Committed: Yes
-- Usage: Ensures all models satisfy required trait contracts
+- Run: `cargo +nightly fuzz`
 
-**ferroml-core/src/preprocessing/compliance_tests/ (Generated tests)**
-- Purpose: Automatically generated compliance tests for all transformers
-- Generated: Yes
+**benchmarks/:**
+- Purpose: Criterion performance benchmarks (86+ functions)
+- Generated: No (static benchmark code), results/ generated at runtime
+- Committed: Yes (code only, not results)
+- Run: `cargo bench --release`
+
+**notebooks/:**
+- Purpose: Tutorial and usage examples
+- Generated: No (static .ipynb files with outputs)
 - Committed: Yes
-- Usage: Ensures all transformers satisfy Transformer trait contract
+- Usage: Jupyter/JupyterLab for interactive learning
 
-**ferroml-core/src/testing/ (30+ test helper modules)**
-- Purpose: Shared test utilities (sklearn fixtures, assertion helpers, test data generators)
-- Generated: No
+**docs/plans/:**
+- Purpose: Implementation phase details (Plans A-X complete)
+- Generated: No (created during planning phase)
 - Committed: Yes
-- Key modules: `sklearn_fixtures.rs`, `correctness.rs`, `datasets.rs`
+- Reference: Each phase document describes work scope, testing strategy
 
-**ferroml-core/tests/regression/ (Regression test suite)**
-- Purpose: Dedicated regression testing infrastructure
-- Generated: No
+**.planning/:**
+- Purpose: GSD (Guided Structured Development) planning metadata
+- Generated: Yes (created by /gsd:map-codebase and /gsd:plan-phase commands)
 - Committed: Yes
-- Contains: Baseline models, guards against numerical regressions
+- Structure: codebase/ (analysis), phase-*/ (implementation details)
 
-**ferroml-python/python/ferroml/ (Python package)**
-- Purpose: Pure Python wrappers re-exporting from compiled Rust bindings
-- Generated: No (but compiled `.so` is generated)
-- Committed: Yes (source), No (compiled `.so`)
-- Pattern: Each `__init__.py` re-exports from `ferroml` (PyO3 module)
-
-**benchmarks/ and scripts/ (Performance infrastructure)**
-- Purpose: Criterion.rs benchmarks, cross-library performance comparison
-- Generated: No
+**ferroml-core/tests/regression/:**
+- Purpose: Per-issue fixtures tracking previously fixed bugs
+- Generated: No (static fixtures)
 - Committed: Yes
-- Usage: Performance tracking, regression detection
-
-**thoughts/shared/ (Planning documentation)**
-- Purpose: Implementation plans (Plans A-U), audit reports, handoffs
-- Generated: No (manual)
-- Committed: Yes
-- Pattern: Completed plans preserved for reference
+- Pattern: Directory per regression (e.g., regression/issue-42-svc-rbf-convergence/)
 
 ---
 
-*Structure analysis: 2026-03-15*
+*Structure analysis: 2026-03-16*

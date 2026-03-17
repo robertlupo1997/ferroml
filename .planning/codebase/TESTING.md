@@ -1,179 +1,227 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-03-15
+**Analysis Date:** 2026-03-16
 
 ## Test Framework
 
-**Rust Test Runner:**
-- Framework: Built-in `cargo test` (no external test framework needed)
-- Config: `ferroml-core/Cargo.toml` defines test dependencies
-- Run Commands:
+### Rust Testing
+
+**Runner:**
+- Built-in `cargo test` (standard Rust test framework)
+- Harness: false for benchmarks (Criterion)
+
+**Assertion Library:**
+- Built-in `assert!`, `assert_eq!`, `assert_ne!`
+- Cross-library: `approx` crate for floating-point comparisons
+- Array assertions: ndarray `.assert_*()` methods and custom helpers
+
+**Run Commands:**
 ```bash
-cargo test -p ferroml-core --lib              # Unit tests only
-cargo test -p ferroml-core                    # Unit + integration tests
-cargo test -p ferroml-core -- --test-threads=1  # Serial execution (debugging)
-cargo test -- --ignored                       # Run ignored tests (slow suite)
+cargo test                           # Run all tests in workspace (default = ferroml-core)
+cargo test --lib                     # Library tests only
+cargo test --test integration        # Integration test binary
+cargo test --test correctness        # Correctness test binary
+cargo test --all                     # All workspace members
+cargo test -- --nocapture            # Show println! output
+cargo test -- --test-threads=1       # Single-threaded (determinism)
+cargo test -- --ignored              # Run ignored (slow) tests only
 ```
 
-**Python Test Runner:**
-- Framework: `pytest` (installed in `.venv`)
-- Config: `ferroml-python/tests/conftest.py` provides shared fixtures
-- Run Commands:
+**Test Files Location:**
+- Inline tests: `src/**/*.rs` with `#[cfg(test)] mod tests { }`
+- Integration tests: `/home/tlupo/ferroml/ferroml-core/tests/`
+  - `correctness.rs` — Major functionality validation (~3,500 tests)
+  - `integration.rs` — Cross-module workflows
+  - `edge_cases.rs` — Boundary conditions and degenerate cases
+  - `adversarial.rs` — Pathological inputs and adversarial data
+  - `vs_linfa.rs` — Cross-library validation (linfa 0.8.1)
+  - `regression_tests.rs` — Regression tracking for known issues
+
+### Python Testing
+
+**Runner:**
+- pytest (pytest framework)
+- Configuration: implicit (no pytest.ini, uses defaults)
+
+**Run Commands:**
 ```bash
-cd ferroml-python && python -m pytest tests/              # All tests
-python -m pytest tests/test_clustering.py -v             # Single file, verbose
-python -m pytest tests/test_clustering.py::TestKMeans    # Single class
-python -m pytest -k "score" --tb=short                   # Filter by name
+pytest ferroml-python/tests/                    # Run all Python tests
+pytest ferroml-python/tests/test_naive_bayes.py # Single module
+pytest ferroml-python/tests/test_naive_bayes.py::TestGaussianNB::test_fit_predict_basic # Single test
+pytest -v                                       # Verbose output
+pytest -k "gaussian"                            # Filter by name pattern
+pytest --tb=short                               # Brief tracebacks
+pytest -m "not slow"                            # Skip slow tests
+pytest --co                                     # List tests without running
+pytest -x                                       # Stop on first failure
+pytest --pdb                                    # Drop to debugger on failure
 ```
 
-**Assertion Libraries:**
-- Rust: Built-in `assert!`, `assert_eq!` + `approx` crate for floats
-- Python: Built-in `assert` + `numpy.testing` utilities
+**Test Files Location:**
+- `/home/tlupo/ferroml/ferroml-python/tests/`
+- 60+ test files, ~2,100 passing tests
+- Patterns:
+  - `test_*.py` — Main test modules
+  - `test_comparison_*.py` — Cross-library validation (sklearn, xgboost, lightgbm, statsmodels)
+  - `test_vs_*.py` — Library-specific comparison
+  - `conftest.py` — Shared fixtures and configuration
+  - `conftest_comparison.py` — Comparison helper fixtures
 
 ## Test File Organization
 
-**Rust Location Patterns:**
-- Unit tests: `#[cfg(test)] mod tests { ... }` in source files (e.g., `src/models/linear.rs`)
-- Integration tests: Separate `.rs` files in `/tests/` directory (e.g., `tests/correctness_preprocessing.rs`)
-- Helper modules: `src/testing/` with reusable check functions (e.g., `assertions.rs`, `checks.rs`)
+### Rust Structure
 
-**Python Location Patterns:**
-- Test files: `ferroml-python/tests/test_*.py` (pytest convention)
-- Fixtures: `conftest.py` provides shared datasets and utilities
-- Test classes: Grouped by feature (e.g., `TestKMeans`, `TestClassifierScore`)
+**Location Pattern:**
+- Inline: Same file as implementation (`src/models/adaboost.rs` contains mod tests)
+- Integration: Separate binary files in `/home/tlupo/ferroml/ferroml-core/tests/`
 
-**File Naming:**
-- Rust integration: `[feature_area].rs` (e.g., `correctness_preprocessing.rs`, `sklearn_correctness.rs`)
-- Cross-library: `vs_[library].rs` (e.g., `vs_linfa_linear.rs`, `vs_linfa_clustering.rs`)
-- Python: `test_[feature].py` (e.g., `test_clustering.py`, `test_partial_fit.py`)
+**File Size & Scope:**
+- Consolidated to 6 main test binaries (reduced from 19 for faster builds)
+- `correctness.rs`: 252KB (~3,500 tests) — All major model tests
+- `integration.rs`: 92KB — Cross-module workflows
+- `edge_cases.rs`: 92KB — Boundary conditions
+- `adversarial.rs`: 51KB — Adversarial inputs
+- `vs_linfa.rs`: 49KB — Cross-library validation
+- `regression_tests.rs`: 37KB — Known issue tracking
 
-**Rust Directory Tree:**
-```
-ferroml-core/
-├── src/
-│   ├── testing/                    # Shared test utilities
-│   │   ├── assertions.rs          # Tolerance constants and macros
-│   │   ├── checks.rs              # 30+ estimator validation checks
-│   │   ├── serialization.rs       # Model roundtrip testing
-│   │   ├── probabilistic.rs       # Probability calibration tests
-│   │   └── ...
-│   ├── models/
-│   │   ├── linear.rs
-│   │   │   └── #[cfg(test)] mod tests { ... }  # unit tests
-│   │   └── ...
-│   └── ...
-├── tests/
-│   ├── correctness_preprocessing.rs     # 101 preprocessing tests
-│   ├── correctness_clustering.rs        # KMeans, DBSCAN, hierarchical
-│   ├── sklearn_correctness.rs           # sklearn fixture comparisons
-│   ├── vs_linfa_linear.rs               # linfa cross-library validation
-│   ├── vs_linfa_clustering.rs           # linfa vs FerroML parity
-│   └── ...
-└── benches/
-    ├── benchmarks.rs                    # Criterion benchmarks
-    ├── memory_benchmarks.rs
-    └── gpu_benchmarks.rs
-```
-
-**Python Directory Tree:**
-```
-ferroml-python/tests/
-├── conftest.py                          # Shared fixtures
-├── test_clustering.py                   # KMeans, DBSCAN, hierarchical
-├── test_score_all_models.py             # score() method across 55+ models
-├── test_partial_fit.py                  # incremental learning
-├── test_decision_function.py            # decision_function() for classifiers
-├── test_vs_sklearn.py                   # sklearn comparison tests
-└── ...
-```
-
-## Test Structure
-
-**Rust Suite Organization:**
-
+**Test Naming:**
 ```rust
-//! Module documentation explaining what is tested
+mod clustering {
+    mod tests {
+        fn make_blobs_3c() -> (Array2<f64>, Array1<i32>) { ... }
 
-use ferroml_core::preprocessing::Transformer;
-use ndarray::{array, Array1, Array2};
+        #[test]
+        fn test_kmeans_basic() { ... }
 
-// =============================================================================
-// Helper functions
-// =============================================================================
-
-/// Assert two f64 values approximately equal within tolerance
-fn assert_approx(actual: f64, expected: f64, tol: f64, msg: &str) {
-    assert!(
-        (actual - expected).abs() < tol,
-        "{}: expected {}, got {}, diff = {}",
-        msg,
-        expected,
-        actual,
-        (actual - expected).abs()
-    );
-}
-
-/// Assert two Array2<f64> values approximately equal element-wise
-fn assert_array2_approx(actual: &Array2<f64>, expected: &Array2<f64>, tol: f64, msg: &str) {
-    assert_eq!(actual.shape(), expected.shape(), "{}: shape mismatch", msg);
-    for ((i, j), &a) in actual.indexed_iter() {
-        let e = expected[[i, j]];
-        assert!(
-            (a - e).abs() < tol,
-            "{}: at [{},{}] expected {}, got {}",
-            msg, i, j, e, a
-        );
+        #[test]
+        fn test_kmeans_convergence() { ... }
     }
 }
-
-// =============================================================================
-// Test Section (organized by feature)
-// =============================================================================
-
-#[test]
-fn polynomial_features_degree2_two_features() {
-    // Setup
-    use ferroml_core::preprocessing::polynomial::PolynomialFeatures;
-    let mut poly = PolynomialFeatures::new(2);
-    let x = array![[1.0, 2.0], [3.0, 4.0]];
-
-    // Execute
-    let result = poly.fit_transform(&x).unwrap();
-
-    // Assert (multiple assertions per test is OK for feature validation)
-    assert_eq!(result.ncols(), 6, "degree=2 with 2 features => 6 output cols");
-    assert_eq!(result.nrows(), 2);
-    let expected = array![
-        [1.0, 1.0, 2.0, 1.0, 2.0, 4.0],
-        [1.0, 3.0, 4.0, 9.0, 12.0, 16.0]
-    ];
-    assert_array2_approx(&result, &expected, 1e-10, "poly_degree2");
-}
-
-#[ignore]  // Mark slow or broken tests
-#[test]
-fn slow_automl_system_test() {
-    // This test takes >30 seconds - only run manually
-    // Reason: exhaustive hyperparameter search
-}
 ```
 
-**Python Suite Organization:**
+### Python Structure
 
+**Location Pattern:**
+- Test files: `/home/tlupo/ferroml/ferroml-python/tests/test_*.py`
+- Fixtures: `/home/tlupo/ferroml/ferroml-python/tests/conftest.py`
+- Comparison helpers: `/home/tlupo/ferroml/ferroml-python/tests/conftest_comparison.py`
+
+**File Organization:**
 ```python
-"""Tests that every model exposes score(X, y) and returns sensible values."""
+"""Module docstring explaining test scope."""
 
 import numpy as np
 import pytest
-from typing import Tuple
+from ferroml.module import Class
 
-# =============================================================================
-# Fixtures
-# =============================================================================
+# ============================================================================
+# Section Comment
+# ============================================================================
+
+class TestClassName:
+    """Test group for a specific component."""
+
+    def test_basic_functionality(self):
+        """Test name describing expected behavior."""
+        ...
+
+    def test_edge_case_description(self):
+        """Specific edge case with setup."""
+        ...
+
+# ============================================================================
+# Another Section
+# ============================================================================
 
 @pytest.fixture
-def reg_data() -> Tuple[np.ndarray, np.ndarray]:
-    """Generate simple regression data. y = 2*X[:, 0] + 3*X[:, 1] - X[:, 2] + noise"""
+def fixture_name():
+    """Fixture docstring."""
+    ...
+
+class TestAnotherClass:
+    ...
+```
+
+**Test Naming:**
+```python
+class TestGaussianNB:
+    def test_fit_predict_basic(self):
+        """Basic fit/predict workflow."""
+
+    def test_predict_proba_sums_to_one(self):
+        """Mathematical invariant: probabilities sum to 1."""
+
+    def test_predict_proba_values_in_range(self):
+        """Probability bounds check: 0 <= p <= 1."""
+
+    def test_var_smoothing_effect(self):
+        """Test variance smoothing parameter effect."""
+```
+
+## Test Suite Structure
+
+### Rust Suite Organization
+
+**Module Grouping Pattern:**
+```rust
+// File: ferroml-core/tests/correctness.rs
+
+mod clustering {
+    //! Clustering module tests
+    use ferroml_core::clustering::{...};
+
+    // Helper functions first
+    fn make_blobs_3c() -> (Array2<f64>, Array1<i32>) { ... }
+    fn make_blobs_2c() -> (Array2<f64>, Array1<i32>) { ... }
+
+    // Tests by category
+    mod kmeans {
+        #[test]
+        fn test_basic_fit() { ... }
+        #[test]
+        fn test_convergence() { ... }
+    }
+
+    mod dbscan {
+        #[test]
+        fn test_density_connectivity() { ... }
+    }
+}
+
+mod models {
+    //! Model tests (classification, regression, ensemble)
+    ...
+}
+
+mod preprocessing {
+    //! Feature preprocessing tests
+    ...
+}
+```
+
+**Assertion Patterns:**
+```rust
+// Property checks
+assert_eq!(labels.len(), n_samples);
+assert!(labels.iter().all(|&l| l >= 0));
+assert!(inertia >= 0.0);
+
+// Floating-point comparisons
+assert!(score > 0.9);  // Loose bounds for ML
+approx::assert_relative_eq!(actual, expected, epsilon = 1e-10);
+
+// Array comparisons
+ndarray::assert_allclose!(&actual, &expected, epsilon = 1e-10);
+```
+
+### Python Suite Organization
+
+**Fixture Pattern:**
+```python
+# conftest.py - Shared fixtures
+@pytest.fixture
+def regression_data() -> Tuple[np.ndarray, np.ndarray]:
+    """Generate simple regression data (100, 3) -> (100,)"""
     np.random.seed(42)
     n_samples = 100
     X = np.random.randn(n_samples, 3)
@@ -181,363 +229,388 @@ def reg_data() -> Tuple[np.ndarray, np.ndarray]:
     return X, y
 
 @pytest.fixture
-def clf_data() -> Tuple[np.ndarray, np.ndarray]:
-    """Generate simple binary classification data."""
+def classification_data() -> Tuple[np.ndarray, np.ndarray]:
+    """Generate binary classification data (100, 3) -> (100,) with classes {0, 1}"""
     np.random.seed(42)
     n_samples = 100
     X = np.random.randn(n_samples, 3)
     y = (X[:, 0] + X[:, 1] > 0).astype(np.float64)
     return X, y
 
-# =============================================================================
-# Helpers
-# =============================================================================
+@pytest.fixture
+def multiclass_data() -> Tuple[np.ndarray, np.ndarray]:
+    """Generate 3-class data (150, 4) -> (150,) with classes {0, 1, 2}"""
+    ...
 
-def _fit_and_score_clf(model, X, y):
-    """Fit a classifier and return score. Score should be in [0, 1]."""
-    model.fit(X, y)
-    s = model.score(X, y)
-    assert isinstance(s, float), f"{type(model).__name__}: score returned {type(s)}"
-    assert 0.0 <= s <= 1.0, f"{type(model).__name__}: accuracy={s} not in [0,1]"
-    return s
-
-# =============================================================================
-# Test Classes
-# =============================================================================
-
-class TestClassifierScore:
-    def test_logistic_regression(self, clf_data):
-        from ferroml.linear import LogisticRegression
-        _fit_and_score_clf(LogisticRegression(), *clf_data)
-
-    def test_ridge_classifier(self, clf_data):
-        from ferroml.linear import RidgeClassifier
-        _fit_and_score_clf(RidgeClassifier(), *clf_data)
-
-class TestRegressorScore:
-    def test_linear_regression(self, reg_data):
-        from ferroml.linear import LinearRegression
-        model = LinearRegression()
-        model.fit(*reg_data)
-        r2 = model.score(*reg_data)
-        assert r2 <= 1.0, f"R² should be ≤ 1, got {r2}"
+@pytest.fixture
+def large_regression_data() -> Tuple[np.ndarray, np.ndarray]:
+    """Generate larger dataset for performance tests (10000, 10) -> (10000,)"""
+    ...
 ```
 
-**Patterns:**
-- Setup/execute/assert structure (AAA pattern)
-- Helper functions for common operations
-- Fixtures for shared data
-- Use `#[ignore]` for slow tests (30+ seconds)
-- Python: Use pytest classes to group related tests
-- Rust: Use comment sections with `// =====` to organize
+**Test Class Pattern:**
+```python
+class TestGaussianNB:
+    """Tests for GaussianNB classifier."""
 
-## Mocking
+    def test_fit_predict_basic(self):
+        """Basic workflow: fit then predict."""
+        X = np.array([[1.0, 2.0], [2.0, 1.0], [3.0, 3.0],
+                      [6.0, 7.0], [7.0, 6.0], [8.0, 8.0]])
+        y = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
+        model = GaussianNB()
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (6,)
+        assert np.all(np.isin(preds, [0.0, 1.0]))
 
-**Framework:**
-- Rust: No mocking framework; use trait-based testing instead
-- Python: `unittest.mock` built-in (used sparingly)
+    def test_predict_proba_sums_to_one(self):
+        """Mathematical check: probabilities sum to 1.0 per sample."""
+        X = np.array([[1.0, 2.0], [2.0, 1.0], [6.0, 7.0], [7.0, 6.0]])
+        y = np.array([0.0, 0.0, 1.0, 1.0])
+        model = GaussianNB()
+        model.fit(X, y)
+        probas = model.predict_proba(X)
+        assert probas.shape == (4, 2)
+        np.testing.assert_allclose(probas.sum(axis=1), 1.0, atol=1e-10)
+```
 
-**Patterns:**
+**Comparison Helper Pattern (from conftest_comparison.py):**
+```python
+def _fit_both(X, Y=None):
+    """Fit both FerroML and sklearn models, return (ferro_model, sk_model)."""
+    from ferroml.preprocessing import StandardScaler as FerroSS
+    from sklearn.preprocessing import StandardScaler as SkSS
 
-**Rust - Trait Substitution (Preferred):**
+    ferro = FerroSS()
+    ferro.fit(X)
+    sk = SkSS()
+    sk.fit(X)
+    return ferro, sk
+
+class TestStandardScalerComparison:
+    def test_iris_transform(self):
+        X, _ = get_iris()
+        ferro, sk = self._fit_both(X)
+        np.testing.assert_allclose(ferro.transform(X), sk.transform(X), atol=1e-10)
+```
+
+## Mocking & Fixtures
+
+### Rust Fixtures
+
+**Pattern:**
+- No mock framework used; instead use real data helpers
+- Fixtures are inline functions, not framework macros
+
+**Data Generators:**
 ```rust
-// Instead of mocking, create a test-specific implementation
+/// Generate well-separated 2D blob data with known cluster structure.
+fn make_blobs_3c() -> (Array2<f64>, Array1<i32>) {
+    let x = Array2::from_shape_vec(
+        (15, 2),
+        vec![
+            // Cluster 0 near (0, 0)
+            0.0, 0.0, 0.1, 0.0, 0.0, 0.1, 0.1, 0.1, -0.1, 0.0,
+            // Cluster 1 near (10, 10)
+            10.0, 10.0, 10.1, 10.0, 10.0, 10.1, 10.1, 10.1, 9.9, 10.0,
+            // Cluster 2 near (10, 0)
+            10.0, 0.0, 10.1, 0.0, 10.0, 0.1, 10.1, 0.1, 9.9, 0.0,
+        ],
+    ).unwrap();
+    let labels = array![0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2];
+    (x, labels)
+}
+
+/// Generate half-moon shaped data (simplified version).
+fn make_moons() -> Array2<f64> {
+    let mut data = Vec::new();
+    for i in 0..10 {
+        let angle = std::f64::consts::PI * i as f64 / 9.0;
+        data.push(angle.cos());
+        data.push(angle.sin());
+    }
+    Array2::from_shape_vec((20, 2), data).unwrap()
+}
+```
+
+**Location:**
+- In each test module: `/home/tlupo/ferroml/ferroml-core/tests/correctness.rs` lines 22-95 (clustering helpers)
+- Same for each domain (preprocessing, models, etc.)
+
+### Python Fixtures
+
+**Framework:** pytest
+
+**Scope:** Function-level (default), class-level when expensive
+
+```python
+@pytest.fixture
+def regression_data() -> Tuple[np.ndarray, np.ndarray]:
+    """Generate regression dataset (100 samples, 3 features)."""
+    np.random.seed(42)
+    n_samples = 100
+    X = np.random.randn(n_samples, 3)
+    y = 2 * X[:, 0] + 3 * X[:, 1] - X[:, 2] + np.random.randn(n_samples) * 0.1
+    return X, y
+```
+
+**Fixture Usage in Tests:**
+```python
+class TestTrainTestSplit:
+    def test_shapes(self, regression_data):  # fixture injected
+        from ferroml.model_selection import train_test_split
+        X, y = regression_data  # Use fixture
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+        assert X_train.shape[0] + X_test.shape[0] == 100
+```
+
+## Mocking Strategy
+
+**What to Mock (Rust):**
+- Nothing explicitly (use real data)
+- Use carefully constructed test data instead
+
+**What to Mock (Python):**
+- External libraries: not done — tests compare against real sklearn/xgboost/lightgbm
+- File I/O: use tmpdir fixture from pytest
+- Network: not needed (library is CPU-local)
+
+**What NOT to Mock:**
+- Rust model internals: test actual behavior
+- Python model internals: test actual behavior
+- Cross-library behavior: real sklearn/linfa implementations
+
+## Coverage
+
+**Requirements:**
+- No strict coverage target configured
+- Test-driven approach: write tests alongside code
+
+**View Coverage (Rust):**
+```bash
+cargo tarpaulin --out Html --exclude-files benches tests  # HTML report
+cargo tarpaulin --timeout 600 --exclude-files benches tests
+```
+
+**Coverage Baseline (as of v0.3.1):**
+- ~3,550 tests in ferroml-core (Rust)
+- ~2,100 tests in ferroml-python (Python)
+- 200+ cross-library validation tests
+- 118 ONNX round-trip tests
+
+## Test Types & Scopes
+
+### Unit Tests (Rust)
+
+**Location:** `src/**/*.rs` with `#[cfg(test)] mod tests`
+
+**Scope:** Single functions/methods in isolation
+
+**Example from `error.rs`:**
+```rust
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    struct MockPreprocessor;
-
-    impl Transformer for MockPreprocessor {
-        fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
-            // Return controlled result
-            Ok(())
-        }
-
-        fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
-            Ok(x.clone())  // Identity transform for testing
-        }
+    #[test]
+    fn test_error_creation() {
+        let err = FerroError::shape_mismatch("expected", "actual");
+        assert!(matches!(err, FerroError::ShapeMismatch { .. }));
     }
 }
 ```
 
-**Python - unittest.mock (Rarely Used):**
-```python
-from unittest.mock import Mock, patch
+### Integration Tests (Rust)
 
-# Mock external service
-with patch('ferroml.models.external_model') as mock_model:
-    mock_model.return_value = 0.95
-    # Test code
+**Location:** `/home/tlupo/ferroml/ferroml-core/tests/` (separate binaries)
+
+**Scope:** Multi-component workflows, cross-module interactions
+
+**Structure:** Consolidated to 6 files:
+- `correctness.rs`: Model fit/predict workflows
+- `integration.rs`: Pipeline, cross-validation, serialization
+- `edge_cases.rs`: Boundary conditions, degenerate cases
+- `adversarial.rs`: Pathological inputs, numerical instability
+- `vs_linfa.rs`: Cross-library validation against linfa 0.8.1
+- `regression_tests.rs`: Known issue tracking
+
+### Integration Tests (Python)
+
+**Location:** `/home/tlupo/ferroml/ferroml-python/tests/`
+
+**Scope:**
+- End-to-end workflows (fit/predict/transform chains)
+- Cross-library comparisons (vs sklearn, xgboost, lightgbm, statsmodels)
+- Feature parity validation
+
+**Test Files:**
+```
+test_comparison_preprocessing.py   # 18 preprocessing transformers vs sklearn
+test_comparison_trees.py           # Decision trees, RF, GB, XGB, LGB
+test_comparison_unsupervised.py    # KMeans, DBSCAN, GMM, ICA, PCA vs sklearn
+test_comparison_remaining.py       # Linear, logistic, SVM vs sklearn
+test_comparison_edge_cases.py      # Adversarial, degenerate, boundary cases
+test_naive_bayes.py                # Naive Bayes classifier variants
+test_gaussian_process.py           # GP regression and classification
+test_model_selection.py            # train_test_split, CV splitters
+test_automl.py                     # AutoML system integration
+test_sparse_roundtrip.py           # Sparse matrix handling
+test_sparse_pipeline.py            # Sparse pipelines
+test_rfe.py                        # Recursive feature elimination
+test_kernel_shap.py                # SHAP feature importance
+test_text_pipeline.py              # Text preprocessing pipeline
 ```
 
-**What to Mock:**
-- External API calls (rare in ferroml-core; more in bindings)
-- Heavy computation for unit tests (prefer creating small datasets)
-- Random number generation for reproducibility
+### Adversarial/Edge Case Tests
 
-**What NOT to Mock:**
-- Model internals (test actual computation)
-- Array operations (test with real arrays)
-- Preprocessing steps (test full pipeline)
+**Rust Location:** `/home/tlupo/ferroml/ferroml-core/tests/edge_cases.rs` (92KB)
 
-## Fixtures and Factories
-
-**Rust Fixtures (rstest macro):**
-```rust
-use rstest::rstest;
-
-#[rstest]
-#[case::degree_2([1.0, 2.0], 6)]           // name, input, expected_cols
-#[case::degree_3([1.0], 4)]
-fn test_polynomial_output_size(#[case] input: [f64; 1], #[case] expected_cols: usize) {
-    // Test runs twice with different parameters
-}
-```
-
-**Python Fixtures (pytest):**
-```python
-@pytest.fixture
-def regression_data():
-    """Generate simple regression data."""
-    np.random.seed(42)
-    X = np.random.randn(100, 3)
-    y = 2 * X[:, 0] + 3 * X[:, 1] - X[:, 2] + np.random.randn(100) * 0.1
-    return X, y
-
-@pytest.fixture
-def iris_like_data():
-    """Generate iris-like dataset (3 classes, 4 features)."""
-    np.random.seed(42)
-    n_per_class = 50
-    X_list = []
-    y_list = []
-
-    # Class 0
-    X_list.append(np.random.randn(n_per_class, 4) * 0.5)
-    y_list.append(np.zeros(n_per_class))
-
-    # Class 1
-    X_list.append(np.random.randn(n_per_class, 4) * 0.5 + 2)
-    y_list.append(np.ones(n_per_class))
-
-    X = np.vstack(X_list)
-    y = np.concatenate(y_list)
-    idx = np.random.permutation(len(y))
-    return X[idx], y[idx]
-```
-
-**Test Data Location:**
-- Rust: Defined inline in test files or in helper functions
-- Python: Fixtures in `conftest.py` for cross-file reuse
-- Real datasets: `ferroml-core/datasets/` module (loaded at runtime)
-
-**Dataset Patterns:**
-- Synthetic blob data: `make_blobs_3c()`, `make_blobs_2c()` for clustering
-- Regression data: `y = 2*X[:, 0] + 3*X[:, 1] - X[:, 2] + noise` (linear with known coefs)
-- Classification data: `y = (X[:, 0] + X[:, 1] > 0)` (linear boundary)
-- Multiclass: 3 classes, 50 samples each, gaussian clouds
-
-## Coverage
-
-**Requirements:** Not enforced (no explicit coverage target)
-
-**View Coverage (Python):**
-```bash
-pip install pytest-cov
-pytest --cov=ferroml_python --cov-report=html tests/
-# View in htmlcov/index.html
-```
-
-**View Coverage (Rust):**
-```bash
-# Using tarpaulin
-cargo install cargo-tarpaulin
-cargo tarpaulin --out Html --output-dir coverage/
-```
-
-**Coverage Strategy:**
-- Aim for >80% on core algorithms
-- 100% coverage not required (test boundary cases, not defensive coding)
-- Skip coverage for: error handling branches, deprecated features, GPU fallbacks
-
-## Test Types
-
-**Unit Tests:**
-- Scope: Single function or method
-- Location: `#[cfg(test)]` module in source file (Rust) or same package (Python)
-- Example: `test_linear_regression_fit_basic()` tests just the fit() method
-- Pattern: Setup minimal data, call one method, assert output
-- Rust location: `src/models/linear.rs` contains `#[cfg(test)] mod tests { ... }`
-
-**Integration Tests:**
-- Scope: Multiple components working together (e.g., preprocessor → model → metric)
-- Location: `/tests/*.rs` (Rust) or `tests/test_integration.py` (Python)
-- Example: `test_pipeline_preprocessing_then_fit()` tests scaler + regression
-- Pattern: Use realistic data, full end-to-end workflow, assert final output
-- Rust location: `ferroml-core/tests/correctness_preprocessing.rs` (101 tests)
-
-**Cross-Library Validation Tests:**
-- Scope: Compare FerroML against sklearn/linfa/scipy reference implementations
-- Location: `tests/vs_*.rs` (Rust) or `tests/test_vs_*.py` (Python)
-- Purpose: Verify correctness against battle-tested implementations
-- Pattern: Load sklearn fixture → run in FerroML → assert within sklearn tolerance
-- Rust files: `vs_linfa_linear.rs`, `vs_linfa_clustering.rs`, `vs_linfa_svm.rs` (6 files, 56 tests)
-- Python files: `test_vs_sklearn.py`, `test_vs_xgboost.py`, `test_vs_statsmodels.py` (5+ files, 108 tests)
-
-**E2E Tests:**
-- Scope: Full application flow (rarely used in ferroml-core)
-- Status: Not used for library testing
-- Note: AutoML system tests exist but marked `#[ignore]` (too slow for CI)
-
-## Common Patterns
-
-**Async Testing (Not Used):**
-- FerroML is synchronous (no async/await)
-- No async test patterns
-
-**Error Testing - Rust:**
+**Examples:**
 ```rust
 #[test]
-fn test_shape_mismatch_error() {
-    let x = array![[1.0, 2.0], [3.0, 4.0]];
-    let y = array![1.0, 2.0, 3.0];  // wrong shape
+fn test_single_sample() { /* Model with 1 sample */ }
 
-    let mut model = LinearRegression::new();
-    match model.fit(&x, &y) {
-        Err(FerroError::ShapeMismatch { .. }) => {
-            // Success: got expected error
+#[test]
+fn test_single_feature() { /* Model with 1 feature */ }
+
+#[test]
+fn test_constant_feature() { /* All features identical */ }
+
+#[test]
+fn test_large_feature_scales() { /* Features with vastly different magnitudes */ }
+
+#[test]
+fn test_highly_imbalanced_classification() { /* Extreme class imbalance */ }
+```
+
+**Python Location:** `/home/tlupo/ferroml/ferroml-python/tests/test_comparison_edge_cases.py`
+
+### Fuzzing Tests (Rust)
+
+**Framework:** libfuzzer-sys
+
+**Location:** `/home/tlupo/ferroml/ferroml-core/fuzz/fuzz_targets/`
+
+**Test Targets:**
+```
+fuzz_serialization_bincode.rs      # Bincode deserialization robustness
+fuzz_serialization_json.rs         # JSON parsing edge cases
+fuzz_serialization_msgpack.rs      # MessagePack parsing
+fuzz_preprocessing_input_validation.rs  # Preprocessing input bounds
+fuzz_preprocessing_scalers.rs       # Scaler numerical stability
+fuzz_onnx_model_loading.rs         # ONNX model loading
+```
+
+**Run Fuzzing:**
+```bash
+cargo +nightly fuzz run fuzz_serialization_bincode -- -max_len=10000
+cargo +nightly fuzz run fuzz_preprocessing_scalers -- -timeout=5
+```
+
+## Test Patterns & Best Practices
+
+### Property-Based Assertions
+
+**Mathematical Invariants (Rust):**
+```rust
+// Probabilities should sum to 1
+np.testing.assert_allclose(probas.sum(axis=1), 1.0, atol=1e-10)
+
+// Inertia should be non-negative
+assert!(inertia >= 0.0, "Inertia should be non-negative");
+
+// Cluster labels should be contiguous from 0
+let unique_labels: HashSet<_> = labels.iter().copied().collect();
+assert_eq!(unique_labels.len(), expected_clusters);
+```
+
+### Async Testing
+
+**Pattern (Python with pytest-asyncio):**
+Not currently used in FerroML tests (library is synchronous).
+
+### Error Testing
+
+**Rust Pattern:**
+```rust
+#[test]
+#[should_panic(expected = "assertion failed")]
+fn test_panics_on_invalid() {
+    let _ = Model::new(invalid_param);
+}
+
+// Or using Result assertions:
+#[test]
+fn test_error_handling() {
+    let result = Model::fit(&invalid_data, &targets);
+    assert!(result.is_err());
+    match result {
+        Err(FerroError::ShapeMismatch { expected, actual }) => {
+            assert_eq!(expected, "(n, m)");
         }
-        Err(e) => panic!("Expected ShapeMismatch, got {:?}", e),
-        Ok(()) => panic!("Expected error, fit succeeded"),
+        _ => panic!("Unexpected error type"),
     }
 }
 ```
 
-**Error Testing - Python:**
+**Python Pattern:**
 ```python
-def test_shape_mismatch_error(clf_data):
-    from ferroml.linear import LogisticRegression
-    X, y = clf_data
-    X_wrong = X[:, :1]  # wrong number of features
+def test_nan_in_features_raises(self):
+    """Test that NaN in features raises an error."""
+    model = LinearRegression()
+    X = np.array([[1.0, 2.0], [np.nan, 4.0], [5.0, 6.0]])
+    y = np.array([1.0, 2.0, 3.0])
 
-    model = LogisticRegression()
-    with pytest.raises(RuntimeError, match="shape"):
-        model.fit(X_wrong, y)
+    with pytest.raises(Exception) as exc_info:
+        model.fit(X, y)
+
+    error_msg = str(exc_info.value).lower()
+    assert 'nan' in error_msg or 'invalid' in error_msg
 ```
 
-**Floating-Point Comparison - Rust:**
-```rust
-use ferroml_core::testing::assertions::{tolerances, assert_approx_eq, assert_array_approx_eq};
+### Cross-Library Validation
 
-// Use calibrated tolerance for algorithm type
-assert_approx_eq!(coef, expected_coef, tolerances::CLOSED_FORM);
-assert_array_approx_eq!(predictions, expected_preds, tolerances::SKLEARN_COMPAT);
-```
-
-**Floating-Point Comparison - Python:**
+**Pattern (Python):**
 ```python
-import numpy as np
+class TestStandardScalerComparison:
+    """FerroML StandardScaler vs sklearn StandardScaler."""
 
-# numpy testing utilities
-np.testing.assert_allclose(predictions, expected, rtol=1e-5, atol=1e-8)
+    def _fit_both(self, X):
+        from ferroml.preprocessing import StandardScaler as FerroSS
+        from sklearn.preprocessing import StandardScaler as SkSS
+        ferro = FerroSS()
+        ferro.fit(X)
+        sk = SkSS()
+        sk.fit(X)
+        return ferro, sk
+
+    def test_iris_transform(self):
+        X, _ = get_iris()
+        ferro, sk = self._fit_both(X)
+        np.testing.assert_allclose(ferro.transform(X), sk.transform(X), atol=1e-10)
 ```
 
-**Tolerance Constants (Defined in `src/testing/assertions.rs`):**
-- `CLOSED_FORM = 1e-10` - Linear regression, QR decomposition, direct solve
-- `ITERATIVE = 1e-4` - Gradient descent, coordinate descent, IRLS
-- `TREE = 1e-12` - Decision trees, random forests (very tight)
-- `PROBABILISTIC = 1e-2` - Sampling-based, MCMC
-- `NEURAL = 1e-3` - Neural networks
-- `SKLEARN_COMPAT = 1e-5` - Comparing against sklearn reference
-- `SCALER = 1e-10` - StandardScaler, normalization
-- `DECOMPOSITION = 1e-8` - PCA, SVD
-- `DISTANCE = 1e-10` - KNN, clustering distances
-- `PROBABILITY = 1e-6` - Probability predictions (should sum to 1)
-- `METRIC = 1e-10` - Evaluation metrics (R², MSE, accuracy)
+**Tolerance Strategy:**
+- Default: `atol=1e-10` for double precision
+- Relaxed: `atol=1e-8` for complex operations or single precision
+- Very loose: `atol=1e-5` for probabilistic outputs
 
-## Test Utilities
+### Benchmarking
 
-**Rust Estimation Checks (`src/testing/checks.rs`):**
-```rust
-use ferroml_core::testing::check_estimator;
+**Framework:** Criterion (Rust), custom Python scripts
 
-// 30+ individual checks for Model contract
-pub fn check_not_fitted<M: Model>(model: &M) -> CheckResult
-pub fn check_n_features_in<M: Model>(model: &M) -> CheckResult
-pub fn check_output_shapes<M: Model>(model: &M) -> CheckResult
-pub fn check_array_mutability<M: Model>(model: &M) -> CheckResult
-pub fn check_no_nan_predictions<M: Model>(model: &M) -> CheckResult
-// ... more checks
-```
+**Rust Benchmarks:**
+- Location: `/home/tlupo/ferroml/ferroml-core/benches/`
+- Files: `benchmarks.rs`, `memory_benchmarks.rs`, `performance_optimizations.rs`, `gpu_benchmarks.rs`, `gaussian_process.rs`
+- Run: `cargo bench --bench benchmarks`
+- 86+ benchmark functions across 5 files
 
-**Rust Assertion Macros (`src/testing/assertions.rs`):**
-```rust
-// Use in tests
-assert_approx_eq!(actual, expected, tolerances::CLOSED_FORM);
-assert_array_approx_eq!(actual_array, expected_array, tolerances::SKLEARN_COMPAT);
-```
-
-**Rust Serialization Testing (`src/testing/serialization.rs`):**
-```rust
-check_model_serialization(
-    LinearRegression::new(),
-    SerializationTestConfig::default(),
-)
-```
-
-**Python Test Helpers (`ferroml-python/tests/conftest.py`):**
-- `regression_data`: Simple linear regression fixture
-- `classification_data`: Binary classification fixture
-- `multiclass_data`: 3-class classification fixture
-- `iris_like_data`: Iris dataset replica
-- `diabetes_like_data`: Regression with 10 features
-
-## Pre-commit Test Hook
-
-**What Runs:**
-```bash
-cargo test -p ferroml-core --lib -- --test-threads=4
-```
-
-**Timeout:** Must complete in ~30 seconds (pre-commit timeout)
-
-**Excluded:**
-- Integration tests in `/tests/` (too slow)
-- Ignored tests (marked `#[ignore]`)
-- GPU tests (require GPU)
-- Cross-library tests (optional dependencies)
-
-**To Run Full Suite:**
-```bash
-cargo test -p ferroml-core                    # All tests
-cargo test -p ferroml-core -- --ignored       # Slow tests
-cargo test -p ferroml-python                  # Python tests (requires .venv)
-```
-
-## Known Test Issues
-
-**Pre-existing Failures:**
-- 1 ONNX roundtrip test failure (RandomForestClassifier, tracked)
-- RidgeCV `predict()` returns NaN in some cases (known issue, pre-existing)
-
-**Ignored Tests:**
-- 26 ignored tests (slow AutoML system tests, >30 seconds each)
-- Run with: `cargo test -- --ignored --test-threads=1`
-
-## Test Authorship Best Practices
-
-**When Adding Tests:**
-1. Follow existing structure (section comments, helper functions)
-2. Use calibrated tolerance constants, not hardcoded values
-3. Name tests descriptively: `test_[feature]_[scenario]_[expected_result]`
-4. Document non-obvious test logic with comments
-5. Use fixtures for any data used by multiple tests
-6. Prefer integration tests for feature validation
-7. Mark slow tests (>5 seconds) with `#[ignore]`
-8. Ensure all Rust tests pass `cargo fmt` and `cargo clippy`
-9. Ensure all Python tests pass `pytest` and follow PEP 8
+**Python Benchmarks:**
+- Script: `scripts/benchmark_cross_library.py`
+- Compares FerroML vs sklearn/xgboost/lightgbm/statsmodels
+- Time per model, memory usage tracking
 
 ---
 
-*Testing analysis: 2026-03-15*
+*Testing analysis: 2026-03-16*

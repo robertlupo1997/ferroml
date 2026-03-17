@@ -1,308 +1,379 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-15
+**Analysis Date:** 2026-03-16
 
-## Naming Patterns
+## Language-Specific Patterns
 
-**Files:**
-- Rust modules: `snake_case` (e.g., `linear.rs`, `standard_scaler.rs`, `kmeans.rs`)
-- Python test files: `test_*.py` (e.g., `test_score_all_models.py`, `test_clustering.py`)
-- Integration test files: `[feature_area].rs` (e.g., `correctness_preprocessing.rs`, `vs_linfa_linear.rs`)
+### Rust Code Style
 
-**Functions:**
-- Rust public APIs: `snake_case` (e.g., `fit()`, `predict()`, `with_fit_intercept()`, `cooks_distance()`)
-- Builder pattern methods: `with_*` (e.g., `with_confidence_level()`, `with_feature_names()`)
-- Helper/validation functions: `check_*`, `compute_*`, `generate_*`
-- Python test functions: `test_*` (e.g., `test_fit_basic()`, `test_labels_shape_and_dtype()`)
-- Python private utilities: `_*` prefix (e.g., `_fit_and_score_clf()`, `_partial_fit_classifier()`)
+**File Naming:**
+- Module files: `snake_case` (e.g., `adaboost.rs`, `linear_regression.rs`)
+- Public struct/trait: PascalCase (e.g., `AdaBoostClassifier`, `LinearRegression`)
+- Private helper: snake_case (e.g., `fit_internal()`, `validate_input()`)
 
-**Variables:**
-- Rust data arrays: `x`, `y` for features and targets following ndarray conventions
-- Rust private fields: `snake_case` with optional prefix for clarity (e.g., `n_samples`, `fitted_data`, `residuals`)
-- Python fixtures: `*_data` suffix (e.g., `regression_data`, `clf_data`, `iris_like_data`)
-- Model state: `fitted_*` or `n_*` conventions (e.g., `fitted_values`, `n_features`, `n_clusters`)
+**Function Naming:**
+- Public API: `snake_case` (e.g., `fit()`, `predict()`, `with_learning_rate()`)
+- Constructor: `new()` or builder with `with_*()` pattern
+- Getter: `snake_case` with trailing `_` for fields (e.g., `classes()`, `theta_()`)
+- Internal check: prefix with `check_` (e.g., `check_is_fitted()`)
 
-**Types:**
-- Rust structs/enums: `PascalCase` (e.g., `LinearRegression`, `StandardScaler`, `ClusteringModel`)
-- Rust trait names: `PascalCase` (e.g., `Model`, `Transformer`, `StatisticalModel`)
-- Python classes: `PascalCase` (e.g., `LogisticRegression`, `DecisionTreeClassifier`)
+**Variable Naming:**
+- Model parameters: single descriptors (e.g., `n_estimators`, `learning_rate`, `max_depth`)
+- Array/matrix: explicit types (e.g., `x` for features Array2, `y` for targets Array1)
+- Math notation: single letter allowed in ML algorithms (e.g., `w` for weights, `b` for bias)
 
-**Constants:**
-- Rust: `SCREAMING_SNAKE_CASE` (used sparingly in tolerances module: `CLOSED_FORM`, `SKLEARN_COMPAT`)
-- Python: `SCREAMING_SNAKE_CASE` for module-level constants
+**Type/Trait Naming:**
+- Traits: descriptive adjectives ending in action (e.g., `Model`, `Transformer`, `CrossValidator`)
+- Error variants: PascalCase with context (e.g., `ShapeMismatch`, `ConvergenceFailure`, `NotFitted`)
 
-## Code Style
+**Code Organization:**
+- Modules: one concern per file (e.g., `adaboost.rs` contains only AdaBoost implementations)
+- Section separators: `// =============================================================================`
+- Block comments: `//! ` for module-level docs, `/// ` for item-level docs
+- Visibility: public types at top, helpers/state lower
 
-**Formatting:**
-- Rust: `cargo fmt` (enforced by pre-commit hook)
-- Configuration: `.pre-commit-config.yaml` runs `cargo fmt --all -- --check`
-- Linting: `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-- All Rust code must pass clippy with `-D warnings` (warnings are errors)
+**Example from `adaboost.rs`:**
+```rust
+/// AdaBoost classifier using SAMME.R algorithm.
+///
+/// Fits an ensemble of weighted decision stumps, where each subsequent
+/// estimator focuses on the samples that previous estimators got wrong.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdaBoostClassifier {
+    pub n_estimators: usize,
+    pub learning_rate: f64,
+    pub max_depth: usize,
+    pub random_state: Option<u64>,
+    pub warm_start: bool,
 
-**Linting:**
-- Tool: `cargo clippy`
-- Config: Workspace-wide, warnings treated as errors (`-D warnings` flag)
-- Pre-commit: Runs on all Rust files before commit
-- Common fixes: address all clippy warnings in submission
+    // Private fitted state
+    estimators: Option<Vec<DecisionTreeClassifier>>,
+    estimator_weights: Option<Array1<f64>>,
+    classes: Option<Array1<f64>>,
+    n_features: Option<usize>,
+}
 
-**Line Length:**
-- Rust: 100-120 characters (standard Rust convention, no enforced limit in code)
-- Python: 100 characters (PEP 8 extended)
-- Comments: wrap to prevent horizontal scroll
+impl AdaBoostClassifier {
+    pub fn new(n_estimators: usize) -> Self { /* ... */ }
+    pub fn with_learning_rate(mut self, lr: f64) -> Self { /* ... */ }
+    pub fn estimator_weights(&self) -> Option<&Array1<f64>> { /* ... */ }
+    pub fn classes(&self) -> Option<&Array1<f64>> { /* ... */ }
+}
+```
 
-**Indentation:**
-- Rust: 4 spaces
-- Python: 4 spaces
+### Python Code Style
+
+**File Naming:**
+- Test files: `test_*.py` (e.g., `test_naive_bayes.py`)
+- Module files: `snake_case.py`
+- Conftest: `conftest.py`
+
+**Function/Class Naming:**
+- Public classes: PascalCase (e.g., `TestGaussianNB`, `GaussianNB`)
+- Test methods: `test_*` pattern describing behavior (e.g., `test_fit_predict_basic`, `test_predict_proba_sums_to_one`)
+- Fixtures: descriptive snake_case (e.g., `regression_data`, `classification_data`)
+- Helpers: lowercase with leading underscore if private (e.g., `_fit_both()`)
+
+**Test Class Organization:**
+- Class per component (e.g., `class TestGaussianNB`)
+- Group related tests by section (e.g., `# --------- GaussianNB tests --------`)
+- One assertion focus per test method
+
+**Example from `test_naive_bayes.py`:**
+```python
+class TestGaussianNB:
+    def test_fit_predict_basic(self):
+        X = np.array([[1.0, 2.0], [2.0, 1.0], [3.0, 3.0],
+                      [6.0, 7.0], [7.0, 6.0], [8.0, 8.0]])
+        y = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
+        model = GaussianNB()
+        model.fit(X, y)
+        preds = model.predict(X)
+        assert preds.shape == (6,)
+
+    def test_predict_proba_sums_to_one(self):
+        X = np.array([[1.0, 2.0], [2.0, 1.0], [6.0, 7.0], [7.0, 6.0]])
+        y = np.array([0.0, 0.0, 1.0, 1.0])
+        model = GaussianNB()
+        model.fit(X, y)
+        probas = model.predict_proba(X)
+        np.testing.assert_allclose(probas.sum(axis=1), 1.0, atol=1e-10)
+```
+
+## Formatting & Linting
+
+**Rust Formatting:**
+- Tool: Built-in `cargo fmt` (Rust 2021 edition)
+- Applied on commit (pre-commit hook)
+- No custom `.rustfmt.toml` — uses edition defaults
+- Line length: implicit via formatter (typically 100 chars)
+
+**Rust Linting:**
+- Tool: `cargo clippy` with `-D warnings` (deny all warnings)
+- Clippy config: ~50+ lint allowances in `lib.rs` for ML-specific exceptions:
+  - `#![allow(clippy::too_many_lines)]` — Complex algorithms need space
+  - `#![allow(clippy::too_many_arguments)]` — ML models have many parameters
+  - `#![allow(clippy::many_single_char_names)]` — Math notation uses single letters
+  - `#![allow(clippy::float_cmp)]` — Epsilon comparisons used where needed
+  - `#![allow(clippy::return_self_not_must_use)]` — Builder pattern heavy codebase
+  - See `/home/tlupo/ferroml/ferroml-core/src/lib.rs` lines 88-149 for full list
+
+**Python Formatting:**
+- Tool: pytest-standard (no explicit formatter configured)
+- Convention: PEP 8 style observed in test files
+- Import order: stdlib → third-party → local (implicit)
 
 ## Import Organization
 
-**Rust:**
-
-Order:
-1. Standard library imports (`std::*`)
-2. Crate imports (`crate::*`)
-3. External crate imports (alphbetical within groups)
-4. Re-exports at module level
-
-Example from `linear.rs`:
+**Rust Pattern:**
 ```rust
-use crate::hpo::{ParameterValue, SearchSpace};
-use crate::models::{check_is_fitted, validate_fit_input, ...};
-use crate::pipeline::PipelineModel;
-use crate::stats::diagnostics::{...};
+// 1. Crate imports
+use crate::models::{check_is_fitted, validate_fit_input, Model};
 use crate::{FerroError, Result};
-use ndarray::{s, Array1, Array2, Axis};
+
+// 2. External crates (std first, then workspace deps, then other crates)
+use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
+
+// 3. Internal modules
+mod clustering { ... }
 ```
 
-**Path Aliases:**
-- `crate::models::*` - for model trait and implementations
-- `crate::preprocessing::*` - for transformers
-- `crate::testing::*` - for test utilities and assertions
-- `ndarray::*` - for array operations
-- `serde::*` - for serialization
-
-**Python:**
+**Python Pattern:**
 ```python
-# Standard library
+# 1. Standard library
 import numpy as np
 import pytest
 from typing import Tuple
 
-# Local/relative imports at end
-from ferroml.linear import LogisticRegression
+# 2. Third-party (ferroml)
+from ferroml.naive_bayes import GaussianNB, MultinomialNB
+
+# 3. Local imports
+from conftest_comparison import get_iris, get_wine
 ```
 
 ## Error Handling
 
-**Strategy:** Typed errors using `thiserror` crate
+**Rust Error Strategy:**
+- Error type: `FerroError` enum with variants for ML-specific cases
+- File: `/home/tlupo/ferroml/ferroml-core/src/error.rs`
+- Pattern: Use `Result<T> = std::result::Result<T, FerroError>`
+- Error variants include:
+  - `InvalidInput(String)` — Invalid input data
+  - `ShapeMismatch { expected, actual }` — Array shape mismatch
+  - `AssumptionViolation { assumption, test, p_value }` — Statistical assumption failed
+  - `ConvergenceFailure { iterations, reason }` — Optimization didn't converge
+  - `NotFitted { operation }` — Model not fitted before predict
 
-**Pattern - Return Result with FerroError:**
+**Error Creation:**
 ```rust
-pub fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
-    validate_fit_input(x, y)?;
-    // ... implementation
-    Ok(())
-}
+// Preferred: use helper methods
+FerroError::shape_mismatch("(n, m)", "(n, k)")
+FerroError::invalid_input("n_estimators must be > 0")
+
+// Or: direct enum construction
+Err(FerroError::InvalidInput("expected 2D array".into()))
 ```
 
-**Error Variants (defined in `src/error.rs`):**
-- `InvalidInput(String)` - malformed input data
-- `ShapeMismatch { expected, actual }` - dimension mismatch with details
-- `AssumptionViolation { assumption, test, p_value }` - statistical test failure
-- `NumericalError(String)` - NaN/inf handling, overflow
-- `ConvergenceFailure { iterations, reason }` - optimization failed
-- `NotImplemented(String)` - feature not available
-- `NotFitted { operation }` - model not fitted before use
-- `ConfigError(String)` - invalid parameters
-- `Timeout { operation, elapsed_seconds, budget_seconds }` - timeout exceeded
+**Python Error Strategy:**
+- Propagation: Rust errors become Python exceptions
+- Testing: Check error messages contain relevant keywords
+- Pattern in tests: `with pytest.raises(Exception)` + message assertion
 
-**Pattern - Use descriptive error contexts:**
-```rust
-// Include what failed and why
-return Err(FerroError::ShapeMismatch {
-    expected: format!("({}, {})", n_samples, n_features),
-    actual: format!("({}, {})", x.nrows(), x.ncols()),
-});
+**Example from `test_errors.py`:**
+```python
+def test_nan_in_features_raises(self):
+    model = LinearRegression()
+    X = np.array([[1.0, 2.0], [np.nan, 4.0], [5.0, 6.0]])
+    y = np.array([1.0, 2.0, 3.0])
+
+    with pytest.raises(Exception) as exc_info:
+        model.fit(X, y)
+
+    error_msg = str(exc_info.value).lower()
+    assert 'nan' in error_msg or 'invalid' in error_msg
 ```
-
-**No panics in library code:**
-- Use `Result` types instead of `expect()`
-- Panics acceptable only in test code or examples
-- Use `.map_err()` to provide context
 
 ## Logging
 
-**Framework:** `tracing` crate
+**Framework:** `tracing` crate (structured logging)
 
-**Patterns:**
-- Use debug! for development: `tracing::debug!("Starting fit with {} samples", n)`
-- Use warn! for recoverable issues: `tracing::warn!("Zero variance feature {}", i)`
-- Use info! for major milestones: `tracing::info!("Model fitted successfully")`
-- Not extensively used in current code (minimal instrumentation)
+**Pattern:**
+- Used in critical sections and diagnostics
+- Not verbose in hot paths
+- Levels: debug for algorithm steps, warn for assumptions, error for failures
 
-## Comments
+## Comments & Documentation
 
-**When to Comment:**
-- Complex mathematical operations (e.g., QR decomposition steps)
-- Non-obvious algorithmic choices (e.g., "Use Barnes-Hut approximation for O(n log n)")
-- Assumptions and edge cases (e.g., "Features with zero variance handled separately")
-- TODOs and FIXMEs should be rare; use issue tracking instead
+**When to Comment (Rust):**
+- Algorithm details with references (especially papers)
+- Non-obvious design decisions
+- Mathematical notation explanations
+- Workarounds with issue references
 
-**JSDoc/RustDoc:**
-- All public APIs documented with `///` comments
-- Module-level docs with `//!` block comments
-- Examples included for main types and functions
-- Example in docstrings:
+**Doc Patterns:**
+- Module-level: `//! ` with architecture diagrams and examples
+- Items: `/// ` with doc-comments, reference papers, examples
+- Inline: `// ` for implementation notes only
 
+**Example from `adaboost.rs`:**
 ```rust
-/// Ordinary Least Squares Linear Regression with full statistical diagnostics
+//! AdaBoost Ensemble Methods
+//!
+//! Implements AdaBoost (Adaptive Boosting) for classification and regression.
+//!
+//! ## References
+//! - Hastie, Tibshirani, Friedman (2009). "Elements of Statistical Learning"
+//! - Drucker (1997). "Improving Regressors using Boosting Techniques"
+
+/// AdaBoost classifier using SAMME.R algorithm.
 ///
-/// Fits a linear model: y = Xβ + ε
-///
-/// ## Statistical Assumptions
-///
-/// 1. **Linearity**: The relationship between X and y is linear
-/// 2. **Independence**: Observations are independent
-/// ...
+/// Fits an ensemble of weighted decision stumps, where each subsequent
+/// estimator focuses on the samples that previous estimators got wrong.
 ///
 /// ## Example
 ///
 /// ```
-/// use ferroml_core::models::linear::LinearRegression;
-/// let mut model = LinearRegression::new();
-/// model.fit(&x, &y)?;
+/// let mut clf = AdaBoostClassifier::new(50);
+/// clf.fit(&x, &y)?;
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LinearRegression { ... }
+pub struct AdaBoostClassifier { ... }
 ```
 
-**Comment Style:**
-- Line comments: `//` for single lines
-- Block comments: `/* ... */` rarely used
-- Test comments: Explain what is being tested and why
-- Use markdown in doc comments for structure
+**Python Documentation:**
+- Module docstrings: describe purpose and patterns
+- Class docstrings: behavior and test focus
+- Method docstrings: only when non-obvious
+
+**Example from `conftest.py`:**
+```python
+"""
+Shared fixtures for FerroML Python tests.
+
+This module provides:
+- Sample datasets (regression, classification, multiclass)
+- Model factories for common test patterns
+- Utility functions for testing
+"""
+
+@pytest.fixture
+def regression_data() -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Generate simple regression data.
+
+    y = 2*X[:, 0] + 3*X[:, 1] - X[:, 2] + noise
+
+    Returns:
+        Tuple of (X, y) with shape (100, 3) and (100,)
+    """
+```
 
 ## Function Design
 
-**Size:**
-- Prefer functions <150 lines (guideline, not hard limit)
-- Large implementations split into private helper methods
-- Each function should have single responsibility
+**Size Guidelines (Rust):**
+- Clippy allows `#![allow(clippy::too_many_lines)]` for complex algorithms
+- Typical: 50-300 lines for algorithm implementations
+- Preference: Break into helper functions by logical step
 
 **Parameters:**
-- Use builder pattern for complex initialization (e.g., `LinearRegression::new().with_fit_intercept(false)`)
-- Avoid boolean parameters in public APIs (use builder methods instead)
-- Array parameters always `&Array2<f64>`, `&Array1<f64>` (immutable references)
-- Result type: `Result<T>` where T is return value
+- Input arrays: `&Array2<f64>` (features), `&Array1<f64>` (targets)
+- Output arrays: `Array2<f64>` or `Array1<f64>` (owned)
+- Configs: builder pattern with `with_*()` methods
+- No default parameters — use builders
 
 **Return Values:**
-- Main algorithms return `Result<()>` for fit, `Result<Array1<f64>>` for predict
-- Getter methods return `Option<T>` for potentially unfitted state
-- Statistical functions return `Option<(f64, f64)>` for paired values (e.g., F-statistic, p-value)
+- Success: `Result<T>` for public API
+- Arrays: owned (Array2<f64>, Array1<f64>)
+- References: for accessors (e.g., `estimators()` returns `Option<&[...]>`)
 
-**Pattern - Check is_fitted before accessing state:**
+**Example:**
 ```rust
-pub fn cooks_distance(&self) -> Option<Array1<f64>> {
-    let data = self.fitted_data.as_ref()?;
-    // ... compute from data
-    Some(result)
-}
+// Builder pattern for initialization
+pub fn new(n_estimators: usize) -> Self { ... }
+pub fn with_learning_rate(mut self, lr: f64) -> Self { ... }
+pub fn with_max_depth(mut self, max_depth: usize) -> Self { ... }
+
+// Fit/predict pattern
+pub fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> { ... }
+pub fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> { ... }
+
+// Accessors
+pub fn classes(&self) -> Option<&Array1<f64>> { ... }
+pub fn estimator_weights(&self) -> Option<&Array1<f64>> { ... }
 ```
 
 ## Module Design
 
-**Exports:**
-- Public API types and trait re-exported at module level
-- Implementation details marked `pub(crate)` or private
-- Sub-modules for large features (e.g., `models/linear.rs`, `preprocessing/scalers.rs`)
+**Public Exports:**
+- Traits and primary types: always public
+- Helpers and validation: often public for library users
+- Internals: private with `pub(crate)` when needed by other modules
 
-**Barrel Files:**
-- `mod.rs` files re-export all public types
-- Example in `preprocessing/mod.rs`:
-```rust
-pub use self::scalers::{MaxAbsScaler, MinMaxScaler, RobustScaler, StandardScaler};
-pub use self::polynomial::PolynomialFeatures;
-pub use self::encoders::{OneHotEncoder, OrdinalEncoder, LabelEncoder};
-```
+**Barrel Files (re-exports):**
+- Used in preprocessing and models submodules
+- File: `/home/tlupo/ferroml/ferroml-core/src/preprocessing/mod.rs`
+- Pattern: `pub use self::scalers::*; pub use self::encoders::*;`
 
-**Trait Organization:**
-- Core traits in `traits` module: `Model`, `Transformer`, `StatisticalModel`, `ProbabilisticModel`
-- Implementations alongside business logic
-- Trait implementations separate from struct definition by blank line + `impl` block
+**Python Re-exports:**
+- Via `__init__.py` in submodules
+- Example: `/home/tlupo/ferroml/ferroml-python/src` wraps all Rust types
+- Bindings expose full sklearn-compatible API
 
-**Feature Flags:**
-- Sparse operations: `#[cfg(feature = "sparse")]`
-- GPU acceleration: `#[cfg(feature = "gpu")]`
-- ONNX export: `#[cfg(feature = "onnx")]`
-- Default features: `parallel`, `onnx`, `simd`, `faer-backend`
+## Constants & Magic Numbers
 
-## API Design Patterns
+**Conventions:**
+- Named constants for tuning parameters (e.g., `const DEFAULT_VARIANCE_SMOOTHING: f64 = 1e-9;`)
+- Documented magic numbers in comments when needed
+- Use `const` for compile-time known values
+- Use `lazy_static` or runtime initialization for non-const values
 
-**Builder Pattern (Common):**
-```rust
-let mut model = LinearRegression::new()
-    .with_fit_intercept(true)
-    .with_confidence_level(0.95)
-    .with_feature_names(vec!["x1".to_string(), "x2".to_string()]);
-```
+## Trait Implementations
 
-**Trait-Based Polymorphism:**
-- All models implement `Model` trait
-- Common preprocessing via `Transformer` trait
-- Optional: `StatisticalModel`, `ProbabilisticModel`, `IncrementalModel` for specialized behavior
+**Standard Traits:**
+- `Debug`: Always derived
+- `Clone`: Always derived for models (enables HPO re-runs)
+- `Serialize`/`Deserialize`: Always derived (serde framework)
+- `Default`: Implemented when sensible (e.g., `AdaBoostClassifier` default has n_estimators=50)
 
-**Sklearn API Parity:**
-- Core methods: `fit(X, y)`, `predict(X)`, `score(X, y)` available on 55+ models
-- Optional: `partial_fit()` for 10+ incremental learners
-- Optional: `decision_function()` for 13+ classifiers
-- Parameters validated in builders, not in fit()
-
-## Type System
-
-**Numerical Arrays:**
-- Features: `&Array2<f64>` with shape `(n_samples, n_features)`
-- Targets: `&Array1<f64>` with shape `(n_samples,)`
-- Outputs: `Array1<f64>` for vectors, `Array2<f64>` for matrices
-- No generic numeric types; always `f64` for stability
-
-**Serialization:**
-- Serde with `Serialize`, `Deserialize` derives on model structs
-- Formats: JSON, MessagePack, Bincode, Protocol Buffers (optional)
-- All models must be serializable
-
-**Error Type:**
-- Return `Result<T>` which is alias for `std::result::Result<T, FerroError>`
-- Never `Option` for operation failures (use `Result`)
-- Use `Option` for optional state (e.g., `Option<Array1<f64>>` for fitted coefficients)
+**ML-Specific Traits (in `traits.rs`):**
+- `Model`: `fit()`, `predict()`, `is_fitted()`, `n_features()`, `model_name()`
+- `Transformer`: `fit()`, `transform()`, `fit_transform()`, `inverse_transform()`
+- `StatisticalModel`: adds `confidence_interval()`, `get_params()`
+- `ProbabilisticModel`: adds `predict_proba()`
 
 ## Testing Conventions
 
-See TESTING.md for comprehensive patterns. Key points:
-- Unit tests in `#[cfg(test)]` modules within source files
-- Integration tests in `/tests/` directory as separate compilation units
-- Test names start with `test_` or follow pattern `test_[feature]_[scenario]`
-- Use fixtures extensively (pytest in Python, rstest in Rust)
-- Assertions use specialized tolerance constants: `CLOSED_FORM`, `ITERATIVE`, `SKLEARN_COMPAT`
+**Inline Module Tests (Rust):**
+- Location: module file with `#[cfg(test)] mod tests { }`
+- Pattern: Simple unit tests for single functions
+- Use `#[test]` attribute
+- Example from `error.rs`:
+  ```rust
+  #[cfg(test)]
+  mod tests {
+      use super::*;
 
-## Pre-commit Hooks
+      #[test]
+      fn test_error_creation() {
+          let err = FerroError::shape_mismatch("expected", "actual");
+          assert!(matches!(err, FerroError::ShapeMismatch { .. }));
+      }
+  }
+  ```
 
-**Enforced Checks:**
-1. `cargo fmt --all` - Format all Rust code (fails if not formatted)
-2. `cargo clippy --workspace --all-targets --all-features -- -D warnings` - Lint check (warnings are errors)
-3. `cargo test -p ferroml-core --lib -- --test-threads=4` - Quick unit tests
-4. Python script `scripts/check_debug_macros.py` - No `todo!()`, `unimplemented!()`, `dbg!()` in production code
-5. Python script `scripts/check_cargo_toml.py` - Cargo.toml validation
-6. Pre-commit hooks: trailing whitespace, line endings (LF), YAML/TOML checks, private key detection
+**Integration Tests (Rust):**
+- Location: `/home/tlupo/ferroml/ferroml-core/tests/` (separate binaries)
+- Consolidated files: `correctness.rs`, `integration.rs`, `edge_cases.rs`, `adversarial.rs`, `vs_linfa.rs`, `regression_tests.rs`
+- Each file is a single test binary (reduced from 19 to 6 files for faster builds)
+- Run with: `cargo test --test correctness`
 
-**Workflow:**
-```bash
-# Before committing, pre-commit automatically:
-cargo fmt --all
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test -p ferroml-core --lib -- --test-threads=4
-```
+**Fuzzing:**
+- Framework: libfuzzer-sys
+- Location: `/home/tlupo/ferroml/ferroml-core/fuzz/fuzz_targets/`
+- Test serialization, preprocessing, ONNX loading
+- Run with: `cargo +nightly fuzz run <fuzzer_name>`
 
 ---
 
-*Convention analysis: 2026-03-15*
+*Convention analysis: 2026-03-16*

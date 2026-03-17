@@ -1,373 +1,312 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-03-15
+**Analysis Date:** 2026-03-16
+
+## Performance Regressions
+
+**SVC Kernel Caching (Critical — Urgent Fix Required):**
+- Issue: SVC performance REGRESSED to 17.6x slower than sklearn (up from 4x) due to LRU kernel cache implementation
+- Files: `ferroml-core/src/models/svm.rs` (lines 80-227 for cache logic, lines 91 FULL_MATRIX_THRESHOLD, 84 DEFAULT_CACHE_SIZE)
+- Impact: Medium-large datasets (n=5000) now timeout or fail to complete in reasonable time; production use blocked for this scale
+- Current mitigation: FULL_MATRIX_THRESHOLD raised to 10K (band-aid only), LRU cache still active for 4K-10K range
+- Root cause: LRU cache with shrinking reduces cache hit rates and adds hash lookup overhead on each kernel access; doesn't match libsvm's contiguous memory access pattern
+- Fix approach (documented in `docs/plans/2026-03-15-svc-performance-fix.md`):
+  1. Implement libsvm-style shrinking (actively manage working set, remove bound variables)
+  2. Replace random j-selection with WSS3 (weighted second-order working set selection) for faster convergence
+  3. Optimize error cache update to only iterate over active set (not full n samples)
+  4. Benchmark & lower FULL_MATRIX_THRESHOLD back to 4K
+  - Expected outcome: 17.6x → 2-3x of sklearn (competitive)
+
+**HistGradientBoosting Performance Baseline Gap:**
+- Issue: HistGBT Classifier 2.6x slower than sklearn (improved from 15x, but still not competitive)
+- Files: `ferroml-core/src/models/hist_boosting.rs`
+- Impact: Low-medium (acceptable for non-latency-critical production, but penalizes tree-based ensemble choice)
+- Cause: Binary search for bin assignment, Rust overhead in gradient computation vs sklearn's Cython
+- Improvement path: SIMD binning, parallel tree building, custom allocator for histogram arrays
+- Status: Acceptable as-is (no urgent fix needed)
+
+**LogisticRegression Solver Choice Gap:**
+- Issue: LogReg 2.1x slower than sklearn (was 2.5x pre-Plan W)
+- Files: `ferroml-core/src/models/logistic.rs`
+- Impact: Low (linear models are fast baseline; 2x slower is still <100ms for typical datasets)
+- Root cause: IRLS solver used for d<20 (correct numerically), L-BFGS for d>=50 (correct but slower than sklearn's SAG). sklearn uses different solver strategies per case.
+- Trade-off: Current approach prioritizes numerical stability (IRLS is exact) over speed
+- Improvement path: Implement SAG (Stochastic Average Gradient) for warm-start compatibility
 
 ---
 
-## Tech Debt
+## Known Test Failures
 
-### RidgeCV Predict Returns NaN
-
-**Issue:** `RidgeCV().fit(X, y).predict(X)` returns all NaN values instead of valid predictions.
-
-**Files:** `ferroml-core/src/models/regularized.rs` (RidgeCV implementation, ~lines 1430-1614)
-
-**Impact:** RidgeCV is unusable for production. `score()` and cross-validation workflows will fail silently. This is a critical blocker for users relying on cross-validated ridge regression.
-
-**Status:** Pre-existing bug documented in Plan V. Cause believed to be in alpha selection or inner Ridge delegation. Requires mathematical debugging.
-
-**Fix approach:**
-1. Add test case to verify the exact failure point
-2. Check alpha selection logic in `_fit_cv` method
-3. Verify inner `self.model.predict()` works with selected alpha
-4. Add instrumentation to log intermediate values (alphas, coefficients)
-
-**Test location:** `ferroml-python/tests/test_score_all_models.py` — test is marked with `@pytest.mark.skip` due to this bug.
+**6 Pre-Existing Failures in test_vs_sklearn_gaps_phase2.py:**
+- Files: `ferroml-python/tests/test_vs_sklearn_gaps_phase2.py`
+- Failures:
+  1. `TemperatureScalingCalibrator` — calibration quality vs sklearn CalibratedClassifierCV (sigmoid method)
+     - Issue: Slightly different loss minimization strategy during temperature fitting
+     - Status: Low priority (calibration works, just not 100% parity)
+  2. `IncrementalPCA` — batch vs full PCA equivalence, transformation quality
+     - Issue: Accumulated rounding errors in streaming PCA (documented in sklearn as well)
+     - Status: Acceptable (incremental PCA inherently has this issue; users warned in docs)
+- Impact: Minimal (both models function correctly, edge-case differences)
+- No critical bugs in core functionality
 
 ---
 
-### ONNX RandomForestClassifier Roundtrip Mismatch
+## Panic & Unwrap Usage (Defensive Programming Gaps)
 
-**Issue:** One pre-existing ONNX test failure persists: `test_onnx_roundtrip_RandomForestClassifier`.
-
-**Files:** `ferroml-python/tests/test_onnx_roundtrip.py`, `ferroml-core/src/onnx/tree.rs`
-
-**Impact:** RandomForest classifier predictions can mismatch when exported to ONNX and re-imported via onnxruntime, though both Rust and ONNX predictions are internally consistent.
-
-**Status:** Addressed in robustness audit (2026-03-14). TreeEnsembleRegressor + ArgMax + normalized leaf probabilities should handle this. If failures persist, likely due to f32 precision loss in probability normalization for rare classes (5/20 random seeds show 1/50 mismatches at 0.5/0.5 ties).
-
-**Fix approach:**
-1. Verify normalized leaf probabilities are computed correctly in `onnx/tree.rs`
-2. Increase test tolerance from exact match to within 1 class if predictions are near decision boundary
-3. If still failing, add f32 precision documentation and accept the mismatch for rare-class predictions
-
-**Test tolerances:** Regressors use `atol=1e-5`, classification labels exact match, probabilities `atol=1e-4`.
+**Risk Count: 6,429 defensive patterns**
+- Files affected: All 200 Rust source files
+- Patterns: ~6,429 occurrences of `unwrap()`, `expect()`, `panic!()`, `as_slice().unwrap()` across codebase
+- Primary locations:
+  - `ferroml-core/src/models/svm.rs` (kernel row slicing — lines 128, 219, 858-900)
+  - Documentation examples (safe doctest context)
+  - Performance-critical inner loops (justified but risky in edge cases)
+- Impact: Low-medium — panics only occur with malformed inputs or violated internal invariants
+- Mitigation: Input validation on public APIs; internal invariants maintained by type system
+- Improvement path: Replace performance-critical unwraps with debug_assert! or Result types in error paths
 
 ---
 
-## Performance Bottlenecks
+## Numerical Stability & Edge Cases
 
-### HistGradientBoosting 15x Slower Than sklearn
+**Fisher Z-Transform NaN/Inf Risk:**
+- Files: `ferroml-core/src/stats/mod.rs` (line 502 comment notes r=±1 causes NaN/Inf in Fisher z)
+- Issue: Correlation coefficients at boundaries (r approaching ±1.0) cause division by zero in z-transform: `z = 0.5 * ln((1+r)/(1-r))`
+- Impact: Stats module functions that use z-transform (confidence intervals on correlations) can return NaN
+- Fix: Clamp r to [-0.9999, 0.9999] before z-transform or use alternative stable form
+- Status: Handled with checks in code, but not universally applied
 
-**Problem:** HistGBT is 15x slower than sklearn's implementation on n=5000, p=20 datasets.
+**Durbin-Watson Edge Cases:**
+- Files: `ferroml-core/src/stats/diagnostics.rs` (lines 355, 370)
+- Issue: DW returns NaN for n<2 or all-zero residuals (mathematically correct, but can confuse users)
+- Impact: Low (documented in docstrings)
 
-**Files:** `ferroml-core/src/models/hist_boosting.rs`
-
-**Cause:** Three identified inefficiencies:
-1. **Bin assignment uses linear search** (O(n_bins) per sample) instead of binary search (O(log n_bins))
-2. **Full kernel matrix precomputation** — evaluates all splits without caching frequently-used rows
-3. **Column-major data copy overhead** in `to_col_major()` (lines 372-384)
-
-**Current metrics:** 1852ms on benchmark dataset, sklearn ~120ms
-
-**Improvement path:** Plan W.4 targets three fixes:
-1. Replace `.position()` with `.binary_search_by()` for O(log 256) vs O(256) per bin assignment (~4-5x speedup alone)
-2. Lower parallelism threshold from `10_000 && n_features >= 8` to `1_000 && n_features >= 4`
-3. Replace column-major copy with column views or in-place column-major layout
-
-**Target:** Within 3x of sklearn (400ms range) — realistic given sklearn uses highly optimized C code.
-
-**Risk:** Even after fixes, HistGBT will likely remain 2-3x slower than sklearn due to architecture differences (numpy array operations vs hand-tuned C).
+**LOF Infinite LRD (Local Reachability Density):**
+- Files: `ferroml-core/src/models/lof.rs`
+- Issue: If k-NN distance is 0 (duplicate points), LRD becomes infinite; checked (lines 1191, 1193) but can propagate
+- Impact: Low (models gracefully return Inf for degenerate cases, not NaN)
 
 ---
 
-### SVC 4x Slower Than sklearn
+## Complex Modules (Maintenance & Testing Risk)
 
-**Problem:** SVC training is 4x slower than sklearn at n=5000.
+**SVM Implementation (4,654 lines):**
+- Files: `ferroml-core/src/models/svm.rs`
+- Complexity: SMO algorithm with LRU kernel cache, Platt scaling, multiclass strategies (OvO/OvR), class weights
+- Issues:
+  - Performance regression (discussed above)
+  - Dense algorithm implementation (hard to debug)
+  - Shrinking mechanism needed but not yet implemented
+- Risk: Medium (core algorithm, but well-tested)
+- Test coverage: 37+ Rust tests + 100+ Python tests
 
-**Files:** `ferroml-core/src/models/svm.rs`
+**HistGradientBoosting (4,286 lines):**
+- Files: `ferroml-core/src/models/hist_boosting.rs`
+- Complexity: Histogram-based tree building, missing value handling, L2 regularization, per-sample weights
+- Issues:
+  - Performance gap vs sklearn (2.6x slower)
+  - 36 unwrap() calls in binning logic (assumes correct bin indexing)
+- Risk: Medium (ensemble algorithm, 200+ lines per method)
+- Test coverage: 80+ tests
 
-**Cause:** Full O(n²) kernel matrix precomputation in memory, no LRU caching. libsvm (used by sklearn) caches only ~min(n, 1000) kernel rows, saving memory and L-cache pressure.
-
-**Current metrics:** 406ms on benchmark, sklearn ~100ms
-
-**Improvement path:** Plan W.3 requires implementing LRU kernel cache:
-1. Add `KernelCache` struct with HashMap<usize, Vec<f64>> + VecDeque for LRU order
-2. Replace full `compute_kernel_matrix()` with on-demand `cache.get_row(i, x)` in SMO
-3. Set capacity to `min(n_samples, 1000)`
-
-**Target:** Within 1.5x of sklearn (~150ms).
-
-**Implementation complexity:** Medium — requires plumbing LRU requests through SMO inner loops without breaking existing tests.
-
----
-
-### KMeans 2.5x Slower Than sklearn
-
-**Problem:** KMeans fitting is 2.5x slower than sklearn.
-
-**Files:** `ferroml-core/src/clustering/kmeans.rs`
-
-**Cause:** Lloyd's algorithm with full distance matrix recalculation every iteration. sklearn uses Elkan's algorithm with triangle inequality bounds to skip redundant distance computations.
-
-**Current metrics:** 33.8ms on benchmark, sklearn ~13.5ms
-
-**Improvement path:** Plan W.2 implements Elkan's algorithm:
-1. Maintain center-to-center distance cache (k×k matrix, recomputed each iteration)
-2. Track per-sample upper bounds `u[i]` and lower bounds `l[i][j]` to the assigned and alternative centers
-3. Skip distance computation when `u[i] <= l[i][j]` (triangle inequality guarantees optimality)
-4. Update bounds after center movement using delta tracking
-
-**Target:** Within 1.5x of sklearn (~20ms).
-
-**Memory overhead:** O(n·k) for bounds storage. Acceptable for typical k < 100.
+**Regularized Regression (3,197 lines):**
+- Files: `ferroml-core/src/models/regularized.rs`
+- Complexity: Ridge, Lasso, ElasticNet, RidgeCV, LassoCV, ElasticNetCV with coordinate descent, LARS solvers
+- Issues:
+  - Coordinate descent convergence depends on feature scaling
+  - RidgeCV fixed NaN bug in Plan V (ln(-4.0) issue) — suggests fragility in CV pathfinding logic
+- Risk: Medium (numerical algorithm)
+- Test coverage: 120+ tests
 
 ---
 
-### LogisticRegression 2.5x Slower Than sklearn at Scale
+## Fragile Areas (Sensitive to Input Changes)
 
-**Problem:** LogReg IRLS solver is 2.5x slower at n=5000 compared to sklearn's liblinear.
+**Pipeline Composition (3,086 lines):**
+- Files: `ferroml-core/src/pipeline/mod.rs`
+- Why fragile:
+  - Strict transformer→estimator ordering (no validation)
+  - Feature count mismatch between steps can panic downstream
+  - Complex fit/predict chains with state (fitted_ vs unfitted_ models)
+- Safe modification: Always validate X.ncols() matches expected features after each transform
+- Test coverage: 45+ tests, but gaps in multi-step pipelines with missing values
 
-**Files:** `ferroml-core/src/models/logistic.rs`
+**Gaussian Process Models (2,288 lines):**
+- Files: `ferroml-core/src/models/gaussian_process.rs`
+- Why fragile:
+  - Cholesky decomposition can fail on poorly conditioned kernels
+  - Regularization parameter (alpha) critically affects stability
+  - Marginal likelihood optimization can get stuck in local minima
+- Safe modification: Always check condition number before Cholesky; use `with_alpha(1e-6)` default (not 1e-8)
+- Test coverage: 60+ tests, but no condition-number sensitivity tests
 
-**Cause:** IRLS computes O(d³) Cholesky decomposition per iteration; liblinear uses L-BFGS with O(d) per iteration and low-rank Hessian approximation.
-
-**Current metrics:** 13.6ms on benchmark, sklearn ~5.4ms
-
-**Improvement path:** Plan W.5 adds L-BFGS solver:
-1. Add `solver` parameter: `Irls` (current, default for d < 50) or `Lbfgs` (auto-selected for d >= 50)
-2. Implement `LogisticCost` struct with argmin crate's `CostFunction` + `Gradient` traits
-3. Use `argmin::solver::linesearch::MoreThuenteLineSearch` + `argmin::solver::quasinewton::LBFGS`
-
-**Target:** Within 1.5x of sklearn at all dataset sizes (~8ms).
-
-**Implementation complexity:** Medium — argmin crate already available as dependency; primarily integration work.
-
----
-
-### PCA 3x Slower on Tall-Thin Data
-
-**Problem:** PCA randomized SVD is not triggered for tall-thin data (n=1000, p=5000).
-
-**Files:** `ferroml-core/src/decomposition/pca.rs` (lines 396-404)
-
-**Cause:** Auto-selector only triggers when **both** n_samples > 500 AND n_features > 500. Should also trigger for tall-thin data where n_features >> n_samples.
-
-**Current behavior:** Uses full SVD (O(n·p²)) even when randomized SVD (O(n·p·k)) would be faster.
-
-**Fix approach:** Change auto-selector logic:
-```rust
-// Before: only randomize when both dimensions > 500
-// After: also randomize when n_features > 100 && n_features > 2 * n_samples
-SvdSolver::Auto => {
-    if (n_samples > 500 && n_features > 500)
-        || (n_features > 100 && n_features > 2 * n_samples) {
-        // use randomized
-    }
-}
-```
-
-**Target:** >2x improvement for tall-thin PCA.
-
-**Complexity:** Trivial (5-line change). Plan W.1.
+**Tree-Based Node Selection:**
+- Files: `ferroml-core/src/models/tree.rs` (2,593 lines)
+- Why fragile:
+  - Best split selection via `partial_cmp()` (line 828: `.unwrap_or(Ordering::Equal)`) assumes NaN/Inf don't occur in gain
+  - Ties broken arbitrarily (first-wins), can differ from sklearn
+- Safe modification: Pre-check for NaN/Inf gains; add deterministic tie-breaking (feature index, threshold order)
+- Test coverage: 85+ tests, 56 vs sklearn tests pass
 
 ---
 
-## Fragile Areas
+## Dependency Risks
 
-### Complex Models with Large File Size
+**linfa 0.8.1 (Cross-Library Validation Only):**
+- Usage: Dev dependency for cross-library tests only (`ferroml-core/Cargo.toml` line 78)
+- Risk: Low (not in production path)
+- Note: Uses ndarray 0.16 (compatible with FerroML)
 
-**Naive Bayes (4,680 lines):**
-- **Files:** `ferroml-core/src/models/naive_bayes.rs`
-- **Why fragile:** Implements 4 NB variants (Gaussian, Multinomial, Bernoulli, Categorical) with dense and sparse paths, ONNX export, and log-probability computations. High density of edge cases (zero probability guards, smoothing parameters).
-- **Safe modification:** Changes to log calculations need finite-value guards. Add guard tests before any `.ln()` or `.sqrt()` operations. Cross-reference `audit-report.md` fixes (lines 472-473, 968) for guard patterns.
-- **Test coverage:** Comprehensive — 26 correctness tests in `correctness_bayes.rs` validate against scipy/sklearn.
+**Optional Feature Fragmentation:**
+- Features: `datasets`, `parallel`, `simd`, `sparse`, `onnx`, `onnx-validation`, `faer-backend`, `gpu`
+- Risk: Medium (8 optional feature combinations can have untested interactions)
+- Examples:
+  - `sparse` models + `gpu` (no GPU sparse kernels implemented)
+  - `onnx` + `datasets` (Polars loading may fail with ONNX export)
+- Mitigation: CI tests default features + all-features; docs warn of unsupported combinations
 
-**SVM (4,531 lines):**
-- **Files:** `ferroml-core/src/models/svm.rs`
-- **Why fragile:** Platt scaling sigmoid, kernel computations, SMO algorithm, sparse data handling, ONNX export. Numerical stability is critical (overflow/underflow in sigmoid, gradient scaling).
-- **Safe modification:** All sigmoid computations should use `stable_sigmoid()` helper (line 681, 726). Kernel cache addition (Plan W.3) touches SMO inner loops — high risk of introducing correctness bugs.
-- **Test coverage:** 56 Rust tests + cross-library validation vs linfa. Add regression tests for any kernel cache changes.
-
-**HistGradientBoosting (4,279 lines):**
-- **Files:** `ferroml-core/src/models/hist_boosting.rs`
-- **Why fragile:** Bin assignment, histogram construction, greedy split finding, tree building, ONNX export. Changes to bin assignment algorithm (Plan W.4 Fix 1) are high-risk — small errors cascade to wrong predictions.
-- **Safe modification:** Always test bin assignment separately (unit test with known thresholds). Verify histograms match sklearn on toy dataset after changes. Use `atol=1e-5` in ONNX validation.
-- **Test coverage:** ONNX roundtrip + 44 correctness tests. Plan W.4 will require extensive benchmarking to verify speedup doesn't break accuracy.
+**ONNX Runtime (ort 2.0.0-rc.11):**
+- Status: Release candidate (not stable)
+- Risk: Low (optional feature, ONNX 118 roundtrip tests passing)
+- Upgrade path: Upgrade to ort 2.0.0 final when released
 
 ---
 
-### Preprocessing Complexity
+## Missing Critical Validations
 
-**Sampling (3,759 lines):**
-- **Files:** `ferroml-core/src/preprocessing/sampling.rs`
-- **Why fragile:** Stratified sampling, temporal splits, GroupKFold with group edge cases (empty groups, single-sample groups, mismatched group arrays).
-- **Safe modification:** Changes to stratification logic need 100% test coverage. Test with edge cases: single group with n > 1, group with n=1, empty groups after filtering.
+**Input Shape Validation Gaps:**
+- Issue: Some models don't fully validate X during fit/predict
+- Examples:
+  - KNN doesn't validate single-sample datasets
+  - Tree-based models skip validation if n_samples < 3
+- Files: `ferroml-core/src/models/mod.rs` (validate_fit_input, validate_predict_input functions)
+- Risk: Low (models degrade gracefully or error clearly)
+- Improvement: Expand `check_*` validators to cover all edge cases (p=1, n=1, n=2)
 
-**Pipeline (3,086 lines):**
-- **Files:** `ferroml-core/src/pipeline/mod.rs`
-- **Why fragile:** Chained transformers, ColumnTransformer with mixed sparse/dense, fit→transform→predict flows. State tracking across steps can introduce off-by-one errors or column name mismatches.
-- **Safe modification:** Any changes to step execution order need integration tests covering all combination types (dense→dense, sparse→dense, etc.). ColumnTransformer creates dummy 1-row arrays for output shape inference — acceptable risk (transformers validate inputs).
-
----
-
-## Scaling Limits
-
-### No Active Caching for Large-N Problems
-
-**Current capacity:** Full kernel matrix stored in memory for SVC (O(n²) memory).
-
-**Limit:** Breaks for n > ~20,000 (gigabytes of RAM needed for f64 kernel matrix).
-
-**Scaling path:** Implement LRU kernel cache (Plan W.3) — reduces memory footprint to O(min(n, 1000) · d).
+**Missing Value Handling Inconsistency:**
+- Issue: Some models accept NaN, others reject; behavior not consistent
+- Examples:
+  - Tree-based models handle NaN (go left heuristic)
+  - KNN rejects NaN (no neighbor defined)
+  - AutoML preprocessing auto-fills NaN
+- Files: Multiple model files + `ferroml-core/src/automl/preprocessing.rs`
+- Risk: Low (documented per model)
+- Improvement: Add schema-based validation option (already exists but not used everywhere)
 
 ---
 
-### Tree Depth and Recursion
+## Build & Deployment Concerns
 
-**Files:** `ferroml-core/src/models/tree.rs`
+**Debug Build Size (14 GB):**
+- Issue: Post-consolidation (Plans A-X), debug build is ~14 GB vs 350 GB pre-consolidation
+- Impact: CI disk usage acceptable, local development slow
+- Workaround: Use `cargo build --release` or `maturin develop --release`
+- Status: Acceptable (test consolidation fixed root issue)
 
-**Current limit:** No enforced maximum tree depth. Deep trees (>1000 levels) can cause stack overflow during recursive predict.
+**Pre-Commit Hooks Enforcement:**
+- Hooks: cargo fmt, clippy -D warnings, cargo test (quick)
+- Risk: Medium — clippy is strict (blocks commits on warnings), slow test runner can timeout
+- Mitigation: Tests are quick (only lib tests + edge cases, not integration tests)
 
-**Risk:** Stack exhaustion on adversarial datasets (e.g., decision stumps on linearly-separable data).
-
-**Mitigation:** Trees grown via DecisionTreeRegressor/Classifier naturally stop at max_depth parameter (default 20). ONNX export has 10M node cap (`check_tree_node_limit` in `onnx/tree.rs`).
-
-**Recommendation:** Add depth limit to tree building to fail gracefully rather than OOM/stack overflow.
-
----
-
-### PolynomialFeatures Output Explosion
-
-**Files:** `ferroml-core/src/preprocessing/polynomial.rs`
-
-**Current limit:** 1M output features cap (added in robustness audit).
-
-**Scaling formula:** Output dimensions = C(n_features + degree, degree) = (n_features+degree)! / (n_features! · degree!).
-
-**Risk cases:**
-- degree=3, n_features=100: C(103, 3) = 176k ✓ (under cap)
-- degree=3, n_features=300: C(303, 3) = 4.6M ✗ (exceeds cap, rejected)
-
-**Current behavior:** Returns error when exceeding 1M. Acceptable.
-
----
-
-### ONNX f32 Precision Loss
-
-**Problem:** ONNX export converts all f64 to f32, losing precision.
-
-**Files:** `ferroml-core/src/onnx/*.rs`
-
-**At-risk areas:**
-- **Tree leaf values**: Normalized probabilities for rare classes lose precision (0.001 → 0 in f32)
-- **SVM dual coefficients**: Large-magnitude coefficients lose precision
-- **Kernel parameters**: Auto-gamma `1/n_features` loses precision for p > 500
-- **HistGBT bin thresholds**: `next_down_f32` ULP nudge may not preserve <= semantics near f32 subnormals
-- **Tie-breaking**: ~5/20 random seeds show 1/50 mismatch at 0.5/0.5 probability ties
-
-**Current mitigation:** Test tolerances use `atol=1e-5` for regressors, exact match for labels, `atol=1e-4` for probabilities. 44/44 ONNX roundtrip tests pass within these tolerances.
-
-**Known limitation:** Documented but not fixed (acceptable tradeoff for ONNX interoperability).
-
----
-
-## Dependencies at Risk
-
-### Polars as Mandatory Dependency
-
-**Risk:** ferroml-core depends on polars, used only for `load_csv()` and `load_parquet()`.
-
-**Impact:** Adds ~50MB to minimal ferroml-core builds even for users who don't use file I/O. Increases compile time.
-
-**Migration plan:** Plan W.6 moves polars to optional behind `datasets` feature. Default features include it (backward compatible).
-
-**Complexity:** Simple — gate module with `#[cfg(feature = "datasets")]`.
-
----
-
-### ngrams Dependency for Text Preprocessing
-
-**Risk:** Unused or minimal usage — check if `ngrams` crate is still imported.
-
-**Status:** No immediate concern if CountVectorizer uses it correctly. Robustness audit (pass 2) fixed CountVectorizer empty vocab issue.
-
----
-
-## Known Bugs Summary
-
-| Bug | Status | Impact | Fix Priority |
-|-----|--------|--------|--------------|
-| RidgeCV predict → NaN | Pre-existing | Critical: model unusable | High |
-| ONNX RF classifier mismatch | Pre-existing | Low: rare-class precision loss | Low |
-| HistGBT 15x slower | Known perf gap | Medium: uncompetitive | High (Plan W.4) |
-| SVC 4x slower | Known perf gap | Medium: uncompetitive | High (Plan W.3) |
-| KMeans 2.5x slower | Known perf gap | Medium: uncompetitive | Medium (Plan W.2) |
-| LogReg 2.5x slower | Known perf gap | Medium: uncompetitive | Medium (Plan W.5) |
-| PCA tall-thin 3x slower | Known perf gap | Low: edge case | Trivial (Plan W.1) |
+**GitHub Billing Issue (Blocks Release):**
+- Status: From memory, this was noted as blocking production deployment
+- Action required: Verify GitHub runner limits and billing setup before public release
 
 ---
 
 ## Test Coverage Gaps
 
-### AutoML System Tests
+**High-Dimensionality Edge Cases:**
+- Missing: Explicit tests for p >> n (tall-thin matrices)
+- Affected models: PCA, Ridge, LogisticRegression, LinearSVC
+- Impact: Low (models handle via regularization, but no explicit coverage)
+- Files to add tests: `ferroml-core/tests/test_edge_cases.rs`
 
-**What's not tested:** Full AutoML workflows with statistical significance testing.
+**Class Imbalance with Class Weights:**
+- Missing: Tests combining imbalanced datasets + custom class weights
+- Affected models: SVC, LogisticRegression, DecisionTree
+- Impact: Low (both features tested separately)
+- Files: `ferroml-core/tests/test_edge_cases.rs`
 
-**Files:** `ferroml-core/src/testing/automl.rs`
-
-**Risk:** HPO parameter importance, best trial selection, and multi-trial comparison logic may have subtle bugs.
-
-**Status:** 26 AutoML tests exist but are marked `#[ignore]` due to being slow (system tests that run hundreds of model fits). Uncommented tests don't reach them. No active complaints reported.
-
-**Recommendation:** Keep ignored but periodically run in CI (e.g., nightly or before releases).
-
----
-
-### Sparse Data End-to-End Testing
-
-**What's not tested:** Full pipelines with sparse input (sparse X → sparse transformations → sparse models).
-
-**Files:** Sparse support scattered across preprocessing, models, pipeline.
-
-**Risk:** Sparse type conversions or shape mismatches may silently drop dimensions.
-
-**Status:** Individual sparse tests exist for most models. No comprehensive sparse-only pipeline test.
-
-**Recommendation:** Add `test_sparse_pipeline_end_to_end.rs` covering: sparse input → sparse scaler → sparse model → predictions match dense equivalent.
+**Sparse + GPU Pipeline:**
+- Missing: No tests for SparseModel + GPU dispatch together
+- Impact: Medium (feature advertised but untested interaction)
+- Files: `ferroml-core/tests/test_sparse_models.rs` + GPU tests
 
 ---
 
-### Edge Case Combinations
+## Documentation Gaps
 
-**What's not tested:** Interactions between edge cases (e.g., single-sample data + single-feature data + class imbalance).
+**Performance Baseline Documentation:**
+- Missing: Explicit guidance on when to use which solver (IRLS vs L-BFGS for LogReg)
+- Files: `ferroml-core/src/models/logistic.rs` (docstring only mentions L-BFGS default)
+- Impact: Users may not understand 2x overhead of IRLS
 
-**Risk:** Rare but possible combinations may trigger untested code paths.
+**Calibration Quality Caveats:**
+- Missing: Notes on TemperatureScalingCalibrator differences vs sklearn
+- Files: `ferroml-core/src/models/calibration.rs`
+- Impact: Low (docstring exists, but could be more explicit)
 
-**Status:** Individual edge cases tested (n=1, p=1, class imbalance). Combinations untested.
-
-**Recommendation:** Fuzz testing or property-based tests would catch these. Low priority given comprehensive individual tests.
-
----
-
-## Missing Critical Features
-
-### get_params() / set_params() for Hyperparameter Tuning
-
-**Problem:** sklearn's GridSearchCV/RandomSearchCV rely on `get_params()` and `set_params()` to clone and modify models. FerroML uses Rust builders instead.
-
-**Files:** All model structs in `ferroml-core/src/models/`
-
-**Blocks:** GridSearchCV-style workflows from Python. Users must use FerroML's HPO module instead.
-
-**Status:** By-design architectural difference (Rust trait system). Not a bug, but an API gap vs sklearn.
-
-**Workaround:** `ferroml.hpo.GridSearch` and `ferroml.hpo.RandomSearch` provide equivalent functionality.
+**IncrementalPCA Rounding Error Accumulation:**
+- Missing: Warning in docstring about accumulated rounding errors
+- Files: `ferroml-core/src/decomposition/pca.rs`
+- Impact: Low (sklearn documentation also notes this)
 
 ---
 
-## Last Known State
+## Scaling Limits
 
-**Audited:** 2026-03-14 (robustness audit complete — 35/36 issues fixed, 1 by-design)
+**KNN & DBSCAN Memory Usage:**
+- Constraint: Full distance matrix O(n²) in memory for all-pairs distance calculation
+- Limit: ~50K samples (requires 20GB for float64 matrix)
+- Scaling path: Implement ball-tree / kd-tree for approximate NN search (medium effort)
+- Status: Acceptable for typical use (<100K samples)
 
-**Passing Tests:**
-- Rust: 3,160+ tests (26 ignored slow AutoML tests)
-- Python: ~1,923 tests
-- Cross-library: 164 tests (vs linfa, sklearn, xgboost, lightgbm, scipy, statsmodels)
-- ONNX roundtrip: 44/44 passing
+**SVM Kernel Matrix Memory:**
+- Constraint: Full matrix O(n²) for n < 4K, then LRU cache with O(cache_size * n)
+- Limit: Effective max ~100K with cache, but slow (performance regression)
+- Scaling path: Implement random features / Nystroem approximation (high effort)
 
-**Unresolved:** RidgeCV NaN bug + 5-7 performance gaps scheduled in Plan W.
+**AutoML Portfolio Size:**
+- Constraint: Portfolio has 80+ algorithm variants; time budget splits across them
+- Limit: ~300 algorithms total (portfolio + HPO combinations); diminishing returns
+- Status: Acceptable (no plans to expand further)
 
 ---
 
-*Concerns audit: 2026-03-15*
+## Security Considerations
+
+**ONNX Model Execution (Optional Feature):**
+- Risk: Untrusted ONNX models can execute arbitrary code via ONNX runtime
+- Mitigation: ort runtime runs in-process (no sandbox); document as "only load trusted ONNX"
+- Files: `ferroml-core/src/onnx/` + Python pickle support
+- Recommendation: Add warning in docs: "ONNX files from untrusted sources may execute code"
+
+**Pickle Security (Python Bindings):**
+- Risk: Python pickle can execute arbitrary code
+- Files: `ferroml-python/src/pickle.rs`
+- Mitigation: Document "only unpickle models you created or trust"
+- Status: Standard Python limitation, not FerroML-specific
+
+**No Explicit Random Seed Management in Production:**
+- Risk: AutoML may not be deterministic if seed is None and async parallelism is enabled
+- Mitigation: Memory docs note "seed: Some(42) for reproducibility"
+- Recommendation: Warn in docs that production deployments should always set seed
+
+---
+
+## Technical Debt Summary
+
+| Item | Severity | Effort | Impact | Priority |
+|------|----------|--------|--------|----------|
+| SVC 17.6x regression | High | 2-3 days | Blocks medium datasets | **Critical** |
+| Shrinking + WSS3 for SMO | High | 2-3 days | 17.6x → 2-3x | **Critical** |
+| Input validation gaps | Medium | 1-2 days | Better error messages | High |
+| Sparse + GPU tests | Medium | 1 day | Feature confidence | Medium |
+| IncrementalPCA rounding docs | Low | 2 hours | User expectation setting | Low |
+| Optional feature matrix testing | Medium | 2-3 days | Deployment confidence | High |
+| Panic/unwrap audit | Low | 1-2 days | Robustness | Medium |
+| LogReg solver optimization | Low | 3-5 days | Speed improvement | Low |
+
+---
+
+*Concerns audit: 2026-03-16*
