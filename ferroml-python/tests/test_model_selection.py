@@ -307,6 +307,40 @@ class TestNormalizer:
 # model_selection re-exports
 # =============================================================================
 
+class TestCrossValidate:
+    def test_returns_dict_keys(self):
+        from ferroml.model_selection import cross_validate
+        from ferroml.linear import LogisticRegression
+        X = np.random.RandomState(42).randn(100, 3)
+        y = (X[:, 0] > 0).astype(float)
+        result = cross_validate(LogisticRegression(), X, y, cv=3)
+        assert "test_score" in result
+        assert "fit_time" in result
+        assert "score_time" in result
+        assert "train_score" not in result
+        assert len(result["test_score"]) == 3
+
+    def test_return_train_score(self):
+        from ferroml.model_selection import cross_validate
+        from ferroml.linear import LogisticRegression
+        X = np.random.RandomState(42).randn(100, 3)
+        y = (X[:, 0] > 0).astype(float)
+        result = cross_validate(LogisticRegression(), X, y, cv=3, return_train_score=True)
+        assert "train_score" in result
+        assert len(result["train_score"]) == 3
+        # Train scores should generally be >= test scores
+        assert np.mean(result["train_score"]) >= np.mean(result["test_score"]) - 0.1
+
+    def test_timing_positive(self):
+        from ferroml.model_selection import cross_validate
+        from ferroml.linear import LogisticRegression
+        X = np.random.RandomState(42).randn(100, 3)
+        y = (X[:, 0] > 0).astype(float)
+        result = cross_validate(LogisticRegression(), X, y, cv=3)
+        assert all(t >= 0 for t in result["fit_time"])
+        assert all(t >= 0 for t in result["score_time"])
+
+
 class TestModelSelectionReExports:
     def test_all_imports(self):
         from ferroml.model_selection import (
