@@ -2,11 +2,12 @@
 
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/ferroml-core.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-5%2C000%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![PyPI](https://img.shields.io/pypi/v/ferroml.svg)](https://pypi.org/project/ferroml/)
+[![Tests](https://img.shields.io/badge/tests-5%2C650%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v0.3.0** — 55+ ML algorithms, 5,000+ tests passing (3,160+ Rust + 1,920+ Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm with 250+ correctness tests. See [Project Status](#project-status) for details.
+> **Status: v0.3.1** — 55+ ML algorithms, 5,650+ tests passing (3,550+ Rust + 2,100+ Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels with 300+ correctness tests. See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -216,13 +217,28 @@ ferroml-core = { version = "0.3", features = ["simd", "sparse", "onnx"] }
 
 ## Performance
 
-FerroML leverages Rust's performance characteristics:
+### Benchmarks vs scikit-learn
 
-- **Zero-cost abstractions** — No runtime overhead for safety
-- **Rayon parallelism** — Automatic parallel iteration
+All benchmarks produce matching predictions (100% correctness). Speedup >1x means FerroML is faster.
+
+| Model | N | Fit | Predict |
+|-------|--:|----:|--------:|
+| RandomForest | 1K | **9.2x** | **7.8x** |
+| RandomForest | 5K | **5.3x** | **6.6x** |
+| Ridge | 1K | **5.3x** | **19.3x** |
+| DecisionTree | 5K | **1.4x** | **16.4x** |
+| GradientBoosting | 1K | **1.5x** | **1.2x** |
+| LinearRegression | 1K | **1.8x** | **14.7x** |
+| LogisticRegression | 10K | **1.5x** | **13.7x** |
+| PCA | 1K | **1.2x** | **6.1x** |
+
+FerroML wins on **predict universally** (2-40x, zero Python overhead) and on **fit for tree/ensemble models** (Rayon parallel construction). sklearn wins on fit for algorithms backed by LAPACK/MKL dense linear algebra. Full results: [docs/benchmark-vs-sklearn.md](docs/benchmark-vs-sklearn.md)
+
+### Architecture
+
+- **Rayon parallelism** — Automatic parallel iteration for ensemble training
 - **SIMD operations** — Vectorized distance calculations
-- **Memory-mapped files** — Efficient handling of large datasets
-- **GPU acceleration** — wgpu-based GEMM, distance matrices, MLP forward/backward, 8 WGSL shaders with auto CPU/GPU dispatch
+- **GPU acceleration** — wgpu-based GEMM, distance matrices, MLP forward/backward (8 WGSL shaders with auto CPU/GPU dispatch)
 - **Native sparse support** — CsrMatrix operations for 12 models, TfidfTransformer, sparse scalers
 - **faer-backend** — BLAS-accelerated linear algebra (Cholesky, matrix solve) via faer
 - **Barnes-Hut t-SNE** — O(N log N) visualization with VP-tree and QuadTree
@@ -239,17 +255,17 @@ at your option.
 
 ## Project Status
 
-### Current State (v0.3.0)
+### Current State (v0.3.1)
 
-FerroML is **v0.3.0**, hardened through 27 plans (1-6, A-U) of correctness, performance, and feature work:
+FerroML is **v0.3.1**, hardened through 30 plans (1-6, A-X) of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 5,000+ passing (3,160+ Rust + 1,920+ Python), 0 failing, 26 ignored (slow AutoML system tests) |
-| **Correctness Tests** | 250+ (clustering: 102, neural: 49, preprocessing: 101) |
-| **Cross-Library Validation** | 164 tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa) |
-| **Python Test Files** | 53+ end-to-end test files |
-| **Python Bindings** | ~99% coverage (55+ models, 23 preprocessors, 6 decomposition, 37 explainability) |
+| **Tests** | 5,650+ passing (3,550+ Rust + 2,100+ Python), 0 failing, 26 ignored (slow AutoML system tests) |
+| **Correctness Tests** | 300+ (clustering: 102, neural: 49, preprocessing: 101, statistical: 35+, model verification: 116) |
+| **Cross-Library Validation** | 200+ tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa) |
+| **Python Test Files** | 60+ end-to-end test files |
+| **Python Bindings** | ~99% coverage (55+ models, 22+ preprocessors, 6 decomposition, 37 explainability) |
 | **sklearn API** | `score()` on 56 models, `partial_fit` on 10, `decision_function` on 13 classifiers |
 | **Benchmarks** | 86+ Criterion benchmarks with CI regression baseline |
 | **GPU Tests** | ~188 tests for wgpu shader acceleration |

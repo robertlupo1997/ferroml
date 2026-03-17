@@ -425,94 +425,6 @@ pub(crate) struct BinarySVC {
 ///
 /// Objective decrease for pair (i,j) ~ -(Ei - Ej)^2 / (Kii + Kjj - 2*Kij)
 /// We want to maximize this, which means maximizing (Ei - Ej)^2 / eta.
-///
-/// This is a free function to avoid borrow-checker conflicts with `&mut KernelProvider`
-/// already borrowed in the `smo` method.
-fn select_j_active(
-    i: usize,
-    errors: &Array1<f64>,
-    alpha: &ndarray::ArrayViewMut1<f64>,
-    c: &Array1<f64>,
-    active: &[bool],
-    kernel: &mut KernelProvider,
-    k_diag: &[f64],
-) -> Option<usize> {
-    let ei = errors[i];
-    let n_samples = errors.len();
-    let k_ii = k_diag[i];
-
-    let mut best_j = None;
-    let mut best_gain = 0.0_f64;
-
-    // First pass: try non-bound active samples
-    for j in 0..n_samples {
-        if j == i || !active[j] {
-            continue;
-        }
-        // Prefer non-bound samples
-        if alpha[j] <= 0.0 || alpha[j] >= c[j] {
-            continue;
-        }
-
-        let ej = errors[j];
-        let diff = ei - ej;
-
-        if diff.abs() < 1e-12 {
-            continue;
-        }
-
-        let k_jj = k_diag[j];
-        let k_ij = kernel.get(i, j);
-        let eta = k_ii + k_jj - 2.0 * k_ij;
-
-        let gain = if eta > 1e-12 {
-            diff * diff / eta
-        } else {
-            diff * diff
-        };
-
-        if gain > best_gain {
-            best_gain = gain;
-            best_j = Some(j);
-        }
-    }
-
-    if best_j.is_some() {
-        return best_j;
-    }
-
-    // Second pass: try all active samples
-    for j in 0..n_samples {
-        if j == i || !active[j] {
-            continue;
-        }
-
-        let ej = errors[j];
-        let diff = ei - ej;
-
-        if diff.abs() < 1e-12 {
-            continue;
-        }
-
-        let k_jj = k_diag[j];
-        let k_ij = kernel.get(i, j);
-        let eta = k_ii + k_jj - 2.0 * k_ij;
-
-        let gain = if eta > 1e-12 {
-            diff * diff / eta
-        } else {
-            diff * diff
-        };
-
-        if gain > best_gain {
-            best_gain = gain;
-            best_j = Some(j);
-        }
-    }
-
-    best_j
-}
-
 impl BinarySVC {
     /// Create a new binary SVC.
     fn new(c: f64, kernel: Kernel, tol: f64, max_iter: usize, cache_size: usize) -> Self {
@@ -675,8 +587,7 @@ impl BinarySVC {
         // Error cache
         let mut errors: Array1<f64> = -y.clone();
 
-        // Precompute kernel diagonal for WSS3 (avoids repeated cache lookups)
-        let k_diag: Vec<f64> = (0..n_samples).map(|i| kernel.get(i, i)).collect();
+        // (kernel diagonal precomputation removed: first-order j-selection doesn't need it)
 
         // Buffers for kernel rows (used in incremental error update)
         let mut row_i_buf = vec![0.0; n_samples];
@@ -685,11 +596,21 @@ impl BinarySVC {
         let mut n_changed = 0;
         let mut examine_all = true;
         let mut iter = 0;
+        let mut total_updates: u64 = 0;
+        // Reconstruct errors from scratch every N updates to prevent floating-point drift.
+        let reconstruct_interval: u64 = (n_samples as u64).max(200);
 
         // Shrinking: track which samples are "active" (may change) vs "shrunk" (at bounds)
         let mut active: Vec<bool> = vec![true; n_samples];
         let mut active_set: Vec<usize> = (0..n_samples).collect();
-        let shrink_interval = 100.min(self.max_iter); // Re-evaluate shrinking every 100 iters
+        // Only start shrinking after the solver has had time to explore.
+        // For small datasets shrinking provides little benefit but can cause
+        // premature convergence; for large datasets it's a memory/speed win.
+        let shrink_interval = if n_samples < 500 {
+            self.max_iter // effectively disable shrinking for small datasets
+        } else {
+            1000.min(self.max_iter) // larger interval for bigger datasets
+        };
 
         while (n_changed > 0 || examine_all) && iter < self.max_iter {
             n_changed = 0;
@@ -729,8 +650,10 @@ impl BinarySVC {
 
                 // Check KKT conditions
                 if (ri < -self.tol && alpha[i] < c[i]) || (ri > self.tol && alpha[i] > 0.0) {
-                    // Select j using WSS3 (second-order working set selection)
-                    let j = select_j_active(i, &errors, &alpha, c, &active, kernel, &k_diag);
+                    // Select j using max-|Ei - Ej| heuristic (Platt 1998).
+                    // More robust than WSS3 (diff^2/eta) which can select degenerate
+                    // pairs when the kernel matrix is ill-conditioned.
+                    let j = self.select_j(i, &errors, &alpha, c);
 
                     if let Some(j) = j {
                         let ej = errors[j];
@@ -815,6 +738,21 @@ impl BinarySVC {
                         }
 
                         n_changed += 1;
+                        total_updates += 1;
+
+                        // Periodically reconstruct error cache from scratch
+                        // to prevent floating-point drift from accumulating
+                        if total_updates % reconstruct_interval == 0 {
+                            for k in 0..n_samples {
+                                let mut fk = b;
+                                for m in 0..n_samples {
+                                    if alpha[m] > 1e-12 {
+                                        fk += alpha[m] * y[m] * kernel.get(m, k);
+                                    }
+                                }
+                                errors[k] = fk - y[k];
+                            }
+                        }
                     }
                 }
             }
@@ -864,8 +802,7 @@ impl BinarySVC {
         active_set.retain(|&i| active[i]);
     }
 
-    /// Select second alpha using heuristic (first-order, legacy).
-    #[allow(dead_code)]
+    /// Select second alpha using max-|Ei - Ej| heuristic (Platt 1998).
     fn select_j(
         &self,
         i: usize,

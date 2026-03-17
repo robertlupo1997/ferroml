@@ -84,6 +84,7 @@ from ferroml import svm
 from ferroml import calibration
 from ferroml import anomaly
 from ferroml import multioutput
+from ferroml import gaussian_process
 from ferroml import stats
 from ferroml import metrics
 from ferroml import cv
@@ -109,6 +110,7 @@ __all__ = [
     "calibration",
     "anomaly",
     "multioutput",
+    "gaussian_process",
     "stats",
     "metrics",
     "cv",
