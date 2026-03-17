@@ -1,12 +1,22 @@
 # FerroML Roadmap
 
-> **Last Updated:** 2026-03-15
+> **Last Updated:** 2026-03-16
 
-## Current Status: v0.3.0
+## Current Status: v0.3.1
 
-FerroML has completed 27 plans of development and hardening (Plans 1-6, A-U) with 3,160+ Rust tests and 1,920+ Python tests passing. All core ML algorithms are implemented, validated against sklearn/scipy/xgboost/lightgbm/statsmodels, and hardened with correctness tests. Python binding coverage is ~99%.
+FerroML has completed 30 plans of development and hardening (Plans 1-6, A-X) with 3,550+ Rust tests and 2,100+ Python tests passing (5,650+ total). All core ML algorithms are implemented, validated against sklearn/scipy/xgboost/lightgbm/statsmodels, and hardened with correctness tests. Python binding coverage is ~99%.
 
 ## Release History
+
+### v0.3.1 (2026-03-16) — Production Ready
+
+- SVC RBF kernel convergence fix (WSS3 j-selection bug)
+- RidgeCV NaN bug fix
+- ONNX RandomForest roundtrip fix
+- Numerical stability and input validation hardening (Plan X)
+- cross_validate(), train_test_split, ROC/PR curves in Python
+- 200+ cross-library correctness tests
+- PyPI publishing workflow with TestPyPI support
 
 ### v0.3.0 (2026-03-15) — sklearn API Parity
 
@@ -51,17 +61,11 @@ FerroML has completed 27 plans of development and hardening (Plans 1-6, A-U) wit
 | S | Cross-library validation (linfa, xgboost, lightgbm, statsmodels, scipy) | Complete |
 | T | Performance optimization, feature parity scorecard, warm_start | Complete |
 | U | sklearn API parity (score, partial_fit, decision_function), v0.3.0 | Complete |
+| V | Open-source polish, bug fixes, v0.3.1 | Complete |
+| W | Performance fixes (Elkan KMeans, HistGBT, L-BFGS LogReg, tutorials) | Complete |
+| X | Production-ready (numerical stability, input validation, cross-library tests) | Complete |
 
 ## Next Steps
-
-### v0.3.1 — Open-Source Polish (Plan V, In Progress)
-
-- [x] Fix RidgeCV NaN bug
-- [x] Fix ONNX RandomForest roundtrip
-- [ ] warm_start expansion to 12+ models
-- [ ] feature_importances_ for linear models
-- [ ] Community files (CONTRIBUTING, CODE_OF_CONDUCT, SECURITY)
-- [ ] Documentation sync to v0.3.0
 
 ### Future
 

@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-03-16
+
+### Fixed
+
+- SVC RBF kernel convergence bug: WSS3 second-order j-selection caused wrong convergence on ill-conditioned kernel matrices. Replaced with robust Platt first-order heuristic (max |Ei-Ej|)
+- Disabled SMO shrinking for small datasets (< 500 samples) to prevent premature convergence
+- RidgeCV predict NaN: `with_defaults()` computed `ln(-4.0)` instead of using `1e-4` (Plan V)
+- ONNX RandomForestClassifier roundtrip: argmax tie-breaking now uses first-wins to match sklearn/ONNX (Plan V)
+
+### Added
+
+- `cross_validate()` in `model_selection` with timing info
+- `train_test_split`, `roc_curve`, `precision_recall_curve` in Python API
+- `KFold`, `StratifiedKFold`, `GroupKFold`, `TimeSeriesSplit` CV splitters
+- `Normalizer` preprocessor
+- TestPyPI publishing target in CI workflow
+- `py.typed` marker (PEP 561)
+- `gaussian_process` module in Python `__init__.py` exports
+- 200+ cross-library correctness tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa)
+- Statistical verification tests (116 model tests + 35 vs statsmodels/scipy)
+
+### Changed
+
+- README updated to v0.3.1 with benchmark table, accurate test counts (5,650+)
+- PyPI README rewritten with benchmarks, full model listing, usage examples
+
 ## [0.3.0] - 2026-03-15
 
 ### Added
