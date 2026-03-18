@@ -892,8 +892,10 @@ impl IncrementalPCA {
         self.var = Some(new_var);
         self.n_samples_seen += n_samples;
 
-        // Center the batch with the new mean
-        let x_centered = x - &new_mean;
+        // Center the batch with batch mean (not the updated mean)
+        // This matches sklearn's IncrementalPCA: center each batch independently,
+        // then add a mean correction row to the augmented matrix.
+        let x_centered = x - &batch_mean;
 
         // Determine number of components
         let max_components = self.n_samples_seen.min(n_features);
@@ -906,16 +908,28 @@ impl IncrementalPCA {
         // Otherwise, compute from scratch
         if let Some(ref old_components) = self.components.clone() {
             // Incremental update using SVD of augmented matrix
+            // Following Ross et al. "Incremental Learning for Robust Visual Tracking"
+            // and sklearn's implementation.
             let old_singular = self.singular_values.as_ref().ok_or_else(|| {
                 FerroError::numerical("missing singular values during incremental update")
             })?;
 
-            // Build augmented matrix [old_singular * old_components; x_centered]
             let k = old_components.nrows();
 
-            // Scale old components by singular values
-            let mut augmented_rows = Vec::with_capacity(k + n_samples);
+            // Mean correction row: accounts for the shift between old and new means.
+            // Without this, the SVD of the augmented matrix ignores the between-batch
+            // mean difference, causing components to diverge from batch SVD.
+            let mean_correction_scale = (old_n * n_samples as f64 / new_n).sqrt();
+            let mean_correction: Array1<f64> = (&old_mean - &batch_mean) * mean_correction_scale;
 
+            // Build augmented matrix:
+            //   [diag(old_singular) * old_components]   (k rows)
+            //   [x_centered]                            (n_samples rows)
+            //   [mean_correction]                       (1 row)
+            let n_aug_rows = k + n_samples + 1;
+            let mut augmented_rows = Vec::with_capacity(n_aug_rows);
+
+            // Scale old components by singular values
             for i in 0..k {
                 let scaled_row: Vec<f64> = old_components
                     .row(i)
@@ -929,11 +943,13 @@ impl IncrementalPCA {
                 augmented_rows.push(row.to_vec());
             }
 
+            // Append mean correction row
+            augmented_rows.push(mean_correction.to_vec());
+
             let augmented =
-                Array2::from_shape_vec((k + n_samples, n_features), augmented_rows.concat())
-                    .map_err(|e| {
-                        FerroError::numerical(format!("Failed to create augmented matrix: {e}"))
-                    })?;
+                Array2::from_shape_vec((n_aug_rows, n_features), augmented_rows.concat()).map_err(
+                    |e| FerroError::numerical(format!("Failed to create augmented matrix: {e}")),
+                )?;
 
             // SVD of augmented matrix
             let mat = nalgebra::DMatrix::from_fn(augmented.nrows(), augmented.ncols(), |i, j| {
@@ -1074,19 +1090,18 @@ impl Transformer for IncrementalPCA {
         self.mean = None;
         self.var = None;
 
-        // Process in batches if batch_size is set, otherwise fit all at once
-        if let Some(batch_size) = self.batch_size {
-            let n_samples = x.nrows();
-            let mut offset = 0;
+        // Process in batches. If batch_size is not set, use 5 * n_features
+        // (matching sklearn's IncrementalPCA default).
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+        let batch_size = self.batch_size.unwrap_or(5 * n_features).max(1);
 
-            while offset < n_samples {
-                let end = (offset + batch_size).min(n_samples);
-                let batch = x.slice(s![offset..end, ..]).to_owned();
-                self.partial_fit(&batch)?;
-                offset = end;
-            }
-        } else {
-            self.partial_fit(x)?;
+        let mut offset = 0;
+        while offset < n_samples {
+            let end = (offset + batch_size).min(n_samples);
+            let batch = x.slice(s![offset..end, ..]).to_owned();
+            self.partial_fit(&batch)?;
+            offset = end;
         }
 
         Ok(())

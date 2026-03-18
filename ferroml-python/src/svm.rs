@@ -675,7 +675,7 @@ pub struct PySVC {
 #[pymethods]
 impl PySVC {
     #[new]
-    #[pyo3(signature = (kernel="rbf", c=1.0, gamma=0.0, degree=3, coef0=0.0, tol=1e-3, max_iter=1000, probability=false, multiclass="ovo", class_weight=None))]
+    #[pyo3(signature = (kernel="rbf", c=1.0, gamma=0.0, degree=3, coef0=0.0, tol=1e-3, max_iter=1000, probability=false, multiclass="ovo", class_weight=None, random_state=None))]
     fn new(
         kernel: &str,
         c: f64,
@@ -687,6 +687,7 @@ impl PySVC {
         probability: bool,
         multiclass: &str,
         class_weight: Option<&Bound<'_, PyAny>>,
+        #[allow(unused_variables)] random_state: Option<u64>, // Accepted for sklearn API compat; SVM is deterministic
     ) -> PyResult<Self> {
         let kernel_enum = parse_kernel(kernel, gamma, degree, coef0)?;
         let strategy = parse_multiclass_strategy(multiclass)?;

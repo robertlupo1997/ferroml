@@ -1143,10 +1143,14 @@ impl LogisticRegression {
     }
 
     /// Resolve solver strategy based on the number of features and samples.
-    fn resolve_solver(&self, n_features: usize) -> LogisticSolver {
+    fn resolve_solver(&self, n_features: usize, n_samples: usize) -> LogisticSolver {
         match self.solver {
             LogisticSolver::Auto => {
-                if n_features < 50 {
+                if n_samples >= 10_000 {
+                    // SAG is O(d) per iteration with linear convergence —
+                    // dominates IRLS/L-BFGS for large n
+                    LogisticSolver::Sag
+                } else if n_features < 50 {
                     LogisticSolver::Irls
                 } else {
                     LogisticSolver::Lbfgs
@@ -1276,7 +1280,7 @@ impl Model for LogisticRegression {
         let sample_weights = compute_sample_weights(y, &classes, &self.class_weight);
 
         // Select solver based on strategy
-        match self.resolve_solver(p_orig) {
+        match self.resolve_solver(p_orig, x.nrows()) {
             LogisticSolver::Irls | LogisticSolver::Auto => {
                 self.fit_irls(&x_design, y, &sample_weights)
             }
@@ -1346,7 +1350,7 @@ impl Model for LogisticRegression {
         let combined = &class_weights * sample_weight;
 
         // Select solver based on strategy
-        match self.resolve_solver(p_orig) {
+        match self.resolve_solver(p_orig, x.nrows()) {
             LogisticSolver::Irls | LogisticSolver::Auto => self.fit_irls(&x_design, y, &combined),
             LogisticSolver::Lbfgs => self.fit_lbfgs(&x_design, y, &combined),
             LogisticSolver::Sag | LogisticSolver::Saga => self.fit_sag(&x_design, y, &combined),
