@@ -593,12 +593,8 @@ impl FactorAnalysis {
     ) -> Result<(Array2<f64>, Array1<f64>)> {
         let (n_samples, n_features) = x_centered.dim();
 
-        // Compute SVD
-        let mat = nalgebra::DMatrix::from_fn(n_samples, n_features, |i, j| x_centered[[i, j]]);
-
-        let svd = mat.svd(true, true);
-        let s = svd.singular_values;
-        let vt = svd.v_t.ok_or_else(|| FerroError::numerical("SVD failed"))?;
+        // Compute SVD via faer
+        let (_u, s, vt) = crate::linalg::thin_svd(x_centered)?;
 
         // Initialize loadings from top singular vectors
         let n_comp = n_factors.min(s.len()).min(n_features);
@@ -608,7 +604,7 @@ impl FactorAnalysis {
         let scale = ((n_samples - 1).max(1) as f64).sqrt();
         for j in 0..n_features {
             for k in 0..n_comp {
-                loadings[[j, k]] = vt[(k, j)] * s[k] / scale;
+                loadings[[j, k]] = vt[[k, j]] * s[k] / scale;
             }
         }
 
@@ -952,12 +948,29 @@ fn invert_matrix(a: &Array2<f64>) -> Result<Array2<f64>> {
     }
 
     // Fall back to LU decomposition
-    let lu = mat.lu();
-    let inv = lu
-        .try_inverse()
-        .ok_or_else(|| FerroError::numerical("Matrix is singular and cannot be inverted"))?;
+    let lu = mat.clone().lu();
+    if let Some(inv) = lu.try_inverse() {
+        return Ok(Array2::from_shape_fn((n, n), |(i, j)| inv[(i, j)]));
+    }
 
-    Ok(Array2::from_shape_fn((n, n), |(i, j)| inv[(i, j)]))
+    // Last resort: pseudoinverse via SVD
+    let svd = mat.svd(true, true);
+    let u = svd
+        .u
+        .ok_or_else(|| FerroError::numerical("SVD failed in matrix inversion"))?;
+    let s = svd.singular_values;
+    let vt = svd
+        .v_t
+        .ok_or_else(|| FerroError::numerical("SVD failed in matrix inversion"))?;
+    let tol = 1e-10 * s.iter().copied().fold(0.0_f64, f64::max);
+    let mut s_inv = nalgebra::DMatrix::<f64>::zeros(n, n);
+    for i in 0..n {
+        if s[i] > tol {
+            s_inv[(i, i)] = 1.0 / s[i];
+        }
+    }
+    let pseudo_inv = vt.transpose() * &s_inv * u.transpose();
+    Ok(Array2::from_shape_fn((n, n), |(i, j)| pseudo_inv[(i, j)]))
 }
 
 /// Compute log-determinant of a matrix.

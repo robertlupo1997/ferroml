@@ -455,24 +455,12 @@ impl LDA {
         // S_w = X_c^T X_c where X_c is class-centered data
         let x_scaled = &x_centered / (n_samples as f64 - n_classes as f64).sqrt().max(1.0);
 
-        let mat_sw = nalgebra::DMatrix::from_fn(x_scaled.nrows(), x_scaled.ncols(), |i, j| {
-            x_scaled[[i, j]] * std_factor
-        });
+        let x_scaled_factored = x_scaled.mapv(|v| v * std_factor);
 
-        let svd_sw = mat_sw.svd(true, true);
-        let _u_sw = svd_sw
-            .u
-            .ok_or_else(|| FerroError::numerical("SVD failed for within-class"))?;
-        let s_sw = svd_sw.singular_values;
+        let (_u_sw, s_sw, vt_sw) = crate::linalg::thin_svd(&x_scaled_factored)?;
 
         // Find rank of S_w (non-zero singular values)
         let rank = s_sw.iter().filter(|&&s| s > self.tol).count().max(1);
-
-        // Compute whitening transform: X_w = X @ V @ S^{-1}
-        // This whitens the within-class scatter
-        let vt_sw = svd_sw
-            .v_t
-            .ok_or_else(|| FerroError::numerical("SVD failed"))?;
 
         // Create scaled class means for between-class scatter
         // S_b = Σ n_c (μ_c - μ)(μ_c - μ)^T
@@ -526,27 +514,21 @@ impl LDA {
 
         // Project class means onto whitened space
         // means_w = means_centered @ V @ diag(s_inv)
-        let v_cols = vt_sw.transpose();
+        let v_cols = vt_sw.t();
         let mut means_whitened = Array2::zeros((n_classes, rank));
 
         for k in 0..n_classes {
             for j in 0..rank {
                 let mut sum = 0.0;
                 for f in 0..n_features {
-                    sum += class_means_centered[[k, f]] * v_cols[(f, j)] * s_inv[j];
+                    sum += class_means_centered[[k, f]] * v_cols[[f, j]] * s_inv[j];
                 }
                 means_whitened[[k, j]] = sum;
             }
         }
 
         // SVD of whitened class means gives the discriminant directions in whitened space
-        let mat_mw = nalgebra::DMatrix::from_fn(n_classes, rank, |i, j| means_whitened[[i, j]]);
-        let svd_mw = mat_mw.svd(true, true);
-
-        let s_mw = svd_mw.singular_values;
-        let vt_mw = svd_mw
-            .v_t
-            .ok_or_else(|| FerroError::numerical("SVD failed for means"))?;
+        let (_u_mw, s_mw, vt_mw) = crate::linalg::thin_svd(&means_whitened)?;
 
         // Number of discriminant directions
         // Use a relative tolerance based on the largest singular value
@@ -575,7 +557,7 @@ impl LDA {
             for c in 0..n_discriminants {
                 let mut sum = 0.0;
                 for j in 0..rank {
-                    sum += v_cols[(f, j)] * s_inv[j] * vt_mw[(c, j)];
+                    sum += v_cols[[f, j]] * s_inv[j] * vt_mw[[c, j]];
                 }
                 scalings[[f, c]] = sum;
             }

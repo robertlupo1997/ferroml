@@ -71,7 +71,7 @@ use crate::models::{
     ProbabilisticModel,
 };
 use crate::{FerroError, Result};
-use ndarray::{Array1, Array2};
+use ndarray::{concatenate, Array1, Array2, Axis};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 // =============================================================================
@@ -89,7 +89,7 @@ const DEFAULT_CACHE_SIZE: usize = 1000;
 /// Full matrix costs O(n^2) memory but O(1) access; cache costs O(cache_size * n)
 /// but O(n_features) per miss. With shrinking, cache hit rates are high because
 /// the active set converges to ~n_sv (support vectors).
-const FULL_MATRIX_THRESHOLD: usize = 4_000;
+const FULL_MATRIX_THRESHOLD: usize = 2_000;
 
 /// Sentinel value for "no slot / no link".
 const NONE_SLOT: i32 = -1;
@@ -2507,18 +2507,21 @@ impl LinearSVC {
             n_features
         };
 
-        // Build augmented feature vectors and precompute norms
-        let mut x_aug: Vec<Vec<f64>> = Vec::with_capacity(n_samples);
-        let mut x_sq_norm: Vec<f64> = Vec::with_capacity(n_samples);
-        for i in 0..n_samples {
-            let mut row = x.row(i).to_vec();
-            if self.fit_intercept {
-                row.push(1.0);
-            }
-            let sq: f64 = row.iter().map(|v| v * v).sum();
-            x_sq_norm.push(sq);
-            x_aug.push(row);
-        }
+        // Build augmented design matrix using ndarray (avoid Vec<Vec<f64>> copy)
+        let x_design: Array2<f64> = if self.fit_intercept {
+            let ones = Array2::ones((n_samples, 1));
+            concatenate(Axis(1), &[x.view(), ones.view()]).unwrap()
+        } else {
+            x.to_owned()
+        };
+
+        // Precompute squared norms from ndarray rows
+        let x_sq_norm: Vec<f64> = (0..n_samples)
+            .map(|i| {
+                let row = x_design.row(i);
+                row.dot(&row)
+            })
+            .collect();
 
         // Effective C for each sample
         let c_eff: Vec<f64> = sample_weights.iter().map(|&sw| self.c * sw).collect();
@@ -2539,13 +2542,21 @@ impl LinearSVC {
 
         // Initialize dual variables and primal weight vector
         let mut alpha = vec![0.0f64; n_samples];
-        let mut w_aug = vec![0.0f64; d];
+        let mut w_aug = Array1::<f64>::zeros(d);
+
+        // Active set shrinking: skip samples firmly at bounds
+        let mut active = vec![true; n_samples];
 
         // Build a permutation array for shuffling
         let mut perm: Vec<usize> = (0..n_samples).collect();
 
         for iter in 0..self.max_iter {
             let mut max_change = 0.0f64;
+
+            // Re-examine all samples every 10 iterations
+            if iter % 10 == 0 {
+                active.fill(true);
+            }
 
             // Deterministic shuffle using a simple hash of the iteration
             // This approximates random permutation to prevent cycling
@@ -2559,16 +2570,17 @@ impl LinearSVC {
             }
 
             for &i in &perm {
+                if !active[i] {
+                    continue;
+                }
+
                 if q_diag[i] < 1e-12 {
                     continue;
                 }
 
-                // Compute w^T x_i
-                let wt_xi: f64 = w_aug
-                    .iter()
-                    .zip(x_aug[i].iter())
-                    .map(|(&wj, &xj)| wj * xj)
-                    .sum();
+                // Compute w^T x_i using ndarray dot
+                let xi = x_design.row(i);
+                let wt_xi: f64 = w_aug.dot(&xi);
 
                 // Gradient component: g_i = y_i * w^T x_i + alpha_i/(2*C_i) - 1
                 // (for L2-loss; for L1-loss omit the alpha/(2C) term, which is
@@ -2593,19 +2605,26 @@ impl LinearSVC {
                 };
 
                 let delta = alpha_new - alpha[i];
-                if delta.abs() < 1e-15 {
-                    continue;
+                if delta.abs() >= 1e-15 {
+                    alpha[i] = alpha_new;
+
+                    // Update primal weights: w += delta * y_i * x_i (using ndarray)
+                    let scale = delta * y_binary[i];
+                    w_aug.scaled_add(scale, &xi);
+
+                    max_change = max_change.max(delta.abs());
                 }
 
-                alpha[i] = alpha_new;
-
-                // Update primal weights: w += delta * y_i * x_i
-                let scale = delta * y_binary[i];
-                for j in 0..d {
-                    w_aug[j] += scale * x_aug[i][j];
+                // Mark as inactive if firmly at bound with correct gradient sign
+                // (uses pre-update gradient g, consistent with LIBLINEAR shrinking)
+                let at_lower = alpha_new < 1e-12 && g > 0.0;
+                let at_upper = match self.loss {
+                    LinearSVCLoss::SquaredHinge => false, // no upper bound for L2-loss
+                    LinearSVCLoss::Hinge => alpha_new > c_eff[i] - 1e-12 && g < 0.0,
+                };
+                if at_lower || at_upper {
+                    active[i] = false;
                 }
-
-                max_change = max_change.max(delta.abs());
             }
 
             if max_change < self.tol {
@@ -2614,7 +2633,7 @@ impl LinearSVC {
         }
 
         // Extract w and b from augmented weight vector
-        let w = Array1::from_vec(w_aug[..n_features].to_vec());
+        let w = w_aug.slice(ndarray::s![..n_features]).to_owned();
         let b = if self.fit_intercept {
             w_aug[n_features]
         } else {

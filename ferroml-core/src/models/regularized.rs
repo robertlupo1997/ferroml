@@ -2253,52 +2253,10 @@ fn soft_threshold(x: f64, lambda: f64) -> f64 {
 
 /// Solve symmetric positive definite system Ax = b via Cholesky decomposition
 fn solve_symmetric_positive_definite(a: &Array2<f64>, b: &Array1<f64>) -> Result<Array1<f64>> {
-    let n = a.nrows();
-
-    // Cholesky decomposition: A = LL'
-    let mut l = Array2::zeros((n, n));
-
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = a[[i, j]];
-            for k in 0..j {
-                sum -= l[[i, k]] * l[[j, k]];
-            }
-
-            if i == j {
-                if sum <= 0.0 {
-                    return Err(FerroError::numerical(
-                        "Matrix is not positive definite (Cholesky failed)",
-                    ));
-                }
-                l[[i, j]] = sum.sqrt();
-            } else {
-                l[[i, j]] = sum / l[[j, j]];
-            }
-        }
-    }
-
-    // Solve L*y = b
-    let mut y = Array1::zeros(n);
-    for i in 0..n {
-        let mut sum = b[i];
-        for j in 0..i {
-            sum -= l[[i, j]] * y[j];
-        }
-        y[i] = sum / l[[i, i]];
-    }
-
-    // Solve L'*x = y
-    let mut x = Array1::zeros(n);
-    for i in (0..n).rev() {
-        let mut sum = y[i];
-        for j in (i + 1)..n {
-            sum -= l[[j, i]] * x[j];
-        }
-        x[i] = sum / l[[i, i]];
-    }
-
-    Ok(x)
+    let l = crate::linalg::cholesky(a, 0.0)?;
+    let z = crate::linalg::solve_lower_triangular_vec(&l, b)?;
+    let lt = l.t().to_owned();
+    crate::linalg::solve_upper_triangular(&lt, &z)
 }
 
 /// Invert symmetric positive definite matrix

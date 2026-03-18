@@ -357,25 +357,37 @@ impl KMeans {
         let mut centers = initial_centers;
         let mut rng = StdRng::seed_from_u64(self.random_state.unwrap_or(42));
 
-        // Pre-extract sample data as owned Vecs for cache-friendly access
-        let x_rows: Vec<Vec<f64>> = (0..n_samples).map(|i| x.row(i).to_vec()).collect();
+        // Zero-copy access: use contiguous slices from ndarray directly.
+        // Array2 in standard (C) layout has contiguous rows, so as_slice() works.
+        // Force contiguous layout if input is transposed/sliced.
+        let x_contig;
+        let x_ref = if x.is_standard_layout() {
+            x
+        } else {
+            x_contig = x.as_standard_layout().into_owned();
+            &x_contig
+        };
+        let x_data = x_ref.as_slice().unwrap();
+
+        // Helper closure: get row i of x as a slice (zero-copy)
+        let x_row = |i: usize| -> &[f64] { &x_data[i * n_features..(i + 1) * n_features] };
 
         // --- Initial full assignment (no bounds yet) ---
         let mut labels = Array1::<i32>::zeros(n_samples);
         let mut upper = vec![0.0f64; n_samples]; // u[i]: upper bound on d(x_i, c_{a_i})
-        let mut lower = vec![vec![0.0f64; k]; n_samples]; // l[i][j]: lower bound on d(x_i, c_j)
-
-        // Initial center data
-        let center_data: Vec<Vec<f64>> = (0..k).map(|j| centers.row(j).to_vec()).collect();
+                                                 // Flat lower bounds: lower[i * k + j] = lower bound on d(x_i, c_j)
+        let mut lower = vec![0.0f64; n_samples * k];
 
         // Initial assignment: compute all distances
         for i in 0..n_samples {
+            let xi = x_row(i);
             let mut min_dist = f64::MAX;
             let mut min_idx = 0usize;
             for j in 0..k {
-                let dist =
-                    crate::linalg::squared_euclidean_distance(&x_rows[i], &center_data[j]).sqrt();
-                lower[i][j] = dist;
+                let cj = centers.row(j);
+                let cj_s = cj.as_slice().unwrap();
+                let dist = crate::linalg::squared_euclidean_distance(xi, cj_s).sqrt();
+                lower[i * k + j] = dist;
                 if dist < min_dist {
                     min_dist = dist;
                     min_idx = j;
@@ -388,26 +400,26 @@ impl KMeans {
         // Pre-allocate working buffers
         let mut new_centers = Array2::zeros((k, n_features));
         let mut counts = vec![0usize; k];
-        let mut center_dists = vec![vec![0.0f64; k]; k]; // d(c_j, c_j')
+        // Flat center-to-center distances: center_dists[j * k + jp] = d(c_j, c_jp)
+        let mut center_dists = vec![0.0f64; k * k];
         let mut s = vec![0.0f64; k]; // s[j] = 0.5 * min_{j'!=j} d(c_j, c_j')
         let mut prev_inertia = f64::MAX;
 
         for iter in 0..self.max_iter {
             // Step 1: Compute center-to-center distances and s[j]
-            let center_data_curr: Vec<Vec<f64>> = (0..k).map(|j| centers.row(j).to_vec()).collect();
             for j in 0..k {
                 s[j] = f64::MAX;
+                let cj = centers.row(j);
+                let cj_s = cj.as_slice().unwrap();
                 for jp in 0..k {
                     if j == jp {
-                        center_dists[j][jp] = 0.0;
+                        center_dists[j * k + jp] = 0.0;
                         continue;
                     }
-                    let dist = crate::linalg::squared_euclidean_distance(
-                        &center_data_curr[j],
-                        &center_data_curr[jp],
-                    )
-                    .sqrt();
-                    center_dists[j][jp] = dist;
+                    let cjp = centers.row(jp);
+                    let cjp_s = cjp.as_slice().unwrap();
+                    let dist = crate::linalg::squared_euclidean_distance(cj_s, cjp_s).sqrt();
+                    center_dists[j * k + jp] = dist;
                     let half_dist = dist * 0.5;
                     if half_dist < s[j] {
                         s[j] = half_dist;
@@ -425,6 +437,8 @@ impl KMeans {
                 }
 
                 let mut r_done = false; // whether we've tightened u[i] this iteration
+                let xi = x_row(i);
+                let lower_i = i * k; // base offset for lower bounds of sample i
 
                 for j in 0..k {
                     if j == ai {
@@ -432,37 +446,35 @@ impl KMeans {
                     }
 
                     // Skip if lower bound already guarantees j is farther
-                    if upper[i] <= lower[i][j] {
+                    if upper[i] <= lower[lower_i + j] {
                         continue;
                     }
 
                     // Skip using center-to-center distance
-                    if upper[i] <= center_dists[ai][j] * 0.5 {
+                    if upper[i] <= center_dists[ai * k + j] * 0.5 {
                         continue;
                     }
 
                     // Tighten upper bound if not done yet
                     if !r_done {
-                        let d_ai = crate::linalg::squared_euclidean_distance(
-                            &x_rows[i],
-                            &center_data_curr[ai],
-                        )
-                        .sqrt();
+                        let c_ai = centers.row(ai);
+                        let c_ai_s = c_ai.as_slice().unwrap();
+                        let d_ai = crate::linalg::squared_euclidean_distance(xi, c_ai_s).sqrt();
                         upper[i] = d_ai;
-                        lower[i][ai] = d_ai;
+                        lower[lower_i + ai] = d_ai;
                         r_done = true;
 
                         // Re-check after tightening
-                        if d_ai <= lower[i][j] || d_ai <= center_dists[ai][j] * 0.5 {
+                        if d_ai <= lower[lower_i + j] || d_ai <= center_dists[ai * k + j] * 0.5 {
                             continue;
                         }
                     }
 
                     // Must compute actual distance to center j
-                    let d_j =
-                        crate::linalg::squared_euclidean_distance(&x_rows[i], &center_data_curr[j])
-                            .sqrt();
-                    lower[i][j] = d_j;
+                    let cj = centers.row(j);
+                    let cj_s = cj.as_slice().unwrap();
+                    let d_j = crate::linalg::squared_euclidean_distance(xi, cj_s).sqrt();
+                    lower[lower_i + j] = d_j;
 
                     if d_j < upper[i] {
                         labels[i] = j as i32;
@@ -494,23 +506,22 @@ impl KMeans {
             }
 
             // Step 4: Compute center movement deltas
-            let new_center_data: Vec<Vec<f64>> =
-                (0..k).map(|j| new_centers.row(j).to_vec()).collect();
             let deltas: Vec<f64> = (0..k)
                 .map(|j| {
-                    crate::linalg::squared_euclidean_distance(
-                        &center_data_curr[j],
-                        &new_center_data[j],
-                    )
-                    .sqrt()
+                    let old_cj = centers.row(j);
+                    let old_cj_s = old_cj.as_slice().unwrap();
+                    let new_cj = new_centers.row(j);
+                    let new_cj_s = new_cj.as_slice().unwrap();
+                    crate::linalg::squared_euclidean_distance(old_cj_s, new_cj_s).sqrt()
                 })
                 .collect();
 
             // Step 5: Update bounds
             for i in 0..n_samples {
                 let ai = labels[i] as usize;
+                let lower_i = i * k;
                 for j in 0..k {
-                    lower[i][j] = (lower[i][j] - deltas[j]).max(0.0);
+                    lower[lower_i + j] = (lower[lower_i + j] - deltas[j]).max(0.0);
                 }
                 upper[i] += deltas[ai];
             }
@@ -519,7 +530,10 @@ impl KMeans {
             let inertia: f64 = (0..n_samples)
                 .map(|i| {
                     let ci = labels[i] as usize;
-                    crate::linalg::squared_euclidean_distance(&x_rows[i], &new_center_data[ci])
+                    let xi = x_row(i);
+                    let c = new_centers.row(ci);
+                    let c_s = c.as_slice().unwrap();
+                    crate::linalg::squared_euclidean_distance(xi, c_s)
                 })
                 .sum();
 
@@ -533,11 +547,13 @@ impl KMeans {
         }
 
         // Compute final inertia
-        let final_center_data: Vec<Vec<f64>> = (0..k).map(|j| centers.row(j).to_vec()).collect();
         let inertia: f64 = (0..n_samples)
             .map(|i| {
                 let ci = labels[i] as usize;
-                crate::linalg::squared_euclidean_distance(&x_rows[i], &final_center_data[ci])
+                let xi = x_row(i);
+                let c = centers.row(ci);
+                let c_s = c.as_slice().unwrap();
+                crate::linalg::squared_euclidean_distance(xi, c_s)
             })
             .sum();
 

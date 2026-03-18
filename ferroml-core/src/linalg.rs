@@ -8,6 +8,96 @@ use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
 
 // =============================================================================
+// SVD (Singular Value Decomposition)
+// =============================================================================
+
+/// Thin SVD: returns `(U, S, Vt)` where `U` is `(m, k)`, `S` is `(k,)`, `Vt` is `(k, n)`,
+/// with `k = min(m, n)`.
+///
+/// When the `faer-backend` feature is enabled, delegates to faer's SVD which
+/// uses a divide-and-conquer algorithm (10-13x faster than nalgebra's Jacobi SVD).
+pub fn thin_svd(a: &Array2<f64>) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
+    #[cfg(feature = "faer-backend")]
+    {
+        thin_svd_faer(a)
+    }
+    #[cfg(not(feature = "faer-backend"))]
+    {
+        thin_svd_nalgebra(a)
+    }
+}
+
+/// Thin SVD via faer (divide-and-conquer, high performance).
+#[cfg(feature = "faer-backend")]
+pub fn thin_svd_faer(a: &Array2<f64>) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
+    let (m, n) = a.dim();
+    let k = m.min(n);
+
+    // Convert ndarray -> faer Mat
+    let mut mat = faer::Mat::zeros(m, n);
+    for i in 0..m {
+        for j in 0..n {
+            mat.write(i, j, a[[i, j]]);
+        }
+    }
+
+    let svd = mat.thin_svd();
+
+    // Extract U (m × k)
+    let u_faer = svd.u();
+    let mut u = Array2::zeros((m, k));
+    for i in 0..m {
+        for j in 0..k {
+            u[[i, j]] = u_faer.read(i, j);
+        }
+    }
+
+    // Extract singular values S (k,)
+    let s_faer = svd.s_diagonal();
+    let mut s = Array1::zeros(k);
+    for i in 0..k {
+        s[i] = s_faer.read(i);
+    }
+
+    // Extract V (n × k) and transpose to Vt (k × n)
+    let v_faer = svd.v();
+    let mut vt = Array2::zeros((k, n));
+    for i in 0..k {
+        for j in 0..n {
+            vt[[i, j]] = v_faer.read(j, i);
+        }
+    }
+
+    Ok((u, s, vt))
+}
+
+/// Thin SVD via nalgebra (Jacobi, pure Rust fallback).
+pub fn thin_svd_nalgebra(a: &Array2<f64>) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
+    let (m, n) = a.dim();
+    let mat = nalgebra::DMatrix::from_fn(m, n, |i, j| a[[i, j]]);
+    let svd = mat.svd(true, true);
+
+    let u_nal = svd
+        .u
+        .ok_or_else(|| FerroError::numerical("SVD failed to compute U matrix"))?;
+    let s_nal = svd.singular_values;
+    let vt_nal = svd
+        .v_t
+        .ok_or_else(|| FerroError::numerical("SVD failed to compute V^T matrix"))?;
+
+    let k = m.min(n);
+    let u = Array2::from_shape_fn((u_nal.nrows(), u_nal.ncols().min(k)), |(i, j)| {
+        u_nal[(i, j)]
+    });
+    let s = Array1::from_iter(s_nal.iter().take(k).copied());
+    let vt = Array2::from_shape_fn((vt_nal.nrows().min(k), vt_nal.ncols()), |(i, j)| {
+        vt_nal[(i, j)]
+    });
+
+    Ok((u, s, vt))
+}
+
+// =============================================================================
 // QR Decomposition
 // =============================================================================
 
@@ -526,6 +616,63 @@ mod tests {
         let x = solve_lower_triangular_vec(&l, &b).unwrap();
         assert_abs_diff_eq!(x[0], 2.0, epsilon = 1e-10);
         assert_abs_diff_eq!(x[1], 5.0 / 3.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_thin_svd_square() {
+        let a = Array2::from_shape_vec((3, 3), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0])
+            .unwrap();
+
+        let (u, s, vt) = thin_svd(&a).unwrap();
+        assert_eq!(u.dim(), (3, 3));
+        assert_eq!(s.len(), 3);
+        assert_eq!(vt.dim(), (3, 3));
+
+        // U * diag(S) * Vt should reconstruct A
+        let mut reconstructed: Array2<f64> = Array2::zeros((3, 3));
+        for i in 0..3 {
+            for j in 0..3 {
+                for k in 0..3 {
+                    reconstructed[[i, j]] += u[[i, k]] * s[k] * vt[[k, j]];
+                }
+            }
+        }
+        for i in 0..3 {
+            for j in 0..3 {
+                assert_abs_diff_eq!(reconstructed[[i, j]], a[[i, j]], epsilon = 1e-10);
+            }
+        }
+
+        // Singular values should be non-negative
+        for &sv in s.iter() {
+            assert!(sv >= 0.0);
+        }
+    }
+
+    #[test]
+    fn test_thin_svd_tall() {
+        let a =
+            Array2::from_shape_vec((4, 2), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).unwrap();
+
+        let (u, s, vt) = thin_svd(&a).unwrap();
+        assert_eq!(u.dim(), (4, 2));
+        assert_eq!(s.len(), 2);
+        assert_eq!(vt.dim(), (2, 2));
+
+        // Reconstruct
+        let mut reconstructed: Array2<f64> = Array2::zeros((4, 2));
+        for i in 0..4 {
+            for j in 0..2 {
+                for k in 0..2 {
+                    reconstructed[[i, j]] += u[[i, k]] * s[k] * vt[[k, j]];
+                }
+            }
+        }
+        for i in 0..4 {
+            for j in 0..2 {
+                assert_abs_diff_eq!(reconstructed[[i, j]], a[[i, j]], epsilon = 1e-10);
+            }
+        }
     }
 
     #[test]

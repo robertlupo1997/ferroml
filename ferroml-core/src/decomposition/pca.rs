@@ -414,34 +414,13 @@ impl PCA {
         }
     }
 
-    /// Compute full SVD using nalgebra.
+    /// Compute full SVD via the shared linalg module (faer when available).
     #[allow(clippy::unused_self)]
     fn full_svd(
         &self,
         x_centered: &Array2<f64>,
     ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
-        let (n_samples, n_features) = x_centered.dim();
-
-        // Convert to nalgebra matrix for SVD
-        let mat = nalgebra::DMatrix::from_fn(n_samples, n_features, |i, j| x_centered[[i, j]]);
-
-        // Compute SVD
-        let svd = mat.svd(true, true);
-
-        let u = svd
-            .u
-            .ok_or_else(|| FerroError::numerical("SVD failed to compute U matrix"))?;
-        let s = svd.singular_values;
-        let vt = svd
-            .v_t
-            .ok_or_else(|| FerroError::numerical("SVD failed to compute V^T matrix"))?;
-
-        // Convert back to ndarray
-        let u_arr = Array2::from_shape_fn((u.nrows(), u.ncols()), |(i, j)| u[(i, j)]);
-        let s_arr = Array1::from_iter(s.iter().copied());
-        let vt_arr = Array2::from_shape_fn((vt.nrows(), vt.ncols()), |(i, j)| vt[(i, j)]);
-
-        Ok((u_arr, s_arr, vt_arr))
+        crate::linalg::thin_svd(x_centered)
     }
 
     /// Compute randomized SVD for large datasets.
@@ -492,24 +471,11 @@ impl PCA {
         // Form B = Q^T · X
         let b = q.t().dot(x_centered);
 
-        // SVD of small matrix B
-        let mat = nalgebra::DMatrix::from_fn(b.nrows(), b.ncols(), |i, j| b[[i, j]]);
-        let svd = mat.svd(true, true);
-
-        let u_b = svd
-            .u
-            .ok_or_else(|| FerroError::numerical("Randomized SVD failed"))?;
-        let s = svd.singular_values;
-        let vt = svd
-            .v_t
-            .ok_or_else(|| FerroError::numerical("Randomized SVD failed"))?;
+        // SVD of small matrix B via faer
+        let (u_b, s_arr, vt_arr) = crate::linalg::thin_svd(&b)?;
 
         // U = Q · U_B
-        let u_b_arr = Array2::from_shape_fn((u_b.nrows(), u_b.ncols()), |(i, j)| u_b[(i, j)]);
-        let u_arr = q.dot(&u_b_arr);
-
-        let s_arr = Array1::from_iter(s.iter().copied());
-        let vt_arr = Array2::from_shape_fn((vt.nrows(), vt.ncols()), |(i, j)| vt[(i, j)]);
+        let u_arr = q.dot(&u_b);
 
         Ok((u_arr, s_arr, vt_arr))
     }
@@ -951,21 +917,14 @@ impl IncrementalPCA {
                     |e| FerroError::numerical(format!("Failed to create augmented matrix: {e}")),
                 )?;
 
-            // SVD of augmented matrix
-            let mat = nalgebra::DMatrix::from_fn(augmented.nrows(), augmented.ncols(), |i, j| {
-                augmented[[i, j]]
-            });
-
-            let svd = mat.svd(true, true);
-
-            let s = svd.singular_values;
-            let vt = svd.v_t.ok_or_else(|| FerroError::numerical("SVD failed"))?;
+            // SVD of augmented matrix via faer
+            let (_u, s, vt) = crate::linalg::thin_svd(&augmented)?;
 
             // Extract top components
             let n_keep = n_components.min(s.len());
 
-            let components = Array2::from_shape_fn((n_keep, n_features), |(i, j)| vt[(i, j)]);
-            let singular_values = Array1::from_iter(s.iter().take(n_keep).copied());
+            let components = vt.slice(ndarray::s![..n_keep, ..]).to_owned();
+            let singular_values = s.slice(ndarray::s![..n_keep]).to_owned();
 
             // Explained variance
             let n_total = self.n_samples_seen as f64;
@@ -1001,17 +960,13 @@ impl IncrementalPCA {
             self.n_components_fitted = Some(n_keep);
             self.noise_variance = noise_variance;
         } else {
-            // First batch: compute SVD directly
-            let mat = nalgebra::DMatrix::from_fn(n_samples, n_features, |i, j| x_centered[[i, j]]);
-
-            let svd = mat.svd(true, true);
-            let s = svd.singular_values;
-            let vt = svd.v_t.ok_or_else(|| FerroError::numerical("SVD failed"))?;
+            // First batch: compute SVD directly via faer
+            let (_u, s, vt) = crate::linalg::thin_svd(&x_centered)?;
 
             let n_keep = n_components.min(s.len());
 
-            let components = Array2::from_shape_fn((n_keep, n_features), |(i, j)| vt[(i, j)]);
-            let singular_values = Array1::from_iter(s.iter().take(n_keep).copied());
+            let components = vt.slice(ndarray::s![..n_keep, ..]).to_owned();
+            let singular_values = s.slice(ndarray::s![..n_keep]).to_owned();
 
             let n_minus_1 = (n_samples - 1).max(1) as f64;
             let explained_variance = singular_values.mapv(|sv| sv * sv / n_minus_1);

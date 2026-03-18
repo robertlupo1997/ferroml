@@ -408,26 +408,67 @@ impl Model for LinearRegression {
             )));
         }
 
-        // QR decomposition for numerical stability
-        // Using Gram-Schmidt orthogonalization
-        let (q, r) = qr_decomposition(&x_design)?;
+        // Solve for coefficients and compute (X'X)^{-1}
+        // Use Cholesky normal equations when n >> p (faster for tall matrices),
+        // QR decomposition otherwise (better numerical stability)
+        let (coefficients, condition_number, xtx_inv) = if n > 2 * p {
+            // Cholesky normal equations: X'X * beta = X'y
+            // O(n·d²) to form X'X, then O(d³) to solve — faster when n >> d
+            let xtx = x_design.t().dot(&x_design);
+            let xty = x_design.t().dot(y);
 
-        // Condition number from R diagonal: cond(X) ≈ max|R_ii| / min|R_ii|
-        let condition_number = {
-            let diag: Vec<f64> = (0..r.ncols()).map(|i| r[[i, i]].abs()).collect();
-            let max_diag = diag.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-            let min_diag = diag.iter().cloned().fold(f64::INFINITY, f64::min);
-            if min_diag <= 1e-14 {
-                return Err(FerroError::numerical(
-                    "Matrix is rank-deficient (collinear features)",
-                ));
-            }
-            Some(max_diag / min_diag)
+            let l = crate::linalg::cholesky(&xtx, 1e-10)?;
+            let z = crate::linalg::solve_lower_triangular_vec(&l, &xty)?;
+            let lt = l.t().to_owned();
+            let coefficients = crate::linalg::solve_upper_triangular(&lt, &z)?;
+
+            // Compute (X'X)^{-1} = L^{-T} L^{-1} for standard errors / leverage
+            let lt_inv = invert_upper_triangular(&lt)?;
+            let xtx_inv = lt_inv.dot(&lt_inv.t());
+
+            // Condition number from Cholesky diagonal: cond(X'X) ≈ (max/min)²
+            // cond(X) ≈ sqrt(cond(X'X)) = max(L_ii) / min(L_ii)
+            let condition_number = {
+                let diag: Vec<f64> = (0..l.ncols()).map(|i| l[[i, i]].abs()).collect();
+                let max_diag = diag.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                let min_diag = diag.iter().cloned().fold(f64::INFINITY, f64::min);
+                if min_diag <= 1e-14 {
+                    return Err(FerroError::numerical(
+                        "Matrix is rank-deficient (collinear features)",
+                    ));
+                }
+                Some(max_diag / min_diag)
+            };
+
+            (coefficients, condition_number, xtx_inv)
+        } else {
+            // QR decomposition for numerical stability
+            // Using Gram-Schmidt orthogonalization
+            let (q, r) = qr_decomposition(&x_design)?;
+
+            // Condition number from R diagonal: cond(X) ≈ max|R_ii| / min|R_ii|
+            let condition_number = {
+                let diag: Vec<f64> = (0..r.ncols()).map(|i| r[[i, i]].abs()).collect();
+                let max_diag = diag.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                let min_diag = diag.iter().cloned().fold(f64::INFINITY, f64::min);
+                if min_diag <= 1e-14 {
+                    return Err(FerroError::numerical(
+                        "Matrix is rank-deficient (collinear features)",
+                    ));
+                }
+                Some(max_diag / min_diag)
+            };
+
+            // Solve R * beta = Q' * y
+            let qty = q.t().dot(y);
+            let coefficients = solve_upper_triangular(&r, &qty)?;
+
+            // Compute (X'X)^{-1} = R^{-1} * R'^{-1}
+            let r_inv = invert_upper_triangular(&r)?;
+            let xtx_inv = r_inv.dot(&r_inv.t());
+
+            (coefficients, condition_number, xtx_inv)
         };
-
-        // Solve R * beta = Q' * y
-        let qty = q.t().dot(y);
-        let coefficients = solve_upper_triangular(&r, &qty)?;
 
         // Compute fitted values and residuals
         let fitted_values = x_design.dot(&coefficients);
@@ -444,19 +485,14 @@ impl Model for LinearRegression {
         // Residual standard error
         let residual_std_error = (rss / df_residuals as f64).sqrt();
 
-        // Compute (X'X)^(-1) for coefficient standard errors
-        // Using R from QR: (X'X)^(-1) = (R'R)^(-1) = R^(-1) * R'^(-1)
-        let r_inv = invert_upper_triangular(&r)?;
-        let coef_covariance = r_inv.dot(&r_inv.t()) * residual_std_error.powi(2);
+        // Coefficient covariance: (X'X)^{-1} * sigma²
+        let coef_covariance = &xtx_inv * residual_std_error.powi(2);
 
         // Extract coefficient standard errors
         let mut coef_std_errors = Array1::zeros(p);
         for i in 0..p {
             coef_std_errors[i] = coef_covariance[[i, i]].sqrt();
         }
-
-        // Compute leverage (hat matrix diagonal): h_ii = x_i' (X'X)^{-1} x_i
-        let xtx_inv = r_inv.dot(&r_inv.t());
         let mut leverage = Array1::zeros(n);
         for i in 0..n {
             let xi = x_design.row(i);

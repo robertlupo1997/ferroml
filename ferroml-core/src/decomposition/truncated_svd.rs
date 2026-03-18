@@ -341,49 +341,19 @@ impl TruncatedSVD {
         // Form B = Q^T · X (small matrix)
         let b = q.t().dot(x);
 
-        // SVD of the small matrix B
-        let mat = nalgebra::DMatrix::from_fn(b.nrows(), b.ncols(), |i, j| b[[i, j]]);
-        let svd = mat.svd(true, true);
-
-        let u_b = svd
-            .u
-            .ok_or_else(|| FerroError::numerical("Randomized SVD failed to compute U matrix"))?;
-        let s = svd.singular_values;
-        let vt = svd
-            .v_t
-            .ok_or_else(|| FerroError::numerical("Randomized SVD failed to compute V^T matrix"))?;
+        // SVD of the small matrix B via faer
+        let (u_b, s_arr, vt_arr) = crate::linalg::thin_svd(&b)?;
 
         // Recover U = Q · U_B
-        let u_b_arr = Array2::from_shape_fn((u_b.nrows(), u_b.ncols()), |(i, j)| u_b[(i, j)]);
-        let u_arr = q.dot(&u_b_arr);
-
-        let s_arr = Array1::from_iter(s.iter().copied());
-        let vt_arr = Array2::from_shape_fn((vt.nrows(), vt.ncols()), |(i, j)| vt[(i, j)]);
+        let u_arr = q.dot(&u_b);
 
         Ok((u_arr, s_arr, vt_arr))
     }
 
-    /// Compute full SVD using nalgebra.
+    /// Compute full SVD via the shared linalg module (faer when available).
     #[allow(clippy::unused_self)]
     fn full_svd(&self, x: &Array2<f64>) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
-        let (n_samples, n_features) = x.dim();
-
-        let mat = nalgebra::DMatrix::from_fn(n_samples, n_features, |i, j| x[[i, j]]);
-        let svd = mat.svd(true, true);
-
-        let u = svd
-            .u
-            .ok_or_else(|| FerroError::numerical("SVD failed to compute U matrix"))?;
-        let s = svd.singular_values;
-        let vt = svd
-            .v_t
-            .ok_or_else(|| FerroError::numerical("SVD failed to compute V^T matrix"))?;
-
-        let u_arr = Array2::from_shape_fn((u.nrows(), u.ncols()), |(i, j)| u[(i, j)]);
-        let s_arr = Array1::from_iter(s.iter().copied());
-        let vt_arr = Array2::from_shape_fn((vt.nrows(), vt.ncols()), |(i, j)| vt[(i, j)]);
-
-        Ok((u_arr, s_arr, vt_arr))
+        crate::linalg::thin_svd(x)
     }
 
     /// Compute SVD based on the selected algorithm.
