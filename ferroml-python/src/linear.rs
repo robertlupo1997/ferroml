@@ -751,8 +751,10 @@ impl PyLogisticRegression {
     /// confidence_level : float, optional (default=0.95)
     ///     Confidence level for intervals.
     /// solver : str, optional (default="auto")
-    ///     Optimization algorithm: "irls", "lbfgs", or "auto".
+    ///     Optimization algorithm: "irls", "lbfgs", "sag", "saga", or "auto".
     ///     "auto" selects IRLS for < 50 features, L-BFGS otherwise.
+    ///     "sag"/"saga" use Stochastic Average Gradient — O(d) per iteration,
+    ///     best for large datasets (n > 10K).
     #[new]
     #[pyo3(signature = (fit_intercept=true, max_iter=100, tol=1e-8, l2_penalty=0.0, confidence_level=0.95, solver="auto"))]
     fn new(

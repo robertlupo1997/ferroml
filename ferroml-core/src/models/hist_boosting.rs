@@ -387,51 +387,46 @@ fn to_col_major(x_binned: &Array2<u8>) -> Vec<Vec<u8>> {
         .collect()
 }
 
-/// Histogram for a single node
+/// A single histogram bin — packs gradient, hessian, and count into one cache line.
+///
+/// Array-of-Structs layout: all fields for bin[k] are contiguous in memory,
+/// so random access by bin index hits one cache line instead of three separate
+/// Vec allocations (the old SoA layout).
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+struct HistogramBin {
+    sum_gradients: f64,
+    sum_hessians: f64,
+    count: u32,
+    _pad: u32, // Align to 24 bytes (3 × 8), fits in one cache line
+}
+
+/// Histogram for a single node (AoS layout for cache efficiency)
 #[derive(Debug, Clone)]
 struct Histogram {
-    /// Sum of gradients for each bin
-    sum_gradients: Vec<f64>,
-    /// Sum of hessians for each bin
-    sum_hessians: Vec<f64>,
-    /// Count of samples in each bin
-    counts: Vec<usize>,
+    bins: Vec<HistogramBin>,
 }
 
 impl Histogram {
     fn new(n_bins: usize) -> Self {
         Self {
-            sum_gradients: vec![0.0; n_bins],
-            sum_hessians: vec![0.0; n_bins],
-            counts: vec![0; n_bins],
+            bins: vec![HistogramBin::default(); n_bins],
         }
+    }
+
+    /// Number of bins in this histogram.
+    #[inline]
+    fn n_bins(&self) -> usize {
+        self.bins.len()
     }
 
     /// Compute histogram by subtraction (parent - sibling = self)
     fn compute_by_subtraction(&mut self, parent: &Histogram, sibling: &Histogram) {
-        #[cfg(feature = "simd")]
-        {
-            crate::simd::vector_sub_into(
-                &parent.sum_gradients,
-                &sibling.sum_gradients,
-                &mut self.sum_gradients,
-            );
-            crate::simd::vector_sub_into(
-                &parent.sum_hessians,
-                &sibling.sum_hessians,
-                &mut self.sum_hessians,
-            );
-        }
-        #[cfg(not(feature = "simd"))]
-        {
-            for i in 0..self.sum_gradients.len() {
-                self.sum_gradients[i] = parent.sum_gradients[i] - sibling.sum_gradients[i];
-                self.sum_hessians[i] = parent.sum_hessians[i] - sibling.sum_hessians[i];
-            }
-        }
-        // Counts are usize, not f64 - always use scalar loop
-        for i in 0..self.counts.len() {
-            self.counts[i] = parent.counts[i].saturating_sub(sibling.counts[i]);
+        for i in 0..self.bins.len() {
+            self.bins[i].sum_gradients =
+                parent.bins[i].sum_gradients - sibling.bins[i].sum_gradients;
+            self.bins[i].sum_hessians = parent.bins[i].sum_hessians - sibling.bins[i].sum_hessians;
+            self.bins[i].count = parent.bins[i].count.saturating_sub(sibling.bins[i].count);
         }
     }
 }
@@ -687,7 +682,7 @@ impl HistTreeBuilder {
             }
 
             let histogram = &histograms[feature_idx];
-            let n_bins = histogram.sum_gradients.len();
+            let n_bins = histogram.n_bins();
 
             // Get monotonic constraint for this feature
             let constraint = self
@@ -709,16 +704,16 @@ impl HistTreeBuilder {
                 // Add missing bin contribution based on direction
                 let missing_bin = n_bins.saturating_sub(1);
                 if missing_go_left && missing_bin < n_bins {
-                    sum_gradient_left += histogram.sum_gradients[missing_bin];
-                    sum_hessian_left += histogram.sum_hessians[missing_bin];
-                    n_left += histogram.counts[missing_bin];
+                    sum_gradient_left += histogram.bins[missing_bin].sum_gradients;
+                    sum_hessian_left += histogram.bins[missing_bin].sum_hessians;
+                    n_left += histogram.bins[missing_bin].count as usize;
                 }
 
                 // Scan through non-missing bins
                 for bin in 0..missing_bin {
-                    sum_gradient_left += histogram.sum_gradients[bin];
-                    sum_hessian_left += histogram.sum_hessians[bin];
-                    n_left += histogram.counts[bin];
+                    sum_gradient_left += histogram.bins[bin].sum_gradients;
+                    sum_hessian_left += histogram.bins[bin].sum_hessians;
+                    n_left += histogram.bins[bin].count as usize;
 
                     let n_right = node.n_samples.saturating_sub(n_left);
                     let sum_gradient_right = node.sum_gradients - sum_gradient_left;
@@ -1250,9 +1245,9 @@ impl HistTreeBuilder {
             for f in 0..n_features {
                 let bin = row_slice[f] as usize;
                 if bin < n_bins_per_feature[f] {
-                    histograms[f].sum_gradients[bin] += g;
-                    histograms[f].sum_hessians[bin] += h;
-                    histograms[f].counts[bin] += 1;
+                    histograms[f].bins[bin].sum_gradients += g;
+                    histograms[f].bins[bin].sum_hessians += h;
+                    histograms[f].bins[bin].count += 1;
                 }
             }
         }
@@ -1273,21 +1268,54 @@ impl HistTreeBuilder {
 
         #[cfg(feature = "parallel")]
         {
-            if indices.len() > 1_000 && n_features >= 4 {
+            if indices.len() > 5_000 && n_features >= 4 {
                 // Parallel over features for large datasets
+                // (raised from 1000 — Rayon overhead dominates for smaller workloads)
                 return (0..n_features)
                     .into_par_iter()
                     .map(|f| {
                         let n_bins = n_bins_per_feature[f];
                         let mut histogram = Histogram::new(n_bins);
                         let col = &x_col_major[f];
+                        let bins = &mut histogram.bins;
 
-                        for &idx in indices {
+                        // Process 4 samples at a time for CPU pipelining
+                        let chunks = indices.chunks_exact(4);
+                        let remainder = chunks.remainder();
+
+                        for chunk in chunks {
+                            let b0 = col[chunk[0]] as usize;
+                            let b1 = col[chunk[1]] as usize;
+                            let b2 = col[chunk[2]] as usize;
+                            let b3 = col[chunk[3]] as usize;
+
+                            if b0 < n_bins {
+                                bins[b0].sum_gradients += gradients[chunk[0]];
+                                bins[b0].sum_hessians += hessians[chunk[0]];
+                                bins[b0].count += 1;
+                            }
+                            if b1 < n_bins {
+                                bins[b1].sum_gradients += gradients[chunk[1]];
+                                bins[b1].sum_hessians += hessians[chunk[1]];
+                                bins[b1].count += 1;
+                            }
+                            if b2 < n_bins {
+                                bins[b2].sum_gradients += gradients[chunk[2]];
+                                bins[b2].sum_hessians += hessians[chunk[2]];
+                                bins[b2].count += 1;
+                            }
+                            if b3 < n_bins {
+                                bins[b3].sum_gradients += gradients[chunk[3]];
+                                bins[b3].sum_hessians += hessians[chunk[3]];
+                                bins[b3].count += 1;
+                            }
+                        }
+                        for &idx in remainder {
                             let bin = col[idx] as usize;
                             if bin < n_bins {
-                                histogram.sum_gradients[bin] += gradients[idx];
-                                histogram.sum_hessians[bin] += hessians[idx];
-                                histogram.counts[bin] += 1;
+                                bins[bin].sum_gradients += gradients[idx];
+                                bins[bin].sum_hessians += hessians[idx];
+                                bins[bin].count += 1;
                             }
                         }
 
@@ -1307,14 +1335,45 @@ impl HistTreeBuilder {
         for f in 0..n_features {
             let n_bins = n_bins_per_feature[f];
             let col = &x_col_major[f];
-            let hist = &mut histograms[f];
+            let bins = &mut histograms[f].bins;
 
-            for &idx in indices {
+            // Process 4 samples at a time for CPU pipelining
+            let chunks = indices.chunks_exact(4);
+            let remainder = chunks.remainder();
+
+            for chunk in chunks {
+                let b0 = col[chunk[0]] as usize;
+                let b1 = col[chunk[1]] as usize;
+                let b2 = col[chunk[2]] as usize;
+                let b3 = col[chunk[3]] as usize;
+
+                if b0 < n_bins {
+                    bins[b0].sum_gradients += gradients[chunk[0]];
+                    bins[b0].sum_hessians += hessians[chunk[0]];
+                    bins[b0].count += 1;
+                }
+                if b1 < n_bins {
+                    bins[b1].sum_gradients += gradients[chunk[1]];
+                    bins[b1].sum_hessians += hessians[chunk[1]];
+                    bins[b1].count += 1;
+                }
+                if b2 < n_bins {
+                    bins[b2].sum_gradients += gradients[chunk[2]];
+                    bins[b2].sum_hessians += hessians[chunk[2]];
+                    bins[b2].count += 1;
+                }
+                if b3 < n_bins {
+                    bins[b3].sum_gradients += gradients[chunk[3]];
+                    bins[b3].sum_hessians += hessians[chunk[3]];
+                    bins[b3].count += 1;
+                }
+            }
+            for &idx in remainder {
                 let bin = col[idx] as usize;
                 if bin < n_bins {
-                    hist.sum_gradients[bin] += gradients[idx];
-                    hist.sum_hessians[bin] += hessians[idx];
-                    hist.counts[bin] += 1;
+                    bins[bin].sum_gradients += gradients[idx];
+                    bins[bin].sum_hessians += hessians[idx];
+                    bins[bin].count += 1;
                 }
             }
         }

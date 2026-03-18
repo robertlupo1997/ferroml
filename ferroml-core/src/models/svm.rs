@@ -74,13 +74,14 @@ use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::collections::{HashMap, VecDeque};
-
 // =============================================================================
-// LRU Kernel Cache
+// LRU Kernel Cache (Slab-based, O(1) eviction)
 // =============================================================================
 
-/// Default number of kernel rows to cache when using the LRU cache.
+/// Default cache size in megabytes (matches sklearn/libsvm default).
+const DEFAULT_CACHE_SIZE_MB: usize = 200;
+
+/// Legacy default for the row-count API (used when `cache_size` field is set).
 const DEFAULT_CACHE_SIZE: usize = 1000;
 
 /// Threshold below which the full kernel matrix is precomputed.
@@ -90,31 +91,48 @@ const DEFAULT_CACHE_SIZE: usize = 1000;
 /// the active set converges to ~n_sv (support vectors).
 const FULL_MATRIX_THRESHOLD: usize = 4_000;
 
-/// LRU cache for kernel matrix rows.
+/// Sentinel value for "no slot / no link".
+const NONE_SLOT: i32 = -1;
+
+/// Slab-based LRU kernel cache with O(1) eviction.
 ///
-/// Instead of precomputing the full O(n^2) kernel matrix, this caches individual
-/// rows on demand and evicts the least-recently-used row when capacity is exceeded.
-/// For n=5000, this reduces memory from ~200MB (full matrix) to ~8MB (1000 cached rows).
+/// All cached rows are stored in a single contiguous `Vec<f64>` (the slab).
+/// An intrusive doubly-linked list provides O(1) LRU eviction — no `contains()`
+/// scans. Direct index mapping via `row_to_slot` gives O(1) cache lookups.
 struct KernelCache {
-    /// Cached kernel rows: row_index -> kernel values for that row against all training samples
-    cache: HashMap<usize, Vec<f64>>,
-    /// LRU eviction order (front = least recently used)
-    order: VecDeque<usize>,
-    /// Maximum number of rows to cache
+    /// Contiguous memory for all cached rows (capacity * n_samples f64 values).
+    slab: Vec<f64>,
+    /// Maps sample index → slot index in slab (NONE_SLOT if not cached).
+    row_to_slot: Vec<i32>,
+    /// Maps slot index → sample index (or usize::MAX if slot is free).
+    slot_to_row: Vec<usize>,
+    /// Intrusive doubly-linked list: previous slot for each slot.
+    lru_prev: Vec<i32>,
+    /// Intrusive doubly-linked list: next slot for each slot.
+    lru_next: Vec<i32>,
+    /// Head of LRU list (least recently used). NONE_SLOT if empty.
+    lru_head: i32,
+    /// Tail of LRU list (most recently used). NONE_SLOT if empty.
+    lru_tail: i32,
+    /// Number of occupied slots.
+    len: usize,
+    /// Row length (n_samples).
+    row_len: usize,
+    /// Maximum number of rows that fit in the slab.
     capacity: usize,
-    /// Kernel function to use
+    /// Kernel function.
     kernel: Kernel,
-    /// Reference to training data stored as row-major Vec<Vec<f64>> for efficient access
+    /// Training data stored as row-major Vec<Vec<f64>> for efficient access.
     training_data: Vec<Vec<f64>>,
-    /// Number of training samples
-    n_samples: usize,
 }
 
 impl KernelCache {
-    /// Create a new kernel cache.
-    fn new(kernel: Kernel, x: &Array2<f64>, capacity: usize) -> Self {
+    /// Create a new slab-based kernel cache.
+    ///
+    /// `capacity_rows` is the maximum number of kernel rows to cache.
+    fn new(kernel: Kernel, x: &Array2<f64>, capacity_rows: usize) -> Self {
         let n_samples = x.nrows();
-        let cap = capacity.min(n_samples);
+        let cap = capacity_rows.min(n_samples).max(2); // need at least 2 slots
 
         // Pre-extract training data as Vec<Vec<f64>> for efficient repeated access
         let x_std = if x.is_standard_layout() {
@@ -129,62 +147,141 @@ impl KernelCache {
             .collect();
 
         Self {
-            cache: HashMap::with_capacity(cap),
-            order: VecDeque::with_capacity(cap),
+            slab: vec![0.0; cap * n_samples],
+            row_to_slot: vec![NONE_SLOT; n_samples],
+            slot_to_row: vec![usize::MAX; cap],
+            lru_prev: vec![NONE_SLOT; cap],
+            lru_next: vec![NONE_SLOT; cap],
+            lru_head: NONE_SLOT,
+            lru_tail: NONE_SLOT,
+            len: 0,
+            row_len: n_samples,
             capacity: cap,
             kernel,
             training_data,
-            n_samples,
         }
     }
 
-    /// Get the full kernel row for sample `i` (computing and caching if needed).
-    /// Returns a reference to the cached row.
-    fn get_row(&mut self, i: usize) -> &[f64] {
-        if self.cache.contains_key(&i) {
-            // Don't bother removing from order — just push to back
-            // Duplicates are harmless and cleaned up during eviction
-            self.order.push_back(i);
+    /// Create a cache with a byte budget (converts to row count).
+    fn with_byte_budget(kernel: Kernel, x: &Array2<f64>, budget_bytes: usize) -> Self {
+        let n_samples = x.nrows();
+        let bytes_per_row = n_samples * std::mem::size_of::<f64>();
+        let capacity_rows = if bytes_per_row > 0 {
+            (budget_bytes / bytes_per_row).max(2)
         } else {
-            // Evict LRU entries until we have space
-            while self.cache.len() >= self.capacity {
-                if let Some(evicted) = self.order.pop_front() {
-                    // Skip if this entry appears again later in order (not truly LRU)
-                    if self.order.contains(&evicted) {
-                        continue;
-                    }
-                    self.cache.remove(&evicted);
-                } else {
-                    break;
-                }
-            }
+            n_samples
+        };
+        Self::new(kernel, x, capacity_rows)
+    }
 
-            // Compute the full row
-            let xi = &self.training_data[i];
-            let mut row = Vec::with_capacity(self.n_samples);
-            for j in 0..self.n_samples {
-                row.push(self.kernel.compute(xi, &self.training_data[j]));
-            }
+    /// Remove a slot from the LRU linked list (without freeing it).
+    #[inline]
+    fn lru_remove(&mut self, slot: i32) {
+        let prev = self.lru_prev[slot as usize];
+        let next = self.lru_next[slot as usize];
+        if prev != NONE_SLOT {
+            self.lru_next[prev as usize] = next;
+        } else {
+            self.lru_head = next;
+        }
+        if next != NONE_SLOT {
+            self.lru_prev[next as usize] = prev;
+        } else {
+            self.lru_tail = prev;
+        }
+        self.lru_prev[slot as usize] = NONE_SLOT;
+        self.lru_next[slot as usize] = NONE_SLOT;
+    }
 
-            self.cache.insert(i, row);
-            self.order.push_back(i);
+    /// Push a slot to the tail (most recently used) of the LRU list.
+    #[inline]
+    fn lru_push_tail(&mut self, slot: i32) {
+        self.lru_prev[slot as usize] = self.lru_tail;
+        self.lru_next[slot as usize] = NONE_SLOT;
+        if self.lru_tail != NONE_SLOT {
+            self.lru_next[self.lru_tail as usize] = slot;
+        } else {
+            self.lru_head = slot;
+        }
+        self.lru_tail = slot;
+    }
+
+    /// Touch a slot (move to tail / most recently used).
+    #[inline]
+    fn lru_touch(&mut self, slot: i32) {
+        if slot != self.lru_tail {
+            self.lru_remove(slot);
+            self.lru_push_tail(slot);
+        }
+    }
+
+    /// Evict the least recently used row. Returns the freed slot index.
+    #[inline]
+    fn evict_lru(&mut self) -> usize {
+        debug_assert!(self.lru_head != NONE_SLOT);
+        let slot = self.lru_head as usize;
+        let old_row = self.slot_to_row[slot];
+        // Unlink from LRU
+        self.lru_remove(slot as i32);
+        // Clear mappings
+        if old_row < self.row_to_slot.len() {
+            self.row_to_slot[old_row] = NONE_SLOT;
+        }
+        self.slot_to_row[slot] = usize::MAX;
+        self.len -= 1;
+        slot
+    }
+
+    /// Get the full kernel row for sample `i`, computing and caching if needed.
+    /// Returns a slice into the slab.
+    fn get_row(&mut self, i: usize) -> &[f64] {
+        let slot = self.row_to_slot[i];
+        if slot != NONE_SLOT {
+            // Cache hit — move to tail
+            self.lru_touch(slot);
+            let start = slot as usize * self.row_len;
+            return &self.slab[start..start + self.row_len];
         }
 
-        &self.cache[&i]
+        // Cache miss — allocate or evict
+        let slot = if self.len < self.capacity {
+            // Free slot available
+            let s = self.len;
+            self.len += 1;
+            s
+        } else {
+            self.evict_lru()
+        };
+
+        // Compute the row
+        let start = slot * self.row_len;
+        let xi = &self.training_data[i];
+        for j in 0..self.row_len {
+            self.slab[start + j] = self.kernel.compute(xi, &self.training_data[j]);
+        }
+
+        // Update mappings
+        self.row_to_slot[i] = slot as i32;
+        self.slot_to_row[slot] = i;
+        self.lru_push_tail(slot as i32);
+
+        &self.slab[start..start + self.row_len]
     }
 
     /// Get a single kernel value K(i, j).
     #[inline]
     fn get_value(&mut self, i: usize, j: usize) -> f64 {
-        // Check if row i is already cached
-        if let Some(row) = self.cache.get(&i) {
-            return row[j];
+        // Check if row i is cached
+        let slot_i = self.row_to_slot[i];
+        if slot_i != NONE_SLOT {
+            return self.slab[slot_i as usize * self.row_len + j];
         }
-        // Check if row j is already cached (kernel is symmetric)
-        if let Some(row) = self.cache.get(&j) {
-            return row[i];
+        // Check if row j is cached (kernel is symmetric)
+        let slot_j = self.row_to_slot[j];
+        if slot_j != NONE_SLOT {
+            return self.slab[slot_j as usize * self.row_len + i];
         }
-        // Neither row is cached - compute just this single value
+        // Neither row is cached — compute just this single value
         self.kernel
             .compute(&self.training_data[i], &self.training_data[j])
     }
@@ -514,21 +611,27 @@ impl BinarySVC {
 
         // Initialize alphas and create kernel provider
         let mut alpha = Array1::zeros(n_samples);
-        let effective_cache_size = if self.cache_size > 0 {
-            self.cache_size
-        } else {
-            DEFAULT_CACHE_SIZE
-        };
         let mut kernel_provider = if n_samples < FULL_MATRIX_THRESHOLD {
             // Small dataset: precompute full kernel matrix
             KernelProvider::Full(self.compute_kernel_matrix(x))
         } else {
-            // Large dataset: use LRU cache
-            KernelProvider::Cached(KernelCache::new(
-                self.kernel,
-                x,
-                effective_cache_size.min(n_samples),
-            ))
+            // Large dataset: use slab-based LRU cache
+            // Use byte-based sizing (200MB default) unless user specified a row count
+            if self.cache_size > 0 && self.cache_size != DEFAULT_CACHE_SIZE {
+                // User explicitly set a row count — honor it
+                KernelProvider::Cached(KernelCache::new(
+                    self.kernel,
+                    x,
+                    self.cache_size.min(n_samples),
+                ))
+            } else {
+                // Default: 200MB byte budget (matches sklearn/libsvm)
+                KernelProvider::Cached(KernelCache::with_byte_budget(
+                    self.kernel,
+                    x,
+                    DEFAULT_CACHE_SIZE_MB * 1024 * 1024,
+                ))
+            }
         };
 
         // SMO algorithm
@@ -573,7 +676,12 @@ impl BinarySVC {
         Ok(())
     }
 
-    /// SMO (Sequential Minimal Optimization) algorithm.
+    /// SMO (Sequential Minimal Optimization) algorithm with WSS3 working set
+    /// selection and active-set gradient updates.
+    ///
+    /// WSS3 (Fan, Chen, Lin 2005) selects the second variable j by maximizing
+    /// the objective decrease: (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij), which
+    /// converges in far fewer iterations than Platt's max-|E_i - E_j| heuristic.
     fn smo(
         &self,
         kernel: &mut KernelProvider,
@@ -584,10 +692,15 @@ impl BinarySVC {
         let n_samples = y.len();
         let mut b = 0.0;
 
-        // Error cache
+        // Error cache (gradient: f(x_k) - y_k)
         let mut errors: Array1<f64> = -y.clone();
 
-        // (kernel diagonal precomputation removed: first-order j-selection doesn't need it)
+        // Precompute kernel diagonal: Q_ii = K(i,i). Needed for WSS3 j-selection.
+        // O(n) cost, trivial compared to the solver.
+        let mut q_diag = vec![0.0; n_samples];
+        for i in 0..n_samples {
+            q_diag[i] = kernel.get(i, i);
+        }
 
         // Buffers for kernel rows (used in incremental error update)
         let mut row_i_buf = vec![0.0; n_samples];
@@ -604,12 +717,10 @@ impl BinarySVC {
         let mut active: Vec<bool> = vec![true; n_samples];
         let mut active_set: Vec<usize> = (0..n_samples).collect();
         // Only start shrinking after the solver has had time to explore.
-        // For small datasets shrinking provides little benefit but can cause
-        // premature convergence; for large datasets it's a memory/speed win.
         let shrink_interval = if n_samples < 500 {
             self.max_iter // effectively disable shrinking for small datasets
         } else {
-            1000.min(self.max_iter) // larger interval for bigger datasets
+            1000.min(self.max_iter)
         };
 
         while (n_changed > 0 || examine_all) && iter < self.max_iter {
@@ -650,10 +761,11 @@ impl BinarySVC {
 
                 // Check KKT conditions
                 if (ri < -self.tol && alpha[i] < c[i]) || (ri > self.tol && alpha[i] > 0.0) {
-                    // Select j using max-|Ei - Ej| heuristic (Platt 1998).
-                    // More robust than WSS3 (diff^2/eta) which can select degenerate
-                    // pairs when the kernel matrix is ill-conditioned.
-                    let j = self.select_j(i, &errors, &alpha, c);
+                    // WSS3: Select j to maximize objective decrease.
+                    // obj_decrease ~ (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij)
+                    // We use the kernel diagonal for Q_ii/Q_jj and compute Q_ij on demand.
+                    let j =
+                        Self::select_j_wss3(i, &errors, &alpha, c, &q_diag, kernel, &active_set);
 
                     if let Some(j) = j {
                         let ej = errors[j];
@@ -679,11 +791,9 @@ impl BinarySVC {
                             continue;
                         }
 
-                        // Compute eta using kernel values
+                        // Compute eta = 2*K_ij - K_ii - K_jj
                         let k_ij = kernel.get(i, j);
-                        let k_ii = kernel.get(i, i);
-                        let k_jj = kernel.get(j, j);
-                        let eta = 2.0f64.mul_add(k_ij, -k_ii) - k_jj;
+                        let eta = 2.0f64.mul_add(k_ij, -q_diag[i]) - q_diag[j];
 
                         if eta >= 0.0 {
                             continue;
@@ -700,15 +810,15 @@ impl BinarySVC {
                         // Update alpha_i
                         alpha[i] = (y[i] * y[j]).mul_add(alpha_j_old - alpha[j], alpha_i_old);
 
-                        // Update threshold (save old b for incremental error update)
+                        // Update threshold
                         let b_old = b;
                         let b1 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
                             -k_ij,
-                            (y[i] * (alpha[i] - alpha_i_old)).mul_add(-k_ii, b - ei),
+                            (y[i] * (alpha[i] - alpha_i_old)).mul_add(-q_diag[i], b - ei),
                         );
 
                         let b2 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
-                            -k_jj,
+                            -q_diag[j],
                             (y[i] * (alpha[i] - alpha_i_old)).mul_add(-k_ij, b - ej),
                         );
 
@@ -720,7 +830,7 @@ impl BinarySVC {
                             (b1 + b2) / 2.0
                         };
 
-                        // Incremental error cache update: O(n) instead of O(n * n_sv).
+                        // Incremental error cache update — only active set.
                         // errors[k] = f(x_k) - y[k], and f changed only at indices i,j:
                         // delta_f(k) = di*K(i,k) + dj*K(j,k) + (b_new - b_old)
                         {
@@ -732,7 +842,9 @@ impl BinarySVC {
                             kernel.fill_row(i, &mut row_i_buf);
                             kernel.fill_row(j, &mut row_j_buf);
 
-                            for k in 0..n_samples {
+                            // Update only active samples (non-bound + free)
+                            // Non-active samples get their errors recomputed on unshrink.
+                            for &k in &active_set {
                                 errors[k] += di * row_i_buf[k] + dj * row_j_buf[k] + db;
                             }
                         }
@@ -770,9 +882,6 @@ impl BinarySVC {
     }
 
     /// Shrink samples that are firmly at their bounds and unlikely to change.
-    /// A sample is shrinkable if:
-    /// - alpha[i] == 0 and y[i] * error[i] >= 0 (correctly classified, won't enter)
-    /// - alpha[i] == c[i] and y[i] * error[i] <= 0 (at upper bound, won't decrease)
     fn shrink_active_set(
         active: &mut [bool],
         active_set: &mut Vec<usize>,
@@ -802,35 +911,65 @@ impl BinarySVC {
         active_set.retain(|&i| active[i]);
     }
 
-    /// Select second alpha using max-|Ei - Ej| heuristic (Platt 1998).
-    fn select_j(
-        &self,
+    /// WSS3 second-order working set selection (Fan, Chen, Lin 2005).
+    ///
+    /// Select j to maximize objective decrease: (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij).
+    /// Falls back to max-|E_i - E_j| (first-order) if no valid pair is found.
+    fn select_j_wss3(
         i: usize,
         errors: &Array1<f64>,
         alpha: &ndarray::ArrayViewMut1<f64>,
         c: &Array1<f64>,
+        q_diag: &[f64],
+        kernel: &mut KernelProvider,
+        active_set: &[usize],
     ) -> Option<usize> {
         let ei = errors[i];
         let n_samples = errors.len();
 
-        // First, try to select from non-bound examples
-        let non_bound: Vec<usize> = (0..n_samples)
-            .filter(|&j| j != i && alpha[j] > 0.0 && alpha[j] < c[j])
-            .collect();
+        // Regularization to prevent division by near-zero denominator
+        // (the bug that originally caused us to revert to Platt's heuristic)
+        let tau = 1e-12;
 
-        if !non_bound.is_empty() {
-            // Select j with maximum |Ei - Ej|
-            return non_bound
-                .iter()
-                .max_by(|&&a, &&b| {
-                    let diff_a = (ei - errors[a]).abs();
-                    let diff_b = (ei - errors[b]).abs();
-                    diff_a.partial_cmp(&diff_b).unwrap_or(Ordering::Equal)
-                })
-                .copied();
+        let mut best_j = None;
+        let mut best_obj = f64::NEG_INFINITY;
+
+        // First pass: try non-bound active examples with WSS3
+        for &j in active_set {
+            if j == i {
+                continue;
+            }
+            // Only consider examples that can make progress
+            let is_free = alpha[j] > 0.0 && alpha[j] < c[j];
+            if !is_free {
+                continue;
+            }
+
+            let diff = ei - errors[j];
+            let diff_sq = diff * diff;
+            if diff_sq < 1e-20 {
+                continue;
+            }
+
+            // WSS3 objective: (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij)
+            // We need K(i,j) for each candidate — but the kernel diagonal is precomputed.
+            // For the full-matrix case this is O(1); for cached, we try to use cached values.
+            let k_ij = kernel.get(i, j);
+            let denom = (q_diag[i] + q_diag[j] - 2.0 * k_ij).max(tau);
+            let obj = diff_sq / denom;
+
+            if obj > best_obj {
+                best_obj = obj;
+                best_j = Some(j);
+            }
         }
 
-        // Otherwise, select from all examples
+        if best_j.is_some() {
+            return best_j;
+        }
+
+        // Fallback: select from all examples using first-order heuristic (max |E_i - E_j|)
+        // This handles the case where there are no free variables (early iterations)
         (0..n_samples).filter(|&j| j != i).max_by(|&a, &b| {
             let diff_a = (ei - errors[a]).abs();
             let diff_b = (ei - errors[b]).abs();
@@ -1173,11 +1312,12 @@ impl SVC {
 
     /// Set the maximum number of kernel rows to cache during SMO.
     ///
-    /// For datasets with fewer than 500 samples, the full kernel matrix is always
-    /// precomputed regardless of this setting. For larger datasets, this controls
-    /// memory usage during training: each cached row uses `n_samples * 8` bytes.
+    /// For datasets with fewer than 4000 samples, the full kernel matrix is always
+    /// precomputed regardless of this setting. For larger datasets, the default
+    /// is a 200MB byte budget (matching sklearn/libsvm). Setting this to a custom
+    /// value overrides the byte budget with an explicit row count.
     ///
-    /// Default: 1000 rows.
+    /// Default: 200MB byte budget (~5000 rows for n=5000, full matrix cached).
     #[must_use]
     pub fn with_cache_size(mut self, cache_size: usize) -> Self {
         self.cache_size = cache_size.max(1);
