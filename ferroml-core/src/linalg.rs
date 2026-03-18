@@ -98,6 +98,102 @@ pub fn thin_svd_nalgebra(a: &Array2<f64>) -> Result<(Array2<f64>, Array1<f64>, A
 }
 
 // =============================================================================
+// Symmetric Eigendecomposition
+// =============================================================================
+
+/// Symmetric eigendecomposition: decompose symmetric matrix `A = V Λ V^T`.
+///
+/// Returns `(eigenvalues, eigenvectors)` with eigenvalues in **descending** order
+/// (largest first, PCA convention) and eigenvectors as columns of V.
+///
+/// When the `faer-backend` feature is enabled, delegates to faer's divide-and-conquer
+/// eigendecomposition (significantly faster than nalgebra on large matrices).
+pub fn symmetric_eigh(a: &Array2<f64>) -> Result<(Array1<f64>, Array2<f64>)> {
+    #[cfg(feature = "faer-backend")]
+    {
+        symmetric_eigh_faer(a)
+    }
+    #[cfg(not(feature = "faer-backend"))]
+    {
+        symmetric_eigh_nalgebra(a)
+    }
+}
+
+/// Symmetric eigendecomposition via faer (divide-and-conquer, high performance).
+#[cfg(feature = "faer-backend")]
+pub fn symmetric_eigh_faer(a: &Array2<f64>) -> Result<(Array1<f64>, Array2<f64>)> {
+    let n = a.nrows();
+    if n != a.ncols() {
+        return Err(FerroError::shape_mismatch(
+            format!("({0}, {0})", n),
+            format!("({}, {})", n, a.ncols()),
+        ));
+    }
+
+    // Convert ndarray -> faer Mat
+    let mut mat = faer::Mat::zeros(n, n);
+    for i in 0..n {
+        for j in 0..n {
+            mat.write(i, j, a[[i, j]]);
+        }
+    }
+
+    let eig = mat.selfadjoint_eigendecomposition(faer::Side::Lower);
+    let s = eig.s();
+    let u = eig.u();
+
+    // Extract eigenvalues (ascending in faer) and reverse to descending
+    let s_col = s.column_vector();
+    let mut eigenvalues = Array1::zeros(n);
+    for i in 0..n {
+        eigenvalues[i] = s_col.read(n - 1 - i);
+    }
+
+    // Extract eigenvectors as columns, reversed to match descending eigenvalues
+    let mut eigenvectors = Array2::zeros((n, n));
+    for i in 0..n {
+        for j in 0..n {
+            eigenvectors[[i, j]] = u.read(i, n - 1 - j);
+        }
+    }
+
+    Ok((eigenvalues, eigenvectors))
+}
+
+/// Symmetric eigendecomposition via nalgebra (pure Rust fallback).
+pub fn symmetric_eigh_nalgebra(a: &Array2<f64>) -> Result<(Array1<f64>, Array2<f64>)> {
+    let n = a.nrows();
+    if n != a.ncols() {
+        return Err(FerroError::shape_mismatch(
+            format!("({0}, {0})", n),
+            format!("({}, {})", n, a.ncols()),
+        ));
+    }
+
+    let mat = nalgebra::DMatrix::from_fn(n, n, |i, j| a[[i, j]]);
+    let eig = mat.symmetric_eigen();
+
+    // nalgebra returns eigenvalues in arbitrary order — sort descending
+    let mut indices: Vec<usize> = (0..n).collect();
+    indices.sort_by(|&a, &b| {
+        eig.eigenvalues[b]
+            .partial_cmp(&eig.eigenvalues[a])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut eigenvalues = Array1::zeros(n);
+    let mut eigenvectors = Array2::zeros((n, n));
+    for (new_idx, &old_idx) in indices.iter().enumerate() {
+        eigenvalues[new_idx] = eig.eigenvalues[old_idx];
+        for i in 0..n {
+            eigenvectors[[i, new_idx]] = eig.eigenvectors[(i, old_idx)];
+        }
+    }
+
+    Ok((eigenvalues, eigenvectors))
+}
+
+// =============================================================================
 // QR Decomposition
 // =============================================================================
 

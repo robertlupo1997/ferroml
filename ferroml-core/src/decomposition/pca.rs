@@ -71,6 +71,9 @@ pub enum SvdSolver {
     /// Randomized SVD for large datasets.
     /// Faster but approximate for large n_features.
     Randomized,
+    /// Eigendecomposition of X'X covariance matrix.
+    /// Much faster than SVD when n_samples >> n_features (tall-and-thin data).
+    CovarianceEigh,
 }
 
 /// Specifies how to determine the number of components.
@@ -397,7 +400,10 @@ impl PCA {
         // Choose solver based on data size if Auto
         let solver = match self.svd_solver {
             SvdSolver::Auto => {
-                if (n_samples > 500 && n_features > 500)
+                if n_features <= 500 && n_samples > 2 * n_features {
+                    // Eigh of X'X: O(n·d² + d³) — fast for tall-and-thin
+                    SvdSolver::CovarianceEigh
+                } else if (n_samples > 500 && n_features > 500)
                     || (n_features > 100 && n_features > 2 * n_samples)
                 {
                     SvdSolver::Randomized
@@ -411,6 +417,7 @@ impl PCA {
         match solver {
             SvdSolver::Full | SvdSolver::Auto => self.full_svd(x_centered),
             SvdSolver::Randomized => self.randomized_svd(x_centered),
+            SvdSolver::CovarianceEigh => self.covariance_eigh(x_centered),
         }
     }
 
@@ -421,6 +428,39 @@ impl PCA {
         x_centered: &Array2<f64>,
     ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
         crate::linalg::thin_svd(x_centered)
+    }
+
+    /// Compute PCA via eigendecomposition of the covariance matrix X'X.
+    ///
+    /// Much faster than SVD when n_samples >> n_features because the
+    /// eigendecomposition operates on the d×d covariance matrix instead of
+    /// the n×d data matrix. Trade-off: doubles the condition number.
+    #[allow(clippy::unused_self)]
+    fn covariance_eigh(
+        &self,
+        x_centered: &Array2<f64>,
+    ) -> Result<(Array2<f64>, Array1<f64>, Array2<f64>)> {
+        let (n_samples, n_features) = x_centered.dim();
+
+        // Form covariance matrix: C = X'X (d×d, symmetric positive semi-definite)
+        let cov = x_centered.t().dot(x_centered);
+
+        // Eigendecompose: C = V Λ V' (returned in descending order)
+        let (eigenvalues, eigenvectors) = crate::linalg::symmetric_eigh(&cov)?;
+
+        // Convert eigenvalues to singular values: σ_i = sqrt(λ_i)
+        // Clamp negative eigenvalues (numerical noise near zero) before sqrt
+        let singular_values = eigenvalues.mapv(|lam| lam.max(0.0).sqrt());
+
+        // Components = eigenvectors transposed (each row is a principal direction)
+        let vt = eigenvectors.t().to_owned();
+
+        // U is not computed — not needed for PCA transform (uses Vt directly)
+        let _ = n_samples; // used only for documentation clarity
+        let _ = n_features;
+        let u_dummy = Array2::zeros((0, 0));
+
+        Ok((u_dummy, singular_values, vt))
     }
 
     /// Compute randomized SVD for large datasets.
