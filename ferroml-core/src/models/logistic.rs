@@ -971,13 +971,13 @@ impl LogisticRegression {
             Array1::zeros(p)
         };
 
-        // Gradient table: one gradient vector per sample.
-        // Memory: O(n * d). For n=50K, d=20: 8MB — very manageable.
-        let mut grad_table: Array2<f64> = Array2::zeros((n, p));
-        let mut grad_sum: Array1<f64> = Array1::zeros(p); // sum of all rows in grad_table
+        // Scalar gradient multipliers — O(n) memory instead of O(n*p).
+        // For logistic regression: g_i(w) = scalar_i * x_i where scalar_i = (sigmoid(x_i^T w) - y_i) * w_i
+        // We store only the scalar, and maintain grad_sum = X^T @ scalars incrementally.
+        let mut grad_scalars = vec![0.0f64; n];
+        let mut grad_sum: Array1<f64> = Array1::zeros(p);
 
         // Pre-compute row norms for step size selection (Lipschitz constants)
-        // For logistic loss, per-sample Lipschitz constant = ||x_i||^2 * w_i / 4
         let mut max_lipschitz = 0.0f64;
         for i in 0..n {
             let row = x_design.row(i);
@@ -986,15 +986,13 @@ impl LogisticRegression {
         }
 
         // Step size: 1 / (n * L_max + lambda)
-        // SAG minimizes the same objective as IRLS: sum(loss_i) + lambda/2 * ||w||^2
-        // so the aggregate Lipschitz constant is n * L_max_per_sample.
         let step_size = 1.0 / (n as f64 * max_lipschitz + l2_override);
 
-        // Use a simple LCG-style RNG for sample selection (deterministic, fast)
+        // LCG RNG for sample selection (deterministic, fast)
         let mut rng_state: u64 = 42;
         let n_u64 = n as u64;
 
-        let max_iter_total = self.max_iter * n; // total stochastic iterations
+        let max_iter_total = self.max_iter * n;
         let mut converged = false;
         let mut n_epoch = 0;
         let n_f64 = n as f64;
@@ -1006,41 +1004,37 @@ impl LogisticRegression {
                 .wrapping_add(1);
             let j = ((rng_state >> 33) % n_u64) as usize;
 
-            // Compute gradient for sample j:
-            // g_j = (sigmoid(x_j . beta) - y_j) * w_j * x_j
+            // Compute new scalar gradient for sample j
             let xj = x_design.row(j);
             let eta_j: f64 = xj.dot(&beta);
             let mu_j = sigmoid(eta_j);
-            let residual = (mu_j - y[j]) * sample_weights[j];
+            let new_scalar = (mu_j - y[j]) * sample_weights[j];
+            let old_scalar = grad_scalars[j];
+            let scalar_diff = new_scalar - old_scalar;
 
-            // New gradient for sample j
-            let new_grad: Array1<f64> = &xj * residual;
+            // Update scalar table and grad_sum incrementally:
+            // grad_sum += (new_scalar - old_scalar) * x_j
+            grad_scalars[j] = new_scalar;
+            grad_sum.scaled_add(scalar_diff, &xj);
 
-            // SAG/SAGA update
-            let old_grad = grad_table.row(j).to_owned();
-
-            // Update gradient table and sum FIRST
-            grad_sum = &grad_sum - &old_grad + &new_grad;
-            grad_table.row_mut(j).assign(&new_grad);
             if is_saga {
-                // SAGA (Defazio et al. 2014):
-                // Objective: sum_i loss_i(w) + lambda/2 * ||w||^2
-                // w -= step * (g_new - g_old + grad_sum + lambda * w)
-                let update: Array1<f64> =
-                    &new_grad - &old_grad + &grad_sum + &(&beta * l2_override);
-                beta = &beta - &(&update * step_size);
+                // SAGA: w -= step * (scalar_diff * x_j + grad_sum + lambda * w)
+                let mut update = &xj * scalar_diff;
+                update += &grad_sum;
+                update.scaled_add(l2_override, &beta);
+                beta.scaled_add(-step_size, &update);
             } else {
-                // SAG (Schmidt et al. 2013):
-                // Objective: sum_i loss_i(w) + lambda/2 * ||w||^2
-                // w -= step * (grad_sum + lambda * w)
-                let update = &grad_sum + &(&beta * l2_override);
-                beta = &beta - &(&update * step_size);
+                // SAG: w -= step * (grad_sum + lambda * w)
+                let mut update = grad_sum.clone();
+                update.scaled_add(l2_override, &beta);
+                beta.scaled_add(-step_size, &update);
             }
 
-            // Check convergence every epoch (n iterations)
+            // Check convergence every epoch
             if (iter + 1) % n == 0 {
                 n_epoch += 1;
-                let full_grad = &grad_sum + &(&beta * l2_override);
+                let mut full_grad = grad_sum.clone();
+                full_grad.scaled_add(l2_override, &beta);
                 let grad_norm: f64 = full_grad.iter().map(|&g| g * g).sum::<f64>().sqrt();
                 if grad_norm < self.tol * n_f64 {
                     converged = true;
