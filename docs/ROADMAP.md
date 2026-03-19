@@ -1,10 +1,10 @@
 # FerroML Roadmap
 
-> **Last Updated:** 2026-03-16
+> **Last Updated:** 2026-03-18
 
 ## Current Status: v0.3.1
 
-FerroML has completed 30 plans of development and hardening (Plans 1-6, A-X) with 3,550+ Rust tests and 2,100+ Python tests passing (5,650+ total). All core ML algorithms are implemented, validated against sklearn/scipy/xgboost/lightgbm/statsmodels, and hardened with correctness tests. Python binding coverage is ~99%.
+FerroML has completed 32 plans of development and hardening (Plans 1-6, A-Z) with 3,550+ Rust tests and 2,100+ Python tests passing (5,650+ total). All core ML algorithms are implemented, validated against sklearn/scipy/xgboost/lightgbm/statsmodels, and hardened with correctness tests. Python binding coverage is ~99%.
 
 ## Release History
 
@@ -64,6 +64,8 @@ FerroML has completed 30 plans of development and hardening (Plans 1-6, A-X) wit
 | V | Open-source polish, bug fixes, v0.3.1 | Complete |
 | W | Performance fixes (Elkan KMeans, HistGBT, L-BFGS LogReg, tutorials) | Complete |
 | X | Production-ready (numerical stability, input validation, cross-library tests) | Complete |
+| Y | SVC slab cache + WSS3, HistGBT AoS histograms, SAG/SAGA solver | Complete |
+| Z | faer SVD, PCA eigendecomposition, OLS/Ridge Cholesky, LinearSVC shrinking | Complete |
 
 ## Next Steps
 
@@ -72,6 +74,6 @@ FerroML has completed 30 plans of development and hardening (Plans 1-6, A-X) wit
 - [ ] ComplementNB (Naive Bayes variant)
 - [ ] Spectral Clustering
 - [ ] sklearn migration guide
-- [ ] Tutorial notebooks
+- [x] Tutorial notebooks (4 notebooks in `notebooks/`)
 - [ ] Published benchmarks on standard datasets
 - [ ] v1.0.0 stability release

@@ -1140,13 +1140,15 @@ impl LogisticRegression {
     fn resolve_solver(&self, n_features: usize, n_samples: usize) -> LogisticSolver {
         match self.solver {
             LogisticSolver::Auto => {
-                if n_samples >= 10_000 {
+                if n_samples >= 100_000 {
                     // SAG is O(d) per iteration with linear convergence —
-                    // dominates IRLS/L-BFGS for large n
+                    // dominates IRLS/L-BFGS for very large n (100K+)
                     LogisticSolver::Sag
-                } else if n_features < 50 {
+                } else if n_features < 50 && n_samples <= 5_000 {
+                    // IRLS: Newton's method, fast for small/medium with few features
                     LogisticSolver::Irls
                 } else {
+                    // L-BFGS: quasi-Newton, good for medium-large datasets
                     LogisticSolver::Lbfgs
                 }
             }

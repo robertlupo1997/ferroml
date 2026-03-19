@@ -9,12 +9,12 @@
 //! use ferroml_core::models::{LinearRegression, MultiOutputRegressor};
 //! use ndarray::{Array2, array};
 //!
-//! let x = Array2::from_shape_vec((4, 2), vec![1., 2., 3., 4., 5., 6., 7., 8.]).unwrap();
+//! let x = Array2::from_shape_vec((4, 2), vec![1., 3., 2., 7., 5., 1., 4., 8.]).unwrap();
 //! let y = Array2::from_shape_vec((4, 3), vec![
-//!     1., 2., 3.,
-//!     4., 5., 6.,
-//!     7., 8., 9.,
-//!     10., 11., 12.,
+//!     1., 2., 4.,
+//!     4., 5., 1.,
+//!     7., 8., 3.,
+//!     10., 11., 9.,
 //! ]).unwrap();
 //!
 //! let mut mo = MultiOutputRegressor::new(LinearRegression::new());

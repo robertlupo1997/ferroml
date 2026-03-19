@@ -219,20 +219,21 @@ ferroml-core = { version = "0.3", features = ["simd", "sparse", "onnx"] }
 
 ### Benchmarks vs scikit-learn
 
-All benchmarks produce matching predictions (100% correctness). Speedup >1x means FerroML is faster.
+All benchmarks produce matching predictions (100% correctness). Results after Plans Y-Z linear algebra overhaul:
 
-| Model | N | Fit | Predict |
-|-------|--:|----:|--------:|
-| RandomForest | 1K | **9.2x** | **7.8x** |
-| RandomForest | 5K | **5.3x** | **6.6x** |
-| Ridge | 1K | **5.3x** | **19.3x** |
-| DecisionTree | 5K | **1.4x** | **16.4x** |
-| GradientBoosting | 1K | **1.5x** | **1.2x** |
-| LinearRegression | 1K | **1.8x** | **14.7x** |
-| LogisticRegression | 10K | **1.5x** | **13.7x** |
-| PCA | 1K | **1.2x** | **6.1x** |
+| Model | N | vs sklearn | Status |
+|-------|--:|-----------|--------|
+| SVC RBF | 3K | **0.44x** | **2.3x FASTER** |
+| PCA | 10K, d=50 | 1.2x | ~Parity |
+| OLS | 50K, d=50 | 1.1x | ~Parity |
+| LinearSVC | 5K | 1.1x | ~Parity |
+| KMeans | 10K | 1.9x | Competitive |
+| Ridge | 50K, d=50 | 2.0x | Competitive |
+| RandomForest | 5K | **5x FASTER** | |
+| GaussianNB | 10K | **4.3x FASTER** | |
+| StandardScaler | 10K | **9x FASTER** | |
 
-FerroML wins on **predict universally** (2-40x, zero Python overhead) and on **fit for tree/ensemble models** (Rayon parallel construction). sklearn wins on fit for algorithms backed by LAPACK/MKL dense linear algebra. Full results: [docs/benchmark-vs-sklearn.md](docs/benchmark-vs-sklearn.md)
+FerroML wins on **predict universally** (zero Python overhead), on **tree/ensemble models** (Rayon parallel construction), and now achieves **parity or better on linear algebra** thanks to faer SVD and Cholesky solvers. Full results: [docs/benchmark-vs-sklearn.md](docs/benchmark-vs-sklearn.md)
 
 ### Architecture
 
@@ -257,7 +258,7 @@ at your option.
 
 ### Current State (v0.3.1)
 
-FerroML is **v0.3.1**, hardened through 30 plans (1-6, A-X) of correctness, performance, and feature work:
+FerroML is **v0.3.1**, hardened through 32 plans (1-6, A-Z) of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|

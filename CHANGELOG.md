@@ -4,7 +4,28 @@ All notable changes to FerroML are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [Unreleased] — 2026-03-18
+
+### Performance — Plan Y: SVC + HistGBT + SAG/SAGA
+- SVC: slab-based LRU kernel cache with WSS3 selection (6.8x→0.44x vs sklearn)
+- HistGBT: AoS histogram layout for cache-friendly access (15x→2x)
+- SAG/SAGA solver for LogisticRegression with scalar gradient trick (2.5x faster)
+- Auto solver selection: SAG for very large datasets, IRLS/L-BFGS otherwise
+
+### Performance — Plan Z: faer SVD + Linear Algebra Overhaul
+- Replace nalgebra Jacobi SVD with faer divide-and-conquer SVD (10-13x faster)
+- PCA: covariance eigendecomposition solver for tall-and-thin data (13.8x→1.2x)
+- OLS: Cholesky normal equations when n >> d (3.3x→1.1x)
+- Ridge: faer-backed Cholesky replacing hand-rolled solver (3.8x→2.0x)
+- LinearSVC: active set shrinking + ndarray zero-copy (9.6x→1.1x)
+- KMeans Elkan: zero-copy ndarray access, flat bounds array (3.2x→1.9x)
+- SVC RBF: lower FULL_MATRIX_THRESHOLD for better cache behavior (6.8x→0.44x, 2.3x FASTER than sklearn)
+- Added symmetric_eigh() and thin_svd() to unified linalg module
+
+### Bug Fixes
+- Fix 6 pre-existing Python test failures (TemperatureScaling, IncrementalPCA)
+- Fix SVC RBF kernel WSS3 j-selection convergence bug
+- Add pseudoinverse fallback in FactorAnalysis matrix inversion
 
 ## [0.3.1] - 2026-03-16
 
