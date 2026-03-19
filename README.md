@@ -85,12 +85,12 @@ dataset, info = fml.datasets.load_iris()
 X, y = dataset.x, dataset.y
 
 # Create and fit a model
-config = fml.AutoMLConfig(
+config = fml.automl.AutoMLConfig(
     task="classification",
     metric="accuracy",
     time_budget_seconds=60,
 )
-automl = fml.AutoML(config)
+automl = fml.automl.AutoML(config)
 result = automl.fit(X, y)
 
 # Results with statistical guarantees
@@ -313,6 +313,45 @@ FerroML is validated against scikit-learn with 58 fixture-based comparisons and 
 Full accuracy report: [docs/accuracy-report.md](docs/accuracy-report.md)
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed change history.
+
+## Common Gotchas
+
+Things that have bitten us. Learn from our mistakes.
+
+### Adding a Model (The #1 Mistake)
+
+Every new model requires **three** updates — miss one and Python silently breaks:
+
+1. Rust impl in `ferroml-core/src/`
+2. PyO3 wrapper in `ferroml-python/src/`
+3. Re-export in `ferroml-python/python/ferroml/<submodule>/__init__.py`
+
+### Module Layout Surprises
+
+- **Gradient boosting lives in `ferroml.trees`**, not `ferroml.ensemble`. This trips everyone up.
+- **AutoML classes are in `ferroml.automl`**, not re-exported at the top level. Use `from ferroml.automl import AutoML, AutoMLConfig`.
+- **`ensemble`** is only for meta-estimators (Bagging, Stacking, Voting).
+
+### Build & Test
+
+- **Always use `--release`** with maturin: `maturin develop --release`. Debug builds are 10-50x slower and will make you think models are broken.
+- **`cargo test` only tests `ferroml-core`** (workspace default-members). Python bindings are tested via `pytest`, not `cargo test --workspace`.
+- **Don't add new `.rs` files in `ferroml-core/tests/`** — each file becomes a separate binary. We consolidated from 19 to 6 files to shrink the debug build from 350 GB to 14 GB.
+- **Clippy uses `-D warnings`** — all warnings are errors. If your algorithm has 200+ lines, add `#[allow(clippy::too_many_lines)]`.
+
+### Linear Algebra
+
+- **Use `nalgebra` or `faer`, never `ndarray-linalg`**. We removed ndarray-linalg to eliminate the OpenBLAS system dependency. Do not re-add it.
+
+### Numerical Stability
+
+- **Tolerances vary by algorithm type** when comparing to sklearn: closed-form (1e-8), iterative (1e-4), tree-based (1e-6), ensemble (5% for RNG variance). Using the wrong tolerance gives false test failures.
+- **SVC with RBF kernels** is ~17x slower than sklearn on datasets >3K samples due to kernel cache implementation. Known issue, not a bug in your code.
+- **IncrementalPCA** accumulates rounding errors in streaming mode — this is inherent to the algorithm, not a FerroML bug.
+
+### ONNX Export
+
+ONNX roundtrip is finicky. We've fixed subtle issues in AdaBoost (weighted-sum approximation), HistGBT (bin-threshold ULP nudge), BernoulliNB (neg_prob for absent features), and SVM (requires 2 outputs). Always test roundtrips aggressively after touching model serialization.
 
 ## Contributing
 
