@@ -56,7 +56,7 @@ split_commits = false
 # Regex for preprocessing commit messages
 commit_preprocessors = [
     # Replace issue numbers with links
-    { pattern = '\((\w+\s)?#(\d+)\)', replace = "([#${2}](https://github.com/ferroml/ferroml/issues/${2}))" },
+    { pattern = '\((\w+\s)?#(\d+)\)', replace = "([#${2}](https://github.com/robertlupo1997/ferroml/issues/${2}))" },
 ]
 
 # Regex for parsing and grouping commits
