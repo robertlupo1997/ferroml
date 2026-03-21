@@ -27,7 +27,7 @@ created: 2026-03-20
 
 ## Sampling Rate
 
-- **After every task commit:** Run `cargo test --test edge_cases -x`
+- **After every task commit:** Run `cargo test --test edge_cases`
 - **After every plan wave:** Run `cargo test && pytest ferroml-python/tests/`
 - **Before `/gsd:verify-work`:** Full suite must be green
 - **Max feedback latency:** 120 seconds
