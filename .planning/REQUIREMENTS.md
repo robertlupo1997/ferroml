@@ -26,12 +26,12 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 - [x] **CORR-02**: Fix IncrementalPCA — 3 failing tests pass or model removed from public API
 - [x] **CORR-03**: SVM kernel cache has unit tests for correctness with shrinking enabled
 - [x] **CORR-04**: SVM kernel cache has unit tests for eviction order and hit rates
-- [ ] **CORR-05**: Post-predict sanity check detects NaN in model output and raises warning/error
+- [x] **CORR-05**: Post-predict sanity check detects NaN in model output and raises warning/error
 - [x] **CORR-06**: Log-sum-exp used in all probability computations (LogisticRegression, NaiveBayes variants, GMM)
 - [x] **CORR-07**: Cholesky solver adds jitter fallback on ill-conditioned matrices (condition number > 1e10)
 - [x] **CORR-08**: SVD sign normalization (svd_flip) in linalg.rs — consistent signs across nalgebra/faer backends
-- [ ] **CORR-09**: All 55+ models have at least basic cross-library correctness test (expand from 200+ to full coverage)
-- [ ] **CORR-10**: Convergence reporting returns result + warning mode (like sklearn ConvergenceWarning) instead of only hard error
+- [x] **CORR-09**: All 55+ models have at least basic cross-library correctness test (expand from 200+ to full coverage)
+- [x] **CORR-10**: Convergence reporting returns result + warning mode (like sklearn ConvergenceWarning) instead of only hard error
 
 ### Performance
 
@@ -126,12 +126,12 @@ Deferred to future release. Tracked but not in current roadmap.
 | CORR-02 | Phase 2 | Complete |
 | CORR-03 | Phase 2 | Complete |
 | CORR-04 | Phase 2 | Complete |
-| CORR-05 | Phase 2 | Pending |
+| CORR-05 | Phase 2 | Complete |
 | CORR-06 | Phase 2 | Complete |
 | CORR-07 | Phase 2 | Complete |
 | CORR-08 | Phase 2 | Complete |
-| CORR-09 | Phase 2 | Pending |
-| CORR-10 | Phase 2 | Pending |
+| CORR-09 | Phase 2 | Complete |
+| CORR-10 | Phase 2 | Complete |
 | PERF-01 | Phase 4 | Pending |
 | PERF-02 | Phase 4 | Pending |
 | PERF-03 | Phase 4 | Pending |
