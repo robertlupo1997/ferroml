@@ -376,12 +376,9 @@ impl IsolationForest {
 
 impl OutlierDetector for IsolationForest {
     fn fit_unsupervised(&mut self, x: &Array2<f64>) -> Result<()> {
+        crate::validation::validate_unsupervised_input(x)?;
         let n_samples = x.nrows();
         let n_features = x.ncols();
-
-        if n_samples == 0 {
-            return Err(FerroError::InvalidInput("Cannot fit on empty data".into()));
-        }
 
         // Validate contamination bounds
         if let Contamination::Proportion(c) = self.contamination {
@@ -477,14 +474,8 @@ impl OutlierDetector for IsolationForest {
             return Err(FerroError::not_fitted("IsolationForest"));
         }
 
-        // Validate features
-        let expected = self.n_features_in_.unwrap();
-        if x.ncols() != expected {
-            return Err(FerroError::shape_mismatch(
-                format!("(*, {expected})"),
-                format!("(*, {})", x.ncols()),
-            ));
-        }
+        // Validate features and NaN/Inf
+        crate::validation::validate_transform_input(x, self.n_features_in_.unwrap())?;
 
         self.compute_score_samples(x)
     }

@@ -403,6 +403,7 @@ impl Transformer for MinMaxScaler {
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
         check_shape(x, self.n_features_in.unwrap())?;
+        check_finite(x)?;
 
         let data_min = self.data_min.as_ref().unwrap();
         let data_range = self.data_range.as_ref().unwrap();
@@ -637,6 +638,7 @@ impl Transformer for RobustScaler {
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
         check_shape(x, self.n_features_in.unwrap())?;
+        check_finite(x)?;
 
         let center = self.center.as_ref().unwrap();
         let scale = self.scale.as_ref().unwrap();
@@ -806,6 +808,7 @@ impl Transformer for MaxAbsScaler {
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
         check_shape(x, self.n_features_in.unwrap())?;
+        check_finite(x)?;
 
         let max_abs = self.max_abs.as_ref().unwrap();
 

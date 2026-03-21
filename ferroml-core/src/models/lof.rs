@@ -329,6 +329,7 @@ impl LocalOutlierFactor {
 
 impl OutlierDetector for LocalOutlierFactor {
     fn fit_unsupervised(&mut self, x: &Array2<f64>) -> Result<()> {
+        crate::validation::validate_unsupervised_input(x)?;
         let n_samples = x.nrows();
         let n_features = x.ncols();
 
@@ -423,13 +424,8 @@ impl OutlierDetector for LocalOutlierFactor {
             return Err(FerroError::not_fitted("LocalOutlierFactor"));
         }
 
-        let expected = self.n_features_in_.unwrap();
-        if x.ncols() != expected {
-            return Err(FerroError::shape_mismatch(
-                format!("(*, {expected})"),
-                format!("(*, {})", x.ncols()),
-            ));
-        }
+        // Validate features and NaN/Inf
+        crate::validation::validate_transform_input(x, self.n_features_in_.unwrap())?;
 
         if self.novelty {
             self.compute_score_samples_new(x)

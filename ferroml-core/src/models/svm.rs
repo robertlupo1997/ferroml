@@ -1264,7 +1264,7 @@ impl SVC {
     /// Set the regularization parameter C.
     #[must_use]
     pub fn with_c(mut self, c: f64) -> Self {
-        self.c = c.max(1e-10);
+        self.c = c;
         self
     }
 
@@ -1278,14 +1278,14 @@ impl SVC {
     /// Set the tolerance for stopping criterion.
     #[must_use]
     pub fn with_tol(mut self, tol: f64) -> Self {
-        self.tol = tol.max(1e-10);
+        self.tol = tol;
         self
     }
 
     /// Set the maximum number of iterations.
     #[must_use]
     pub fn with_max_iter(mut self, max_iter: usize) -> Self {
-        self.max_iter = max_iter.max(1);
+        self.max_iter = max_iter;
         self
     }
 
@@ -1320,7 +1320,7 @@ impl SVC {
     /// Default: 200MB byte budget (~5000 rows for n=5000, full matrix cached).
     #[must_use]
     pub fn with_cache_size(mut self, cache_size: usize) -> Self {
-        self.cache_size = cache_size.max(1);
+        self.cache_size = cache_size;
         self
     }
 
@@ -1685,6 +1685,20 @@ impl Model for SVC {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        // Validate hyperparameters
+        if self.c <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter C must be positive, got {}",
+                self.c
+            )));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter tol must be positive, got {}",
+                self.tol
+            )));
+        }
+
         // Extract unique classes
         let classes_vec = super::get_unique_classes(y);
 
@@ -1873,14 +1887,14 @@ impl SVR {
     /// Set the regularization parameter C.
     #[must_use]
     pub fn with_c(mut self, c: f64) -> Self {
-        self.c = c.max(1e-10);
+        self.c = c;
         self
     }
 
     /// Set the epsilon parameter (tube width).
     #[must_use]
     pub fn with_epsilon(mut self, epsilon: f64) -> Self {
-        self.epsilon = epsilon.max(0.0);
+        self.epsilon = epsilon;
         self
     }
 
@@ -1894,14 +1908,14 @@ impl SVR {
     /// Set the tolerance for stopping criterion.
     #[must_use]
     pub fn with_tol(mut self, tol: f64) -> Self {
-        self.tol = tol.max(1e-10);
+        self.tol = tol;
         self
     }
 
     /// Set the maximum number of iterations.
     #[must_use]
     pub fn with_max_iter(mut self, max_iter: usize) -> Self {
-        self.max_iter = max_iter.max(1);
+        self.max_iter = max_iter;
         self
     }
 
@@ -2136,6 +2150,26 @@ impl Model for SVR {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        // Validate hyperparameters
+        if self.c <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter C must be positive, got {}",
+                self.c
+            )));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter tol must be positive, got {}",
+                self.tol
+            )));
+        }
+        if self.epsilon < 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter epsilon must be non-negative, got {}",
+                self.epsilon
+            )));
+        }
+
         let n_samples = x.nrows();
         let n_features = x.ncols();
 
@@ -2361,7 +2395,7 @@ impl LinearSVC {
     /// Set the regularization parameter C.
     #[must_use]
     pub fn with_c(mut self, c: f64) -> Self {
-        self.c = c.max(1e-10);
+        self.c = c;
         self
     }
 
@@ -2375,14 +2409,14 @@ impl LinearSVC {
     /// Set the tolerance for stopping criterion.
     #[must_use]
     pub fn with_tol(mut self, tol: f64) -> Self {
-        self.tol = tol.max(1e-10);
+        self.tol = tol;
         self
     }
 
     /// Set the maximum number of iterations.
     #[must_use]
     pub fn with_max_iter(mut self, max_iter: usize) -> Self {
-        self.max_iter = max_iter.max(1);
+        self.max_iter = max_iter;
         self
     }
 
@@ -2660,6 +2694,20 @@ impl Model for LinearSVC {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        // Validate hyperparameters
+        if self.c <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter C must be positive, got {}",
+                self.c
+            )));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter tol must be positive, got {}",
+                self.tol
+            )));
+        }
+
         // Extract unique classes
         let classes_vec = super::get_unique_classes(y);
 
@@ -2934,14 +2982,14 @@ impl LinearSVR {
     /// Set the regularization parameter C.
     #[must_use]
     pub fn with_c(mut self, c: f64) -> Self {
-        self.c = c.max(1e-10);
+        self.c = c;
         self
     }
 
     /// Set the epsilon parameter (tube width).
     #[must_use]
     pub fn with_epsilon(mut self, epsilon: f64) -> Self {
-        self.epsilon = epsilon.max(0.0);
+        self.epsilon = epsilon;
         self
     }
 
@@ -2955,14 +3003,14 @@ impl LinearSVR {
     /// Set the tolerance for stopping criterion.
     #[must_use]
     pub fn with_tol(mut self, tol: f64) -> Self {
-        self.tol = tol.max(1e-10);
+        self.tol = tol;
         self
     }
 
     /// Set the maximum number of iterations.
     #[must_use]
     pub fn with_max_iter(mut self, max_iter: usize) -> Self {
-        self.max_iter = max_iter.max(1);
+        self.max_iter = max_iter;
         self
     }
 
@@ -2994,6 +3042,26 @@ impl LinearSVR {
 impl Model for LinearSVR {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        // Validate hyperparameters
+        if self.c <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter C must be positive, got {}",
+                self.c
+            )));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter tol must be positive, got {}",
+                self.tol
+            )));
+        }
+        if self.epsilon < 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter epsilon must be non-negative, got {}",
+                self.epsilon
+            )));
+        }
 
         let n_samples = x.nrows();
         let n_features = x.ncols();

@@ -23,7 +23,7 @@
 //! assert_eq!(preds.shape(), &[4, 3]);
 //! ```
 
-use crate::models::Model;
+use crate::models::{validate_predict_input, Model};
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
 
@@ -36,6 +36,7 @@ pub struct MultiOutputRegressor<M: Model + Clone> {
     base_estimator: M,
     estimators_: Option<Vec<M>>,
     n_outputs_: Option<usize>,
+    n_features_: Option<usize>,
 }
 
 impl<M: Model + Clone> MultiOutputRegressor<M> {
@@ -45,6 +46,7 @@ impl<M: Model + Clone> MultiOutputRegressor<M> {
             base_estimator,
             estimators_: None,
             n_outputs_: None,
+            n_features_: None,
         }
     }
 
@@ -64,6 +66,27 @@ impl<M: Model + Clone> MultiOutputRegressor<M> {
             ));
         }
 
+        // Validate X
+        if x.is_empty() || x.nrows() == 0 {
+            return Err(FerroError::invalid_input("Empty input data"));
+        }
+        if x.nrows() != y.nrows() {
+            return Err(FerroError::shape_mismatch(
+                format!("X has {} rows", x.nrows()),
+                format!("y has {} rows", y.nrows()),
+            ));
+        }
+        if x.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "X contains NaN or infinite values",
+            ));
+        }
+        if y.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y contains NaN or infinite values",
+            ));
+        }
+
         let mut estimators = Vec::with_capacity(n_outputs);
         for j in 0..n_outputs {
             let y_col: Array1<f64> = y.column(j).to_owned();
@@ -73,6 +96,7 @@ impl<M: Model + Clone> MultiOutputRegressor<M> {
         }
 
         self.n_outputs_ = Some(n_outputs);
+        self.n_features_ = Some(x.ncols());
         self.estimators_ = Some(estimators);
         Ok(())
     }
@@ -86,6 +110,10 @@ impl<M: Model + Clone> MultiOutputRegressor<M> {
             .estimators_
             .as_ref()
             .ok_or_else(|| FerroError::not_fitted("predict_multi"))?;
+
+        if let Some(n_feat) = self.n_features_ {
+            validate_predict_input(x, n_feat)?;
+        }
 
         let n_samples = x.nrows();
         let n_outputs = estimators.len();
@@ -124,6 +152,7 @@ pub struct MultiOutputClassifier<M: Model + Clone> {
     base_estimator: M,
     estimators_: Option<Vec<M>>,
     n_outputs_: Option<usize>,
+    n_features_: Option<usize>,
 }
 
 impl<M: Model + Clone> MultiOutputClassifier<M> {
@@ -133,6 +162,7 @@ impl<M: Model + Clone> MultiOutputClassifier<M> {
             base_estimator,
             estimators_: None,
             n_outputs_: None,
+            n_features_: None,
         }
     }
 
@@ -152,6 +182,27 @@ impl<M: Model + Clone> MultiOutputClassifier<M> {
             ));
         }
 
+        // Validate X
+        if x.is_empty() || x.nrows() == 0 {
+            return Err(FerroError::invalid_input("Empty input data"));
+        }
+        if x.nrows() != y.nrows() {
+            return Err(FerroError::shape_mismatch(
+                format!("X has {} rows", x.nrows()),
+                format!("y has {} rows", y.nrows()),
+            ));
+        }
+        if x.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "X contains NaN or infinite values",
+            ));
+        }
+        if y.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y contains NaN or infinite values",
+            ));
+        }
+
         let mut estimators = Vec::with_capacity(n_outputs);
         for j in 0..n_outputs {
             let y_col: Array1<f64> = y.column(j).to_owned();
@@ -161,6 +212,7 @@ impl<M: Model + Clone> MultiOutputClassifier<M> {
         }
 
         self.n_outputs_ = Some(n_outputs);
+        self.n_features_ = Some(x.ncols());
         self.estimators_ = Some(estimators);
         Ok(())
     }
@@ -174,6 +226,10 @@ impl<M: Model + Clone> MultiOutputClassifier<M> {
             .estimators_
             .as_ref()
             .ok_or_else(|| FerroError::not_fitted("predict_multi"))?;
+
+        if let Some(n_feat) = self.n_features_ {
+            validate_predict_input(x, n_feat)?;
+        }
 
         let n_samples = x.nrows();
         let n_outputs = estimators.len();
@@ -200,6 +256,10 @@ impl<M: Model + Clone> MultiOutputClassifier<M> {
             .estimators_
             .as_ref()
             .ok_or_else(|| FerroError::not_fitted("predict_proba_multi"))?;
+
+        if let Some(n_feat) = self.n_features_ {
+            validate_predict_input(x, n_feat)?;
+        }
 
         let mut results = Vec::with_capacity(estimators.len());
         for est in estimators {

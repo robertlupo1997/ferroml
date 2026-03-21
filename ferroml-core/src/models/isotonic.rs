@@ -321,6 +321,18 @@ impl super::Model for IsotonicRegression {
             ));
         }
 
+        // Validate NaN/Inf in x and y
+        if x.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "X contains NaN or infinite values",
+            ));
+        }
+        if y.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y contains NaN or infinite values",
+            ));
+        }
+
         // Extract 1D x values
         let x_vals: Vec<f64> = x.column(0).to_vec();
         let y_vals: Vec<f64> = y.to_vec();
@@ -407,6 +419,13 @@ impl super::Model for IsotonicRegression {
                 "IsotonicRegression requires exactly 1 feature, got {}",
                 n_features
             )));
+        }
+
+        // Validate NaN/Inf at predict time
+        if x.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "X contains NaN or infinite values",
+            ));
         }
 
         let mut predictions = Array1::zeros(n_samples);

@@ -256,6 +256,18 @@ impl super::Model for QuadraticDiscriminantAnalysis {
             ));
         }
 
+        // Validate NaN/Inf
+        if x.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "X contains NaN or infinite values",
+            ));
+        }
+        if y.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y contains NaN or infinite values",
+            ));
+        }
+
         // Find unique classes
         let mut classes: Vec<f64> = y.iter().copied().collect();
         classes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -425,6 +437,13 @@ impl super::Model for QuadraticDiscriminantAnalysis {
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(self.is_fitted(), "predict")?;
         check_shape(x, self.n_features_in_.unwrap())?;
+
+        // Validate NaN/Inf at predict time
+        if x.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "X contains NaN or infinite values",
+            ));
+        }
 
         let scores = self.decision_function(x)?;
         let classes = self.classes_.as_ref().unwrap();

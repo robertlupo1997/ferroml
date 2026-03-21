@@ -6,7 +6,7 @@
 //! - Kernel functions: `RBF`, `Matern`, `ConstantKernel`, `WhiteKernel`, `SumKernel`, `ProductKernel`
 
 use crate::hpo::SearchSpace;
-use crate::models::{sigmoid, Model};
+use crate::models::{sigmoid, validate_fit_input, validate_predict_input, Model};
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
 
@@ -492,6 +492,7 @@ impl GaussianProcessRegressor {
             .ok_or_else(|| FerroError::NotFitted {
                 operation: "predict_with_std".to_string(),
             })?;
+        validate_predict_input(x, x_train.ncols())?;
         let alpha_ = self.alpha_.as_ref().unwrap();
         let l = self.l_.as_ref().unwrap();
 
@@ -551,16 +552,8 @@ impl GaussianProcessRegressor {
 
 impl Model for GaussianProcessRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
         let n = x.nrows();
-        if n != y.len() {
-            return Err(FerroError::ShapeMismatch {
-                expected: format!("({}, _)", n),
-                actual: format!("y has length {}", y.len()),
-            });
-        }
-        if n == 0 {
-            return Err(FerroError::InvalidInput("empty training data".to_string()));
-        }
 
         // Optionally normalize y
         let (y_fit, y_mean, y_std) = if self.normalize_y {
@@ -615,6 +608,7 @@ impl Model for GaussianProcessRegressor {
             .ok_or_else(|| FerroError::NotFitted {
                 operation: "predict".to_string(),
             })?;
+        validate_predict_input(x, x_train.ncols())?;
         let alpha_ = self.alpha_.as_ref().unwrap();
 
         let k_star = self.kernel.compute(x, x_train);
@@ -737,6 +731,7 @@ impl GaussianProcessClassifier {
             .ok_or_else(|| FerroError::NotFitted {
                 operation: "predict_proba".to_string(),
             })?;
+        validate_predict_input(x, x_train.ncols())?;
         let f_hat = self.f_hat_.as_ref().unwrap();
         let y_train = self.y_train_.as_ref().unwrap();
         let l = self.l_.as_ref().unwrap();
@@ -799,16 +794,8 @@ impl GaussianProcessClassifier {
 
 impl Model for GaussianProcessClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
         let n = x.nrows();
-        if n != y.len() {
-            return Err(FerroError::ShapeMismatch {
-                expected: format!("({}, _)", n),
-                actual: format!("y has length {}", y.len()),
-            });
-        }
-        if n == 0 {
-            return Err(FerroError::InvalidInput("empty training data".to_string()));
-        }
 
         // Extract classes and map to {0, 1}
         let mut classes: Vec<f64> = y.iter().copied().collect();
@@ -1205,6 +1192,7 @@ impl SparseGPRegressor {
             .ok_or_else(|| FerroError::NotFitted {
                 operation: "predict_with_std".to_string(),
             })?;
+        validate_predict_input(x, self.n_features_.unwrap())?;
         let l_m = self.l_m_.as_ref().unwrap();
         let l_b = self.l_b_.as_ref().unwrap();
         let woodbury_vec = self.woodbury_vec_.as_ref().unwrap();
@@ -1270,16 +1258,8 @@ impl SparseGPRegressor {
 
 impl Model for SparseGPRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
         let n = x.nrows();
-        if n != y.len() {
-            return Err(FerroError::ShapeMismatch {
-                expected: format!("({}, _)", n),
-                actual: format!("y has length {}", y.len()),
-            });
-        }
-        if n == 0 {
-            return Err(FerroError::InvalidInput("empty training data".to_string()));
-        }
 
         let m = self.n_inducing.min(n);
 
@@ -1530,6 +1510,7 @@ impl SparseGPClassifier {
             .ok_or_else(|| FerroError::NotFitted {
                 operation: "predict_proba".to_string(),
             })?;
+        validate_predict_input(x, self.n_features_.unwrap())?;
         let l_m = self.l_m_.as_ref().unwrap();
         let alpha_vec = self.alpha_vec_.as_ref().unwrap();
         let l_approx = self.l_approx_.as_ref().unwrap();
@@ -1574,16 +1555,8 @@ impl SparseGPClassifier {
 
 impl Model for SparseGPClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        validate_fit_input(x, y)?;
         let n = x.nrows();
-        if n != y.len() {
-            return Err(FerroError::ShapeMismatch {
-                expected: format!("({}, _)", n),
-                actual: format!("y has length {}", y.len()),
-            });
-        }
-        if n == 0 {
-            return Err(FerroError::InvalidInput("empty training data".to_string()));
-        }
 
         // Extract classes
         let mut classes: Vec<f64> = y.iter().copied().collect();
@@ -1931,6 +1904,7 @@ impl SVGPRegressor {
             .ok_or_else(|| FerroError::NotFitted {
                 operation: "predict_with_std".to_string(),
             })?;
+        validate_predict_input(x, self.n_features_.unwrap())?;
         let mu = self.mu_.as_ref().unwrap();
         let l_s = self.l_s_.as_ref().unwrap();
         let l_mm = self.l_mm_.as_ref().unwrap();
@@ -2015,16 +1989,8 @@ impl Model for SVGPRegressor {
         use rand::prelude::*;
         use rand::SeedableRng;
 
+        validate_fit_input(x, y)?;
         let n = x.nrows();
-        if n != y.len() {
-            return Err(FerroError::ShapeMismatch {
-                expected: format!("({}, _)", n),
-                actual: format!("y has length {}", y.len()),
-            });
-        }
-        if n == 0 {
-            return Err(FerroError::InvalidInput("empty training data".to_string()));
-        }
 
         let m = self.n_inducing.min(n);
 
