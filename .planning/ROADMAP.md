@@ -64,12 +64,12 @@ Plans:
   3. Every FerroError variant includes both what went wrong and what the user should do about it
   4. All 55+ Python-exposed models survive pickle roundtrip (serialize then deserialize produces identical predictions)
   5. Python exceptions map correctly to FerroError variants (e.g., ShapeMismatch -> ValueError, NotFitted -> RuntimeError)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: Unwrap triage -- categorize all unwraps by risk tier, fix Tier 1-2 (SVM, boosting, stats)
-- [ ] 03-02: Unwrap fixes for linear, tree, preprocessing, clustering models + clippy lint setup
-- [ ] 03-03: Error message audit, Python exception mapping, pickle roundtrip verification, serialization version checks
+- [ ] 03-01-PLAN.md — Unwrap triage and fix for SVM, boosting, and stats modules (Tier 1-2)
+- [ ] 03-02-PLAN.md — Unwrap fixes for linear, tree, preprocessing, clustering + clippy lint setup
+- [ ] 03-03-PLAN.md — Error mapping, pickle roundtrip, serialization verification, error message audit
 
 ### Phase 4: Performance Optimization
 **Goal**: FerroML is within 2-3x of sklearn on all major algorithms, with stability tests proving correctness is maintained
