@@ -30,12 +30,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Calling predict() on a fitted model with wrong number of features raises a shape mismatch error
   4. Constructing a model with invalid hyperparameters (e.g., negative C, n_clusters=0) raises an error at construction time with an actionable message
   5. Calling predict() on an unfitted model raises NotFitted error for all 55+ models
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Shared validation infrastructure (validate_fit_input NaN/Inf/empty, validate_params pattern)
-- [ ] 01-02: Universal adoption audit -- ensure all 55+ models call validation at fit/predict/transform
-- [ ] 01-03: Python binding layer validation and NotFitted/n_features_in_ guard audit
+- [ ] 01-01-PLAN.md — Shared validation infrastructure + clustering/decomposition adoption
+- [ ] 01-02-PLAN.md — Universal adoption audit for all 55+ models (fit/predict/transform validation, NotFitted, hyperparams)
+- [ ] 01-03-PLAN.md — Python binding layer validation (check_array_finite) and Python test suite
 
 ### Phase 2: Correctness Fixes
 **Goal**: All known correctness bugs are fixed, numerical safeguards are in place, and the test suite is green with zero known failures
@@ -111,7 +111,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Input Validation | 0/3 | Not started | - |
+| 1. Input Validation | 0/3 | Planned | - |
 | 2. Correctness Fixes | 0/3 | Not started | - |
 | 3. Robustness Hardening | 0/3 | Not started | - |
 | 4. Performance Optimization | 0/4 | Not started | - |
