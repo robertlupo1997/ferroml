@@ -143,6 +143,7 @@ impl KernelCache {
         let x_ref = x_std.as_ref().unwrap_or(x);
 
         let training_data: Vec<Vec<f64>> = (0..n_samples)
+            // SAFETY: x_ref is standard layout (converted above), so as_slice always succeeds
             .map(|i| x_ref.row(i).as_slice().unwrap().to_vec())
             .collect();
 
@@ -315,6 +316,7 @@ impl KernelProvider {
         match self {
             KernelProvider::Full(matrix) => {
                 let row = matrix.row(i);
+                // SAFETY: Full kernel matrix is always standard layout (created via Array2::zeros)
                 buf.copy_from_slice(row.as_slice().unwrap());
             }
             KernelProvider::Cached(cache) => {
@@ -1016,6 +1018,7 @@ impl BinarySVC {
 
         let mut k = Array2::zeros((n, n));
 
+        // SAFETY: x_ref is standard layout (converted above), so as_slice always succeeds
         for i in 0..n {
             let ri = x_ref.row(i);
             let xi = ri.as_slice().unwrap();
@@ -1039,7 +1042,10 @@ impl BinarySVC {
             .support_vectors
             .as_ref()
             .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
-        let dual_coef = self.dual_coef.as_ref().unwrap();
+        let dual_coef = self
+            .dual_coef
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
         let n_samples = x.nrows();
 
         // Ensure contiguous layout for slice access
@@ -1058,6 +1064,7 @@ impl BinarySVC {
 
         let mut decisions = Array1::zeros(n_samples);
 
+        // SAFETY: x_ref and sv_ref are standard layout (converted above), so as_slice always succeeds
         for i in 0..n_samples {
             let ri = x_ref.row(i);
             let xi = ri.as_slice().unwrap();
@@ -1388,7 +1395,11 @@ impl SVC {
     /// For OvR: returns Array2 shape (n_samples, n_classes)
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.classes, "decision_function")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("decision_function"))?,
+        )?;
         let n_samples = x.nrows();
         let n_classifiers = self.classifiers.len();
         let mut decisions = Array2::zeros((n_samples, n_classifiers));
@@ -1401,6 +1412,7 @@ impl SVC {
 
     /// Compute class weights from training data.
     fn compute_class_weights(&mut self, y: &Array1<f64>) {
+        // SAFETY: called from fit() after self.classes is set
         let classes = self.classes.as_ref().unwrap();
         let n_samples = y.len() as f64;
 
@@ -1439,6 +1451,7 @@ impl SVC {
 
     /// Fit One-vs-One classifiers.
     fn fit_ovo(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        // SAFETY: called from fit() after self.classes is set
         let classes = self.classes.as_ref().unwrap();
         let n_classes = classes.len();
 
@@ -1506,6 +1519,7 @@ impl SVC {
 
     /// Fit One-vs-Rest classifiers.
     fn fit_ovr(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
+        // SAFETY: called from fit() after self.classes is set
         let classes = self.classes.as_ref().unwrap();
 
         self.classifiers.clear();
@@ -1553,7 +1567,10 @@ impl SVC {
 
     /// Predict using One-vs-One voting.
     fn predict_ovo(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_classes = classes.len();
         let n_samples = x.nrows();
 
@@ -1603,7 +1620,10 @@ impl SVC {
 
     /// Predict using One-vs-Rest.
     fn predict_ovr(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
         let n_classes = classes.len();
 
@@ -1635,7 +1655,10 @@ impl SVC {
 
     /// Predict probabilities using OvO (pairwise coupling).
     fn predict_proba_ovo(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         let n_classes = classes.len();
         let n_samples = x.nrows();
 
@@ -1676,7 +1699,10 @@ impl SVC {
 
     /// Predict probabilities using OvR (softmax normalization).
     fn predict_proba_ovr(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         let n_samples = x.nrows();
         let n_classes = classes.len();
 
@@ -1775,7 +1801,11 @@ impl Model for SVC {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.classes, "predict")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("predict"))?,
+        )?;
 
         match self.multiclass_strategy {
             MulticlassStrategy::OneVsOne => self.predict_ovo(x),
@@ -1806,7 +1836,11 @@ impl Model for SVC {
 impl ProbabilisticModel for SVC {
     fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.classes, "predict_proba")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("predict_proba"))?,
+        )?;
 
         if !self.probability {
             return Err(FerroError::invalid_input(
@@ -2019,6 +2053,7 @@ impl SVR {
 
         let mut k = Array2::zeros((n, n));
 
+        // SAFETY: x_ref is standard layout (converted above), so as_slice always succeeds
         for i in 0..n {
             let ri = x_ref.row(i);
             let xi = ri.as_slice().unwrap();
@@ -2275,10 +2310,20 @@ impl Model for SVR {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.support_vectors, "predict")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("predict"))?,
+        )?;
 
-        let sv = self.support_vectors.as_ref().unwrap();
-        let dual_coef = self.dual_coef.as_ref().unwrap();
+        let sv = self
+            .support_vectors
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let dual_coef = self
+            .dual_coef
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         let mut predictions = Array1::zeros(n_samples);
@@ -2508,9 +2553,19 @@ impl LinearSVC {
     /// binary classification and n_classes for multiclass (one-vs-rest).
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.classes, "decision_function")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
-        let weights = self.weights.as_ref().unwrap();
-        let intercepts = self.intercepts.as_ref().unwrap();
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("decision_function"))?,
+        )?;
+        let weights = self
+            .weights
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
+        let intercepts = self
+            .intercepts
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
         let n_samples = x.nrows();
         let n_classifiers = weights.len();
         let mut decisions = Array2::zeros((n_samples, n_classifiers));
@@ -2523,6 +2578,7 @@ impl LinearSVC {
 
     /// Compute class weights from training data.
     fn compute_class_weights(&mut self, y: &Array1<f64>) {
+        // SAFETY: called from fit() after self.classes is set
         let classes = self.classes.as_ref().unwrap();
         let n_samples = y.len() as f64;
 
@@ -2594,6 +2650,7 @@ impl LinearSVC {
         // Build augmented design matrix using ndarray (avoid Vec<Vec<f64>> copy)
         let x_design: Array2<f64> = if self.fit_intercept {
             let ones = Array2::ones((n_samples, 1));
+            // SAFETY: x and ones have the same number of rows (both n_samples)
             concatenate(Axis(1), &[x.view(), ones.view()]).unwrap()
         } else {
             x.to_owned()
@@ -2834,11 +2891,24 @@ impl Model for LinearSVC {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.classes, "predict")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("predict"))?,
+        )?;
 
-        let classes = self.classes.as_ref().unwrap();
-        let weights = self.weights.as_ref().unwrap();
-        let intercepts = self.intercepts.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let weights = self
+            .weights
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let intercepts = self
+            .intercepts
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         let mut predictions = Array1::zeros(n_samples);
@@ -3208,9 +3278,16 @@ impl Model for LinearSVR {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.weights, "predict")?;
-        validate_predict_input(x, self.n_features.unwrap())?;
+        validate_predict_input(
+            x,
+            self.n_features
+                .ok_or_else(|| FerroError::not_fitted("predict"))?,
+        )?;
 
-        let w = self.weights.as_ref().unwrap();
+        let w = self
+            .weights
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         let mut predictions = Array1::zeros(n_samples);
@@ -3450,7 +3527,9 @@ impl crate::models::traits::SparseModel for LinearSVC {
 
     fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
         check_is_fitted(&self.classes, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         if x.ncols() != n_features {
             return Err(FerroError::ShapeMismatch {
                 expected: format!("{} features", n_features),
@@ -3458,9 +3537,18 @@ impl crate::models::traits::SparseModel for LinearSVC {
             });
         }
 
-        let classes = self.classes.as_ref().unwrap();
-        let weights_vec = self.weights.as_ref().unwrap();
-        let intercepts = self.intercepts.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let weights_vec = self
+            .weights
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let intercepts = self
+            .intercepts
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
         let mut predictions = Array1::zeros(n_samples);
 
@@ -3603,7 +3691,9 @@ impl crate::models::traits::SparseModel for LinearSVR {
 
     fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
         check_is_fitted(&self.weights, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         if x.ncols() != n_features {
             return Err(FerroError::ShapeMismatch {
                 expected: format!("{} features", n_features),
@@ -3611,7 +3701,10 @@ impl crate::models::traits::SparseModel for LinearSVR {
             });
         }
 
-        let w = self.weights.as_ref().unwrap();
+        let w = self
+            .weights
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let mut predictions = x.dot(w)?;
         predictions.mapv_inplace(|v| v + self.intercept);
         Ok(predictions)
