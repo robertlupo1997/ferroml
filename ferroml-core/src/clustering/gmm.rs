@@ -853,6 +853,21 @@ impl GaussianMixture {
 
 impl ClusteringModel for GaussianMixture {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
+        crate::validation::validate_unsupervised_input(x)?;
+
+        // Hyperparameter validation
+        if self.n_components == 0 {
+            return Err(FerroError::invalid_input(
+                "Parameter n_components must be >= 1, got 0",
+            ));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter tol must be > 0, got {}",
+                self.tol
+            )));
+        }
+
         let (n, d) = x.dim();
         if n < self.n_components {
             return Err(FerroError::invalid_input(format!(

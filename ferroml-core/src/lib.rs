@@ -270,6 +270,7 @@ pub mod simd;
 pub mod sparse;
 pub mod stats;
 pub mod testing;
+pub mod validation;
 
 // Re-exports for convenience
 pub use automl::{

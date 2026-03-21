@@ -52,7 +52,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::decomposition::quadtree::QuadTree;
 use crate::decomposition::vptree::VPTree;
-use crate::preprocessing::{check_non_empty, Transformer};
+use crate::preprocessing::Transformer;
 use crate::{FerroError, Result};
 
 /// Distance metric for t-SNE.
@@ -950,7 +950,7 @@ impl Transformer for TSNE {
     }
 
     fn fit_transform(&mut self, x: &Array2<f64>) -> Result<Array2<f64>> {
-        check_non_empty(x)?;
+        crate::validation::validate_unsupervised_input(x)?;
 
         let (n_samples, n_features) = x.dim();
 

@@ -92,12 +92,12 @@ impl AgglomerativeClustering {
 
 impl ClusteringModel for AgglomerativeClustering {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
+        crate::validation::validate_unsupervised_input(x)?;
+
         let n_samples = x.nrows();
         let n_features = x.ncols();
 
-        if n_samples == 0 {
-            return Err(FerroError::invalid_input("Empty input data"));
-        }
+        // Hyperparameter validation
         if self.n_clusters == 0 || self.n_clusters > n_samples {
             return Err(FerroError::invalid_input(format!(
                 "n_clusters ({}) must be between 1 and n_samples ({})",

@@ -54,9 +54,7 @@
 use ndarray::{s, Array1, Array2, Axis};
 use serde::{Deserialize, Serialize};
 
-use crate::preprocessing::{
-    check_finite, check_is_fitted, check_non_empty, check_shape, Transformer,
-};
+use crate::preprocessing::{check_is_fitted, check_non_empty, check_shape, Transformer};
 use crate::{FerroError, Result};
 
 /// SVD solver strategy for PCA.
@@ -551,8 +549,7 @@ impl Default for PCA {
 
 impl Transformer for PCA {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
-        check_non_empty(x)?;
-        check_finite(x)?;
+        crate::validation::validate_unsupervised_input(x)?;
 
         let (n_samples, n_features) = x.dim();
 
@@ -619,7 +616,7 @@ impl Transformer for PCA {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(
+        crate::validation::validate_transform_input(
             x,
             self.n_features_in
                 .ok_or_else(|| FerroError::not_fitted("transform"))?,
@@ -1104,7 +1101,7 @@ impl Transformer for IncrementalPCA {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(
+        crate::validation::validate_transform_input(
             x,
             self.n_features_in
                 .ok_or_else(|| FerroError::not_fitted("transform"))?,

@@ -438,28 +438,23 @@ impl DBSCAN {
 
 impl ClusteringModel for DBSCAN {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
-        if x.is_empty() || x.nrows() == 0 {
-            return Err(FerroError::InvalidInput(
-                "Input array cannot be empty".to_string(),
-            ));
+        crate::validation::validate_unsupervised_input(x)?;
+
+        // Hyperparameter validation
+        if self.eps <= 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter eps must be > 0, got {}",
+                self.eps
+            )));
         }
-        if x.iter().any(|v| !v.is_finite()) {
-            return Err(FerroError::InvalidInput(
-                "Input contains NaN or infinite values".to_string(),
+
+        if self.min_samples < 1 {
+            return Err(FerroError::invalid_input(
+                "Parameter min_samples must be >= 1, got 0",
             ));
         }
 
         let n_samples = x.nrows();
-
-        if self.eps <= 0.0 {
-            return Err(FerroError::InvalidInput("eps must be positive".to_string()));
-        }
-
-        if self.min_samples < 1 {
-            return Err(FerroError::InvalidInput(
-                "min_samples must be at least 1".to_string(),
-            ));
-        }
 
         // Initialize labels as unvisited (-2)
         let mut labels = vec![-2i32; n_samples];

@@ -83,7 +83,7 @@
 use ndarray::{Array1, Array2, Axis};
 use serde::{Deserialize, Serialize};
 
-use crate::preprocessing::{check_is_fitted, check_non_empty, check_shape, Transformer};
+use crate::preprocessing::{check_is_fitted, Transformer};
 use crate::{FerroError, Result};
 
 /// Rotation method for factor loadings.
@@ -853,13 +853,13 @@ impl Default for FactorAnalysis {
 
 impl Transformer for FactorAnalysis {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
-        check_non_empty(x)?;
+        crate::validation::validate_unsupervised_input(x)?;
         self.fit_em(x)
     }
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        crate::validation::validate_transform_input(x, self.n_features_in.unwrap())?;
 
         let mean = self.mean.as_ref().unwrap();
         let x_centered = x - mean;

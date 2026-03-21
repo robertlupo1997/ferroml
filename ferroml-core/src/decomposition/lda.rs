@@ -73,7 +73,7 @@ use ndarray::{Array1, Array2, Axis};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::preprocessing::{check_is_fitted, check_non_empty, check_shape};
+use crate::preprocessing::{check_is_fitted, check_shape};
 use crate::{FerroError, Result};
 
 /// SVD solver strategy for LDA.
@@ -287,7 +287,7 @@ impl LDA {
     /// * `Ok(())` if fitting succeeds
     /// * `Err(FerroError)` if fitting fails
     pub fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
-        check_non_empty(x)?;
+        crate::validation::validate_unsupervised_input(x)?;
 
         let (n_samples, n_features) = x.dim();
 
@@ -799,7 +799,7 @@ impl LDA {
     /// * Transformed data of shape (n_samples, n_components)
     pub fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        crate::validation::validate_transform_input(x, self.n_features_in.unwrap())?;
 
         let scalings = self.scalings.as_ref().unwrap();
         let xbar = self.xbar.as_ref().unwrap();

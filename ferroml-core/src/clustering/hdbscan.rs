@@ -900,16 +900,16 @@ fn deselect_subtree(
 
 impl ClusteringModel for HDBSCAN {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
+        crate::validation::validate_unsupervised_input(x)?;
+
         let n = x.nrows();
 
-        if n == 0 {
-            return Err(FerroError::InvalidInput("Empty dataset".into()));
-        }
-
+        // Hyperparameter validation
         if self.min_cluster_size < 2 {
-            return Err(FerroError::InvalidInput(
-                "min_cluster_size must be at least 2".into(),
-            ));
+            return Err(FerroError::invalid_input(format!(
+                "Parameter min_cluster_size must be >= 2, got {}",
+                self.min_cluster_size
+            )));
         }
 
         let min_samples = self.min_samples.unwrap_or(self.min_cluster_size);

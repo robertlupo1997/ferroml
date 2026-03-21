@@ -59,7 +59,7 @@
 use ndarray::{s, Array1, Array2};
 use serde::{Deserialize, Serialize};
 
-use crate::preprocessing::{check_is_fitted, check_non_empty, check_shape, Transformer};
+use crate::preprocessing::{check_is_fitted, Transformer};
 use crate::{FerroError, Result};
 
 /// Algorithm for computing truncated SVD.
@@ -387,9 +387,16 @@ impl Default for TruncatedSVD {
 
 impl Transformer for TruncatedSVD {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
-        check_non_empty(x)?;
+        crate::validation::validate_unsupervised_input(x)?;
 
         let (n_samples, n_features) = x.dim();
+
+        // Hyperparameter validation
+        if self.n_components == 0 {
+            return Err(FerroError::invalid_input(
+                "Parameter n_components must be >= 1, got 0",
+            ));
+        }
 
         // Validate n_components
         let max_components = n_samples.min(n_features);
@@ -435,7 +442,7 @@ impl Transformer for TruncatedSVD {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        crate::validation::validate_transform_input(x, self.n_features_in.unwrap())?;
 
         let components = self.components.as_ref().unwrap();
 

@@ -841,15 +841,19 @@ impl KMeans {
 
 impl ClusteringModel for KMeans {
     fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
-        if x.is_empty() || x.nrows() == 0 {
-            return Err(FerroError::InvalidInput(
-                "Input array cannot be empty".to_string(),
+        crate::validation::validate_unsupervised_input(x)?;
+
+        // Hyperparameter validation
+        if self.n_clusters == 0 {
+            return Err(FerroError::invalid_input(
+                "Parameter n_clusters must be >= 1, got 0",
             ));
         }
-        if x.iter().any(|v| !v.is_finite()) {
-            return Err(FerroError::InvalidInput(
-                "Input contains NaN or infinite values".to_string(),
-            ));
+        if self.tol < 0.0 {
+            return Err(FerroError::invalid_input(format!(
+                "Parameter tol must be >= 0, got {}",
+                self.tol
+            )));
         }
 
         let n_samples = x.nrows();
