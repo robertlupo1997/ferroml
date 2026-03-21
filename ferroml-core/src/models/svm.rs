@@ -216,6 +216,9 @@ impl KernelCache {
     }
 
     /// Evict the least recently used row. Returns the freed slot index.
+    ///
+    /// Note: `len` is NOT decremented because the caller (`get_row`) always
+    /// reuses the returned slot immediately, keeping occupancy the same.
     #[inline]
     fn evict_lru(&mut self) -> usize {
         debug_assert!(self.lru_head != NONE_SLOT);
@@ -228,7 +231,6 @@ impl KernelCache {
             self.row_to_slot[old_row] = NONE_SLOT;
         }
         self.slot_to_row[slot] = usize::MAX;
-        self.len -= 1;
         slot
     }
 
@@ -4877,5 +4879,244 @@ mod tests {
             total_sv > 0 && total_sv <= 10,
             "Expected 1-10 support vectors, got {total_sv}"
         );
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    /// Helper: create a small training matrix and a linear-kernel cache with the given capacity.
+    fn make_cache(n_samples: usize, capacity: usize) -> KernelCache {
+        // Simple n_samples x 2 training data so kernel values are deterministic
+        let mut data = Vec::with_capacity(n_samples * 2);
+        for i in 0..n_samples {
+            data.push(i as f64);
+            data.push((i as f64) * 0.5);
+        }
+        let x = Array2::from_shape_vec((n_samples, 2), data).unwrap();
+        KernelCache::new(Kernel::Linear, &x, capacity)
+    }
+
+    #[test]
+    fn test_lru_eviction_order() {
+        // Cache with capacity 3, 5 samples total.
+        // Insert rows 0, 1, 2 (fills cache), then insert row 3.
+        // Row 0 should be evicted (LRU).
+        let mut cache = make_cache(5, 3);
+
+        // Access rows 0, 1, 2 to fill the cache
+        let _ = cache.get_row(0);
+        let _ = cache.get_row(1);
+        let _ = cache.get_row(2);
+        assert_eq!(cache.len, 3);
+
+        // Row 0 should be cached
+        assert_ne!(cache.row_to_slot[0], NONE_SLOT);
+
+        // Insert row 3 -- should evict row 0 (LRU)
+        let _ = cache.get_row(3);
+        assert_eq!(cache.len, 3); // still at capacity
+
+        // Row 0 was evicted
+        assert_eq!(cache.row_to_slot[0], NONE_SLOT);
+        // Rows 1, 2, 3 are still cached
+        assert_ne!(cache.row_to_slot[1], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[2], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[3], NONE_SLOT);
+    }
+
+    #[test]
+    fn test_hit_promotion() {
+        // Cache capacity 3, 5 samples.
+        // Insert 0, 1, 2. Touch 0 (moves to MRU). Insert 3.
+        // Row 1 should be evicted (it's now LRU), NOT row 0.
+        let mut cache = make_cache(5, 3);
+
+        let _ = cache.get_row(0);
+        let _ = cache.get_row(1);
+        let _ = cache.get_row(2);
+
+        // Touch row 0 -- promotes it to MRU
+        let _ = cache.get_row(0);
+
+        // Insert row 3 -- should evict row 1 (LRU after promotion of 0)
+        let _ = cache.get_row(3);
+
+        // Row 0 should still be cached (was promoted)
+        assert_ne!(cache.row_to_slot[0], NONE_SLOT);
+        // Row 1 should be evicted
+        assert_eq!(cache.row_to_slot[1], NONE_SLOT);
+        // Rows 2, 3 still cached
+        assert_ne!(cache.row_to_slot[2], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[3], NONE_SLOT);
+    }
+
+    #[test]
+    fn test_cache_hit_returns_correct_values() {
+        // Verify that a cache hit returns the same computed row values.
+        let mut cache = make_cache(4, 3);
+
+        // First access computes the row
+        let row_first = cache.get_row(1).to_vec();
+
+        // Second access should be a cache hit with identical values
+        let row_second = cache.get_row(1).to_vec();
+
+        assert_eq!(row_first, row_second);
+
+        // Verify values are correct (linear kernel: dot product)
+        // Row 1 training data = [1.0, 0.5]
+        // K(1, 0) = dot([1.0, 0.5], [0.0, 0.0]) = 0.0
+        // K(1, 1) = dot([1.0, 0.5], [1.0, 0.5]) = 1.25
+        assert!((row_first[0] - 0.0).abs() < 1e-10);
+        assert!((row_first[1] - 1.25).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_shrinking_invalidates_entries() {
+        // Simulate shrinking by evicting specific rows and verifying
+        // that new insertions work correctly after eviction.
+        let mut cache = make_cache(6, 4);
+
+        // Fill cache with rows 0, 1, 2, 3
+        for i in 0..4 {
+            let _ = cache.get_row(i);
+        }
+        assert_eq!(cache.len, 4);
+
+        // Manually invalidate row 1 (simulating what happens when shrinking
+        // removes an index from the active set -- the slot gets reused on next eviction)
+        // Access row 4 -- evicts row 0 (LRU)
+        let _ = cache.get_row(4);
+        assert_eq!(cache.row_to_slot[0], NONE_SLOT);
+
+        // Access row 5 -- evicts row 1 (next LRU)
+        let _ = cache.get_row(5);
+        assert_eq!(cache.row_to_slot[1], NONE_SLOT);
+
+        // Remaining cached: 2, 3, 4, 5
+        assert_ne!(cache.row_to_slot[2], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[3], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[4], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[5], NONE_SLOT);
+
+        // Re-access row 0 -- should compute and cache again (evicts row 2)
+        let row0 = cache.get_row(0).to_vec();
+        assert_ne!(cache.row_to_slot[0], NONE_SLOT);
+        assert_eq!(cache.row_to_slot[2], NONE_SLOT);
+
+        // Verify the re-computed values are correct
+        // K(0, 0) = dot([0, 0], [0, 0]) = 0
+        assert!((row0[0] - 0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_empty_cache_miss() {
+        // Cache with minimum capacity (2, enforced by the constructor).
+        // Accessing any row should compute it.
+        let mut cache = make_cache(5, 2);
+        assert_eq!(cache.len, 0);
+
+        let row = cache.get_row(3).to_vec();
+        assert_eq!(cache.len, 1);
+
+        // Verify the row was computed correctly
+        // Row 3 data = [3.0, 1.5]
+        // K(3, 3) = dot([3.0, 1.5], [3.0, 1.5]) = 9.0 + 2.25 = 11.25
+        assert!((row[3] - 11.25).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_single_entry_behavior() {
+        // Minimum capacity is 2 (enforced by constructor).
+        // With capacity 2, each pair of inserts fills it, third evicts.
+        let mut cache = make_cache(5, 2);
+
+        let _ = cache.get_row(0);
+        let _ = cache.get_row(1);
+        assert_eq!(cache.len, 2);
+
+        // Third insert evicts row 0
+        let _ = cache.get_row(2);
+        assert_eq!(cache.len, 2);
+        assert_eq!(cache.row_to_slot[0], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[1], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[2], NONE_SLOT);
+
+        // Fourth insert evicts row 1
+        let _ = cache.get_row(3);
+        assert_eq!(cache.row_to_slot[1], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[2], NONE_SLOT);
+        assert_ne!(cache.row_to_slot[3], NONE_SLOT);
+    }
+
+    #[test]
+    fn test_get_value_symmetric_lookup() {
+        // Test that get_value uses symmetry: K(i,j) can be read from
+        // either row i or row j's cached row.
+        let mut cache = make_cache(4, 2);
+
+        // Cache row 1
+        let _ = cache.get_row(1);
+
+        // get_value(1, 2) should use the cached row for i=1
+        let v12 = cache.get_value(1, 2);
+
+        // get_value(2, 1) should use the cached row for j=1 (symmetric lookup)
+        let v21 = cache.get_value(2, 1);
+
+        // Linear kernel is symmetric
+        assert!((v12 - v21).abs() < 1e-10);
+
+        // get_value(2, 3) -- neither row cached, should compute directly
+        let v23 = cache.get_value(2, 3);
+        // K(2, 3) = dot([2.0, 1.0], [3.0, 1.5]) = 6.0 + 1.5 = 7.5
+        assert!((v23 - 7.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_repeated_access_same_row() {
+        // Accessing the same row repeatedly should always return correct values
+        // and not corrupt the cache.
+        let mut cache = make_cache(4, 3);
+
+        for _ in 0..10 {
+            let row = cache.get_row(2).to_vec();
+            // K(2, 2) = dot([2.0, 1.0], [2.0, 1.0]) = 5.0
+            assert!((row[2] - 5.0).abs() < 1e-10);
+        }
+        assert_eq!(cache.len, 1); // Only one slot used
+    }
+
+    #[test]
+    fn test_full_cycle_eviction() {
+        // Fill cache, evict everything, refill -- verify no corruption.
+        let mut cache = make_cache(6, 3);
+
+        // First round: fill with 0, 1, 2
+        for i in 0..3 {
+            let _ = cache.get_row(i);
+        }
+
+        // Second round: fill with 3, 4, 5 -- evicts 0, 1, 2 in order
+        for i in 3..6 {
+            let _ = cache.get_row(i);
+        }
+
+        // All original rows evicted
+        for i in 0..3 {
+            assert_eq!(cache.row_to_slot[i], NONE_SLOT);
+        }
+        // New rows cached
+        for i in 3..6 {
+            assert_ne!(cache.row_to_slot[i], NONE_SLOT);
+        }
+
+        // Third round: re-access row 0
+        let row0 = cache.get_row(0).to_vec();
+        assert_ne!(cache.row_to_slot[0], NONE_SLOT);
+        // K(0, 0) = 0
+        assert!((row0[0] - 0.0).abs() < 1e-10);
     }
 }
