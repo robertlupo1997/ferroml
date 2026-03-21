@@ -1,4 +1,5 @@
 use crate::hpo::SearchSpace;
+use crate::linalg::logsumexp;
 use crate::models::{
     check_is_fitted, validate_fit_input, validate_predict_input, ClassWeight, Model,
     PredictionInterval, ProbabilisticModel,
@@ -461,10 +462,7 @@ impl ProbabilisticModel for BernoulliNB {
 
         for i in 0..n_samples {
             let row = jll.row(i);
-            let max_ll = row.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-            let sum_exp: f64 = row.iter().map(|&ll| (ll - max_ll).exp()).sum();
-            let log_sum = max_ll + sum_exp.ln();
-
+            let log_sum = logsumexp(row.as_slice().unwrap_or(&row.to_vec()));
             for j in 0..n_classes {
                 probas[[i, j]] = (jll[[i, j]] - log_sum).exp();
             }

@@ -4,7 +4,7 @@
 //! selection, and soft clustering via predict_proba.
 
 use crate::clustering::{ClusteringModel, KMeans};
-use crate::linalg::{cholesky, solve_lower_triangular};
+use crate::linalg::{cholesky, logsumexp, solve_lower_triangular};
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2, Axis};
 use rand::prelude::*;
@@ -225,7 +225,9 @@ impl GaussianMixture {
         let n = x.nrows();
         let mut log_likelihood = Array1::zeros(n);
         for i in 0..n {
-            log_likelihood[i] = logsumexp(&log_resp.row(i).to_owned());
+            let row = log_resp.row(i);
+            let row_vec = row.to_vec();
+            log_likelihood[i] = logsumexp(&row_vec);
         }
         Ok(log_likelihood)
     }
@@ -259,10 +261,11 @@ impl GaussianMixture {
         let mut resp = Array2::zeros((n, k));
 
         for i in 0..n {
-            let row = log_resp.row(i).to_owned();
-            let lse = logsumexp(&row);
+            let row = log_resp.row(i);
+            let row_vec = row.to_vec();
+            let lse = logsumexp(&row_vec);
             for j in 0..k {
-                resp[[i, j]] = (row[j] - lse).exp();
+                resp[[i, j]] = (log_resp[[i, j]] - lse).exp();
             }
         }
         Ok(resp)
@@ -817,7 +820,9 @@ impl GaussianMixture {
             // Compute lower bound
             let mut lower_bound = 0.0;
             for i in 0..n {
-                lower_bound += logsumexp(&log_resp.row(i).to_owned());
+                let row = log_resp.row(i);
+                let row_vec = row.to_vec();
+                lower_bound += logsumexp(&row_vec);
             }
             lower_bound /= n as f64;
 
@@ -825,10 +830,11 @@ impl GaussianMixture {
             let k = self.n_components;
             let mut resp = Array2::zeros((n, k));
             for i in 0..n {
-                let row = log_resp.row(i).to_owned();
-                let lse = logsumexp(&row);
+                let row = log_resp.row(i);
+                let row_vec = row.to_vec();
+                let lse = logsumexp(&row_vec);
                 for j in 0..k {
-                    resp[[i, j]] = (row[j] - lse).exp();
+                    resp[[i, j]] = (log_resp[[i, j]] - lse).exp();
                 }
             }
 
@@ -995,15 +1001,7 @@ impl ClusteringModel for GaussianMixture {
     }
 }
 
-/// Compute log(sum(exp(x))) in a numerically stable way.
-fn logsumexp(x: &Array1<f64>) -> f64 {
-    let max_val = x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    if max_val == f64::NEG_INFINITY {
-        return f64::NEG_INFINITY;
-    }
-    let sum_exp: f64 = x.iter().map(|&v| (v - max_val).exp()).sum();
-    max_val + sum_exp.ln()
-}
+// logsumexp moved to crate::linalg::logsumexp (shared utility)
 
 #[cfg(test)]
 mod tests {

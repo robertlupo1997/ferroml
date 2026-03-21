@@ -22,8 +22,8 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 
 ### Correctness
 
-- [ ] **CORR-01**: Fix TemperatureScaling calibrator — 3 failing tests pass or model removed from public API
-- [ ] **CORR-02**: Fix IncrementalPCA — 3 failing tests pass or model removed from public API
+- [x] **CORR-01**: Fix TemperatureScaling calibrator — 3 failing tests pass or model removed from public API
+- [x] **CORR-02**: Fix IncrementalPCA — 3 failing tests pass or model removed from public API
 - [ ] **CORR-03**: SVM kernel cache has unit tests for correctness with shrinking enabled
 - [ ] **CORR-04**: SVM kernel cache has unit tests for eviction order and hit rates
 - [ ] **CORR-05**: Post-predict sanity check detects NaN in model output and raises warning/error
@@ -122,8 +122,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | VALID-08 | Phase 1 | Complete |
 | VALID-09 | Phase 1 | Complete |
 | VALID-10 | Phase 1 | Complete |
-| CORR-01 | Phase 2 | Pending |
-| CORR-02 | Phase 2 | Pending |
+| CORR-01 | Phase 2 | Complete |
+| CORR-02 | Phase 2 | Complete |
 | CORR-03 | Phase 2 | Pending |
 | CORR-04 | Phase 2 | Pending |
 | CORR-05 | Phase 2 | Pending |
