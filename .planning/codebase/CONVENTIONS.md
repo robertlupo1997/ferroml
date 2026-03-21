@@ -1,379 +1,234 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-16
+**Analysis Date:** 2026-03-20
 
-## Language-Specific Patterns
+## Naming Patterns
 
-### Rust Code Style
+**Files:**
+- Module files: lowercase with underscores (`linear_regression.rs`, `count_vectorizer.rs`)
+- Crate root: `lib.rs`, `main.rs`, or `mod.rs`
+- Test integration files: `{feature_name}.rs` in `ferroml-core/tests/` directory
+- Python test files: `test_{feature}.py` or `test_vs_{library}.py` (e.g., `test_comparison_linear.py`, `test_vs_sklearn_gaps_phase2.py`)
 
-**File Naming:**
-- Module files: `snake_case` (e.g., `adaboost.rs`, `linear_regression.rs`)
-- Public struct/trait: PascalCase (e.g., `AdaBoostClassifier`, `LinearRegression`)
-- Private helper: snake_case (e.g., `fit_internal()`, `validate_input()`)
+**Types (Rust structs/enums):**
+- PascalCase for public types: `LinearRegression`, `RandomForestClassifier`, `StandardScaler`, `ShapeMismatch`, `FerroError`
+- Suffix models with task-specific name when applicable: `RandomForestRegressor` vs `RandomForestClassifier`, `GradientBoostingRegressor` vs `GradientBoostingClassifier`
+- Error enum variants: PascalCase describing the error (`InvalidInput`, `ShapeMismatch`, `ConvergenceFailure`, `NotFitted`, `AssumptionViolation`)
 
-**Function Naming:**
-- Public API: `snake_case` (e.g., `fit()`, `predict()`, `with_learning_rate()`)
-- Constructor: `new()` or builder with `with_*()` pattern
-- Getter: `snake_case` with trailing `_` for fields (e.g., `classes()`, `theta_()`)
-- Internal check: prefix with `check_` (e.g., `check_is_fitted()`)
+**Functions & Methods:**
+- snake_case for all functions: `fit()`, `predict()`, `predict_proba()`, `fit_transform()`, `with_parameter()`
+- Builder pattern methods start with `with_`: `.with_n_estimators(10)`, `.with_fit_intercept(true)`, `.with_random_state(42)`, `.with_confidence_level(0.95)`
+- Getter methods: `coefficients()`, `intercept()`, `cluster_centers()`, not `get_coefficients()`
+- Statistical diagnostic methods use full descriptive names: `standardized_residuals()`, `studentized_residuals()`, `cooks_distance()`, `dffits()`, `vif()`
+- Test functions: `test_{feature_being_tested}()` or `test_{subject}_{specific_case}()` (e.g., `test_kmeans_blobs_finds_correct_clusters()`, `test_linear_regression_simple()`)
 
-**Variable Naming:**
-- Model parameters: single descriptors (e.g., `n_estimators`, `learning_rate`, `max_depth`)
-- Array/matrix: explicit types (e.g., `x` for features Array2, `y` for targets Array1)
-- Math notation: single letter allowed in ML algorithms (e.g., `w` for weights, `b` for bias)
+**Variables:**
+- snake_case: `x_train`, `y_test`, `max_depth`, `learning_rate`, `n_samples`, `n_features`
+- Mathematical/domain-specific single letters acceptable in formulas and math-heavy code: `i`, `j`, `k` for loops; `x`, `y` for features/targets; `m`, `n` for dimensions
+- Prefix `_` for intentionally unused parameters: `_unused_param`
+- Boolean flags read clearly: `fit_intercept`, `warm_start`, `use_feature_names` (not just `intercept`, `start`, `names`)
 
-**Type/Trait Naming:**
-- Traits: descriptive adjectives ending in action (e.g., `Model`, `Transformer`, `CrossValidator`)
-- Error variants: PascalCase with context (e.g., `ShapeMismatch`, `ConvergenceFailure`, `NotFitted`)
+**Constants:**
+- SCREAMING_SNAKE_CASE at module level: `DEFAULT_MAX_ITER = 1000`, `MIN_SAMPLES_LEAF = 1`
 
-**Code Organization:**
-- Modules: one concern per file (e.g., `adaboost.rs` contains only AdaBoost implementations)
-- Section separators: `// =============================================================================`
-- Block comments: `//! ` for module-level docs, `/// ` for item-level docs
-- Visibility: public types at top, helpers/state lower
+## Code Style
 
-**Example from `adaboost.rs`:**
-```rust
-/// AdaBoost classifier using SAMME.R algorithm.
-///
-/// Fits an ensemble of weighted decision stumps, where each subsequent
-/// estimator focuses on the samples that previous estimators got wrong.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdaBoostClassifier {
-    pub n_estimators: usize,
-    pub learning_rate: f64,
-    pub max_depth: usize,
-    pub random_state: Option<u64>,
-    pub warm_start: bool,
+**Formatting:**
+- Rust: `cargo fmt --all` enforced by pre-commit hook (edition 2021)
+- Python: Follows PEP 8 conventions (no pre-commit formatter enforced, but consistent 4-space indentation)
+- Line length: No strict limit, but prefer clarity (Rust files can exceed 100 chars for documentation examples)
 
-    // Private fitted state
-    estimators: Option<Vec<DecisionTreeClassifier>>,
-    estimator_weights: Option<Array1<f64>>,
-    classes: Option<Array1<f64>>,
-    n_features: Option<usize>,
-}
+**Linting:**
+- Rust: `cargo clippy -D warnings` enforced by pre-commit hook
+- Clippy lints explicitly allowed with justification in `lib.rs` (lines 88-150): `allow(clippy::too_many_arguments)`, `allow(clippy::too_many_lines)`, `allow(clippy::cast_precision_loss)`, etc.
+- Rationale: ML codebases have many parameters, complex algorithms, numeric conversions; pedantic lints often too noisy
 
-impl AdaBoostClassifier {
-    pub fn new(n_estimators: usize) -> Self { /* ... */ }
-    pub fn with_learning_rate(mut self, lr: f64) -> Self { /* ... */ }
-    pub fn estimator_weights(&self) -> Option<&Array1<f64>> { /* ... */ }
-    pub fn classes(&self) -> Option<&Array1<f64>> { /* ... */ }
-}
-```
-
-### Python Code Style
-
-**File Naming:**
-- Test files: `test_*.py` (e.g., `test_naive_bayes.py`)
-- Module files: `snake_case.py`
-- Conftest: `conftest.py`
-
-**Function/Class Naming:**
-- Public classes: PascalCase (e.g., `TestGaussianNB`, `GaussianNB`)
-- Test methods: `test_*` pattern describing behavior (e.g., `test_fit_predict_basic`, `test_predict_proba_sums_to_one`)
-- Fixtures: descriptive snake_case (e.g., `regression_data`, `classification_data`)
-- Helpers: lowercase with leading underscore if private (e.g., `_fit_both()`)
-
-**Test Class Organization:**
-- Class per component (e.g., `class TestGaussianNB`)
-- Group related tests by section (e.g., `# --------- GaussianNB tests --------`)
-- One assertion focus per test method
-
-**Example from `test_naive_bayes.py`:**
-```python
-class TestGaussianNB:
-    def test_fit_predict_basic(self):
-        X = np.array([[1.0, 2.0], [2.0, 1.0], [3.0, 3.0],
-                      [6.0, 7.0], [7.0, 6.0], [8.0, 8.0]])
-        y = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
-        model = GaussianNB()
-        model.fit(X, y)
-        preds = model.predict(X)
-        assert preds.shape == (6,)
-
-    def test_predict_proba_sums_to_one(self):
-        X = np.array([[1.0, 2.0], [2.0, 1.0], [6.0, 7.0], [7.0, 6.0]])
-        y = np.array([0.0, 0.0, 1.0, 1.0])
-        model = GaussianNB()
-        model.fit(X, y)
-        probas = model.predict_proba(X)
-        np.testing.assert_allclose(probas.sum(axis=1), 1.0, atol=1e-10)
-```
-
-## Formatting & Linting
-
-**Rust Formatting:**
-- Tool: Built-in `cargo fmt` (Rust 2021 edition)
-- Applied on commit (pre-commit hook)
-- No custom `.rustfmt.toml` — uses edition defaults
-- Line length: implicit via formatter (typically 100 chars)
-
-**Rust Linting:**
-- Tool: `cargo clippy` with `-D warnings` (deny all warnings)
-- Clippy config: ~50+ lint allowances in `lib.rs` for ML-specific exceptions:
-  - `#![allow(clippy::too_many_lines)]` — Complex algorithms need space
-  - `#![allow(clippy::too_many_arguments)]` — ML models have many parameters
-  - `#![allow(clippy::many_single_char_names)]` — Math notation uses single letters
-  - `#![allow(clippy::float_cmp)]` — Epsilon comparisons used where needed
-  - `#![allow(clippy::return_self_not_must_use)]` — Builder pattern heavy codebase
-  - See `/home/tlupo/ferroml/ferroml-core/src/lib.rs` lines 88-149 for full list
-
-**Python Formatting:**
-- Tool: pytest-standard (no explicit formatter configured)
-- Convention: PEP 8 style observed in test files
-- Import order: stdlib → third-party → local (implicit)
+**Indentation & Whitespace:**
+- Rust: 4 spaces (standard Rust)
+- Python: 4 spaces
 
 ## Import Organization
 
-**Rust Pattern:**
+**Order (Rust):**
+1. Standard library: `use std::...`
+2. External crates: `use ndarray::..., use serde::...`
+3. Internal crate: `use crate::...`
+4. Relative imports: `use super::...`
+
+**Example from `ferroml-core/src/models/logistic.rs`:**
 ```rust
-// 1. Crate imports
-use crate::models::{check_is_fitted, validate_fit_input, Model};
+use crate::hpo::{ParameterValue, SearchSpace};
+use crate::metrics::probabilistic::{roc_auc_score, roc_auc_with_ci};
+use crate::models::{...};
+use crate::pipeline::PipelineModel;
 use crate::{FerroError, Result};
-
-// 2. External crates (std first, then workspace deps, then other crates)
-use ndarray::{Array1, Array2};
+use argmin::core::{CostFunction, Executor, Gradient, State};
+use argmin::solver::linesearch::MoreThuenteLineSearch;
+use ndarray::{s, Array1, Array2};
 use serde::{Deserialize, Serialize};
-
-// 3. Internal modules
-mod clustering { ... }
 ```
 
-**Python Pattern:**
-```python
-# 1. Standard library
-import numpy as np
-import pytest
-from typing import Tuple
+**Path Aliases:**
+- No custom path aliases in ferroml-core (uses standard `crate::`, `super::`)
+- PyO3 bindings use explicit module paths in `ferroml-python/src/` to expose to Python: `pub use ferroml_core::linear::{...}`
 
-# 2. Third-party (ferroml)
-from ferroml.naive_bayes import GaussianNB, MultinomialNB
-
-# 3. Local imports
-from conftest_comparison import get_iris, get_wine
-```
+**Wildcards:**
+- Acceptable in test modules: `use super::*;`
+- Avoid in library code
 
 ## Error Handling
 
-**Rust Error Strategy:**
-- Error type: `FerroError` enum with variants for ML-specific cases
-- File: `/home/tlupo/ferroml/ferroml-core/src/error.rs`
-- Pattern: Use `Result<T> = std::result::Result<T, FerroError>`
-- Error variants include:
-  - `InvalidInput(String)` — Invalid input data
-  - `ShapeMismatch { expected, actual }` — Array shape mismatch
-  - `AssumptionViolation { assumption, test, p_value }` — Statistical assumption failed
-  - `ConvergenceFailure { iterations, reason }` — Optimization didn't converge
-  - `NotFitted { operation }` — Model not fitted before predict
+**Pattern - Result Type:**
+- All fallible operations return `Result<T>` (alias for `std::result::Result<T, FerroError>`)
+- Defined in `ferroml-core/src/error.rs`: `pub type Result<T> = std::result::Result<T, FerroError>;`
 
-**Error Creation:**
-```rust
-// Preferred: use helper methods
-FerroError::shape_mismatch("(n, m)", "(n, k)")
-FerroError::invalid_input("n_estimators must be > 0")
+**Pattern - Error Enum:**
+- Use `FerroError` enum with meaningful variants (see `error.rs` lines 12-100):
+  - `InvalidInput(String)` — validation failures
+  - `ShapeMismatch { expected, actual }` — array dimension mismatches
+  - `AssumptionViolation { assumption, test, p_value }` — statistical tests fail
+  - `NumericalError(String)` — NaN/Inf/convergence issues
+  - `ConvergenceFailure { iterations, reason }` — optimizer didn't converge
+  - `NotFitted { operation }` — model used before fit()
+  - `NotImplemented(String)` — missing feature
+  - `ConfigError(String)` — invalid configuration
 
-// Or: direct enum construction
-Err(FerroError::InvalidInput("expected 2D array".into()))
-```
+**Pattern - Propagation:**
+- Use `?` operator for early returns
+- Wrap external errors with context: `std::io::Error` wrapped as `FerroError::IoError`
 
-**Python Error Strategy:**
-- Propagation: Rust errors become Python exceptions
-- Testing: Check error messages contain relevant keywords
-- Pattern in tests: `with pytest.raises(Exception)` + message assertion
-
-**Example from `test_errors.py`:**
-```python
-def test_nan_in_features_raises(self):
-    model = LinearRegression()
-    X = np.array([[1.0, 2.0], [np.nan, 4.0], [5.0, 6.0]])
-    y = np.array([1.0, 2.0, 3.0])
-
-    with pytest.raises(Exception) as exc_info:
-        model.fit(X, y)
-
-    error_msg = str(exc_info.value).lower()
-    assert 'nan' in error_msg or 'invalid' in error_msg
-```
+**Pattern - Validation:**
+- Input validation happens at model entry points (fit, predict)
+- Helper: `validate_fit_input(x, y)` checks shapes and finite values
+- Helper: `validate_predict_input(x)` checks shapes and finite values
+- See `ferroml-core/src/models/traits.rs` for validation trait
 
 ## Logging
 
-**Framework:** `tracing` crate (structured logging)
+**Framework:** No structured logging in library code; internal `tracing` crate for future instrumentation
 
-**Pattern:**
-- Used in critical sections and diagnostics
-- Not verbose in hot paths
-- Levels: debug for algorithm steps, warn for assumptions, error for failures
+**Patterns:**
+- Algorithms use `println!` in examples only (not in library)
+- No info/warn logs in models themselves (library is silent)
+- Diagnostics returned as struct fields: `DiagnosticsResult { assumption_tests: Vec<...>, residuals: Array1<...> }`
+- Python side logs via pytest output if needed
 
-## Comments & Documentation
+## Comments
 
-**When to Comment (Rust):**
-- Algorithm details with references (especially papers)
-- Non-obvious design decisions
-- Mathematical notation explanations
-- Workarounds with issue references
+**When to Comment:**
+- Complex statistical formulas: show the equation and cite the source
+- Non-obvious algorithm choices: explain why (e.g., "Use QR decomposition for numerical stability")
+- Hard-coded thresholds: explain the justification (e.g., "Band-aid threshold at 10K samples for SVC kernel to prevent memory explosion")
+- Workarounds for edge cases: mark with `// HACK:` or `// TODO:` if temporary
 
-**Doc Patterns:**
-- Module-level: `//! ` with architecture diagrams and examples
-- Items: `/// ` with doc-comments, reference papers, examples
-- Inline: `// ` for implementation notes only
+**When NOT to Comment:**
+- Self-documenting code (good function/variable names)
+- What is obvious from the code itself
 
-**Example from `adaboost.rs`:**
-```rust
-//! AdaBoost Ensemble Methods
-//!
-//! Implements AdaBoost (Adaptive Boosting) for classification and regression.
-//!
-//! ## References
-//! - Hastie, Tibshirani, Friedman (2009). "Elements of Statistical Learning"
-//! - Drucker (1997). "Improving Regressors using Boosting Techniques"
+**Doc Comments (Rust):**
+- All public types and methods: `///` style doc comments with examples
+- Module-level: `//!` with design philosophy and architecture diagrams (see `lib.rs` lines 1-85)
+- Example: LinearRegression module (lines 1-49) shows full example with imports
 
-/// AdaBoost classifier using SAMME.R algorithm.
-///
-/// Fits an ensemble of weighted decision stumps, where each subsequent
-/// estimator focuses on the samples that previous estimators got wrong.
-///
-/// ## Example
-///
-/// ```
-/// let mut clf = AdaBoostClassifier::new(50);
-/// clf.fit(&x, &y)?;
-/// ```
-pub struct AdaBoostClassifier { ... }
-```
-
-**Python Documentation:**
-- Module docstrings: describe purpose and patterns
-- Class docstrings: behavior and test focus
-- Method docstrings: only when non-obvious
-
-**Example from `conftest.py`:**
-```python
-"""
-Shared fixtures for FerroML Python tests.
-
-This module provides:
-- Sample datasets (regression, classification, multiclass)
-- Model factories for common test patterns
-- Utility functions for testing
-"""
-
-@pytest.fixture
-def regression_data() -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Generate simple regression data.
-
-    y = 2*X[:, 0] + 3*X[:, 1] - X[:, 2] + noise
-
-    Returns:
-        Tuple of (X, y) with shape (100, 3) and (100,)
-    """
-```
+**Examples in Doc Comments:**
+- Runnable examples using `use` statements
+- Show typical builder pattern usage: `.with_parameter(value)`
+- Mark slow examples with `#[ignore]` or mention runtime
 
 ## Function Design
 
-**Size Guidelines (Rust):**
-- Clippy allows `#![allow(clippy::too_many_lines)]` for complex algorithms
-- Typical: 50-300 lines for algorithm implementations
-- Preference: Break into helper functions by logical step
+**Size:**
+- Prefer functions < 200 lines (complex models may exceed this)
+- Break long algorithms into helper functions with descriptive names
+- Tests can be longer (up to 300-400 lines for complex test suites)
 
 **Parameters:**
-- Input arrays: `&Array2<f64>` (features), `&Array1<f64>` (targets)
-- Output arrays: `Array2<f64>` or `Array1<f64>` (owned)
-- Configs: builder pattern with `with_*()` methods
-- No default parameters — use builders
+- Use builder pattern for configurable models (see `with_*` methods)
+- Maximum ~10 parameters before extracting to config struct
+- All models implement Default and accept `()` for `new()`: `Model::new()` == `Model::default()`
 
 **Return Values:**
-- Success: `Result<T>` for public API
-- Arrays: owned (Array2<f64>, Array1<f64>)
-- References: for accessors (e.g., `estimators()` returns `Option<&[...]>`)
+- Result<T> for fallible operations
+- Option<T> for optional results (e.g., `r_squared()` returns `Option<f64>` because requires fitted model)
+- Tuple for multiple related outputs: `(f_statistic, p_value)` from `f_statistic()`
+- Struct with named fields for complex outputs: `ModelSummary { ... }`, `DiagnosticsResult { ... }`
 
-**Example:**
-```rust
-// Builder pattern for initialization
-pub fn new(n_estimators: usize) -> Self { ... }
-pub fn with_learning_rate(mut self, lr: f64) -> Self { ... }
-pub fn with_max_depth(mut self, max_depth: usize) -> Self { ... }
-
-// Fit/predict pattern
-pub fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> { ... }
-pub fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> { ... }
-
-// Accessors
-pub fn classes(&self) -> Option<&Array1<f64>> { ... }
-pub fn estimator_weights(&self) -> Option<&Array1<f64>> { ... }
-```
+**Trait Implementation:**
+- Core traits: `Model` (fit/predict), `Transformer` (fit/transform), `StatisticalModel`, `ProbabilisticModel`
+- All regression models: implement `Model`, `StatisticalModel`
+- All classifiers: implement `Model`, `ProbabilisticModel`
+- All preprocessors: implement `Transformer`
+- See `ferroml-core/src/models/traits.rs` for full trait hierarchy
 
 ## Module Design
 
-**Public Exports:**
-- Traits and primary types: always public
-- Helpers and validation: often public for library users
-- Internals: private with `pub(crate)` when needed by other modules
+**Exports:**
+- Re-export public types in parent module: `pub use submodule::{Type1, Type2}`
+- Example: `models/mod.rs` lines 62-100 re-export all model types
+- This allows `use ferroml_core::models::{LinearRegression, RandomForestClassifier}` (not `use ferroml_core::models::linear::LinearRegression`)
 
-**Barrel Files (re-exports):**
-- Used in preprocessing and models submodules
-- File: `/home/tlupo/ferroml/ferroml-core/src/preprocessing/mod.rs`
-- Pattern: `pub use self::scalers::*; pub use self::encoders::*;`
+**Barrel Files:**
+- `mod.rs` aggregates and re-exports submodules
+- Pattern: `pub mod submodule;` followed by `pub use submodule::{...};`
+- Keeps public API clean and organized
 
-**Python Re-exports:**
-- Via `__init__.py` in submodules
-- Example: `/home/tlupo/ferroml/ferroml-python/src` wraps all Rust types
-- Bindings expose full sklearn-compatible API
+**Module Documentation:**
+- Each module starts with `//!` doc comment explaining purpose
+- Lists key types and traits provided
+- Usually includes a design philosophy section
+- Example from `models/mod.rs` (lines 1-26) and `preprocessing/mod.rs` (lines 1-38)
 
-## Constants & Magic Numbers
+**Test Organization:**
+- Unit tests live in same file as implementation: `#[cfg(test)]` at end
+- Integration tests consolidated in `/ferroml-core/tests/` (6 files total):
+  - `correctness.rs` — Cross-library validation, correctness tests
+  - `adversarial.rs` — Adversarial inputs, robustness
+  - `edge_cases.rs` — Degenerate inputs, 13-scenario matrix
+  - `integration.rs` — Pipeline, CV, serialization end-to-end
+  - `regression_tests.rs` — Plan-by-plan regression suite
+  - `vs_linfa.rs` — Cross-validation against linfa library
 
-**Conventions:**
-- Named constants for tuning parameters (e.g., `const DEFAULT_VARIANCE_SMOOTHING: f64 = 1e-9;`)
-- Documented magic numbers in comments when needed
-- Use `const` for compile-time known values
-- Use `lazy_static` or runtime initialization for non-const values
+**No new test binaries added** — consolidation reduced build from 350 GB to ~14 GB debug size
 
-## Trait Implementations
+## Serialization
 
-**Standard Traits:**
-- `Debug`: Always derived
-- `Clone`: Always derived for models (enables HPO re-runs)
-- `Serialize`/`Deserialize`: Always derived (serde framework)
-- `Default`: Implemented when sensible (e.g., `AdaBoostClassifier` default has n_estimators=50)
+**Pattern:**
+- All models derive `Serialize, Deserialize` using serde
+- Use `serde_json` for human-readable dumps
+- Use `bincode` for compact binary serialization
+- Python pickle support via PyO3 (see `ferroml-python/src/pickle.rs`)
 
-**ML-Specific Traits (in `traits.rs`):**
-- `Model`: `fit()`, `predict()`, `is_fitted()`, `n_features()`, `model_name()`
-- `Transformer`: `fit()`, `transform()`, `fit_transform()`, `inverse_transform()`
-- `StatisticalModel`: adds `confidence_interval()`, `get_params()`
-- `ProbabilisticModel`: adds `predict_proba()`
+**Example:**
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinearRegression { ... }
+```
 
-## Testing Conventions
+## Type Signatures
 
-**Inline Module Tests (Rust):**
-- Location: module file with `#[cfg(test)] mod tests { }`
-- Pattern: Simple unit tests for single functions
-- Use `#[test]` attribute
-- Example from `error.rs`:
-  ```rust
-  #[cfg(test)]
-  mod tests {
-      use super::*;
+**Array Types:**
+- Features: `&Array2<f64>` (2D, owned or borrowed)
+- Targets: `&Array1<f64>` (1D, owned or borrowed)
+- Return types: `Array1<f64>` or `Array2<f64>` (owned, caller moves)
+- No generic `<T>` for array types — FerroML is f64-only for ML safety
 
-      #[test]
-      fn test_error_creation() {
-          let err = FerroError::shape_mismatch("expected", "actual");
-          assert!(matches!(err, FerroError::ShapeMismatch { .. }));
-      }
-  }
-  ```
+**Borrowed vs Owned:**
+- Input parameters: borrowed references `&Array2<f64>`
+- Return values: owned arrays (caller decides memory)
+- Fit methods: mutable `&mut self` for internal state
 
-**Integration Tests (Rust):**
-- Location: `/home/tlupo/ferroml/ferroml-core/tests/` (separate binaries)
-- Consolidated files: `correctness.rs`, `integration.rs`, `edge_cases.rs`, `adversarial.rs`, `vs_linfa.rs`, `regression_tests.rs`
-- Each file is a single test binary (reduced from 19 to 6 files for faster builds)
-- Run with: `cargo test --test correctness`
+## Pre-commit Hooks
 
-**Fuzzing:**
-- Framework: libfuzzer-sys
-- Location: `/home/tlupo/ferroml/ferroml-core/fuzz/fuzz_targets/`
-- Test serialization, preprocessing, ONNX loading
-- Run with: `cargo +nightly fuzz run <fuzzer_name>`
+**Enforced by `.git/hooks/pre-commit`:**
+1. `cargo fmt --all` — Code must be formatted
+2. `cargo clippy -D warnings` — No clippy warnings
+3. `cargo test --lib` — Quick library tests (integration tests skipped)
+
+**Commit failure means:**
+- Fix formatting: `cargo fmt --all`
+- Fix clippy: address warnings or add to allowed list in `lib.rs`
+- Re-stage and commit again (do NOT amend previous commit if test fails)
 
 ---
 
-*Convention analysis: 2026-03-16*
+*Convention analysis: 2026-03-20*

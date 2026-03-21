@@ -1,188 +1,183 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-16
+**Analysis Date:** 2026-03-20
 
 ## APIs & External Services
 
-**Not Detected**
+**None Currently Implemented**
 
-FerroML is a pure machine learning library with no runtime external API integrations. It does not call out to cloud services, remote APIs, or third-party compute platforms during normal operation.
-
-However, **optional cross-library validation** is available for development/testing:
-- **scikit-learn** - Correctness validation against 60+ sklearn models (test_vs_sklearn*.py)
-- **XGBoost** - GBM comparison (test_vs_xgboost.py)
-- **LightGBM** - GBDT comparison (test_vs_lightgbm.py)
-- **statsmodels** - Statistical model validation (test_vs_statsmodels.py)
-- **scipy** - Distribution and numerical algorithm validation
-- **linfa 0.8** - 12 Rust cross-library validation tests (linear, trees, SVM, clustering)
-
-These are **optional dev-dependencies only**, not required for production use.
+FerroML is a self-contained ML library. It does not depend on external ML services, cloud APIs, or remote computation endpoints. All computation occurs locally (CPU or optional GPU).
 
 ## Data Storage
 
-**File Formats Supported:**
+**Databases:**
+- Not applicable - FerroML is an in-memory ML library
+- Supports optional loading from CSV/Parquet via Polars (`datasets` feature)
 
-**CSV:**
-- Location: `ferroml-core/src/datasets/file.rs`
-- Function: `load_csv()`, `load_csv_with_options()`
-- Backend: Polars with arrow-backed columnar format
-- Config: `CsvOptions` (delimiter, encoding, null handling)
-- Type inference: Automatic (Polars type inference)
-- Feature-gated: `datasets` (enabled by default)
+**File Storage:**
+- Local filesystem only
+- Memory-mapped file support via `memmap2` for large datasets
+- Binary serialization: bincode and MessagePack via `bincode` and `rmp-serde`
+- ONNX export: `prost` for protocol buffers
 
-**Parquet:**
-- Location: `ferroml-core/src/datasets/file.rs`
-- Function: `load_parquet()`, `load_parquet_with_options()`
-- Backend: Polars + Arrow
-- Config: `ParquetOptions` (compression, row group size)
-- Zero-copy: Arrow columnar data directly to ndarray
-- Feature-gated: `datasets` (enabled by default)
-
-**Memory-Mapped Files:**
-- Location: `ferroml-core/src/datasets/mmap.rs`
-- Types: `MemmappedDataset`, `MemmappedArray2`, `MemmappedArray1`
-- Backend: `memmap2` 0.9
-- Use case: Datasets > RAM (zero-copy file access)
-- Format: Custom `.fmm` binary format (native ndarray layout via bincode)
-- Example: `ferroml-core/tests/test_mmap_dataset.rs`
-
-**NumPy Interop:**
-- Via pyo3: Python numpy.ndarray ↔ ndarray conversions
-- No external NumPy calls from Rust code; pure data exchange in Python bindings
-- Location: `ferroml-python/src/` (PyO3 wrappers)
-
-**Serialization Formats:**
-- Binary: `bincode` 1.3 (model snapshots)
-- MessagePack: `rmp-serde` 1.3 (cross-language model exchange)
-- JSON: `serde_json` 1.0 (config, metadata)
-- Protocol Buffers: `prost` 0.13 (ONNX export)
-
-**Local Filesystem Only:**
-- No cloud storage (S3, GCS, Azure Blob)
-- No database connections (MySQL, PostgreSQL, MongoDB)
-- No network file systems (NFS, SMB)
-
-## Caching
-
-**Not Detected**
-
-FerroML does not use external caching systems. All caching is in-process:
-- Model warm-start state (cached normalization params in `automl/warmstart.rs`)
-- SVC kernel cache (LRU cache with 10K sample threshold in `models/svm/svc.rs`)
-- Ensemble bootstrap cache (cached decision functions for AdaBoost)
+**Caching:**
+- In-process caching only (no external cache service)
+- Model parameters cached in memory during training
+- MLP layer forward-pass caching for batch inference
 
 ## Authentication & Identity
 
-**Not Applicable**
-
-No authentication or authorization system. FerroML is a pure compute library without user/tenant isolation. No cloud authentication (AWS IAM, Azure AD, Okta) needed.
+**Not applicable** - FerroML has no user authentication, API keys, or identity management.
 
 ## Monitoring & Observability
 
-**Logging:**
-- Framework: `tracing` 0.1 (structured logging)
-- Backend: `tracing-subscriber` 0.3 (configurable formatter)
-- Initialization: Optional in Python bindings (`init_tracing()` if exposed)
-- Usage: Event and span logging for debug/development (not required for production)
-
 **Error Tracking:**
-- Not detected. FerroML returns `Result<T, FerroError>` with detailed error types:
-  - `ShapeMismatch` - Array dimension mismatches
-  - `AssumptionViolation` - Statistical assumption failures
-  - `ConvergenceFailure` - Optimizer/solver non-convergence
-  - `InvalidInput` - Data validation errors
-  - Location: `ferroml-core/src/error.rs`
+- None - errors propagate as `FerroError` enum variants to caller
 
-**Performance Metrics:**
-- Criterion benchmarks to `target/criterion/` (local file output)
-- Memory profiling via `dhat` (heap allocation tracking)
-- No external APM (New Relic, DataDog, Prometheus)
+**Logs:**
+- Structured logging via `tracing` 0.1
+- Console/file output via `tracing-subscriber` 0.3
+- No external log aggregation (logs are caller-controlled)
+- Example: AutoML verbose mode logs model evaluations to stderr
 
-**Coverage Reporting:**
-- `cargo tarpaulin` (Rust code coverage)
-- CI uploads to Codecov (via `codecov/codecov-action@v4`)
-- Threshold: 70% minimum, 75% target
+**Profiling:**
+- Benchmarking: Criterion.rs via `benches/` (dev-only)
+- Memory profiling: dhat and memory-stats (dev-only)
+
+## Cross-Library Validation (Development Only)
+
+**Verification Against:**
+- scikit-learn 1.0+ (Python tests compare predictions, coefficients, probabilities)
+- scipy - distributions and special functions
+- linfa 0.8.1 (Rust tests for algorithms, dev-dependency)
+- xgboost, lightgbm (cross-library performance benchmarks in `scripts/benchmark_cross_library.py`)
+- statsmodels (statistical test validation)
+
+**Test Infrastructure:**
+- conftest_comparison.py - Shared fixtures for sklearn dataset loading and comparison
+- test_vs_sklearn_*.py files - 12 cross-library validation test files
+- test_vs_linfa.rs - Rust-side cross-validation against linfa
+- ONNX round-trip validation (118 tests) - verifies export/import fidelity
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- GitHub (primary repository: github.com/robertlupo1997/ferroml)
-- PyPI (package distribution: pypi.org/project/ferroml/)
-- crates.io (Rust crate: crates.io/crates/ferroml-core)
-- GitHub Pages (documentation, if enabled)
+- GitHub (robertlupo1997/ferroml) - source repository
+- GitHub Releases - version tags and release artifacts
 
-**CI Platform:**
-- GitHub Actions (workflows in `.github/workflows/`)
-- Runners: ubuntu-latest, macos-latest, windows-latest
-- Caching: GitHub Actions cache API
+**CI Pipeline:**
+- GitHub Actions (8 workflows in `.github/workflows/`)
 
-**Build Infrastructure:**
-- `maturin` 1.4+ - PyO3 wheel building
-- `PyO3/maturin-action` - GitHub Actions workflow for cross-platform wheel builds
-- `sccache` - Rust compilation caching in CI
+**Workflows:**
+1. `ci.yml` - Check, clippy, fmt, tests (on push/PR to main/master)
+2. `publish-pypi.yml` - Build and publish wheels to PyPI (on version tags or manual dispatch)
+3. `publish.yml` - Publish crate to crates.io (Rust)
+4. `benchmarks.yml` - Run Criterion benchmarks and compare against baseline
+5. `release.yml` - Automated version bumping and release notes
+6. `changelog.yml` - Generate CHANGELOG via git-cliff
+7. `docs.yml` - Build and publish docs to docs.rs
+8. `fuzz.yml` - Fuzzing tests (libfuzzer)
+9. `mutation.yml` - Mutation testing for test quality
 
-**Publishing:**
-- PyPI: `pypa/gh-action-pypi-publish` (trusted publishing via OIDC)
-- Fallback: `PYPI_API_TOKEN` secret (if trusted publishing not configured)
-- TestPyPI: Dry-run publishing before production (test.pypi.org)
-- Crates.io: Manual `cargo publish` (not automated in CI yet)
+**Deployment Targets:**
+- PyPI: `ferroml` package (CPython 3.10-3.12, wheels for Linux/macOS/Windows)
+- crates.io: `ferroml-core` crate (Rust library)
+- docs.rs: Rust API documentation (all features enabled)
 
 **Release Management:**
-- Git tags trigger PyPI publish (v-prefixed semver: v0.3.1)
-- Changelog: `cliff.toml` (automated generation from conventional commits)
-- Version sync: Workspace-level in `Cargo.toml`, `pyproject.toml` mirror required
+- Conventional commits (feat:, fix:, perf:, etc.)
+- git-cliff for changelog generation (`cliff.toml` config)
+- Semantic versioning (v0.3.1 as of 2026-03-20)
+- Stable Rust channel required
 
 ## Environment Configuration
 
 **Required Environment Variables:**
-- None at runtime (pure compute library)
-- Optional during build:
-  - `CARGO_TERM_COLOR` - Set to `always` in CI for colored output
-  - `RUSTFLAGS` - Set to `-D warnings` in CI to enforce no warnings
+- None - FerroML requires no environment configuration
+- Optional: RUSTFLAGS (for Rust compilation), CARGO_TERM_COLOR (for colored output)
 
-**Build-Time Secrets (for CI/CD only):**
-- `CODECOV_TOKEN` - For coverage upload (optional)
-- `PYPI_API_TOKEN` - For PyPI publishing (fallback to trusted publishing)
-- `TEST_PYPI_API_TOKEN` - For TestPyPI publishing (optional, for testing)
-- **Note:** These are GitHub Actions secrets, not application environment variables
+**Build Configuration:**
+- Rust: `rust-toolchain.toml` - MSRV 1.75.0, stable channel
+- Cargo: `Cargo.toml` (workspace root) - all dependencies pinned
+- Python: `pyproject.toml` - maturin build backend, Python 3.10+ requirement
 
 **Secrets Location:**
-- GitHub Actions: `Settings → Secrets and variables → Actions`
-- CI workflow references: `${{ secrets.PYPI_API_TOKEN }}`
-- Never committed to repository (`.gitignore` includes `.env*`)
-
-**No Configuration Files for App Secrets:**
-- `.env`, `.env.local`, `config/secrets.json` - Not used
-- All configuration is code-based (Cargo.toml, pyproject.toml)
+- Not applicable - no API keys or credentials used
+- Note: `.env` files MUST NOT be committed (covered by `.gitignore`)
 
 ## Webhooks & Callbacks
 
-**Not Detected**
+**Incoming:**
+- None - FerroML is not a server
 
-FerroML does not expose webhooks, callbacks, or event subscription mechanisms. It is a pure compute library:
-- No HTTP servers exposed
-- No event streams
-- No pub/sub integrations
-- No async event handlers (though `tokio` is available for potential future features)
+**Outgoing:**
+- None - FerroML does not call external services
+
+## Development Dependencies (Optional)
+
+**Testing Ecosystem:**
+- pytest 7.0+ - Python test runner
+- pytest-cov 4.0+ - Coverage reporting
+- pytest-xdist 3.0+ - Parallel test execution
+- scikit-learn 1.0+ (optional, for cross-library tests)
+- pandas 1.5+ (optional, for DataFrame integration tests)
+- polars 0.19+ (optional, for Polars integration tests)
+
+**Code Quality:**
+- ruff 0.1+ - Python linter
+- mypy 1.0+ - Python type checking
+- cargo clippy - Rust linter (in-tree, enabled via Rust toolchain)
+- cargo fmt - Rust formatter (in-tree)
+
+**Documentation & Changelog:**
+- git-cliff - Changelog generation from conventional commits
+- Sphinx (optional, for extended docs in `docs/` if needed)
+
+**Performance Analysis:**
+- Criterion 0.5 - Rust benchmarking framework
+- dhat 0.3 - Heap allocation profiling
+- memory-stats 1.2 - Memory usage tracking
+
+**Property Testing:**
+- proptest 1.5 - Property-based testing
+- test-case 3.3 - Parameterized tests
+- rstest 0.23 - Fixture-based testing
+
+## Data Format Support
+
+**Input Formats:**
+- NumPy arrays (np.ndarray) - primary
+- Polars DataFrames (optional, via `datasets` feature)
+- Pandas DataFrames (interop via PyArrow in Python)
+- CSV/Parquet (via Polars optional dependency)
+
+**Output/Export Formats:**
+- NumPy arrays
+- ONNX models (all 55+ models, validation via ort 2.0.0-rc.11)
+- Bincode (binary serialization, not human-readable)
+- MessagePack (via rmp-serde)
+- JSON (serde_json, for some metadata)
+
+## Sparse Matrix Support
+
+**Integration:**
+- sprs 0.11 (CSR/CSC formats, optional `sparse` feature)
+- Exposed in Python bindings for 12 models
+- SparseModel trait for algorithms supporting sparse inputs
+- SciPy sparse matrix interop (Python-side, via PyO3)
+
+## Known Integration Boundaries
+
+**Not Integrated:**
+- Database connectors (users must load via Polars/Pandas)
+- Web frameworks (Flask, FastAPI) - users wrap models themselves
+- Cloud platforms (AWS SageMaker, GCP Vertex AI, Azure ML) - no native SDKs
+- Distributed computing (Spark, Dask, Ray) - single-machine only
+- GPU frameworks (TensorFlow, PyTorch) - has own optional wgpu GPU layer
+
+**Design Pattern:**
+FerroML follows Unix philosophy: does one thing (ML algorithms) exceptionally well. Users compose it with their choice of data loading, serving, and orchestration tools.
 
 ---
 
-## Summary: Standalone Library with File I/O
-
-FerroML is a **self-contained ML library with no external runtime dependencies**:
-- ✅ Works offline (no cloud API calls)
-- ✅ Deterministic and reproducible (pure compute)
-- ✅ No secrets required at runtime
-- ✅ Local data processing only (CSV, Parquet, memory-mapped files)
-- ✅ Optional cross-library validation for development
-
-### Deployment Model:
-1. **Rust crate** (ferroml-core) - Link against Rust projects, zero external deps
-2. **Python package** (ferroml) - Install via pip, depends only on NumPy 1.21+
-3. **Distribution** - Wheels for Linux/macOS/Windows, source distribution for edge cases
-
-All models and utilities are self-contained and require no external service integrations.
-
----
-
-*Integration audit: 2026-03-16*
+*Integration audit: 2026-03-20*
