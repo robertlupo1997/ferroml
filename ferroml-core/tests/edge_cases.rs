@@ -7,8 +7,10 @@ mod edge_case_matrix {
     //! high-dimensional, degenerate inputs, NaN/Inf rejection, extreme values,
     //! class imbalance, and multicollinearity.
 
-    use ferroml_core::clustering::{ClusteringModel, KMeans, DBSCAN};
-    use ferroml_core::decomposition::PCA;
+    use ferroml_core::clustering::{
+        AgglomerativeClustering, ClusteringModel, GaussianMixture, KMeans, DBSCAN, HDBSCAN,
+    };
+    use ferroml_core::decomposition::{FactorAnalysis, TruncatedSVD, PCA, TSNE};
     use ferroml_core::models::{
         BernoulliNB, DecisionTreeClassifier, DecisionTreeRegressor, ElasticNet, GaussianNB,
         GradientBoostingClassifier, GradientBoostingRegressor, KNeighborsClassifier,
@@ -806,6 +808,77 @@ mod edge_case_matrix {
 
     clustering_edge_cases!(kmeans_edge, KMeans::new(2));
     clustering_edge_cases!(dbscan_edge, DBSCAN::new(0.5, 3));
+    clustering_edge_cases!(gmm_edge, GaussianMixture::new(2));
+    // HDBSCAN: custom tests because predict() may legitimately fail when
+    // no clusters are formed (all noise). The clustering_edge_cases macro
+    // is too strict for HDBSCAN's predict behavior.
+    mod hdbscan_edge {
+        use super::*;
+
+        #[test]
+        fn nan_input_rejected() {
+            let x_nan = gen_nan_features();
+            let mut model = HDBSCAN::new(3);
+            let result = model.fit(&x_nan);
+            assert!(result.is_err(), "NaN features should be rejected");
+        }
+
+        #[test]
+        fn inf_input_rejected() {
+            let x_inf = gen_inf_features();
+            let mut model = HDBSCAN::new(3);
+            let result = model.fit(&x_inf);
+            assert!(result.is_err(), "Inf features should be rejected");
+        }
+
+        #[test]
+        fn empty_input_rejected() {
+            let x = Array2::from_shape_fn((0, 2), |_| 0.0);
+            let mut model = HDBSCAN::new(3);
+            let result = model.fit(&x);
+            assert!(result.is_err(), "empty input should be rejected");
+        }
+
+        #[test]
+        fn single_sample_fit() {
+            let (x, _, _) = gen_single_sample();
+            let mut model = HDBSCAN::new(3);
+            let result = model.fit(&x);
+            // Single sample: should succeed (labels all as noise)
+            if result.is_ok() {
+                // predict may or may not work for single sample
+                let _ = model.predict(&x);
+            }
+        }
+
+        #[test]
+        fn single_feature() {
+            let (x, _, _) = gen_single_feature();
+            let mut model = HDBSCAN::new(3);
+            let result = model.fit(&x);
+            // Should not panic
+            let _ = result;
+        }
+
+        #[test]
+        fn extreme_large_values() {
+            let (x, _, _) = gen_extreme_large();
+            let mut model = HDBSCAN::new(3);
+            let result = model.fit(&x);
+            // Should not panic
+            let _ = result;
+        }
+
+        #[test]
+        fn extreme_small_values() {
+            let (x, _, _) = gen_extreme_small();
+            let mut model = HDBSCAN::new(3);
+            let result = model.fit(&x);
+            // Should not panic
+            let _ = result;
+        }
+    }
+    clustering_edge_cases!(agglomerative_edge, AgglomerativeClustering::new(2));
 
     // =============================================================================
     // Transformer edge case instantiations
@@ -815,6 +888,11 @@ mod edge_case_matrix {
     transformer_edge_cases!(min_max_scaler_edge, MinMaxScaler::new());
     transformer_edge_cases!(robust_scaler_edge, RobustScaler::new());
     transformer_edge_cases!(pca_edge, PCA::new());
+    transformer_edge_cases!(truncated_svd_edge, TruncatedSVD::new().with_n_components(1));
+    transformer_edge_cases!(
+        factor_analysis_edge,
+        FactorAnalysis::new().with_n_factors(1)
+    );
 
     // =============================================================================
     // Special cases: MultinomialNB (requires non-negative features)
@@ -1420,6 +1498,164 @@ mod edge_case_matrix {
             let mut scaler = StandardScaler::new();
             let result = scaler.fit(&x);
             assert!(result.is_err(), "-Inf features should be rejected");
+        }
+    }
+
+    // =============================================================================
+    // t-SNE edge cases (needs >= 2 samples and custom perplexity handling)
+    // =============================================================================
+
+    mod tsne_edge {
+        use super::*;
+
+        #[test]
+        fn nan_input_rejected() {
+            let x_nan = gen_nan_features();
+            let mut model = TSNE::new().with_perplexity(1.0).with_n_components(2);
+            let result = model.fit(&x_nan);
+            assert!(result.is_err(), "NaN features should be rejected");
+        }
+
+        #[test]
+        fn inf_input_rejected() {
+            let x_inf = gen_inf_features();
+            let mut model = TSNE::new().with_perplexity(1.0).with_n_components(2);
+            let result = model.fit(&x_inf);
+            assert!(result.is_err(), "Inf features should be rejected");
+        }
+
+        #[test]
+        fn empty_input_rejected() {
+            let x = Array2::from_shape_fn((0, 2), |_| 0.0);
+            let mut model = TSNE::new().with_perplexity(1.0).with_n_components(2);
+            let result = model.fit(&x);
+            assert!(result.is_err(), "empty input should be rejected");
+        }
+
+        #[test]
+        fn single_sample_rejected() {
+            let x = Array2::from_shape_vec((1, 2), vec![1.0, 2.0]).unwrap();
+            let mut model = TSNE::new().with_perplexity(0.5).with_n_components(1);
+            let result = model.fit(&x);
+            // t-SNE requires at least 2 samples
+            assert!(result.is_err(), "single sample should be rejected");
+        }
+    }
+
+    // =============================================================================
+    // Hyperparameter validation tests
+    // =============================================================================
+
+    mod hyperparameter_validation {
+        use super::*;
+
+        #[test]
+        fn kmeans_rejects_zero_clusters() {
+            let x = Array2::ones((10, 3));
+            let mut model = KMeans::new(0);
+            let result = model.fit(&x);
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(
+                err.contains("n_clusters"),
+                "Error should mention n_clusters: {err}"
+            );
+        }
+
+        #[test]
+        fn gmm_rejects_zero_components() {
+            let x = Array2::ones((10, 3));
+            let mut model = GaussianMixture::new(0);
+            let result = model.fit(&x);
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(
+                err.contains("n_components"),
+                "Error should mention n_components: {err}"
+            );
+        }
+
+        #[test]
+        fn dbscan_rejects_zero_eps() {
+            let x = Array2::ones((10, 3));
+            let mut model = DBSCAN::new(0.0, 3);
+            let result = model.fit(&x);
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(err.contains("eps"), "Error should mention eps: {err}");
+        }
+
+        #[test]
+        fn dbscan_rejects_negative_eps() {
+            let x = Array2::ones((10, 3));
+            let mut model = DBSCAN::new(-1.0, 3);
+            let result = model.fit(&x);
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(err.contains("eps"), "Error should mention eps: {err}");
+        }
+
+        #[test]
+        fn hdbscan_rejects_min_cluster_size_1() {
+            let x = Array2::from_shape_fn((10, 3), |(i, j)| (i * 3 + j) as f64);
+            let mut model = HDBSCAN::new(1);
+            let result = model.fit(&x);
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(
+                err.contains("min_cluster_size"),
+                "Error should mention min_cluster_size: {err}"
+            );
+        }
+
+        #[test]
+        fn agglomerative_rejects_zero_clusters() {
+            let x = Array2::from_shape_fn((10, 3), |(i, j)| (i * 3 + j) as f64);
+            let mut model = AgglomerativeClustering::new(0);
+            let result = model.fit(&x);
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(
+                err.contains("n_clusters"),
+                "Error should mention n_clusters: {err}"
+            );
+        }
+
+        #[test]
+        #[should_panic(expected = "n_components must be positive")]
+        fn truncated_svd_rejects_zero_components() {
+            // TruncatedSVD validates at builder level (assertion), not at fit-time
+            let _model = TruncatedSVD::new().with_n_components(0);
+        }
+
+        #[test]
+        fn gmm_rejects_zero_tol() {
+            let x = Array2::from_shape_fn((10, 3), |(i, j)| (i * 3 + j) as f64);
+            let mut model = GaussianMixture::new(2).tol(0.0);
+            let result = model.fit(&x);
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(err.contains("tol"), "Error should mention tol: {err}");
+        }
+
+        #[test]
+        fn gmm_rejects_negative_tol() {
+            let x = Array2::from_shape_fn((10, 3), |(i, j)| (i * 3 + j) as f64);
+            let mut model = GaussianMixture::new(2).tol(-0.1);
+            let result = model.fit(&x);
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(err.contains("tol"), "Error should mention tol: {err}");
+        }
+
+        #[test]
+        fn kmeans_rejects_negative_tol() {
+            let x = Array2::from_shape_fn((10, 3), |(i, j)| (i * 3 + j) as f64);
+            let mut model = KMeans::new(2).tol(-0.1);
+            let result = model.fit(&x);
+            assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(err.contains("tol"), "Error should mention tol: {err}");
         }
     }
 }
