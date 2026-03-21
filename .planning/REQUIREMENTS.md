@@ -18,7 +18,7 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 - [x] **VALID-07**: All models enforce NotFitted guard on predict/transform (audit completeness)
 - [x] **VALID-08**: Hyperparameters validated at construction time with actionable error messages (e.g., "Parameter C must be positive, got -1.0")
 - [x] **VALID-09**: NaN/Inf validation implemented as single shared function in validation layer, not per-model
-- [ ] **VALID-10**: Python binding layer validates NumPy arrays before passing to Rust
+- [x] **VALID-10**: Python binding layer validates NumPy arrays before passing to Rust
 
 ### Correctness
 
@@ -121,7 +121,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | VALID-07 | Phase 1 | Complete |
 | VALID-08 | Phase 1 | Complete |
 | VALID-09 | Phase 1 | Complete |
-| VALID-10 | Phase 1 | Pending |
+| VALID-10 | Phase 1 | Complete |
 | CORR-01 | Phase 2 | Pending |
 | CORR-02 | Phase 2 | Pending |
 | CORR-03 | Phase 2 | Pending |
