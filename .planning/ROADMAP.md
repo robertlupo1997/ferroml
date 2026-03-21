@@ -47,12 +47,12 @@ Plans:
   3. Models that compute probabilities (LogReg, NaiveBayes variants, GMM) use numerically stable log-sum-exp
   4. SVD decomposition produces consistent component signs regardless of backend (svd_flip implemented in linalg.rs)
   5. Convergence issues produce warnings with iteration count rather than only hard errors
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: Fix TemperatureScaling and IncrementalPCA failures (diagnose root cause, fix or remove)
-- [ ] 02-02: SVM cache tests, numerical stability (log-sum-exp, Cholesky jitter, svd_flip)
-- [ ] 02-03: Output sanity checks, convergence warnings, cross-library test expansion
+- [ ] 02-01-PLAN.md — Fix TemperatureScaling and IncrementalPCA failures (diagnose root cause, fix or remove)
+- [ ] 02-02-PLAN.md — SVM cache tests, numerical stability (logsumexp, Cholesky jitter, svd_flip)
+- [ ] 02-03-PLAN.md — Output sanity checks, convergence warnings, cross-library test expansion
 
 ### Phase 3: Robustness Hardening
 **Goal**: Critical code paths cannot panic on any user input -- unwraps replaced with proper error handling, error messages are actionable, serialization is verified
