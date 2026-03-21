@@ -1658,6 +1658,619 @@ mod edge_case_matrix {
             assert!(err.contains("tol"), "Error should mention tol: {err}");
         }
     }
+
+    // =============================================================================
+    // NotFitted Guard Tests (VALID-07) — expanded coverage
+    // =============================================================================
+
+    mod not_fitted_expanded {
+        use super::*;
+        use ferroml_core::models::gaussian_process::RBF;
+        use ferroml_core::models::isolation_forest::IsolationForest;
+        use ferroml_core::models::lof::LocalOutlierFactor;
+        use ferroml_core::models::OutlierDetector;
+        use ferroml_core::models::{
+            AdaBoostClassifier, AdaBoostRegressor, CategoricalNB, ExtraTreesClassifier,
+            ExtraTreesRegressor, GaussianProcessClassifier, GaussianProcessRegressor,
+            HistGradientBoostingClassifier, HistGradientBoostingRegressor, IsotonicRegression,
+            NearestCentroid, Perceptron, QuadraticDiscriminantAnalysis, QuantileRegression,
+            RidgeClassifier,
+        };
+        use ferroml_core::preprocessing::scalers::MaxAbsScaler;
+
+        macro_rules! test_not_fitted {
+            ($name:ident, $model_expr:expr) => {
+                #[test]
+                fn $name() {
+                    let model = $model_expr;
+                    let x = Array2::from_shape_fn((5, 3), |(i, j)| (i * 3 + j) as f64);
+                    let result = model.predict(&x);
+                    assert!(result.is_err(), "predict before fit should error");
+                }
+            };
+        }
+
+        test_not_fitted!(
+            gp_regressor,
+            GaussianProcessRegressor::new(Box::new(RBF::new(1.0)))
+        );
+        test_not_fitted!(
+            gp_classifier,
+            GaussianProcessClassifier::new(Box::new(RBF::new(1.0)))
+        );
+        test_not_fitted!(isotonic_regression, IsotonicRegression::new());
+        test_not_fitted!(qda, QuadraticDiscriminantAnalysis::new());
+        test_not_fitted!(perceptron, Perceptron::new());
+        test_not_fitted!(adaboost_classifier, AdaBoostClassifier::new(5));
+        test_not_fitted!(adaboost_regressor, AdaBoostRegressor::new(5));
+        test_not_fitted!(
+            extra_trees_classifier,
+            ExtraTreesClassifier::new().with_n_estimators(5)
+        );
+        test_not_fitted!(
+            extra_trees_regressor,
+            ExtraTreesRegressor::new().with_n_estimators(5)
+        );
+        test_not_fitted!(
+            hist_gbt_classifier,
+            HistGradientBoostingClassifier::new().with_max_iter(5)
+        );
+        test_not_fitted!(
+            hist_gbt_regressor,
+            HistGradientBoostingRegressor::new().with_max_iter(5)
+        );
+        test_not_fitted!(categorical_nb, CategoricalNB::new());
+        test_not_fitted!(nearest_centroid, NearestCentroid::new());
+        test_not_fitted!(quantile_regression, QuantileRegression::new(0.5));
+        test_not_fitted!(ridge_classifier, RidgeClassifier::new(1.0));
+
+        #[test]
+        fn isolation_forest_not_fitted() {
+            let model = IsolationForest::new(100);
+            let x = Array2::from_shape_fn((5, 3), |(i, j)| (i * 3 + j) as f64);
+            let result = model.predict_outliers(&x);
+            assert!(result.is_err(), "predict_outliers before fit should error");
+        }
+
+        #[test]
+        fn lof_not_fitted() {
+            let model = LocalOutlierFactor::new(5).with_novelty(true);
+            let x = Array2::from_shape_fn((5, 3), |(i, j)| (i * 3 + j) as f64);
+            let result = model.score_samples(&x);
+            assert!(result.is_err(), "score_samples before fit should error");
+        }
+
+        macro_rules! test_not_fitted_transformer {
+            ($name:ident, $model_expr:expr) => {
+                #[test]
+                fn $name() {
+                    let model = $model_expr;
+                    let x = Array2::from_shape_fn((5, 3), |(i, j)| (i * 3 + j) as f64);
+                    let result = model.transform(&x);
+                    assert!(result.is_err(), "transform before fit should error");
+                }
+            };
+        }
+
+        test_not_fitted_transformer!(max_abs_scaler, MaxAbsScaler::new());
+        test_not_fitted_transformer!(truncated_svd, TruncatedSVD::new().with_n_components(1));
+        test_not_fitted_transformer!(factor_analysis, FactorAnalysis::new().with_n_factors(1));
+
+        macro_rules! test_not_fitted_clustering {
+            ($name:ident, $model_expr:expr) => {
+                #[test]
+                fn $name() {
+                    let model = $model_expr;
+                    let x = Array2::from_shape_fn((5, 3), |(i, j)| (i * 3 + j) as f64);
+                    let result = model.predict(&x);
+                    assert!(result.is_err(), "predict before fit should error");
+                }
+            };
+        }
+
+        test_not_fitted_clustering!(gmm, GaussianMixture::new(2));
+        test_not_fitted_clustering!(hdbscan, HDBSCAN::new(3));
+        test_not_fitted_clustering!(agglomerative, AgglomerativeClustering::new(2));
+    }
+
+    // =============================================================================
+    // NaN/Inf Rejection Tests (VALID-01, VALID-02, VALID-03) — expanded coverage
+    // =============================================================================
+
+    mod nan_inf_expanded {
+        use super::*;
+        use ferroml_core::models::gaussian_process::RBF;
+        use ferroml_core::models::isolation_forest::IsolationForest;
+        use ferroml_core::models::lof::LocalOutlierFactor;
+        use ferroml_core::models::OutlierDetector;
+        use ferroml_core::models::{
+            GaussianProcessClassifier, GaussianProcessRegressor, IsotonicRegression,
+            LogisticRegression, MultiOutputClassifier, MultiOutputRegressor,
+            QuadraticDiscriminantAnalysis, RidgeRegression,
+        };
+
+        #[test]
+        fn gp_regressor_nan_rejected() {
+            let x_nan = gen_nan_features();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0]);
+            let mut model = GaussianProcessRegressor::new(Box::new(RBF::new(1.0)));
+            let result = model.fit(&x_nan, &y);
+            assert!(result.is_err(), "GPR should reject NaN input");
+        }
+
+        #[test]
+        fn gp_regressor_inf_rejected() {
+            let x_inf = gen_inf_features();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0]);
+            let mut model = GaussianProcessRegressor::new(Box::new(RBF::new(1.0)));
+            let result = model.fit(&x_inf, &y);
+            assert!(result.is_err(), "GPR should reject Inf input");
+        }
+
+        #[test]
+        fn gp_classifier_nan_rejected() {
+            let x_nan = gen_nan_features();
+            let y = Array1::from_vec(vec![0.0, 1.0, 0.0]);
+            let mut model = GaussianProcessClassifier::new(Box::new(RBF::new(1.0)));
+            let result = model.fit(&x_nan, &y);
+            assert!(result.is_err(), "GPC should reject NaN input");
+        }
+
+        #[test]
+        fn isotonic_nan_rejected() {
+            let x = Array2::from_shape_vec((3, 1), vec![1.0, f64::NAN, 3.0]).unwrap();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0]);
+            let mut model = IsotonicRegression::new();
+            let result = Model::fit(&mut model, &x, &y);
+            assert!(result.is_err(), "IsotonicRegression should reject NaN");
+        }
+
+        #[test]
+        fn isotonic_inf_rejected() {
+            let x = Array2::from_shape_vec((3, 1), vec![1.0, f64::INFINITY, 3.0]).unwrap();
+            let y = Array1::from_vec(vec![1.0, 2.0, 3.0]);
+            let mut model = IsotonicRegression::new();
+            let result = Model::fit(&mut model, &x, &y);
+            assert!(result.is_err(), "IsotonicRegression should reject Inf");
+        }
+
+        #[test]
+        fn qda_nan_rejected() {
+            let x_nan = gen_nan_features();
+            let y = Array1::from_vec(vec![0.0, 1.0, 0.0]);
+            let mut model = QuadraticDiscriminantAnalysis::new();
+            let result = model.fit(&x_nan, &y);
+            assert!(result.is_err(), "QDA should reject NaN input");
+        }
+
+        #[test]
+        fn qda_inf_rejected() {
+            let x_inf = gen_inf_features();
+            let y = Array1::from_vec(vec![0.0, 1.0, 0.0]);
+            let mut model = QuadraticDiscriminantAnalysis::new();
+            let result = model.fit(&x_inf, &y);
+            assert!(result.is_err(), "QDA should reject Inf input");
+        }
+
+        #[test]
+        fn multioutput_regressor_nan_rejected() {
+            let x_nan = gen_nan_features();
+            let y = Array2::from_shape_fn((3, 2), |(i, j)| (i + j) as f64);
+            let mut model = MultiOutputRegressor::new(RidgeRegression::new(1.0));
+            let result = model.fit_multi(&x_nan, &y);
+            assert!(result.is_err(), "MultiOutputRegressor should reject NaN");
+        }
+
+        #[test]
+        fn multioutput_classifier_nan_rejected() {
+            let x_nan = gen_nan_features();
+            let y = Array2::from_shape_fn((3, 2), |(i, _j)| if i < 2 { 0.0 } else { 1.0 });
+            let mut model = MultiOutputClassifier::new(LogisticRegression::new());
+            let result = model.fit_multi(&x_nan, &y);
+            assert!(result.is_err(), "MultiOutputClassifier should reject NaN");
+        }
+
+        #[test]
+        fn isolation_forest_nan_rejected() {
+            let x_nan = gen_nan_features();
+            let mut model = IsolationForest::new(100);
+            let result = model.fit_unsupervised(&x_nan);
+            assert!(result.is_err(), "IsolationForest should reject NaN");
+        }
+
+        #[test]
+        fn lof_nan_rejected() {
+            let x_nan = gen_nan_features();
+            let mut model = LocalOutlierFactor::new(5);
+            let result = model.fit_unsupervised(&x_nan);
+            assert!(result.is_err(), "LOF should reject NaN");
+        }
+    }
+
+    // =============================================================================
+    // Predict-time NaN Rejection Tests — expanded coverage
+    // =============================================================================
+
+    mod predict_time_expanded {
+        use super::*;
+        use ferroml_core::models::gaussian_process::RBF;
+        use ferroml_core::models::isolation_forest::IsolationForest;
+        use ferroml_core::models::lof::LocalOutlierFactor;
+        use ferroml_core::models::OutlierDetector;
+        use ferroml_core::models::{
+            AdaBoostClassifier, ExtraTreesClassifier, ExtraTreesRegressor,
+            GaussianProcessClassifier, GaussianProcessRegressor, IsotonicRegression, Perceptron,
+            QuadraticDiscriminantAnalysis, RidgeClassifier,
+        };
+
+        #[test]
+        fn gp_regressor_predict_nan_rejected() {
+            let (x_train, y_train, _) = gen_normal_data();
+            let mut model = GaussianProcessRegressor::new(Box::new(RBF::new(1.0)));
+            model.fit(&x_train, &y_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.predict(&x_nan);
+            assert!(result.is_err(), "GPR predict should reject NaN");
+        }
+
+        #[test]
+        fn gp_classifier_predict_nan_rejected() {
+            let (x_train, _, y_train) = gen_normal_data();
+            let mut model = GaussianProcessClassifier::new(Box::new(RBF::new(1.0)));
+            model.fit(&x_train, &y_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.predict(&x_nan);
+            assert!(result.is_err(), "GPC predict should reject NaN");
+        }
+
+        #[test]
+        fn isotonic_predict_nan_rejected() {
+            let x_train = Array2::from_shape_fn((10, 1), |(i, _)| i as f64);
+            let y_train = Array1::from_iter((0..10).map(|i| i as f64 * 2.0));
+            let mut model = IsotonicRegression::new();
+            Model::fit(&mut model, &x_train, &y_train).unwrap();
+            let x_nan = Array2::from_shape_vec((2, 1), vec![f64::NAN, 5.0]).unwrap();
+            let result = model.predict(&x_nan);
+            assert!(result.is_err(), "Isotonic predict should reject NaN");
+        }
+
+        #[test]
+        fn qda_predict_nan_rejected() {
+            let (x_train, _, y_train) = gen_normal_data();
+            let mut model = QuadraticDiscriminantAnalysis::new();
+            model.fit(&x_train, &y_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.predict(&x_nan);
+            assert!(result.is_err(), "QDA predict should reject NaN");
+        }
+
+        #[test]
+        fn isolation_forest_predict_nan_rejected() {
+            let n = 50;
+            let x_train = Array2::from_shape_fn((n, 3), |(i, j)| (i * 3 + j) as f64 * 0.1);
+            let mut model = IsolationForest::new(50).with_random_state(42);
+            model.fit_unsupervised(&x_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.predict_outliers(&x_nan);
+            assert!(result.is_err(), "IsolationForest predict should reject NaN");
+        }
+
+        #[test]
+        fn lof_score_nan_rejected() {
+            let n = 50;
+            let x_train = Array2::from_shape_fn((n, 3), |(i, j)| (i * 3 + j) as f64 * 0.1);
+            let mut model = LocalOutlierFactor::new(5).with_novelty(true);
+            model.fit_unsupervised(&x_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.score_samples(&x_nan);
+            assert!(result.is_err(), "LOF score_samples should reject NaN");
+        }
+
+        #[test]
+        fn adaboost_predict_nan_rejected() {
+            let (x_train, _, y_train) = gen_normal_data();
+            let mut model = AdaBoostClassifier::new(5);
+            model.fit(&x_train, &y_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.predict(&x_nan);
+            assert!(result.is_err(), "AdaBoost predict should reject NaN");
+        }
+
+        #[test]
+        fn extra_trees_classifier_predict_nan_rejected() {
+            let (x_train, _, y_train) = gen_normal_data();
+            let mut model = ExtraTreesClassifier::new()
+                .with_n_estimators(5)
+                .with_random_state(42);
+            model.fit(&x_train, &y_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.predict(&x_nan);
+            assert!(result.is_err(), "ExtraTrees predict should reject NaN");
+        }
+
+        #[test]
+        fn extra_trees_regressor_predict_nan_rejected() {
+            let (x_train, y_train, _) = gen_normal_data();
+            let mut model = ExtraTreesRegressor::new()
+                .with_n_estimators(5)
+                .with_random_state(42);
+            model.fit(&x_train, &y_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.predict(&x_nan);
+            assert!(
+                result.is_err(),
+                "ExtraTreesRegressor predict should reject NaN"
+            );
+        }
+
+        #[test]
+        fn perceptron_predict_nan_rejected() {
+            let (x_train, _, y_train) = gen_normal_data();
+            let mut model = Perceptron::new();
+            model.fit(&x_train, &y_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.predict(&x_nan);
+            assert!(result.is_err(), "Perceptron predict should reject NaN");
+        }
+
+        #[test]
+        fn ridge_classifier_predict_nan_rejected() {
+            let (x_train, _, y_train) = gen_normal_data();
+            let mut model = RidgeClassifier::new(1.0);
+            model.fit(&x_train, &y_train).unwrap();
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = model.predict(&x_nan);
+            assert!(result.is_err(), "RidgeClassifier predict should reject NaN");
+        }
+
+        #[test]
+        fn minmax_scaler_transform_nan_rejected() {
+            let n = 30;
+            let x_train = Array2::from_shape_fn((n, 3), |(i, j)| (i * 3 + j) as f64);
+            let mut scaler = MinMaxScaler::new();
+            scaler.fit(&x_train).expect("fit should succeed");
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = scaler.transform(&x_nan);
+            assert!(result.is_err(), "MinMaxScaler transform should reject NaN");
+        }
+
+        #[test]
+        fn robust_scaler_transform_nan_rejected() {
+            let n = 30;
+            let x_train = Array2::from_shape_fn((n, 3), |(i, j)| (i * 3 + j) as f64);
+            let mut scaler = RobustScaler::new();
+            scaler.fit(&x_train).expect("fit should succeed");
+            let x_nan =
+                Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, f64::NAN, 5.0, 6.0]).unwrap();
+            let result = scaler.transform(&x_nan);
+            assert!(result.is_err(), "RobustScaler transform should reject NaN");
+        }
+    }
+
+    // =============================================================================
+    // Feature Count Mismatch Tests (VALID-06) — expanded coverage
+    // =============================================================================
+
+    mod feature_mismatch_expanded {
+        use super::*;
+        use ferroml_core::models::gaussian_process::RBF;
+        use ferroml_core::models::isolation_forest::IsolationForest;
+        use ferroml_core::models::lof::LocalOutlierFactor;
+        use ferroml_core::models::OutlierDetector;
+        use ferroml_core::models::{
+            AdaBoostClassifier, ExtraTreesRegressor, GaussianProcessClassifier,
+            GaussianProcessRegressor, QuadraticDiscriminantAnalysis,
+        };
+
+        #[test]
+        fn gp_regressor_feature_mismatch() {
+            let (x_train, y_train, _) = gen_normal_data(); // 3 features
+            let mut model = GaussianProcessRegressor::new(Box::new(RBF::new(1.0)));
+            model.fit(&x_train, &y_train).unwrap();
+            let x_wrong = Array2::from_shape_fn((5, 5), |(i, j)| (i * 5 + j) as f64);
+            let result = model.predict(&x_wrong);
+            assert!(
+                result.is_err(),
+                "GPR predict with wrong features should error"
+            );
+        }
+
+        #[test]
+        fn gp_classifier_feature_mismatch() {
+            let (x_train, _, y_train) = gen_normal_data(); // 3 features
+            let mut model = GaussianProcessClassifier::new(Box::new(RBF::new(1.0)));
+            model.fit(&x_train, &y_train).unwrap();
+            let x_wrong = Array2::from_shape_fn((5, 5), |(i, j)| (i * 5 + j) as f64);
+            let result = model.predict(&x_wrong);
+            assert!(
+                result.is_err(),
+                "GPC predict with wrong features should error"
+            );
+        }
+
+        #[test]
+        fn qda_feature_mismatch() {
+            let (x_train, _, y_train) = gen_normal_data();
+            let mut model = QuadraticDiscriminantAnalysis::new();
+            model.fit(&x_train, &y_train).unwrap();
+            let x_wrong = Array2::from_shape_fn((5, 7), |(i, j)| (i * 7 + j) as f64);
+            let result = model.predict(&x_wrong);
+            assert!(
+                result.is_err(),
+                "QDA predict with wrong features should error"
+            );
+        }
+
+        #[test]
+        fn isolation_forest_feature_mismatch() {
+            let n = 50;
+            let x_train = Array2::from_shape_fn((n, 3), |(i, j)| (i * 3 + j) as f64 * 0.1);
+            let mut model = IsolationForest::new(50).with_random_state(42);
+            model.fit_unsupervised(&x_train).unwrap();
+            let x_wrong = Array2::from_shape_fn((5, 5), |(i, j)| (i * 5 + j) as f64);
+            let result = model.predict_outliers(&x_wrong);
+            assert!(
+                result.is_err(),
+                "IsolationForest with wrong features should error"
+            );
+        }
+
+        #[test]
+        fn lof_feature_mismatch() {
+            let n = 50;
+            let x_train = Array2::from_shape_fn((n, 3), |(i, j)| (i * 3 + j) as f64 * 0.1);
+            let mut model = LocalOutlierFactor::new(5).with_novelty(true);
+            model.fit_unsupervised(&x_train).unwrap();
+            let x_wrong = Array2::from_shape_fn((5, 5), |(i, j)| (i * 5 + j) as f64);
+            let result = model.score_samples(&x_wrong);
+            assert!(result.is_err(), "LOF with wrong features should error");
+        }
+
+        #[test]
+        fn adaboost_feature_mismatch() {
+            let (x_train, _, y_train) = gen_normal_data();
+            let mut model = AdaBoostClassifier::new(5);
+            model.fit(&x_train, &y_train).unwrap();
+            let x_wrong = Array2::from_shape_fn((5, 5), |(i, j)| (i * 5 + j) as f64);
+            let result = model.predict(&x_wrong);
+            assert!(result.is_err(), "AdaBoost with wrong features should error");
+        }
+
+        #[test]
+        fn extra_trees_feature_mismatch() {
+            let (x_train, y_train, _) = gen_normal_data();
+            let mut model = ExtraTreesRegressor::new()
+                .with_n_estimators(5)
+                .with_random_state(42);
+            model.fit(&x_train, &y_train).unwrap();
+            let x_wrong = Array2::from_shape_fn((5, 5), |(i, j)| (i * 5 + j) as f64);
+            let result = model.predict(&x_wrong);
+            assert!(
+                result.is_err(),
+                "ExtraTreesRegressor with wrong features should error"
+            );
+        }
+    }
+
+    // =============================================================================
+    // Hyperparameter Validation Tests (VALID-08) — SVM models
+    // =============================================================================
+
+    mod hyperparameter_validation_svm {
+        use super::*;
+
+        #[test]
+        fn svc_negative_c_rejected() {
+            let (x, _, y) = gen_normal_data();
+            let mut model = SVC::new().with_c(-1.0);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "SVC with C=-1 should error");
+            let err = result.unwrap_err().to_string();
+            assert!(
+                err.contains("C") || err.contains("positive"),
+                "Error should mention C: {err}"
+            );
+        }
+
+        #[test]
+        fn svc_zero_c_rejected() {
+            let (x, _, y) = gen_normal_data();
+            let mut model = SVC::new().with_c(0.0);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "SVC with C=0 should error");
+        }
+
+        #[test]
+        fn svc_negative_tol_rejected() {
+            let (x, _, y) = gen_normal_data();
+            let mut model = SVC::new().with_tol(-0.1);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "SVC with tol=-0.1 should error");
+        }
+
+        #[test]
+        fn svr_negative_c_rejected() {
+            let (x, y, _) = gen_normal_data();
+            let mut model = SVR::new().with_c(-1.0);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "SVR with C=-1 should error");
+        }
+
+        #[test]
+        fn svr_negative_tol_rejected() {
+            let (x, y, _) = gen_normal_data();
+            let mut model = SVR::new().with_tol(-0.1);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "SVR with tol=-0.1 should error");
+        }
+
+        #[test]
+        fn svr_negative_epsilon_rejected() {
+            let (x, y, _) = gen_normal_data();
+            let mut model = SVR::new().with_epsilon(-0.1);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "SVR with epsilon=-0.1 should error");
+        }
+
+        #[test]
+        fn linear_svc_negative_c_rejected() {
+            let (x, _, y) = gen_normal_data();
+            let mut model = LinearSVC::new().with_c(-1.0);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "LinearSVC with C=-1 should error");
+        }
+
+        #[test]
+        fn linear_svc_zero_c_rejected() {
+            let (x, _, y) = gen_normal_data();
+            let mut model = LinearSVC::new().with_c(0.0);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "LinearSVC with C=0 should error");
+        }
+
+        #[test]
+        fn linear_svc_negative_tol_rejected() {
+            let (x, _, y) = gen_normal_data();
+            let mut model = LinearSVC::new().with_tol(-0.1);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "LinearSVC with tol=-0.1 should error");
+        }
+
+        #[test]
+        fn linear_svr_negative_c_rejected() {
+            let (x, y, _) = gen_normal_data();
+            let mut model = LinearSVR::new().with_c(-1.0);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "LinearSVR with C=-1 should error");
+        }
+
+        #[test]
+        fn linear_svr_negative_tol_rejected() {
+            let (x, y, _) = gen_normal_data();
+            let mut model = LinearSVR::new().with_tol(-0.1);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "LinearSVR with tol=-0.1 should error");
+        }
+
+        #[test]
+        fn linear_svr_negative_epsilon_rejected() {
+            let (x, y, _) = gen_normal_data();
+            let mut model = LinearSVR::new().with_epsilon(-0.1);
+            let result = model.fit(&x, &y);
+            assert!(result.is_err(), "LinearSVR with epsilon=-0.1 should error");
+        }
+    }
 }
 
 #[cfg(feature = "sparse")]
