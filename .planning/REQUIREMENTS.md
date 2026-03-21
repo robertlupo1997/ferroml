@@ -9,15 +9,15 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 
 ### Input Validation
 
-- [ ] **VALID-01**: All models reject NaN/Inf values in X at fit time with clear FerroError
-- [ ] **VALID-02**: All models reject NaN/Inf values in y at fit time with clear FerroError
+- [x] **VALID-01**: All models reject NaN/Inf values in X at fit time with clear FerroError
+- [x] **VALID-02**: All models reject NaN/Inf values in y at fit time with clear FerroError
 - [ ] **VALID-03**: All models reject NaN/Inf values in X at predict time with clear FerroError
-- [ ] **VALID-04**: All models return clean FerroError on empty dataset (n=0) instead of panicking
-- [ ] **VALID-05**: All models handle single-sample input (n=1) — either succeed or return clean error
+- [x] **VALID-04**: All models return clean FerroError on empty dataset (n=0) instead of panicking
+- [x] **VALID-05**: All models handle single-sample input (n=1) — either succeed or return clean error
 - [ ] **VALID-06**: All models validate n_features_in_ at predict time matches fit time
 - [ ] **VALID-07**: All models enforce NotFitted guard on predict/transform (audit completeness)
-- [ ] **VALID-08**: Hyperparameters validated at construction time with actionable error messages (e.g., "Parameter C must be positive, got -1.0")
-- [ ] **VALID-09**: NaN/Inf validation implemented as single shared function in validation layer, not per-model
+- [x] **VALID-08**: Hyperparameters validated at construction time with actionable error messages (e.g., "Parameter C must be positive, got -1.0")
+- [x] **VALID-09**: NaN/Inf validation implemented as single shared function in validation layer, not per-model
 - [ ] **VALID-10**: Python binding layer validates NumPy arrays before passing to Rust
 
 ### Correctness
@@ -112,15 +112,15 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VALID-01 | Phase 1 | Pending |
-| VALID-02 | Phase 1 | Pending |
+| VALID-01 | Phase 1 | Complete |
+| VALID-02 | Phase 1 | Complete |
 | VALID-03 | Phase 1 | Pending |
-| VALID-04 | Phase 1 | Pending |
-| VALID-05 | Phase 1 | Pending |
+| VALID-04 | Phase 1 | Complete |
+| VALID-05 | Phase 1 | Complete |
 | VALID-06 | Phase 1 | Pending |
 | VALID-07 | Phase 1 | Pending |
-| VALID-08 | Phase 1 | Pending |
-| VALID-09 | Phase 1 | Pending |
+| VALID-08 | Phase 1 | Complete |
+| VALID-09 | Phase 1 | Complete |
 | VALID-10 | Phase 1 | Pending |
 | CORR-01 | Phase 2 | Pending |
 | CORR-02 | Phase 2 | Pending |
