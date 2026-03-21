@@ -180,19 +180,19 @@ class TestErrorPropagation:
             sc.transform(np.array([[1.0, 2.0]]))
 
     def test_nan_input_raises_error_linear(self):
-        """NaN in training data raises RuntimeError for LinearRegression."""
+        """NaN in training data raises ValueError for LinearRegression (Python-side validation)."""
         m = LinearRegression()
         X = np.array([[float("nan"), 1.0], [2.0, 3.0], [4.0, 5.0], [6.0, 7.0]])
         y = np.array([1.0, 2.0, 3.0, 4.0])
-        with pytest.raises(RuntimeError, match="[Nn]a[Nn]|invalid|infinite"):
+        with pytest.raises(ValueError, match="NaN"):
             m.fit(X, y)
 
     def test_nan_input_raises_error_rf(self):
-        """NaN in training data raises RuntimeError for RandomForestClassifier."""
+        """NaN in training data raises ValueError for RandomForestClassifier (Python-side validation)."""
         m = RandomForestClassifier(n_estimators=5)
         X = np.array([[float("nan"), 1.0], [2.0, 3.0]])
         y = np.array([0.0, 1.0])
-        with pytest.raises(RuntimeError, match="[Nn]a[Nn]|invalid|infinite"):
+        with pytest.raises(ValueError, match="NaN"):
             m.fit(X, y)
 
     def test_shape_mismatch_x_y(self):
@@ -213,11 +213,11 @@ class TestErrorPropagation:
             m.predict(X_wrong)
 
     def test_inf_input_raises_error(self):
-        """Inf in training data raises RuntimeError."""
+        """Inf in training data raises ValueError (Python-side validation)."""
         m = LinearRegression()
         X = np.array([[float("inf"), 1.0], [2.0, 3.0], [4.0, 5.0], [6.0, 7.0]])
         y = np.array([1.0, 2.0, 3.0, 4.0])
-        with pytest.raises(RuntimeError, match="[Nn]a[Nn]|invalid|infinite|inf"):
+        with pytest.raises(ValueError, match="Inf"):
             m.fit(X, y)
 
 
