@@ -1787,9 +1787,7 @@ impl PyHistGradientBoostingClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
-        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -1804,7 +1802,6 @@ impl PyHistGradientBoostingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -1820,7 +1817,6 @@ impl PyHistGradientBoostingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -1847,7 +1843,6 @@ impl PyHistGradientBoostingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -1961,9 +1956,7 @@ impl PyHistGradientBoostingClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
-        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -1976,7 +1969,6 @@ impl PyHistGradientBoostingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2078,9 +2070,7 @@ impl PyHistGradientBoostingRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
-        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -2095,7 +2085,6 @@ impl PyHistGradientBoostingRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -2209,9 +2198,7 @@ impl PyHistGradientBoostingRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
-        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)

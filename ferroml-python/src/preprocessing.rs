@@ -1452,7 +1452,6 @@ impl PySimpleImputer {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -1466,7 +1465,6 @@ impl PySimpleImputer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1481,7 +1479,6 @@ impl PySimpleImputer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
@@ -2165,7 +2162,6 @@ impl PyKNNImputer {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -2178,7 +2174,6 @@ impl PyKNNImputer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2192,7 +2187,6 @@ impl PyKNNImputer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
