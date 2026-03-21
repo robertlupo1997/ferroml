@@ -14,7 +14,10 @@
 //! When calling core Rust functions that require owned arrays, a copy is made.
 //! Output arrays use `into_pyarray` to transfer ownership to Python without copying data.
 
-use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{
+    check_array1_finite, check_array_finite, py_array_to_f64_1d, to_owned_array_1d,
+    to_owned_array_2d,
+};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::ensemble::bagging::MaxFeatures as BaggingMaxFeatures;
 use ferroml_core::ensemble::stacking::{StackMethod, StackingClassifier, StackingRegressor};
@@ -97,7 +100,9 @@ impl PyExtraTreesClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -110,6 +115,7 @@ impl PyExtraTreesClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -213,7 +219,9 @@ impl PyExtraTreesClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -226,6 +234,7 @@ impl PyExtraTreesClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -298,7 +307,9 @@ impl PyExtraTreesRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -311,6 +322,7 @@ impl PyExtraTreesRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -414,7 +426,9 @@ impl PyExtraTreesRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -482,7 +496,9 @@ impl PyAdaBoostClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -495,6 +511,7 @@ impl PyAdaBoostClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -589,7 +606,9 @@ impl PyAdaBoostClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -602,6 +621,7 @@ impl PyAdaBoostClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -687,7 +707,9 @@ impl PyAdaBoostRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -700,6 +722,7 @@ impl PyAdaBoostRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -794,7 +817,9 @@ impl PyAdaBoostRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -905,7 +930,9 @@ impl PySGDClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -918,6 +945,7 @@ impl PySGDClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1026,7 +1054,9 @@ impl PySGDClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -1056,6 +1086,7 @@ impl PySGDClassifier {
         y: &Bound<'py, PyAny>,
         classes: Option<Vec<f64>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -1070,6 +1101,7 @@ impl PySGDClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1159,7 +1191,9 @@ impl PySGDRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -1172,6 +1206,7 @@ impl PySGDRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1296,7 +1331,9 @@ impl PySGDRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -1322,6 +1359,7 @@ impl PySGDRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -1384,7 +1422,9 @@ impl PyPassiveAggressiveClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -1397,6 +1437,7 @@ impl PyPassiveAggressiveClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1491,7 +1532,9 @@ impl PyPassiveAggressiveClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -1521,6 +1564,7 @@ impl PyPassiveAggressiveClassifier {
         y: &Bound<'py, PyAny>,
         classes: Option<Vec<f64>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -1535,6 +1579,7 @@ impl PyPassiveAggressiveClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2139,7 +2184,9 @@ impl PyBaggingClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -2163,6 +2210,7 @@ impl PyBaggingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2187,6 +2235,7 @@ impl PyBaggingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let probas = self
             .inner
@@ -2211,6 +2260,7 @@ impl PyBaggingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let probas = self
             .inner
@@ -2263,7 +2313,9 @@ impl PyBaggingClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -2926,7 +2978,9 @@ impl PyBaggingRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -2950,6 +3004,7 @@ impl PyBaggingRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3002,7 +3057,9 @@ impl PyBaggingRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -3243,7 +3300,9 @@ impl PyVotingClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -3257,6 +3316,7 @@ impl PyVotingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3276,6 +3336,7 @@ impl PyVotingClassifier {
                 "predict_proba is only available with soft voting. Use voting='soft'.",
             ));
         }
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3305,6 +3366,7 @@ impl PyVotingClassifier {
                 "predict_log_proba is only available with soft voting. Use voting='soft'.",
             ));
         }
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3337,7 +3399,9 @@ impl PyVotingClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -3407,7 +3471,9 @@ impl PyVotingRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -3421,6 +3487,7 @@ impl PyVotingRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3447,7 +3514,9 @@ impl PyVotingRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -3551,7 +3620,9 @@ impl PyStackingClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -3565,6 +3636,7 @@ impl PyStackingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3579,6 +3651,7 @@ impl PyStackingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3603,6 +3676,7 @@ impl PyStackingClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3644,7 +3718,9 @@ impl PyStackingClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -3736,7 +3812,9 @@ impl PyStackingRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -3750,6 +3828,7 @@ impl PyStackingRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3782,7 +3861,9 @@ impl PyStackingRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)

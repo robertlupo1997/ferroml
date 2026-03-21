@@ -22,7 +22,10 @@
 //!
 //! See `crate::array_utils` for detailed documentation.
 
-use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{
+    check_array1_finite, check_array_finite, py_array_to_f64_1d, to_owned_array_1d,
+    to_owned_array_2d,
+};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::models::quantile::QuantileRegression;
 use ferroml_core::models::regularized::{ElasticNetCV, LassoCV, RidgeCV, RidgeClassifier};
@@ -133,7 +136,9 @@ impl PyLinearRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -159,6 +164,7 @@ impl PyLinearRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -406,6 +412,7 @@ impl PyLinearRegression {
         Bound<'py, PyArray1<f64>>,
         Bound<'py, PyArray1<f64>>,
     )> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let interval = self
@@ -604,7 +611,9 @@ impl PyLinearRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -794,6 +803,7 @@ impl PyLogisticRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -820,6 +830,7 @@ impl PyLogisticRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -846,6 +857,7 @@ impl PyLogisticRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -872,6 +884,7 @@ impl PyLogisticRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -1094,6 +1107,7 @@ impl PyLogisticRegression {
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let csr = py_csr_to_ferro(x)?;
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -1156,7 +1170,9 @@ impl PyLogisticRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -1169,6 +1185,7 @@ impl PyLogisticRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1306,7 +1323,9 @@ impl PyRidgeRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -1322,6 +1341,7 @@ impl PyRidgeRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -1449,6 +1469,7 @@ impl PyRidgeRegression {
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let csr = py_csr_to_ferro(x)?;
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -1494,7 +1515,9 @@ impl PyRidgeRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -1638,7 +1661,9 @@ impl PyLassoRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -1654,6 +1679,7 @@ impl PyLassoRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -1825,7 +1851,9 @@ impl PyLassoRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -1969,7 +1997,9 @@ impl PyElasticNet {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -1985,6 +2015,7 @@ impl PyElasticNet {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -2156,7 +2187,9 @@ impl PyElasticNet {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -2297,7 +2330,9 @@ impl PyRobustRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -2313,6 +2348,7 @@ impl PyRobustRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -2348,7 +2384,9 @@ impl PyRobustRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -2479,7 +2517,9 @@ impl PyQuantileRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -2495,6 +2535,7 @@ impl PyQuantileRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -2530,7 +2571,9 @@ impl PyQuantileRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -2653,6 +2696,7 @@ impl PyPerceptron {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -2669,6 +2713,7 @@ impl PyPerceptron {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -2687,7 +2732,9 @@ impl PyPerceptron {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -2717,6 +2764,7 @@ impl PyPerceptron {
         y: &Bound<'py, PyAny>,
         classes: Option<Vec<f64>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -2731,6 +2779,7 @@ impl PyPerceptron {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2786,7 +2835,9 @@ impl PyRidgeCV {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -2801,6 +2852,7 @@ impl PyRidgeCV {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -2826,7 +2878,9 @@ impl PyRidgeCV {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -2878,7 +2932,9 @@ impl PyLassoCV {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -2893,6 +2949,7 @@ impl PyLassoCV {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -2918,7 +2975,9 @@ impl PyLassoCV {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -2980,7 +3039,9 @@ impl PyElasticNetCV {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -2995,6 +3056,7 @@ impl PyElasticNetCV {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -3027,7 +3089,9 @@ impl PyElasticNetCV {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -3079,6 +3143,7 @@ impl PyRidgeClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -3094,6 +3159,7 @@ impl PyRidgeClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -3112,7 +3178,9 @@ impl PyRidgeClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -3125,6 +3193,7 @@ impl PyRidgeClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3303,6 +3372,7 @@ impl PyIsotonicRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -3322,6 +3392,7 @@ impl PyIsotonicRegression {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = self
             .inner
@@ -3347,7 +3418,9 @@ impl PyIsotonicRegression {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)

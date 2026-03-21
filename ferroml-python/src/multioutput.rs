@@ -3,7 +3,7 @@
 //! Since Rust generics cannot cross the PyO3 boundary, we use an internal
 //! enum to type-erase supported base estimators and dispatch at runtime.
 
-use crate::array_utils::to_owned_array_2d;
+use crate::array_utils::{check_array_finite, to_owned_array_2d};
 use ferroml_core::models::multioutput::{MultiOutputClassifier, MultiOutputRegressor};
 use ferroml_core::models::{
     DecisionTreeClassifier, DecisionTreeRegressor, KNeighborsRegressor, LinearRegression,
@@ -81,6 +81,7 @@ impl PyMultiOutputRegressor {
     /// y : numpy.ndarray of shape (n_samples, n_outputs)
     ///     Training targets (one column per output).
     fn fit(&mut self, x: PyReadonlyArray2<'_, f64>, y: PyReadonlyArray2<'_, f64>) -> PyResult<()> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = y.as_array().to_owned();
 
@@ -129,6 +130,7 @@ impl PyMultiOutputRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = match self
             .inner
@@ -227,6 +229,7 @@ impl PyMultiOutputClassifier {
     /// y : numpy.ndarray of shape (n_samples, n_outputs)
     ///     Training targets (one column per output, binary or multiclass labels).
     fn fit(&mut self, x: PyReadonlyArray2<'_, f64>, y: PyReadonlyArray2<'_, f64>) -> PyResult<()> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = y.as_array().to_owned();
 
@@ -263,6 +266,7 @@ impl PyMultiOutputClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = match self
             .inner
@@ -294,6 +298,7 @@ impl PyMultiOutputClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Vec<Bound<'py, PyArray2<f64>>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let results = match self
             .inner

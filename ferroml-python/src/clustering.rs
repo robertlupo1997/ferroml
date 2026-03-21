@@ -13,7 +13,7 @@
 //!
 //! See `crate::array_utils` for detailed documentation.
 
-use crate::array_utils::to_owned_array_2d;
+use crate::array_utils::{check_array_finite, to_owned_array_2d};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::clustering::metrics;
 use ferroml_core::clustering::{
@@ -111,6 +111,7 @@ impl PyKMeans {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         slf.inner
@@ -136,6 +137,7 @@ impl PyKMeans {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let labels = self
@@ -162,6 +164,7 @@ impl PyKMeans {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let labels = self
@@ -192,6 +195,7 @@ impl PyKMeans {
         x: PyReadonlyArray2<'py, f64>,
         n_bootstrap: usize,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let stability = self
@@ -220,6 +224,7 @@ impl PyKMeans {
         x: PyReadonlyArray2<'_, f64>,
         confidence: f64,
     ) -> PyResult<(f64, f64, f64)> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         self.inner
@@ -255,6 +260,7 @@ impl PyKMeans {
         n_refs: usize,
         random_state: Option<u64>,
     ) -> PyResult<PyObject> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let result = KMeans::optimal_k(&x_arr, k_min..k_max, n_refs, random_state)
@@ -294,6 +300,7 @@ impl PyKMeans {
         k_max: usize,
         random_state: Option<u64>,
     ) -> PyResult<PyObject> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let result = KMeans::elbow(&x_arr, k_min..k_max, random_state)
@@ -337,6 +344,7 @@ impl PyKMeans {
     /// float
     ///     Negative inertia on the given data.
     fn score(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         // Compute inertia on new data: sum of squared distances to nearest center
         let labels = self
@@ -454,6 +462,7 @@ impl PyDBSCAN {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         slf.inner
@@ -482,6 +491,7 @@ impl PyDBSCAN {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let labels = self
@@ -508,6 +518,7 @@ impl PyDBSCAN {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let labels = self
@@ -537,6 +548,7 @@ impl PyDBSCAN {
         x: PyReadonlyArray2<'py, f64>,
         min_samples: usize,
     ) -> PyResult<PyObject> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let (suggested_eps, k_distances) = DBSCAN::optimal_eps(&x_arr, min_samples)
@@ -570,6 +582,7 @@ impl PyDBSCAN {
         eps_values: Vec<f64>,
         min_samples: usize,
     ) -> PyResult<Vec<(f64, usize, usize)>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         DBSCAN::cluster_persistence(&x_arr, &eps_values, min_samples)
@@ -591,6 +604,7 @@ impl PyDBSCAN {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyObject> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let (noise_ratio, centroid, std) = self
@@ -721,6 +735,7 @@ impl PyAgglomerativeClustering {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -734,6 +749,7 @@ impl PyAgglomerativeClustering {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         self.inner
             .fit(&x_arr)
@@ -874,6 +890,7 @@ impl PyGaussianMixture {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -887,6 +904,7 @@ impl PyGaussianMixture {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let labels = self
             .inner
@@ -901,6 +919,7 @@ impl PyGaussianMixture {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let labels = self
             .inner
@@ -915,6 +934,7 @@ impl PyGaussianMixture {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let proba = self
             .inner
@@ -939,6 +959,7 @@ impl PyGaussianMixture {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let proba = self
             .inner
@@ -953,6 +974,7 @@ impl PyGaussianMixture {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let scores = self
             .inner
@@ -963,6 +985,7 @@ impl PyGaussianMixture {
 
     /// Compute mean per-sample log-likelihood.
     fn score(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         self.inner
             .score(&x_arr)
@@ -971,6 +994,7 @@ impl PyGaussianMixture {
 
     /// Compute Bayesian Information Criterion.
     fn bic(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         self.inner
             .bic(&x_arr)
@@ -979,6 +1003,7 @@ impl PyGaussianMixture {
 
     /// Compute Akaike Information Criterion.
     fn aic(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         self.inner
             .aic(&x_arr)
@@ -1108,6 +1133,7 @@ fn py_silhouette_score(
     x: PyReadonlyArray2<'_, f64>,
     labels: PyReadonlyArray1<'_, i32>,
 ) -> PyResult<f64> {
+    check_array_finite(&x)?;
     let x_arr = to_owned_array_2d(x);
     let labels_arr = labels.as_array().to_owned();
 
@@ -1135,6 +1161,7 @@ fn py_silhouette_samples<'py>(
     x: PyReadonlyArray2<'py, f64>,
     labels: PyReadonlyArray1<'py, i32>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    check_array_finite(&x)?;
     let x_arr = to_owned_array_2d(x);
     let labels_arr = labels.as_array().to_owned();
 
@@ -1165,6 +1192,7 @@ fn py_calinski_harabasz_score(
     x: PyReadonlyArray2<'_, f64>,
     labels: PyReadonlyArray1<'_, i32>,
 ) -> PyResult<f64> {
+    check_array_finite(&x)?;
     let x_arr = to_owned_array_2d(x);
     let labels_arr = labels.as_array().to_owned();
 
@@ -1193,6 +1221,7 @@ fn py_davies_bouldin_score(
     x: PyReadonlyArray2<'_, f64>,
     labels: PyReadonlyArray1<'_, i32>,
 ) -> PyResult<f64> {
+    check_array_finite(&x)?;
     let x_arr = to_owned_array_2d(x);
     let labels_arr = labels.as_array().to_owned();
 
@@ -1283,6 +1312,7 @@ fn py_hopkins_statistic(
     sample_size: Option<usize>,
     random_state: Option<u64>,
 ) -> PyResult<f64> {
+    check_array_finite(&x)?;
     let x_arr = to_owned_array_2d(x);
 
     metrics::hopkins_statistic(&x_arr, sample_size, random_state)
@@ -1372,6 +1402,7 @@ impl PyHDBSCAN {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         slf.inner
@@ -1397,6 +1428,7 @@ impl PyHDBSCAN {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let labels = self

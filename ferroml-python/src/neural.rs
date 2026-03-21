@@ -10,7 +10,9 @@
 //! When calling core Rust functions that require owned arrays, a copy is made.
 //! Output arrays use `into_pyarray` to transfer ownership to Python without copying data.
 
-use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{
+    check_array1_finite, check_array_finite, to_owned_array_1d, to_owned_array_2d,
+};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::neural::{
     Activation, EarlyStopping, MLPClassifier, MLPRegressor, NeuralDiagnostics, NeuralModel, Solver,
@@ -190,7 +192,9 @@ impl PyMLPClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_owned = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_owned = to_owned_array_1d(y);
 
         slf.inner
@@ -216,6 +220,7 @@ impl PyMLPClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_owned = to_owned_array_2d(x);
 
         let predictions = self
@@ -242,6 +247,7 @@ impl PyMLPClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_owned = to_owned_array_2d(x);
 
         let probas = self
@@ -283,7 +289,9 @@ impl PyMLPClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_owned = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_owned = to_owned_array_1d(y);
         let preds = self
             .inner
@@ -456,7 +464,9 @@ impl PyMLPRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_owned = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_owned = to_owned_array_1d(y);
 
         slf.inner
@@ -482,6 +492,7 @@ impl PyMLPRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_owned = to_owned_array_2d(x);
 
         let predictions = self
@@ -510,7 +521,9 @@ impl PyMLPRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_owned = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_owned = to_owned_array_1d(y);
 
         self.inner

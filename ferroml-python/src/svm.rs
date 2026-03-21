@@ -6,7 +6,10 @@
 //! - SVC (Support Vector Classification with kernel methods)
 //! - SVR (Support Vector Regression with kernel methods)
 
-use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{
+    check_array1_finite, check_array_finite, py_array_to_f64_1d, to_owned_array_1d,
+    to_owned_array_2d,
+};
 use ferroml_core::models::svm::{
     ClassWeight, Kernel, LinearSVC, LinearSVCLoss, LinearSVR, LinearSVRLoss, MulticlassStrategy,
     SVC, SVR,
@@ -98,6 +101,7 @@ impl PyLinearSVC {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -124,6 +128,7 @@ impl PyLinearSVC {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -140,6 +145,7 @@ impl PyLinearSVC {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -260,7 +266,9 @@ impl PyLinearSVC {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -346,7 +354,9 @@ impl PyLinearSVR {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -372,6 +382,7 @@ impl PyLinearSVR {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -388,6 +399,7 @@ impl PyLinearSVR {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -423,6 +435,7 @@ impl PyLinearSVR {
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let csr = py_csr_to_ferro(x)?;
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -526,7 +539,9 @@ impl PyLinearSVR {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -725,6 +740,7 @@ impl PySVC {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -751,6 +767,7 @@ impl PySVC {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -779,6 +796,7 @@ impl PySVC {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -805,6 +823,7 @@ impl PySVC {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -821,6 +840,7 @@ impl PySVC {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -924,7 +944,9 @@ impl PySVC {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -1017,7 +1039,9 @@ impl PySVR {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -1043,6 +1067,7 @@ impl PySVR {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -1059,6 +1084,7 @@ impl PySVR {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1180,7 +1206,9 @@ impl PySVR {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)

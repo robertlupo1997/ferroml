@@ -5,7 +5,10 @@
 //! - GaussianProcessClassifier
 //! - Kernel classes: RBF, Matern, ConstantKernel, WhiteKernel
 
-use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{
+    check_array1_finite, check_array_finite, py_array_to_f64_1d, to_owned_array_1d,
+    to_owned_array_2d,
+};
 use ferroml_core::models::gaussian_process::{
     self, GaussianProcessClassifier, GaussianProcessRegressor, InducingPointMethod, Kernel,
     SVGPRegressor, SparseApproximation, SparseGPClassifier, SparseGPRegressor,
@@ -192,6 +195,7 @@ impl PyGaussianProcessRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -206,6 +210,7 @@ impl PyGaussianProcessRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = self
             .inner
@@ -228,6 +233,7 @@ impl PyGaussianProcessRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<(Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>)> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let (mean, std) = self
             .inner
@@ -244,7 +250,9 @@ impl PyGaussianProcessRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -307,6 +315,7 @@ impl PyGaussianProcessClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -321,6 +330,7 @@ impl PyGaussianProcessClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = self
             .inner
@@ -340,6 +350,7 @@ impl PyGaussianProcessClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let probas = self
             .inner
@@ -364,6 +375,7 @@ impl PyGaussianProcessClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let probas = self
             .inner
@@ -380,7 +392,9 @@ impl PyGaussianProcessClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -458,6 +472,7 @@ impl PySparseGPRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -471,6 +486,7 @@ impl PySparseGPRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = self
             .inner
@@ -485,6 +501,7 @@ impl PySparseGPRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<(Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>)> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let (mean, std) = self
             .inner
@@ -501,7 +518,9 @@ impl PySparseGPRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -560,6 +579,7 @@ impl PySparseGPClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -573,6 +593,7 @@ impl PySparseGPClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = self
             .inner
@@ -586,6 +607,7 @@ impl PySparseGPClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let probas = self
             .inner
@@ -610,6 +632,7 @@ impl PySparseGPClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let probas = self
             .inner
@@ -626,7 +649,9 @@ impl PySparseGPClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -686,6 +711,7 @@ impl PySVGPRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -699,6 +725,7 @@ impl PySVGPRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = self
             .inner
@@ -713,6 +740,7 @@ impl PySVGPRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<(Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>)> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let (mean, std) = self
             .inner
@@ -729,7 +757,9 @@ impl PySVGPRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)

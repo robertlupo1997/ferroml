@@ -13,7 +13,10 @@
 //!
 //! See `crate::array_utils` for detailed documentation.
 
-use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{
+    check_array1_finite, check_array_finite, py_array_to_f64_1d, to_owned_array_1d,
+    to_owned_array_2d,
+};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::models::knn::{
     DistanceMetric, KNNAlgorithm, KNNWeights, KNeighborsClassifier, KNeighborsRegressor,
@@ -148,6 +151,7 @@ impl PyKNeighborsClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -174,6 +178,7 @@ impl PyKNeighborsClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -200,6 +205,7 @@ impl PyKNeighborsClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -226,6 +232,7 @@ impl PyKNeighborsClassifier {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -267,7 +274,9 @@ impl PyKNeighborsClassifier {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -382,6 +391,7 @@ impl PyKNeighborsRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -408,6 +418,7 @@ impl PyKNeighborsRegressor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -440,7 +451,9 @@ impl PyKNeighborsRegressor {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -515,6 +528,7 @@ impl PyNearestCentroid {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -531,6 +545,7 @@ impl PyNearestCentroid {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -567,7 +582,9 @@ impl PyNearestCentroid {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)

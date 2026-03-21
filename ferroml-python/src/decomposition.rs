@@ -13,7 +13,9 @@
 //! When calling core Rust functions that require owned arrays, a copy is made.
 //! Output arrays use `into_pyarray` to transfer ownership to Python without copying data.
 
-use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{
+    check_array1_finite, check_array_finite, to_owned_array_1d, to_owned_array_2d,
+};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::decomposition::{
     FactorAnalysis, IncrementalPCA, LearningRate, TruncatedSVD, TsneInit, TsneMethod, TsneMetric,
@@ -79,6 +81,7 @@ impl PyPCA {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -92,6 +95,7 @@ impl PyPCA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -106,6 +110,7 @@ impl PyPCA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -120,6 +125,7 @@ impl PyPCA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -206,6 +212,7 @@ impl PyIncrementalPCA {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -219,6 +226,7 @@ impl PyIncrementalPCA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -233,6 +241,7 @@ impl PyIncrementalPCA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -256,6 +265,7 @@ impl PyIncrementalPCA {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .partial_fit(&x_arr)
@@ -318,6 +328,7 @@ impl PyTruncatedSVD {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -331,6 +342,7 @@ impl PyTruncatedSVD {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -345,6 +357,7 @@ impl PyTruncatedSVD {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -441,7 +454,9 @@ impl PyLDA {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
@@ -455,6 +470,7 @@ impl PyLDA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -548,6 +564,7 @@ impl PyFactorAnalysis {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -561,6 +578,7 @@ impl PyFactorAnalysis {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -575,6 +593,7 @@ impl PyFactorAnalysis {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -752,6 +771,7 @@ impl PyTSNE {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -765,6 +785,7 @@ impl PyTSNE {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -779,6 +800,7 @@ impl PyTSNE {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -883,6 +905,7 @@ impl PyQDA {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = crate::array_utils::py_array_to_f64_1d(py, y)?;
         use ferroml_core::models::Model;
@@ -898,6 +921,7 @@ impl PyQDA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         use ferroml_core::models::Model;
         let preds = self
@@ -913,6 +937,7 @@ impl PyQDA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let proba = self
             .inner
@@ -937,6 +962,7 @@ impl PyQDA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let proba = self
             .inner
@@ -951,6 +977,7 @@ impl PyQDA {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let scores = self
             .inner
@@ -967,7 +994,9 @@ impl PyQDA {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         use ferroml_core::models::Model;
         self.inner

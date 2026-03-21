@@ -41,6 +41,41 @@ use numpy::{
 };
 use pyo3::prelude::*;
 
+/// Check that a 2D NumPy array contains no NaN or Inf values.
+/// Raises ValueError (not RuntimeError) consistent with sklearn conventions.
+pub fn check_array_finite(x: &PyReadonlyArray2<f64>) -> PyResult<()> {
+    let arr = x.as_array();
+    let ncols = arr.ncols();
+    for (idx, val) in arr.iter().enumerate() {
+        if !val.is_finite() {
+            let row = idx / ncols;
+            let col = idx % ncols;
+            let kind = if val.is_nan() { "NaN" } else { "Inf" };
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Input array contains {} at position ({}, {})",
+                kind, row, col
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Check that a 1D NumPy array contains no NaN or Inf values.
+/// Raises ValueError (not RuntimeError) consistent with sklearn conventions.
+pub fn check_array1_finite(x: &PyReadonlyArray1<f64>) -> PyResult<()> {
+    let arr = x.as_array();
+    for (idx, val) in arr.iter().enumerate() {
+        if !val.is_finite() {
+            let kind = if val.is_nan() { "NaN" } else { "Inf" };
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Input array contains {} at position {}",
+                kind, idx
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Convert a PyReadonlyArray2 to an ArrayView2 (zero-copy).
 ///
 /// This is the most efficient way to read NumPy array data in Rust when you only

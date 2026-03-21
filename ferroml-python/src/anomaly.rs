@@ -4,7 +4,7 @@
 //! - IsolationForest
 //! - LocalOutlierFactor
 
-use crate::array_utils::to_owned_array_2d;
+use crate::array_utils::{check_array_finite, to_owned_array_2d};
 use ferroml_core::models::isolation_forest::{Contamination, IsolationForest, MaxSamples};
 use ferroml_core::models::knn::{DistanceMetric, KNNAlgorithm};
 use ferroml_core::models::lof::LocalOutlierFactor;
@@ -116,6 +116,7 @@ impl PyIsolationForest {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit_unsupervised(&x_arr)
@@ -129,6 +130,7 @@ impl PyIsolationForest {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = self
             .inner
@@ -143,6 +145,7 @@ impl PyIsolationForest {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = slf
             .inner
@@ -157,6 +160,7 @@ impl PyIsolationForest {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let scores = self
             .inner
@@ -171,6 +175,7 @@ impl PyIsolationForest {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let decision = self
             .inner
@@ -290,6 +295,7 @@ impl PyLocalOutlierFactor {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit_unsupervised(&x_arr)
@@ -303,6 +309,7 @@ impl PyLocalOutlierFactor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = slf
             .inner
@@ -317,6 +324,7 @@ impl PyLocalOutlierFactor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let preds = self
             .inner
@@ -331,6 +339,7 @@ impl PyLocalOutlierFactor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let scores = self
             .inner
@@ -345,6 +354,7 @@ impl PyLocalOutlierFactor {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let decision = self
             .inner

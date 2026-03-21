@@ -6,7 +6,10 @@
 //! - BernoulliNB
 //! - CategoricalNB
 
-use crate::array_utils::{py_array_to_f64_1d, to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{
+    check_array1_finite, check_array_finite, py_array_to_f64_1d, to_owned_array_1d,
+    to_owned_array_2d,
+};
 use ferroml_core::models::naive_bayes::{BernoulliNB, CategoricalNB, GaussianNB, MultinomialNB};
 use ferroml_core::models::{Model, ProbabilisticModel};
 use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
@@ -77,6 +80,7 @@ impl PyGaussianNB {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -103,6 +107,7 @@ impl PyGaussianNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -129,6 +134,7 @@ impl PyGaussianNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -155,6 +161,7 @@ impl PyGaussianNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -189,6 +196,7 @@ impl PyGaussianNB {
         y: &Bound<'py, PyAny>,
         classes: Option<Vec<f64>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -319,7 +327,9 @@ impl PyGaussianNB {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -394,6 +404,7 @@ impl PyMultinomialNB {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -420,6 +431,7 @@ impl PyMultinomialNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -446,6 +458,7 @@ impl PyMultinomialNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -472,6 +485,7 @@ impl PyMultinomialNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -505,6 +519,7 @@ impl PyMultinomialNB {
         y: &Bound<'py, PyAny>,
         classes: Option<Vec<f64>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -549,6 +564,7 @@ impl PyMultinomialNB {
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let csr = py_csr_to_ferro(x)?;
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -662,7 +678,9 @@ impl PyMultinomialNB {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -745,6 +763,7 @@ impl PyBernoulliNB {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -771,6 +790,7 @@ impl PyBernoulliNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -797,6 +817,7 @@ impl PyBernoulliNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -823,6 +844,7 @@ impl PyBernoulliNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -856,6 +878,7 @@ impl PyBernoulliNB {
         y: &Bound<'py, PyAny>,
         classes: Option<Vec<f64>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
@@ -888,6 +911,7 @@ impl PyBernoulliNB {
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let csr = py_csr_to_ferro(x)?;
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
 
         slf.inner
@@ -991,7 +1015,9 @@ impl PyBernoulliNB {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
@@ -1070,6 +1096,7 @@ impl PyCategoricalNB {
         x: PyReadonlyArray2<'py, f64>,
         y: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -1096,6 +1123,7 @@ impl PyCategoricalNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let predictions = self
@@ -1122,6 +1150,7 @@ impl PyCategoricalNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -1148,6 +1177,7 @@ impl PyCategoricalNB {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
         let probas = self
@@ -1181,6 +1211,7 @@ impl PyCategoricalNB {
         y: &Bound<'py, PyAny>,
         classes: Option<Vec<f64>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let y_arr = py_array_to_f64_1d(py, y)?;
 
@@ -1244,7 +1275,9 @@ impl PyCategoricalNB {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<f64> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)

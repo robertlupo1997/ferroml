@@ -17,7 +17,10 @@
 //!
 //! See `crate::array_utils` for detailed documentation.
 
-use crate::array_utils::{array1_usize_into_pyarray_i64, to_owned_array_1d, to_owned_array_2d};
+use crate::array_utils::{
+    array1_usize_into_pyarray_i64, check_array1_finite, check_array_finite, to_owned_array_1d,
+    to_owned_array_2d,
+};
 use crate::pickle::{getstate, setstate};
 use ferroml_core::models::regularized::{LassoRegression, RidgeRegression};
 use ferroml_core::models::{
@@ -111,6 +114,7 @@ impl PyStandardScaler {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -134,6 +138,7 @@ impl PyStandardScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -158,6 +163,7 @@ impl PyStandardScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
@@ -182,6 +188,7 @@ impl PyStandardScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -355,6 +362,7 @@ impl PyMinMaxScaler {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -368,6 +376,7 @@ impl PyMinMaxScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -382,6 +391,7 @@ impl PyMinMaxScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
@@ -396,6 +406,7 @@ impl PyMinMaxScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -583,6 +594,7 @@ impl PyRobustScaler {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -596,6 +608,7 @@ impl PyRobustScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -610,6 +623,7 @@ impl PyRobustScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
@@ -624,6 +638,7 @@ impl PyRobustScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -783,6 +798,7 @@ impl PyMaxAbsScaler {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -796,6 +812,7 @@ impl PyMaxAbsScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -810,6 +827,7 @@ impl PyMaxAbsScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
@@ -824,6 +842,7 @@ impl PyMaxAbsScaler {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1002,6 +1021,7 @@ impl PyOneHotEncoder {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -1015,6 +1035,7 @@ impl PyOneHotEncoder {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1029,6 +1050,7 @@ impl PyOneHotEncoder {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
@@ -1043,6 +1065,7 @@ impl PyOneHotEncoder {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1132,6 +1155,7 @@ impl PyOrdinalEncoder {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -1145,6 +1169,7 @@ impl PyOrdinalEncoder {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1159,6 +1184,7 @@ impl PyOrdinalEncoder {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
@@ -1173,6 +1199,7 @@ impl PyOrdinalEncoder {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1259,6 +1286,7 @@ impl PyLabelEncoder {
         mut slf: PyRefMut<'py, Self>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit_1d(&y_arr)
@@ -1282,6 +1310,7 @@ impl PyLabelEncoder {
         py: Python<'py>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         let result = self
             .inner
@@ -1296,6 +1325,7 @@ impl PyLabelEncoder {
         py: Python<'py>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         let result = slf
             .inner
@@ -1310,6 +1340,7 @@ impl PyLabelEncoder {
         py: Python<'py>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         let result = self
             .inner
@@ -1421,6 +1452,7 @@ impl PySimpleImputer {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -1434,6 +1466,7 @@ impl PySimpleImputer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1448,6 +1481,7 @@ impl PySimpleImputer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
@@ -1547,6 +1581,7 @@ impl PyPowerTransformer {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -1559,6 +1594,7 @@ impl PyPowerTransformer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1572,6 +1608,7 @@ impl PyPowerTransformer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1585,6 +1622,7 @@ impl PyPowerTransformer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1652,6 +1690,7 @@ impl PyQuantileTransformer {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -1664,6 +1703,7 @@ impl PyQuantileTransformer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1677,6 +1717,7 @@ impl PyQuantileTransformer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1690,6 +1731,7 @@ impl PyQuantileTransformer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1744,6 +1786,7 @@ impl PyPolynomialFeatures {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -1756,6 +1799,7 @@ impl PyPolynomialFeatures {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1769,6 +1813,7 @@ impl PyPolynomialFeatures {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1852,6 +1897,7 @@ impl PyKBinsDiscretizer {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -1864,6 +1910,7 @@ impl PyKBinsDiscretizer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1877,6 +1924,7 @@ impl PyKBinsDiscretizer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1928,6 +1976,7 @@ impl PyVarianceThreshold {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -1940,6 +1989,7 @@ impl PyVarianceThreshold {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -1953,6 +2003,7 @@ impl PyVarianceThreshold {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2021,7 +2072,9 @@ impl PySelectKBest {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit_with_target(&x_arr, &y_arr)
@@ -2034,6 +2087,7 @@ impl PySelectKBest {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2111,6 +2165,7 @@ impl PyKNNImputer {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -2123,6 +2178,7 @@ impl PyKNNImputer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2136,6 +2192,7 @@ impl PyKNNImputer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2195,7 +2252,9 @@ impl PyTargetEncoder {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit_with_target(&x_arr, &y_arr)
@@ -2208,6 +2267,7 @@ impl PyTargetEncoder {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2299,6 +2359,7 @@ impl PySelectFromModel {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -2312,6 +2373,7 @@ impl PySelectFromModel {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2326,6 +2388,7 @@ impl PySelectFromModel {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -2422,7 +2485,9 @@ impl PySMOTE {
     ) -> PyResult<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray1<f64>>)> {
         use ferroml_core::preprocessing::sampling::Resampler;
 
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         let (x_res, y_res) = self
             .inner
@@ -2504,7 +2569,9 @@ impl PyADASYN {
     ) -> PyResult<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray1<f64>>)> {
         use ferroml_core::preprocessing::sampling::Resampler;
 
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         let (x_res, y_res) = self
             .inner
@@ -2580,7 +2647,9 @@ impl PyRandomUnderSampler {
     ) -> PyResult<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray1<f64>>)> {
         use ferroml_core::preprocessing::sampling::Resampler;
 
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         let (x_res, y_res) = self
             .inner
@@ -2659,7 +2728,9 @@ impl PyRandomOverSampler {
     ) -> PyResult<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray1<f64>>)> {
         use ferroml_core::preprocessing::sampling::Resampler;
 
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         let (x_res, y_res) = self
             .inner
@@ -3306,7 +3377,9 @@ impl PyRFE {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit_with_target(&x_arr, &y_arr)
@@ -3330,6 +3403,7 @@ impl PyRFE {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3357,7 +3431,9 @@ impl PyRFE {
         x: PyReadonlyArray2<'py, f64>,
         y: PyReadonlyArray1<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
+        check_array1_finite(&y)?;
         let y_arr = to_owned_array_1d(y);
         self.inner
             .fit_with_target(&x_arr, &y_arr)
@@ -3533,6 +3609,7 @@ impl PyTfidfTransformer {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -3556,6 +3633,7 @@ impl PyTfidfTransformer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -3580,6 +3658,7 @@ impl PyTfidfTransformer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
@@ -4138,6 +4217,7 @@ impl PyNormalizer {
         mut slf: PyRefMut<'py, Self>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
@@ -4150,6 +4230,7 @@ impl PyNormalizer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = self
             .inner
@@ -4163,6 +4244,7 @@ impl PyNormalizer {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
         let result = slf
             .inner
