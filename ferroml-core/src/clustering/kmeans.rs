@@ -115,6 +115,8 @@ pub struct KMeans {
     inertia_: Option<f64>,
     /// Number of iterations run
     n_iter_: Option<usize>,
+    /// Convergence status after fitting
+    convergence_status_: Option<crate::ConvergenceStatus>,
 }
 
 impl Default for KMeans {
@@ -143,6 +145,7 @@ impl KMeans {
             labels_: None,
             inertia_: None,
             n_iter_: None,
+            convergence_status_: None,
         }
     }
 
@@ -206,6 +209,11 @@ impl KMeans {
     /// Get number of iterations run
     pub fn n_iter(&self) -> Option<usize> {
         self.n_iter_
+    }
+
+    /// Get convergence status after fitting
+    pub fn convergence_status(&self) -> Option<&crate::ConvergenceStatus> {
+        self.convergence_status_.as_ref()
     }
 
     /// kmeans++ initialization
@@ -877,6 +885,20 @@ impl ClusteringModel for KMeans {
                     self.labels_ = Some(labels);
                     self.inertia_ = Some(inertia);
                     self.n_iter_ = Some(n_iter);
+                    if n_iter >= self.max_iter {
+                        tracing::warn!(
+                            "KMeans did not converge after {} iterations. \
+                             Results may be suboptimal. Try increasing max_iter or n_init.",
+                            self.max_iter
+                        );
+                        self.convergence_status_ = Some(crate::ConvergenceStatus::NotConverged {
+                            iterations: n_iter,
+                            final_change: f64::NAN,
+                        });
+                    } else {
+                        self.convergence_status_ =
+                            Some(crate::ConvergenceStatus::Converged { iterations: n_iter });
+                    }
                     return Ok(());
                 }
             }
@@ -936,6 +958,22 @@ impl ClusteringModel for KMeans {
         self.labels_ = best_labels;
         self.inertia_ = Some(best_inertia);
         self.n_iter_ = Some(best_n_iter);
+
+        if best_n_iter >= self.max_iter {
+            tracing::warn!(
+                "KMeans did not converge after {} iterations. \
+                 Results may be suboptimal. Try increasing max_iter or n_init.",
+                self.max_iter
+            );
+            self.convergence_status_ = Some(crate::ConvergenceStatus::NotConverged {
+                iterations: best_n_iter,
+                final_change: f64::NAN,
+            });
+        } else {
+            self.convergence_status_ = Some(crate::ConvergenceStatus::Converged {
+                iterations: best_n_iter,
+            });
+        }
 
         Ok(())
     }
@@ -1321,6 +1359,47 @@ mod tests {
             "inertia2={} should be <= inertia1={} + 0.1",
             inertia2,
             inertia1
+        );
+    }
+
+    #[test]
+    fn test_convergence_status_converged() {
+        let x = Array2::from_shape_vec(
+            (6, 2),
+            vec![1.0, 2.0, 1.5, 1.8, 1.0, 1.0, 8.0, 8.0, 8.5, 8.0, 8.0, 7.5],
+        )
+        .unwrap();
+
+        let mut kmeans = KMeans::new(2).random_state(42);
+        kmeans.fit(&x).unwrap();
+
+        let status = kmeans.convergence_status().unwrap();
+        assert!(
+            matches!(status, crate::ConvergenceStatus::Converged { .. }),
+            "Easy data should converge"
+        );
+    }
+
+    #[test]
+    fn test_convergence_status_not_converged() {
+        let x = Array2::from_shape_vec(
+            (6, 2),
+            vec![1.0, 2.0, 1.5, 1.8, 1.0, 1.0, 8.0, 8.0, 8.5, 8.0, 8.0, 7.5],
+        )
+        .unwrap();
+
+        // max_iter=1 with tol=0 should not converge
+        let mut kmeans = KMeans::new(2)
+            .max_iter(1)
+            .tol(0.0)
+            .n_init(1)
+            .random_state(42);
+        kmeans.fit(&x).unwrap(); // should not error
+
+        let status = kmeans.convergence_status().unwrap();
+        assert!(
+            matches!(status, crate::ConvergenceStatus::NotConverged { .. }),
+            "max_iter=1 should not converge"
         );
     }
 }

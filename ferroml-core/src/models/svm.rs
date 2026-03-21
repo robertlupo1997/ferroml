@@ -514,6 +514,9 @@ pub(crate) struct BinarySVC {
     platt_a: f64,
     platt_b: f64,
     probability_fitted: bool,
+
+    /// Convergence status
+    convergence_status: Option<crate::ConvergenceStatus>,
 }
 
 /// WSS3: Second-order working set selection (libsvm-style).
@@ -543,6 +546,7 @@ impl BinarySVC {
             platt_a: 0.0,
             platt_b: 0.0,
             probability_fitted: false,
+            convergence_status: None,
         }
     }
 
@@ -637,7 +641,7 @@ impl BinarySVC {
         };
 
         // SMO algorithm
-        let (final_alpha, intercept) = self.smo(
+        let (final_alpha, intercept, smo_converged) = self.smo(
             &mut kernel_provider,
             &y_binary,
             &c_effective,
@@ -657,6 +661,7 @@ impl BinarySVC {
         }
 
         if support_indices.is_empty() {
+            // Keep hard error for "no support vectors" -- this is a legitimate failure
             return Err(FerroError::convergence_failure(
                 self.max_iter,
                 "No support vectors found - model failed to converge",
@@ -675,6 +680,22 @@ impl BinarySVC {
         self.support_indices = Some(support_indices);
         self.intercept = intercept;
 
+        if smo_converged {
+            self.convergence_status = Some(crate::ConvergenceStatus::Converged {
+                iterations: self.max_iter,
+            });
+        } else {
+            tracing::warn!(
+                "BinarySVC did not converge after {} iterations. \
+                 Returning best partial solution. Try increasing max_iter.",
+                self.max_iter
+            );
+            self.convergence_status = Some(crate::ConvergenceStatus::NotConverged {
+                iterations: self.max_iter,
+                final_change: f64::NAN,
+            });
+        }
+
         Ok(())
     }
 
@@ -690,7 +711,7 @@ impl BinarySVC {
         y: &Array1<f64>,
         c: &Array1<f64>,
         mut alpha: ndarray::ArrayViewMut1<f64>,
-    ) -> Result<(Array1<f64>, f64)> {
+    ) -> Result<(Array1<f64>, f64, bool)> {
         let n_samples = y.len();
         let mut b = 0.0;
 
@@ -880,7 +901,8 @@ impl BinarySVC {
             iter += 1;
         }
 
-        Ok((alpha.to_owned(), b))
+        let converged = iter < self.max_iter;
+        Ok((alpha.to_owned(), b, converged))
     }
 
     /// Shrink samples that are firmly at their bounds and unlikely to change.
@@ -1234,6 +1256,8 @@ pub struct SVC {
     n_features: Option<usize>,
     /// Computed class weights
     computed_weights: Option<Vec<(f64, f64)>>,
+    /// Convergence status (reflects worst-case across binary classifiers)
+    convergence_status_: Option<crate::ConvergenceStatus>,
 }
 
 impl Default for SVC {
@@ -1260,6 +1284,7 @@ impl SVC {
             class_pairs: Vec::new(),
             n_features: None,
             computed_weights: None,
+            convergence_status_: None,
         }
     }
 
@@ -1349,6 +1374,11 @@ impl SVC {
             .iter()
             .map(|clf| clf.support_indices.as_ref().map(|v| v.len()).unwrap_or(0))
             .collect()
+    }
+
+    /// Get convergence status (reflects worst-case across binary classifiers).
+    pub fn convergence_status(&self) -> Option<&crate::ConvergenceStatus> {
+        self.convergence_status_.as_ref()
     }
 
     /// Compute decision function values for each sample.
@@ -1720,6 +1750,24 @@ impl Model for SVC {
         match self.multiclass_strategy {
             MulticlassStrategy::OneVsOne => self.fit_ovo(x, y)?,
             MulticlassStrategy::OneVsRest => self.fit_ovr(x, y)?,
+        }
+
+        // Set convergence status based on worst-case binary classifier
+        let any_not_converged = self.classifiers.iter().any(|clf| {
+            matches!(
+                clf.convergence_status,
+                Some(crate::ConvergenceStatus::NotConverged { .. })
+            )
+        });
+        if any_not_converged {
+            self.convergence_status_ = Some(crate::ConvergenceStatus::NotConverged {
+                iterations: self.max_iter,
+                final_change: f64::NAN,
+            });
+        } else {
+            self.convergence_status_ = Some(crate::ConvergenceStatus::Converged {
+                iterations: self.max_iter,
+            });
         }
 
         Ok(())

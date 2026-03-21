@@ -2,6 +2,7 @@
 //!
 //! Provides structured error handling with detailed context for debugging.
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Result type alias for FerroML operations
@@ -106,6 +107,27 @@ pub enum FerroError {
     /// Inference error (ONNX runtime)
     #[error("Inference error: {0}")]
     InferenceError(String),
+}
+
+/// Status of an iterative model's convergence.
+///
+/// Stored by iterative models (KMeans, GMM, LogisticRegression, SVM) after fitting.
+/// When a model does not converge, it emits a `tracing::warn!` and returns the
+/// best partial result rather than erroring.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ConvergenceStatus {
+    /// Model converged within tolerance.
+    Converged {
+        /// Number of iterations used.
+        iterations: usize,
+    },
+    /// Model did not converge within max_iter.
+    NotConverged {
+        /// Number of iterations run (== max_iter).
+        iterations: usize,
+        /// Final change metric (e.g., coefficient delta, inertia change).
+        final_change: f64,
+    },
 }
 
 impl FerroError {

@@ -1391,6 +1391,37 @@ pub fn get_unique_classes(y: &Array1<f64>) -> Array1<f64> {
     Array1::from_vec(classes)
 }
 
+/// Check model output for NaN/Inf values. Returns error if any found.
+///
+/// Call this after `predict()` in models susceptible to numerical issues
+/// (e.g., LogisticRegression, GaussianNB, GMM).
+pub fn validate_output(predictions: &Array1<f64>, model_name: &str) -> Result<()> {
+    if let Some(pos) = predictions.iter().position(|v| !v.is_finite()) {
+        return Err(FerroError::numerical(format!(
+            "{} produced non-finite output at index {} (value: {}). \
+             This indicates a numerical issue in the model.",
+            model_name, pos, predictions[pos]
+        )));
+    }
+    Ok(())
+}
+
+/// Check 2D model output (e.g., predict_proba) for NaN/Inf values.
+pub fn validate_output_2d(predictions: &Array2<f64>, model_name: &str) -> Result<()> {
+    for (idx, val) in predictions.iter().enumerate() {
+        if !val.is_finite() {
+            let row = idx / predictions.ncols();
+            let col = idx % predictions.ncols();
+            return Err(FerroError::numerical(format!(
+                "{} produced non-finite output at [{}, {}] (value: {}). \
+                 This indicates a numerical issue in the model.",
+                model_name, row, col, *val
+            )));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1539,5 +1570,52 @@ mod tests {
         assert!((percentile(&sorted, 0.5) - 3.0).abs() < 1e-10);
         assert!((percentile(&sorted, 0.0) - 1.0).abs() < 1e-10);
         assert!((percentile(&sorted, 1.0) - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_validate_output_all_finite() {
+        let preds = Array1::from_vec(vec![1.0, 2.0, 3.0, -4.5, 0.0]);
+        assert!(validate_output(&preds, "TestModel").is_ok());
+    }
+
+    #[test]
+    fn test_validate_output_detects_nan() {
+        let preds = Array1::from_vec(vec![1.0, 2.0, f64::NAN, 4.0]);
+        let err = validate_output(&preds, "TestModel").unwrap_err();
+        let msg = format!("{}", err);
+        assert!(msg.contains("TestModel"));
+        assert!(msg.contains("index 2"));
+        assert!(msg.contains("non-finite"));
+    }
+
+    #[test]
+    fn test_validate_output_detects_inf() {
+        let preds = Array1::from_vec(vec![1.0, f64::INFINITY, 3.0]);
+        let err = validate_output(&preds, "TestModel").unwrap_err();
+        let msg = format!("{}", err);
+        assert!(msg.contains("index 1"));
+    }
+
+    #[test]
+    fn test_validate_output_detects_neg_inf() {
+        let preds = Array1::from_vec(vec![f64::NEG_INFINITY, 2.0, 3.0]);
+        let err = validate_output(&preds, "TestModel").unwrap_err();
+        let msg = format!("{}", err);
+        assert!(msg.contains("index 0"));
+    }
+
+    #[test]
+    fn test_validate_output_2d_all_finite() {
+        let preds = Array2::from_shape_vec((2, 3), vec![0.1, 0.2, 0.7, 0.3, 0.3, 0.4]).unwrap();
+        assert!(validate_output_2d(&preds, "TestModel").is_ok());
+    }
+
+    #[test]
+    fn test_validate_output_2d_detects_nan() {
+        let preds = Array2::from_shape_vec((2, 2), vec![0.5, 0.5, f64::NAN, 0.5]).unwrap();
+        let err = validate_output_2d(&preds, "TestProba").unwrap_err();
+        let msg = format!("{}", err);
+        assert!(msg.contains("TestProba"));
+        assert!(msg.contains("[1, 0]"));
     }
 }

@@ -277,7 +277,7 @@ pub use automl::{
     AggregatedFeatureImportance, AutoMLResult, LeaderboardEntry, ModelComparisonResults,
     ModelFeatureImportance, ModelStatistics, PairwiseComparison,
 };
-pub use error::{FerroError, Result};
+pub use error::{ConvergenceStatus, FerroError, Result};
 #[cfg(feature = "onnx")]
 pub use inference::{InferenceSession, SessionMetadata, Tensor, TensorI64, Value};
 #[cfg(feature = "onnx")]

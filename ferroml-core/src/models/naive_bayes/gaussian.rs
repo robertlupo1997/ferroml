@@ -461,6 +461,7 @@ impl Model for GaussianNB {
             })
             .collect();
 
+        crate::models::validate_output(&predictions, "GaussianNB")?;
         Ok(predictions)
     }
 

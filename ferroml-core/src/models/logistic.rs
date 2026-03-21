@@ -37,9 +37,9 @@ use crate::hpo::{ParameterValue, SearchSpace};
 use crate::metrics::probabilistic::{roc_auc_score, roc_auc_with_ci};
 use crate::models::{
     check_is_fitted, compute_sample_weights, get_unique_classes, validate_fit_input,
-    validate_predict_input, Assumption, AssumptionTestResult, ClassWeight, CoefficientInfo,
-    Diagnostics, FitStatistics, Model, ModelSummary, PredictionInterval, ProbabilisticModel,
-    ResidualStatistics, StatisticalModel,
+    validate_output_2d, validate_predict_input, Assumption, AssumptionTestResult, ClassWeight,
+    CoefficientInfo, Diagnostics, FitStatistics, Model, ModelSummary, PredictionInterval,
+    ProbabilisticModel, ResidualStatistics, StatisticalModel,
 };
 use crate::pipeline::PipelineModel;
 use crate::{FerroError, Result};
@@ -156,6 +156,9 @@ pub struct LogisticRegression {
 
     // Fitted data for diagnostics
     fitted_data: Option<FittedLogisticData>,
+
+    // Convergence status
+    convergence_status_: Option<crate::ConvergenceStatus>,
 }
 
 /// Internal struct to store fitted data for diagnostics
@@ -220,6 +223,7 @@ impl LogisticRegression {
             intercept: None,
             n_features: None,
             fitted_data: None,
+            convergence_status_: None,
         }
     }
 
@@ -351,6 +355,11 @@ impl LogisticRegression {
     #[must_use]
     pub fn intercept(&self) -> Option<f64> {
         self.intercept
+    }
+
+    /// Get convergence status after fitting.
+    pub fn convergence_status(&self) -> Option<&crate::ConvergenceStatus> {
+        self.convergence_status_.as_ref()
     }
 
     /// Get all coefficients including intercept (intercept first if present)
@@ -750,6 +759,21 @@ impl LogisticRegression {
             df_null: n.saturating_sub(1),
         });
 
+        if converged {
+            self.convergence_status_ =
+                Some(crate::ConvergenceStatus::Converged { iterations: n_iter });
+        } else {
+            tracing::warn!(
+                "LogisticRegression (IRLS) did not converge after {} iterations. \
+                 Try increasing max_iter or adding regularization.",
+                n_iter
+            );
+            self.convergence_status_ = Some(crate::ConvergenceStatus::NotConverged {
+                iterations: n_iter,
+                final_change: f64::NAN,
+            });
+        }
+
         Ok(())
     }
 
@@ -917,6 +941,21 @@ impl LogisticRegression {
             df_residuals: n.saturating_sub(p),
             df_null: n.saturating_sub(1),
         });
+
+        if converged {
+            self.convergence_status_ =
+                Some(crate::ConvergenceStatus::Converged { iterations: n_iter });
+        } else {
+            tracing::warn!(
+                "LogisticRegression (L-BFGS) did not converge after {} iterations. \
+                 Try increasing max_iter or adding regularization.",
+                n_iter
+            );
+            self.convergence_status_ = Some(crate::ConvergenceStatus::NotConverged {
+                iterations: n_iter,
+                final_change: f64::NAN,
+            });
+        }
 
         Ok(())
     }
@@ -1132,6 +1171,23 @@ impl LogisticRegression {
             df_residuals: n.saturating_sub(p),
             df_null: n.saturating_sub(1),
         });
+
+        if converged {
+            self.convergence_status_ =
+                Some(crate::ConvergenceStatus::Converged { iterations: n_iter });
+        } else {
+            let solver_name = if is_saga { "SAGA" } else { "SAG" };
+            tracing::warn!(
+                "LogisticRegression ({}) did not converge after {} epochs. \
+                 Try increasing max_iter or adding regularization.",
+                solver_name,
+                n_iter
+            );
+            self.convergence_status_ = Some(crate::ConvergenceStatus::NotConverged {
+                iterations: n_iter,
+                final_change: f64::NAN,
+            });
+        }
 
         Ok(())
     }
@@ -1566,6 +1622,7 @@ impl ProbabilisticModel for LogisticRegression {
             result[[i, 0]] = 1.0 - p1; // P(class=0)
             result[[i, 1]] = p1; // P(class=1)
         }
+        validate_output_2d(&result, "LogisticRegression")?;
         Ok(result)
     }
 

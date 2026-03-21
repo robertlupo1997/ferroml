@@ -87,6 +87,7 @@ pub struct GaussianMixture {
     n_iter_: Option<usize>,
     lower_bound_: Option<f64>,
     converged_: Option<bool>,
+    convergence_status_: Option<crate::ConvergenceStatus>,
     n_features_in_: Option<usize>,
 }
 
@@ -121,6 +122,7 @@ impl GaussianMixture {
             n_iter_: None,
             lower_bound_: None,
             converged_: None,
+            convergence_status_: None,
             n_features_in_: None,
         }
     }
@@ -196,6 +198,11 @@ impl GaussianMixture {
     /// Get the lower bound (log-likelihood) from the last fit.
     pub fn lower_bound(&self) -> Option<f64> {
         self.lower_bound_
+    }
+
+    /// Get convergence status after fitting.
+    pub fn convergence_status(&self) -> Option<&crate::ConvergenceStatus> {
+        self.convergence_status_.as_ref()
     }
 
     /// Get covariances for Full type.
@@ -963,6 +970,21 @@ impl ClusteringModel for GaussianMixture {
             self.converged_ = Some(converged);
             self.lower_bound_ = Some(best_lower_bound);
 
+            if converged {
+                self.convergence_status_ =
+                    Some(crate::ConvergenceStatus::Converged { iterations: n_iter });
+            } else {
+                tracing::warn!(
+                    "GaussianMixture did not converge after {} iterations. \
+                     Results may be suboptimal. Try increasing max_iter or n_init.",
+                    n_iter
+                );
+                self.convergence_status_ = Some(crate::ConvergenceStatus::NotConverged {
+                    iterations: n_iter,
+                    final_change: f64::NAN,
+                });
+            }
+
             // Compute labels
             let labels = self.predict(x)?;
             self.labels_ = Some(labels);
@@ -1554,5 +1576,35 @@ mod tests {
         for &l in labels.iter() {
             assert!(l >= 0, "Labels must be non-negative");
         }
+    }
+
+    #[test]
+    fn test_convergence_status_converged() {
+        let (x, _) = make_blobs(&[(0.0, 0.0), (10.0, 10.0)], 50, 0.5, 42);
+        let mut gmm = GaussianMixture::new(2).max_iter(200).random_state(42);
+        gmm.fit(&x).unwrap();
+
+        let status = gmm.convergence_status().unwrap();
+        assert!(
+            matches!(status, crate::ConvergenceStatus::Converged { .. }),
+            "Easy data should converge"
+        );
+    }
+
+    #[test]
+    fn test_convergence_status_not_converged() {
+        let (x, _) = make_blobs(&[(0.0, 0.0), (10.0, 10.0)], 50, 0.5, 42);
+        // max_iter=1 with very tight tol should not converge
+        let mut gmm = GaussianMixture::new(2)
+            .max_iter(1)
+            .tol(1e-30)
+            .random_state(42);
+        gmm.fit(&x).unwrap(); // should not error, returns partial result
+
+        let status = gmm.convergence_status().unwrap();
+        assert!(
+            matches!(status, crate::ConvergenceStatus::NotConverged { .. }),
+            "max_iter=1 should not converge"
+        );
     }
 }
