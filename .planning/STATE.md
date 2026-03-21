@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 1 of 5 (Input Validation)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Executing
-Last activity: 2026-03-21 -- Completed 01-01 (centralized validation)
+Last activity: 2026-03-21 -- Completed 01-02 (universal validation coverage)
 
-Progress: [██░░░░░░░░] 7%
+Progress: [███░░░░░░░] 13%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 51 min
-- Total execution time: 0.85 hours
+- Total plans completed: 2
+- Average duration: 45 min
+- Total execution time: 1.5 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 - Input Validation | 1/3 | 51 min | 51 min |
+| 01 - Input Validation | 2/3 | 90 min | 45 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (51 min)
-- Trend: Starting
+- Last 5 plans: 01-01 (51 min), 01-02 (39 min)
+- Trend: Accelerating
 
 *Updated after each plan completion*
 
@@ -48,6 +48,9 @@ Recent decisions affecting current work:
 - [01-01]: Complement not replace -- validation.rs adds unsupervised functions alongside existing supervised ones in models/mod.rs
 - [01-01]: Detailed NaN/Inf errors include count and first position for actionable debugging
 - [01-01]: HDBSCAN uses custom edge case tests because predict() legitimately fails on no-cluster inputs
+- [01-02]: IsotonicRegression uses inline NaN/Inf checks due to 1D input signature
+- [01-02]: SVM builder methods store raw values; fit-time validation gives actionable error messages
+- [01-02]: MultiOutput wrappers added n_features_ field for predict-time validation
 
 ### Pending Todos
 
@@ -62,5 +65,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-21
-Stopped at: Completed 01-01-PLAN.md (centralized validation for clustering+decomposition)
+Stopped at: Completed 01-02-PLAN.md (universal validation coverage for all 55+ models)
 Resume file: None
