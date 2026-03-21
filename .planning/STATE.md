@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.4
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-21T16:15:10.944Z"
-last_activity: 2026-03-21 -- Completed 02-01 (TemperatureScaling/IncrementalPCA verification)
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-21T16:26:00.000Z"
+last_activity: 2026-03-21 -- Completed 02-02 (Numerical stability utilities)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State
@@ -26,32 +26,33 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 2 of 5 (Correctness Fixes)
-Plan: 1 of 3 in current phase (complete)
+Plan: 2 of 3 in current phase (complete)
 Status: In Progress
-Last activity: 2026-03-21 -- Completed 02-01 (TemperatureScaling/IncrementalPCA verification)
+Last activity: 2026-03-21 -- Completed 02-02 (Numerical stability utilities)
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 55 min
-- Total execution time: 3.8 hours
+- Total plans completed: 5
+- Average duration: 52 min
+- Total execution time: 4.5 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 - Input Validation | 3/3 | 200 min | 67 min |
-| 02 - Correctness Fixes | 1/3 | 30 min | 30 min |
+| 02 - Correctness Fixes | 2/3 | 72 min | 36 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (51 min), 01-02 (39 min), 01-03 (110 min), 02-01 (30 min)
-- Trend: 02-01 fast (verification-only, fixes already applied)
+- Last 5 plans: 01-02 (39 min), 01-03 (110 min), 02-01 (30 min), 02-02 (42 min)
+- Trend: Stable
 
 *Updated after each plan completion*
 | Phase 02 P01 | 30 | 2 tasks | 0 files |
+| Phase 02 P02 | 42 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [01-03]: Models with PyAny y-parameter get NaN check only on X (Rust handles y validation)
 - [02-01]: No code changes needed -- all 6 TemperatureScaling/IncrementalPCA failures were already fixed in commit b9879e0 (2026-03-17)
 - [Phase 02]: No code changes needed -- TemperatureScaling/IncrementalPCA failures already fixed in b9879e0
+- [02-02]: logsumexp takes &[f64] not &Array1 for flexibility; svd_flip inside thin_svd (not separate)
+- [02-02]: KernelCache evict_lru had len tracking bug -- fixed by removing len decrement since slot is always reused
 
 ### Pending Todos
 
@@ -83,10 +86,10 @@ None yet.
 
 - ~~TemperatureScaling/IncrementalPCA root cause unknown~~ RESOLVED: fixed in b9879e0 (IncrementalPCA mean correction + SVC random_state)
 - Exact unwrap triage counts unknown -- Phase 3 scope depends on Tier 1-2 count from mechanical grep
-- faer SVD sign conventions may differ from nalgebra -- svd_flip must be implemented before backend swap
+- ~~faer SVD sign conventions may differ from nalgebra~~ RESOLVED: svd_flip now applied inside both thin_svd_nalgebra and thin_svd_faer
 
 ## Session Continuity
 
-Last session: 2026-03-21T16:15:10.941Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-21T16:26:00.000Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
