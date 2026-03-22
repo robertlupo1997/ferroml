@@ -199,7 +199,7 @@ impl PyMLPClassifier {
 
         slf.inner
             .fit(&x_owned, &y_owned)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -226,7 +226,7 @@ impl PyMLPClassifier {
         let predictions = self
             .inner
             .predict(&x_owned)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -253,7 +253,7 @@ impl PyMLPClassifier {
         let probas = self
             .inner
             .predict_proba(&x_owned)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.into_pyarray(py))
     }
@@ -296,7 +296,7 @@ impl PyMLPClassifier {
         let preds = self
             .inner
             .predict(&x_owned)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         let n = y_owned.len() as f64;
         let correct = preds
             .iter()
@@ -471,7 +471,7 @@ impl PyMLPRegressor {
 
         slf.inner
             .fit(&x_owned, &y_owned)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -498,7 +498,7 @@ impl PyMLPRegressor {
         let predictions = self
             .inner
             .predict(&x_owned)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -528,7 +528,7 @@ impl PyMLPRegressor {
 
         self.inner
             .score(&x_owned, &y_owned)
-            .map_err(|e| PyValueError::new_err(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Get number of layers.

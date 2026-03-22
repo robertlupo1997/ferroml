@@ -144,7 +144,7 @@ class TestArrayConversionFidelity:
     def test_empty_array_raises_error(self):
         """Empty array produces a clear error, not a crash/segfault."""
         m = LinearRegression()
-        with pytest.raises(RuntimeError):
+        with pytest.raises((ValueError, RuntimeError)):
             m.fit(np.array([]).reshape(0, 0), np.array([]))
 
 
@@ -196,20 +196,20 @@ class TestErrorPropagation:
             m.fit(X, y)
 
     def test_shape_mismatch_x_y(self):
-        """Mismatched X rows and y length raises RuntimeError."""
+        """Mismatched X rows and y length raises ValueError (ShapeMismatch)."""
         m = LinearRegression()
         X = np.array([[1.0, 2.0], [3.0, 4.0]])
         y = np.array([1.0, 2.0, 3.0])
-        with pytest.raises(RuntimeError, match="[Ss]hape|mismatch|dimension"):
+        with pytest.raises(ValueError, match="[Ss]hape|mismatch|dimension"):
             m.fit(X, y)
 
     def test_wrong_features_at_predict(self, regression_data):
-        """Wrong number of features at predict time raises RuntimeError."""
+        """Wrong number of features at predict time raises ValueError (ShapeMismatch)."""
         X, y = regression_data
         m = LinearRegression()
         m.fit(X, y)
         X_wrong = np.random.randn(5, 7)  # 7 features instead of 3
-        with pytest.raises(RuntimeError, match="[Ff]eature|[Ss]hape|[Dd]imension|[Cc]olumn"):
+        with pytest.raises(ValueError, match="[Ff]eature|[Ss]hape|[Dd]imension|[Cc]olumn"):
             m.predict(X_wrong)
 
     def test_inf_input_raises_error(self):
@@ -458,3 +458,81 @@ class TestThreadSafety:
                     expected, result,
                     err_msg="Concurrent transform returned different result",
                 )
+
+
+# ---------------------------------------------------------------------------
+# 7. Exception Type Mapping (ferro_to_pyerr)
+# ---------------------------------------------------------------------------
+
+class TestExceptionMapping:
+    """Verify FerroError variants map to correct Python exception types."""
+
+    def test_shape_mismatch_raises_value_error(self):
+        """ShapeMismatch -> ValueError when predicting with wrong features."""
+        m = LinearRegression()
+        X_train = np.random.randn(50, 4)
+        y_train = X_train @ [1, 2, 3, 4]
+        m.fit(X_train, y_train)
+
+        X_wrong = np.random.randn(10, 7)  # 7 features, expected 4
+        with pytest.raises(ValueError, match="[Ss]hape|features|expected"):
+            m.predict(X_wrong)
+
+    def test_invalid_input_raises_value_error(self):
+        """InvalidInput -> ValueError when passing NaN to a validated model."""
+        m = LinearRegression()
+        X_train = np.random.randn(50, 4)
+        y_train = X_train @ [1, 2, 3, 4]
+        m.fit(X_train, y_train)
+
+        X_nan = np.full((10, 4), np.nan)
+        with pytest.raises(ValueError, match="[Nn]aN|[Ff]inite|[Ii]nvalid"):
+            m.predict(X_nan)
+
+    def test_not_fitted_raises_runtime_error(self):
+        """NotFitted -> RuntimeError when calling predict on unfitted model."""
+        m = LinearRegression()
+        X = np.random.randn(10, 4)
+        with pytest.raises(RuntimeError, match="[Ff]it"):
+            m.predict(X)
+
+    def test_not_fitted_tree_raises_runtime_error(self):
+        """NotFitted -> RuntimeError for tree models."""
+        m = RandomForestClassifier(n_estimators=5)
+        X = np.random.randn(10, 4)
+        with pytest.raises(RuntimeError, match="[Ff]it"):
+            m.predict(X)
+
+    def test_not_fitted_scaler_raises_error(self):
+        """NotFitted -> error for unfitted transformer."""
+        sc = StandardScaler()
+        X = np.random.randn(10, 4)
+        with pytest.raises((RuntimeError, ValueError), match="[Ff]it"):
+            sc.transform(X)
+
+    def test_not_fitted_kmeans_raises_runtime_error(self):
+        """NotFitted -> RuntimeError for unfitted clustering."""
+        m = KMeans(n_clusters=3)
+        X = np.random.randn(10, 4)
+        with pytest.raises(RuntimeError, match="[Ff]it"):
+            m.predict(X)
+
+    def test_shape_mismatch_svm_raises_value_error(self):
+        """ShapeMismatch -> ValueError for SVM models."""
+        from ferroml.svm import SVC
+        m = SVC()
+        X_train = np.random.randn(50, 4)
+        y_train = (X_train[:, 0] > 0).astype(float)
+        m.fit(X_train, y_train)
+
+        X_wrong = np.random.randn(10, 8)
+        with pytest.raises(ValueError, match="[Ss]hape|features|expected"):
+            m.predict(X_wrong)
+
+    def test_invalid_input_nan_fit_raises_value_error(self):
+        """InvalidInput -> ValueError when fitting with NaN data."""
+        m = LinearRegression()
+        X_nan = np.full((10, 4), np.nan)
+        y = np.ones(10)
+        with pytest.raises(ValueError, match="[Nn]aN|[Ff]inite|[Ii]nvalid"):
+            m.fit(X_nan, y)
