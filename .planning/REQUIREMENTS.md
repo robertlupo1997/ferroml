@@ -55,12 +55,12 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 - [x] **ROBU-01**: Unwrap/expect calls in fit/predict paths of SVM models replaced with proper error handling
 - [x] **ROBU-02**: Unwrap/expect calls in fit/predict paths of stats modules replaced with proper error handling
 - [x] **ROBU-03**: Unwrap/expect calls in fit/predict paths of boosting models replaced with proper error handling
-- [ ] **ROBU-04**: Unwrap/expect calls in fit/predict paths of linear models replaced with proper error handling
-- [ ] **ROBU-05**: Unwrap/expect calls in fit/predict paths of tree models replaced with proper error handling
-- [ ] **ROBU-06**: Unwrap/expect calls in fit/predict paths of preprocessing modules replaced with proper error handling
-- [ ] **ROBU-07**: Unwrap/expect calls in fit/predict paths of clustering models replaced with proper error handling
-- [ ] **ROBU-08**: Unwrap/expect calls in remaining modules triaged — safe ones documented, unsafe ones fixed
-- [ ] **ROBU-09**: clippy::unwrap_used lint enabled as warning in CI (not deny, to allow gradual cleanup)
+- [x] **ROBU-04**: Unwrap/expect calls in fit/predict paths of linear models replaced with proper error handling
+- [x] **ROBU-05**: Unwrap/expect calls in fit/predict paths of tree models replaced with proper error handling
+- [x] **ROBU-06**: Unwrap/expect calls in fit/predict paths of preprocessing modules replaced with proper error handling
+- [x] **ROBU-07**: Unwrap/expect calls in fit/predict paths of clustering models replaced with proper error handling
+- [x] **ROBU-08**: Unwrap/expect calls in remaining modules triaged — safe ones documented, unsafe ones fixed
+- [x] **ROBU-09**: clippy::unwrap_used lint enabled as warning in CI (not deny, to allow gradual cleanup)
 - [ ] **ROBU-10**: Error messages across all FerroError variants are actionable (what went wrong + what to do)
 - [ ] **ROBU-11**: Python exception mapping verified complete (FerroError variants → appropriate Python exceptions)
 - [ ] **ROBU-12**: Model serialization version checking verified on all load paths (is_compatible_with)
@@ -149,12 +149,12 @@ Deferred to future release. Tracked but not in current roadmap.
 | ROBU-01 | Phase 3 | Complete |
 | ROBU-02 | Phase 3 | Complete |
 | ROBU-03 | Phase 3 | Complete |
-| ROBU-04 | Phase 3 | Pending |
-| ROBU-05 | Phase 3 | Pending |
-| ROBU-06 | Phase 3 | Pending |
-| ROBU-07 | Phase 3 | Pending |
-| ROBU-08 | Phase 3 | Pending |
-| ROBU-09 | Phase 3 | Pending |
+| ROBU-04 | Phase 3 | Complete |
+| ROBU-05 | Phase 3 | Complete |
+| ROBU-06 | Phase 3 | Complete |
+| ROBU-07 | Phase 3 | Complete |
+| ROBU-08 | Phase 3 | Complete |
+| ROBU-09 | Phase 3 | Complete |
 | ROBU-10 | Phase 3 | Pending |
 | ROBU-11 | Phase 3 | Pending |
 | ROBU-12 | Phase 3 | Pending |

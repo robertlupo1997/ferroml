@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.4
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-22T00:23:00.000Z"
-last_activity: 2026-03-21 -- Completed 03-01 (SVM, boosting, stats unwrap audit)
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-22T00:57:00.000Z"
+last_activity: 2026-03-22 -- Completed 03-02 (Unwrap elimination in linear/tree/preprocessing/clustering + clippy lint)
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 9
-  completed_plans: 7
-  percent: 78
+  completed_plans: 8
+  percent: 89
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 3 of 5 (Robustness Hardening)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase (complete)
 Status: In Progress
-Last activity: 2026-03-21 -- Completed 03-01 (SVM, boosting, stats unwrap audit)
+Last activity: 2026-03-22 -- Completed 03-02 (Unwrap elimination in linear/tree/preprocessing/clustering + clippy lint)
 
-Progress: [██████░░░░] 33% of Phase 3
+Progress: [██████░░░░] 67% of Phase 3
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 61 min
-- Total execution time: 7.2 hours
+- Total plans completed: 8
+- Average duration: 68 min
+- Total execution time: 9.1 hours
 
 **By Phase:**
 
@@ -45,17 +45,18 @@ Progress: [██████░░░░] 33% of Phase 3
 |-------|-------|-------|----------|
 | 01 - Input Validation | 3/3 | 200 min | 67 min |
 | 02 - Correctness Fixes | 3/3 | 147 min | 49 min |
-| 03 - Robustness Hardening | 1/3 | 82 min | 82 min |
+| 03 - Robustness Hardening | 2/3 | 198 min | 99 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (30 min), 02-02 (42 min), 02-03 (75 min), 03-01 (82 min)
-- Trend: Stable
+- Last 5 plans: 02-02 (42 min), 02-03 (75 min), 03-01 (82 min), 03-02 (116 min)
+- Trend: Increasing (larger scope per plan)
 
 *Updated after each plan completion*
 | Phase 02 P01 | 30 | 2 tasks | 0 files |
 | Phase 02 P02 | 42 | 2 tasks | 7 files |
 | Phase 02 P03 | 75 | 2 tasks | 9 files |
 | Phase 03 P01 | 82 | 2 tasks | 4 files |
+| Phase 03 P02 | 116 | 2 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,9 @@ Recent decisions affecting current work:
 - [03-01]: Tier 1-2 unwraps replaced with ok_or_else even after check_is_fitted (defense-in-depth)
 - [03-01]: Tier 3 unwraps documented with SAFETY comments, not replaced (avoid unnecessary Result in private methods)
 - [03-01]: hypothesis.rs partial_cmp().unwrap() replaced with unwrap_or(Equal) for NaN safety
+- [03-02]: All modules get #[allow(clippy::unwrap_used)] since test code uses unwrap() extensively
+- [03-02]: Non-Result helper functions use expect() instead of ok_or_else/? since they can't propagate errors
+- [03-02]: from_shape_vec().unwrap() replaced with expect() + SAFETY comment (Tier 3)
 
 ### Pending Todos
 
@@ -94,11 +98,11 @@ None yet.
 ### Blockers/Concerns
 
 - ~~TemperatureScaling/IncrementalPCA root cause unknown~~ RESOLVED: fixed in b9879e0 (IncrementalPCA mean correction + SVC random_state)
-- Exact unwrap triage counts unknown -- Phase 3 scope depends on Tier 1-2 count from mechanical grep
+- ~~Exact unwrap triage counts unknown~~ RESOLVED: 149 unwraps fixed in Plan 02, lint enabled
 - ~~faer SVD sign conventions may differ from nalgebra~~ RESOLVED: svd_flip now applied inside both thin_svd_nalgebra and thin_svd_faer
 
 ## Session Continuity
 
-Last session: 2026-03-22T00:23:00.000Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-22T00:57:00.000Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
