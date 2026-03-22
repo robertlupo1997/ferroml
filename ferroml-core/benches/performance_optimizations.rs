@@ -440,6 +440,48 @@ fn bench_hist_gb_large_scale(c: &mut Criterion) {
     group.finish();
 }
 
+// =============================================================================
+// HistGBT Histogram Inner Loop Benchmarks
+// =============================================================================
+
+/// Benchmark HistGBT fit to measure histogram building performance.
+///
+/// The histogram inner loop uses column-major layout with 4-sample unrolling
+/// and bounds checks on bin indices. Bounds checks are NECESSARY because:
+///
+/// - BinMapper assigns `missing_bin = max_bins` for NaN values
+/// - `n_bins()` returns `actual_bins + 1` where `actual_bins <= max_bins - 1`
+/// - So NaN samples can produce bin index `max_bins` which exceeds histogram size
+/// - The `if bin < n_bins` guard prevents out-of-bounds access for NaN data
+///
+/// Without NaN data, all bin indices are in range `[0, actual_bins)`, but the
+/// histogram is sized to `actual_bins + 1` (includes missing bin slot).
+/// The bounds checks are effectively free for non-NaN data paths since the
+/// branch predictor will learn the pattern quickly.
+fn bench_histgbt_histogram_fit(c: &mut Criterion) {
+    let mut group = c.benchmark_group("HistGBT_Histogram");
+    group.sample_size(10);
+
+    for n_samples in [5000, 10000, 20000] {
+        let (x, y) = generate_regression_data(n_samples, 20);
+
+        group.bench_with_input(
+            BenchmarkId::new("fit", n_samples),
+            &(&x, &y),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut model = HistGradientBoostingRegressor::new()
+                        .with_max_iter(50)
+                        .with_max_leaf_nodes(Some(31))
+                        .with_random_state(42);
+                    model.fit(black_box(*x), black_box(*y)).unwrap()
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
 #[cfg(feature = "simd")]
 criterion_group!(
     benches,
@@ -452,6 +494,7 @@ criterion_group!(
     bench_simd_vector_operations,
     bench_random_forest_parallel_scaling,
     bench_hist_gb_large_scale,
+    bench_histgbt_histogram_fit,
 );
 
 #[cfg(not(feature = "simd"))]
@@ -465,6 +508,7 @@ criterion_group!(
     bench_decision_tree_prediction_scaling,
     bench_random_forest_parallel_scaling,
     bench_hist_gb_large_scale,
+    bench_histgbt_histogram_fit,
 );
 
 criterion_group!(

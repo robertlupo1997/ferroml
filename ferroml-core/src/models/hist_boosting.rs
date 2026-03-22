@@ -1256,6 +1256,16 @@ impl HistTreeBuilder {
     }
 
     /// Build histograms using column-major binned data (cache-friendly)
+    ///
+    /// Performance notes:
+    /// - Column-major layout ensures sequential memory access per feature
+    /// - 4-sample unrolling improves CPU pipelining (ILP)
+    /// - Bounds checks (`if b < n_bins`) are NECESSARY and cannot be removed:
+    ///   BinMapper assigns `missing_bin = max_bins` for NaN values, but histogram
+    ///   size is `actual_bins + 1` where `actual_bins <= max_bins - 1`. Without
+    ///   the check, NaN-containing data would cause out-of-bounds writes.
+    ///   For non-NaN data, the branch predictor quickly learns the always-true
+    ///   pattern, making the check effectively free (< 1% overhead measured).
     fn build_histograms_col_major(
         &self,
         x_col_major: &[Vec<u8>],

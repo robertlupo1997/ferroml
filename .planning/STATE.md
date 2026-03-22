@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Every model produces correct results with proper error handling -- no silent NaN propagation, no panics on edge cases, no known test failures.
-**Current focus:** Phase 3: Robustness Hardening
+**Current focus:** Phase 4: Performance Optimization
 
 ## Current Position
 
-Phase: 3 of 5 (Robustness Hardening)
-Plan: 3 of 3 in current phase (complete)
-Status: Phase Complete
-Last activity: 2026-03-22 -- Completed 03-03 (Python exception mapping + pickle roundtrip)
+Phase: 4 of 5 (Performance Optimization)
+Plan: 2 of 4 in current phase (executing)
+Status: In Progress
+Last activity: 2026-03-22 -- Completed 04-02 (SVC/LinearSVC benchmarks + KMeans audit)
 
-Progress: [██████████] 100% of Phase 3
+Progress: [█████░░░░░] 50% of Phase 4
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 11
 - Average duration: 65 min
 - Total execution time: 9.9 hours
 
@@ -95,6 +95,9 @@ Recent decisions affecting current work:
 - [03-03]: not_fitted_err returns RuntimeError (was ValueError) for consistency with ferro_to_pyerr
 - [03-03]: from_bytes() enforces major version compatibility check for pickle safety
 - [03-03]: Inline pickle methods (not impl_pickle! macro) due to PyO3 single-pymethods constraint
+- [04-02]: FULL_MATRIX_THRESHOLD stays at 2000 -- benchmark sweep confirms optimal crossover
+- [04-02]: f_i cache not implemented -- O(n*d) update cost equals current approach with shrinking
+- [04-02]: LinearSVC shrinking confirmed effective -- sub-linear scaling (5x samples -> 2.6x time)
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T01:49:00Z
-Stopped at: Completed 03-03-PLAN.md (Phase 3 complete)
+Last session: 2026-03-22T19:06:00Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None

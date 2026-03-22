@@ -35,18 +35,18 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 
 ### Performance
 
-- [ ] **PERF-01**: PCA uses faer thin SVD instead of nalgebra Jacobi SVD — target within 2x of sklearn
-- [ ] **PERF-02**: TruncatedSVD uses faer thin SVD — same optimization as PCA
-- [ ] **PERF-03**: LDA uses faer thin SVD — same optimization as PCA
-- [ ] **PERF-04**: FactorAnalysis uses faer thin SVD — same optimization as PCA
-- [ ] **PERF-05**: LinearSVC implements shrinking (active set management) — target within 2x of sklearn
-- [ ] **PERF-06**: LinearSVC implements f_i cache (cached predictions) — complement to shrinking
+- [x] **PERF-01**: PCA uses faer thin SVD instead of nalgebra Jacobi SVD — target within 2x of sklearn
+- [x] **PERF-02**: TruncatedSVD uses faer thin SVD — same optimization as PCA
+- [x] **PERF-03**: LDA uses faer thin SVD — same optimization as PCA
+- [x] **PERF-04**: FactorAnalysis uses faer thin SVD — same optimization as PCA
+- [x] **PERF-05**: LinearSVC implements shrinking (active set management) — target within 2x of sklearn
+- [x] **PERF-06**: LinearSVC implements f_i cache (cached predictions) — complement to shrinking
 - [ ] **PERF-07**: OLS uses Cholesky normal equations for n >> 2d (instead of MGS QR)
 - [ ] **PERF-08**: Ridge uses faer-backed Cholesky instead of hand-rolled
 - [ ] **PERF-09**: HistGBT histogram binning inner loop optimized (pre-allocated buffers, vectorized bin assignment)
-- [ ] **PERF-10**: SVC FULL_MATRIX_THRESHOLD tuned with benchmarks at n=1000,1500,2000,2500,3000
-- [ ] **PERF-11**: KMeans squared-distance optimization verified complete (Plan W)
-- [ ] **PERF-12**: Stability tests added BEFORE each solver swap (ill-conditioned matrix test suite)
+- [x] **PERF-10**: SVC FULL_MATRIX_THRESHOLD tuned with benchmarks at n=1000,1500,2000,2500,3000
+- [x] **PERF-11**: KMeans squared-distance optimization verified complete (Plan W)
+- [x] **PERF-12**: Stability tests added BEFORE each solver swap (ill-conditioned matrix test suite)
 - [ ] **PERF-13**: Cross-library performance benchmarks run after each optimization to catch regressions
 - [ ] **PERF-14**: Published benchmark comparison page (Criterion results formatted for public consumption)
 
@@ -132,18 +132,18 @@ Deferred to future release. Tracked but not in current roadmap.
 | CORR-08 | Phase 2 | Complete |
 | CORR-09 | Phase 2 | Complete |
 | CORR-10 | Phase 2 | Complete |
-| PERF-01 | Phase 4 | Pending |
-| PERF-02 | Phase 4 | Pending |
-| PERF-03 | Phase 4 | Pending |
-| PERF-04 | Phase 4 | Pending |
-| PERF-05 | Phase 4 | Pending |
-| PERF-06 | Phase 4 | Pending |
+| PERF-01 | Phase 4 | Complete |
+| PERF-02 | Phase 4 | Complete |
+| PERF-03 | Phase 4 | Complete |
+| PERF-04 | Phase 4 | Complete |
+| PERF-05 | Phase 4 | Complete |
+| PERF-06 | Phase 4 | Complete |
 | PERF-07 | Phase 4 | Pending |
 | PERF-08 | Phase 4 | Pending |
 | PERF-09 | Phase 4 | Pending |
-| PERF-10 | Phase 4 | Pending |
-| PERF-11 | Phase 4 | Pending |
-| PERF-12 | Phase 4 | Pending |
+| PERF-10 | Phase 4 | Complete |
+| PERF-11 | Phase 4 | Complete |
+| PERF-12 | Phase 4 | Complete |
 | PERF-13 | Phase 4 | Pending |
 | PERF-14 | Phase 4 | Pending |
 | ROBU-01 | Phase 3 | Complete |
