@@ -3563,4 +3563,95 @@ mod stability_tests {
         fa.fit(&x)
             .expect("FactorAnalysis fit should succeed on ill-conditioned data");
     }
+
+    // =========================================================================
+    // KMeans stability (2 tests) -- PERF-11 verification
+    // =========================================================================
+
+    #[test]
+    fn test_kmeans_near_collinear_features() {
+        use ferroml_core::clustering::{ClusteringModel, KMeans};
+
+        // Generate data with near-collinear features (condition number > 1e8)
+        let mut seed = 99901u64;
+        let n = 100;
+        let mut data = Vec::with_capacity(n * 5);
+        for _ in 0..n {
+            let a = lcg_rand(&mut seed) * 10.0;
+            let b = lcg_rand(&mut seed) * 10.0;
+            let noise = lcg_rand(&mut seed) * 1e-10;
+            // Features 3-5 are near-linear combinations of features 1-2
+            data.push(a);
+            data.push(b);
+            data.push(a + b + noise);
+            data.push(2.0 * a - b + noise);
+            data.push(a * 0.5 + b * 1.5 + noise);
+        }
+        let x = Array2::from_shape_vec((n, 5), data).expect("SAFETY: shape matches data length");
+
+        let mut kmeans = KMeans::new(3).random_state(42);
+        kmeans
+            .fit(&x)
+            .expect("KMeans should succeed with near-collinear features");
+
+        let labels = kmeans.labels().expect("Should have labels after fit");
+        assert_eq!(labels.len(), n);
+
+        // All labels should be valid cluster indices
+        for &label in labels.iter() {
+            assert!((0..3).contains(&label), "Invalid cluster label: {}", label);
+        }
+
+        // Inertia should be finite
+        let inertia = kmeans.inertia().expect("Should have inertia after fit");
+        assert!(inertia.is_finite(), "Inertia is not finite: {}", inertia);
+    }
+
+    #[test]
+    fn test_kmeans_very_close_centroids() {
+        use ferroml_core::clustering::{ClusteringModel, KMeans};
+
+        // Two clusters separated by only 1e-8
+        let n_per_cluster = 50;
+        let n = n_per_cluster * 2;
+        let mut data = Vec::with_capacity(n * 2);
+        let mut seed = 99902u64;
+
+        // Cluster 1 centered at (0, 0)
+        for _ in 0..n_per_cluster {
+            data.push(lcg_rand(&mut seed) * 1e-10);
+            data.push(lcg_rand(&mut seed) * 1e-10);
+        }
+        // Cluster 2 centered at (1e-8, 1e-8)
+        for _ in 0..n_per_cluster {
+            data.push(1e-8 + lcg_rand(&mut seed) * 1e-10);
+            data.push(1e-8 + lcg_rand(&mut seed) * 1e-10);
+        }
+
+        let x = Array2::from_shape_vec((n, 2), data).expect("SAFETY: shape matches data length");
+
+        let mut kmeans = KMeans::new(2).random_state(42);
+        kmeans
+            .fit(&x)
+            .expect("KMeans should converge with very close centroids");
+
+        let labels = kmeans.labels().expect("Should have labels after fit");
+        assert_eq!(labels.len(), n);
+
+        // Inertia must be finite (not NaN or Inf)
+        let inertia = kmeans.inertia().expect("Should have inertia after fit");
+        assert!(
+            inertia.is_finite(),
+            "Inertia is NaN or Inf with very close centroids: {}",
+            inertia
+        );
+
+        // Centers should be finite
+        let centers = kmeans
+            .cluster_centers()
+            .expect("Should have centers after fit");
+        for &v in centers.iter() {
+            assert!(v.is_finite(), "Center contains non-finite value: {}", v);
+        }
+    }
 }
