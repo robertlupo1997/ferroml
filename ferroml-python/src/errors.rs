@@ -3,28 +3,77 @@
 //! These helpers reduce boilerplate when converting `FerroError` (and other
 //! `Display`-implementing errors) into `PyErr` for return to Python.
 //!
-//! ## Background
+//! ## Error Mapping
 //!
-//! The canonical solution would be `impl From<FerroError> for PyErr`, but that
-//! requires either adding a PyO3 dependency to `ferroml-core` or using a
-//! newtype wrapper. Both introduce undesirable coupling. Instead, we provide
-//! two small helpers that replace the most common error-conversion patterns:
+//! FerroError variants are mapped to semantically correct Python exceptions:
 //!
-//! - `to_py_runtime_err` -- replaces 237 occurrences of
-//!   `.map_err(|e| PyErr::new::<PyRuntimeError, _>(e.to_string()))`
-//! - `not_fitted_err` -- replaces ~100 occurrences of
-//!   `PyErr::new::<PyValueError, _>("... not fitted. Call fit() first.")`
+//! | FerroError variant       | Python exception       |
+//! |--------------------------|------------------------|
+//! | InvalidInput             | ValueError             |
+//! | ShapeMismatch            | ValueError             |
+//! | ConfigError              | ValueError             |
+//! | NotFitted                | RuntimeError           |
+//! | NumericalError           | RuntimeError           |
+//! | ConvergenceFailure       | RuntimeError           |
+//! | AssumptionViolation      | RuntimeError           |
+//! | NotImplemented           | NotImplementedError    |
+//! | NotImplementedFor        | NotImplementedError    |
+//! | SerializationError       | RuntimeError           |
+//! | CrossValidation          | RuntimeError           |
+//! | InferenceError           | RuntimeError           |
+//! | IoError                  | OSError                |
+//! | Timeout                  | TimeoutError           |
+//! | ResourceExhausted        | RuntimeError           |
 
+use ferroml_core::FerroError;
 use pyo3::prelude::*;
+
+/// Convert a `FerroError` into a semantically correct Python exception.
+///
+/// This maps each FerroError variant to the most appropriate Python
+/// exception type, enabling users to catch specific exception types:
+///
+/// ```python
+/// try:
+///     model.predict(X_wrong_shape)
+/// except ValueError:
+///     print("Bad input!")
+/// ```
+#[inline]
+pub fn ferro_to_pyerr(e: FerroError) -> PyErr {
+    match &e {
+        FerroError::InvalidInput(_)
+        | FerroError::ShapeMismatch { .. }
+        | FerroError::ConfigError(_) => {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string())
+        }
+        FerroError::NotFitted { .. } => {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
+        }
+        FerroError::NumericalError(_)
+        | FerroError::ConvergenceFailure { .. }
+        | FerroError::AssumptionViolation { .. }
+        | FerroError::SerializationError(_)
+        | FerroError::CrossValidation(_)
+        | FerroError::InferenceError(_)
+        | FerroError::ResourceExhausted { .. } => {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
+        }
+        FerroError::NotImplemented(_) | FerroError::NotImplementedFor { .. } => {
+            PyErr::new::<pyo3::exceptions::PyNotImplementedError, _>(e.to_string())
+        }
+        FerroError::IoError(_) => PyErr::new::<pyo3::exceptions::PyOSError, _>(e.to_string()),
+        FerroError::Timeout { .. } => {
+            PyErr::new::<pyo3::exceptions::PyTimeoutError, _>(e.to_string())
+        }
+    }
+}
 
 /// Convert any `Display`-implementing error into a `PyRuntimeError`.
 ///
-/// Use with `.map_err(to_py_runtime_err)` on `Result` chains. This replaces
-/// the repeated pattern:
-///
-/// ```ignore
-/// .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
-/// ```
+/// **Deprecated:** Prefer `ferro_to_pyerr` for `FerroError` values, which maps
+/// to semantically correct Python exceptions. This function is retained for
+/// non-FerroError error types (e.g., serde errors, string errors).
 #[inline]
 pub fn to_py_runtime_err(e: impl std::fmt::Display) -> PyErr {
     PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
@@ -40,7 +89,7 @@ pub fn to_py_runtime_err(e: impl std::fmt::Display) -> PyErr {
 /// ```
 #[inline]
 pub fn not_fitted_err(entity: &str) -> PyErr {
-    PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
         "{} not fitted. Call fit() first.",
         entity
     ))

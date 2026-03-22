@@ -67,7 +67,7 @@ fn train_test_split(
         }
         let folds = cv
             .split(n_samples, Some(&strat_arr), None)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         // Use the first fold (test set is approximately test_size)
         folds.into_iter().next().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err("Failed to generate stratified split")
@@ -80,7 +80,7 @@ fn train_test_split(
         }
         let folds = cv
             .split(n_samples, None, None)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         folds
             .into_iter()
             .next()

@@ -106,7 +106,7 @@ impl PyExtraTreesClassifier {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -120,7 +120,7 @@ impl PyExtraTreesClassifier {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -171,7 +171,7 @@ impl PyExtraTreesClassifier {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -207,7 +207,7 @@ impl PyExtraTreesClassifier {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -225,7 +225,7 @@ impl PyExtraTreesClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Compute the decision function (raw scores).
@@ -239,7 +239,7 @@ impl PyExtraTreesClassifier {
         let result = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -313,7 +313,7 @@ impl PyExtraTreesRegressor {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -327,7 +327,7 @@ impl PyExtraTreesRegressor {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -378,7 +378,7 @@ impl PyExtraTreesRegressor {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -414,7 +414,7 @@ impl PyExtraTreesRegressor {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -432,7 +432,7 @@ impl PyExtraTreesRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     fn __repr__(&self) -> String {
@@ -502,7 +502,7 @@ impl PyAdaBoostClassifier {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -516,7 +516,7 @@ impl PyAdaBoostClassifier {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -558,7 +558,7 @@ impl PyAdaBoostClassifier {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -594,7 +594,7 @@ impl PyAdaBoostClassifier {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -612,7 +612,7 @@ impl PyAdaBoostClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Compute the decision function (raw scores).
@@ -626,7 +626,7 @@ impl PyAdaBoostClassifier {
         let result = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -713,7 +713,7 @@ impl PyAdaBoostRegressor {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -727,7 +727,7 @@ impl PyAdaBoostRegressor {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -769,7 +769,7 @@ impl PyAdaBoostRegressor {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -805,7 +805,7 @@ impl PyAdaBoostRegressor {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -823,7 +823,7 @@ impl PyAdaBoostRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     fn __repr__(&self) -> String {
@@ -936,7 +936,7 @@ impl PySGDClassifier {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -950,7 +950,7 @@ impl PySGDClassifier {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1006,7 +1006,7 @@ impl PySGDClassifier {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -1042,7 +1042,7 @@ impl PySGDClassifier {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -1060,7 +1060,7 @@ impl PySGDClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Incremental fit on a batch of samples.
@@ -1091,7 +1091,7 @@ impl PySGDClassifier {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .partial_fit_with_classes(&x_arr, &y_arr, classes.as_deref())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1106,7 +1106,7 @@ impl PySGDClassifier {
         let result = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1197,7 +1197,7 @@ impl PySGDRegressor {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1211,7 +1211,7 @@ impl PySGDRegressor {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1283,7 +1283,7 @@ impl PySGDRegressor {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -1319,7 +1319,7 @@ impl PySGDRegressor {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -1337,7 +1337,7 @@ impl PySGDRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Incremental fit on a batch of samples.
@@ -1364,7 +1364,7 @@ impl PySGDRegressor {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .partial_fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1428,7 +1428,7 @@ impl PyPassiveAggressiveClassifier {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1442,7 +1442,7 @@ impl PyPassiveAggressiveClassifier {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1484,7 +1484,7 @@ impl PyPassiveAggressiveClassifier {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -1520,7 +1520,7 @@ impl PyPassiveAggressiveClassifier {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -1538,7 +1538,7 @@ impl PyPassiveAggressiveClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Incremental fit on a batch of samples.
@@ -1569,7 +1569,7 @@ impl PyPassiveAggressiveClassifier {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .partial_fit_with_classes(&x_arr, &y_arr, classes.as_deref())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1584,7 +1584,7 @@ impl PyPassiveAggressiveClassifier {
         let result = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2190,7 +2190,7 @@ impl PyBaggingClassifier {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -2215,7 +2215,7 @@ impl PyBaggingClassifier {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2240,7 +2240,7 @@ impl PyBaggingClassifier {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(probas.into_pyarray(py))
     }
 
@@ -2265,7 +2265,7 @@ impl PyBaggingClassifier {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
@@ -2319,7 +2319,7 @@ impl PyBaggingClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     fn __repr__(&self) -> String {
@@ -2984,7 +2984,7 @@ impl PyBaggingRegressor {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -3009,7 +3009,7 @@ impl PyBaggingRegressor {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3063,7 +3063,7 @@ impl PyBaggingRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     fn __repr__(&self) -> String {
@@ -3306,7 +3306,7 @@ impl PyVotingClassifier {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -3321,7 +3321,7 @@ impl PyVotingClassifier {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3341,7 +3341,7 @@ impl PyVotingClassifier {
         let result = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3371,7 +3371,7 @@ impl PyVotingClassifier {
         let result = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
@@ -3405,7 +3405,7 @@ impl PyVotingClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     fn __repr__(&self) -> String {
@@ -3477,7 +3477,7 @@ impl PyVotingRegressor {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -3492,7 +3492,7 @@ impl PyVotingRegressor {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3520,7 +3520,7 @@ impl PyVotingRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     fn __repr__(&self) -> String {
@@ -3626,7 +3626,7 @@ impl PyStackingClassifier {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -3641,7 +3641,7 @@ impl PyStackingClassifier {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3656,7 +3656,7 @@ impl PyStackingClassifier {
         let result = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3681,7 +3681,7 @@ impl PyStackingClassifier {
         let result = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
@@ -3724,7 +3724,7 @@ impl PyStackingClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     fn __repr__(&self) -> String {
@@ -3818,7 +3818,7 @@ impl PyStackingRegressor {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -3833,7 +3833,7 @@ impl PyStackingRegressor {
         let result = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3867,7 +3867,7 @@ impl PyStackingRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     fn __repr__(&self) -> String {

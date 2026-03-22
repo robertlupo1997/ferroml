@@ -780,7 +780,7 @@ impl PyAutoMLResult {
         let predictions = self
             .inner
             .predict(&x_train_arr, &y_train_arr, &x_test_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(numpy::PyArray1::from_vec(py, predictions.to_vec()))
     }
@@ -1013,7 +1013,7 @@ impl PyAutoML {
 
         let result = automl
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(PyAutoMLResult { inner: result })
     }

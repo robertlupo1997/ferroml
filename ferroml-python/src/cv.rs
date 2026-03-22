@@ -76,7 +76,7 @@ impl PyKFold {
 
         let folds = cv
             .split(n_samples, None, None)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         let _ = y; // consumed for API compatibility
         folds_to_py_list(py, &folds)
@@ -166,7 +166,7 @@ impl PyStratifiedKFold {
 
         let folds = cv
             .split(n_samples, Some(&y_arr), None)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         folds_to_py_list(py, &folds)
     }
@@ -239,7 +239,7 @@ impl PyTimeSeriesSplit {
 
         let folds = cv
             .split(n_samples, None, None)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         folds_to_py_list(py, &folds)
     }
@@ -301,7 +301,7 @@ impl PyLeaveOneOut {
 
         let folds = cv
             .split(n_samples, None, None)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         folds_to_py_list(py, &folds)
     }
@@ -367,7 +367,7 @@ impl PyRepeatedKFold {
         let _ = y;
         let folds = cv
             .split(n_samples, None, None)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         folds_to_py_list(py, &folds)
     }
 
@@ -448,7 +448,7 @@ impl PyShuffleSplit {
         let _ = y;
         let folds = cv
             .split(n_samples, None, None)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         folds_to_py_list(py, &folds)
     }
 
@@ -522,7 +522,7 @@ impl PyGroupKFold {
 
         let folds = cv
             .split(n_samples, None, Some(&groups_arr))
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         folds_to_py_list(py, &folds)
     }
 
@@ -574,7 +574,7 @@ impl PyLeavePOut {
         let _ = y;
         let folds = cv
             .split(n_samples, None, None)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         folds_to_py_list(py, &folds)
     }
 
@@ -640,7 +640,7 @@ fn cross_val_score<'py>(
     let kfold = KFold::new(cv);
     let folds = kfold
         .split(n_samples, None, None)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
 
     let mut scores = Vec::with_capacity(folds.len());
 

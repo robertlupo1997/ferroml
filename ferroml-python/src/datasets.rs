@@ -156,8 +156,8 @@ impl PyDataset {
         let x_array = to_owned_array_2d(x);
         let y_array = to_owned_array_1d(y);
 
-        let dataset = RustDataset::try_new(x_array, y_array)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        let dataset =
+            RustDataset::try_new(x_array, y_array).map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(Self { inner: dataset })
     }
@@ -332,7 +332,7 @@ impl PyDataset {
         let (train, test) = self
             .inner
             .train_test_split(test_size, shuffle, random_state)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok((PyDataset { inner: train }, PyDataset { inner: test }))
     }

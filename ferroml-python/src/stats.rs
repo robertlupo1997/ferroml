@@ -62,9 +62,7 @@ fn ttest_ind(
     let y_arr = to_array1(y);
 
     let test = TwoSampleTest::t_test(x_arr, y_arr, equal_var);
-    let result = test
-        .test()
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result = test.test().map_err(crate::errors::ferro_to_pyerr)?;
 
     statistical_result_to_dict(py, &result)
 }
@@ -95,9 +93,7 @@ fn welch_ttest(
     let y_arr = to_array1(y);
 
     let test = TwoSampleTest::welch(x_arr, y_arr);
-    let result = test
-        .test()
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result = test.test().map_err(crate::errors::ferro_to_pyerr)?;
 
     statistical_result_to_dict(py, &result)
 }
@@ -126,9 +122,7 @@ fn mann_whitney(
     let y_arr = to_array1(y);
 
     let test = TwoSampleTest::mann_whitney(x_arr, y_arr);
-    let result = test
-        .test()
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result = test.test().map_err(crate::errors::ferro_to_pyerr)?;
 
     statistical_result_to_dict(py, &result)
 }
@@ -161,9 +155,7 @@ fn cohens_d(
     let y_arr = to_array1(y);
 
     let calc = CohensD::new(x_arr, y_arr);
-    let result = calc
-        .compute()
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result = calc.compute().map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     dict.set_item("d", result.value)?;
@@ -199,9 +191,7 @@ fn hedges_g(
     let y_arr = to_array1(y);
 
     let calc = HedgesG::new(x_arr, y_arr);
-    let result = calc
-        .compute()
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result = calc.compute().map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     dict.set_item("g", result.value)?;
@@ -255,7 +245,7 @@ fn confidence_interval(
     };
 
     let result = stats::confidence::confidence_interval(&data_arr, level, ci_method)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     dict.set_item("lower", result.lower)?;
@@ -309,7 +299,7 @@ fn bootstrap_ci(
 
     let result = bootstrap
         .mean(&data_arr)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     dict.set_item("estimate", result.original)?;
@@ -475,8 +465,8 @@ fn durbin_watson(residuals: PyReadonlyArray1<f64>) -> PyResult<f64> {
 #[pyo3(signature = (data,))]
 fn descriptive_stats(py: Python<'_>, data: PyReadonlyArray1<f64>) -> PyResult<PyObject> {
     let data_arr = to_array1(data);
-    let result = stats::DescriptiveStats::compute(&data_arr)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result =
+        stats::DescriptiveStats::compute(&data_arr).map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     dict.set_item("n", result.n)?;
@@ -511,7 +501,7 @@ fn normality_test(py: Python<'_>, data: PyReadonlyArray1<f64>) -> PyResult<PyObj
     let data_arr = to_array1(data);
     let result = ShapiroWilkTest
         .test(&data_arr)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     dict.set_item("statistic", result.statistic)?;
@@ -552,8 +542,8 @@ fn correlation(
     let x_arr = to_array1(x);
     let y_arr = to_array1(y);
 
-    let result = stats::correlation(&x_arr, &y_arr, confidence)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result =
+        stats::correlation(&x_arr, &y_arr, confidence).map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     dict.set_item("r", result.r)?;

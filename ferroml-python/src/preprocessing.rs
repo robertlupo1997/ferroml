@@ -118,7 +118,7 @@ impl PyStandardScaler {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -143,7 +143,7 @@ impl PyStandardScaler {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -168,7 +168,7 @@ impl PyStandardScaler {
         let result = slf
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -193,7 +193,7 @@ impl PyStandardScaler {
         let result = self
             .inner
             .inverse_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -263,7 +263,7 @@ impl PyStandardScaler {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -299,7 +299,7 @@ impl PyStandardScaler {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -366,7 +366,7 @@ impl PyMinMaxScaler {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -381,7 +381,7 @@ impl PyMinMaxScaler {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -396,7 +396,7 @@ impl PyMinMaxScaler {
         let result = slf
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -411,7 +411,7 @@ impl PyMinMaxScaler {
         let result = self
             .inner
             .inverse_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -489,7 +489,7 @@ impl PyMinMaxScaler {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -525,7 +525,7 @@ impl PyMinMaxScaler {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -598,7 +598,7 @@ impl PyRobustScaler {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -613,7 +613,7 @@ impl PyRobustScaler {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -628,7 +628,7 @@ impl PyRobustScaler {
         let result = slf
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -643,7 +643,7 @@ impl PyRobustScaler {
         let result = self
             .inner
             .inverse_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -712,7 +712,7 @@ impl PyRobustScaler {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -748,7 +748,7 @@ impl PyRobustScaler {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -802,7 +802,7 @@ impl PyMaxAbsScaler {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -817,7 +817,7 @@ impl PyMaxAbsScaler {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -832,7 +832,7 @@ impl PyMaxAbsScaler {
         let result = slf
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -847,7 +847,7 @@ impl PyMaxAbsScaler {
         let result = self
             .inner
             .inverse_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -907,7 +907,7 @@ impl PyMaxAbsScaler {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -943,7 +943,7 @@ impl PyMaxAbsScaler {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -1025,7 +1025,7 @@ impl PyOneHotEncoder {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1040,7 +1040,7 @@ impl PyOneHotEncoder {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1055,7 +1055,7 @@ impl PyOneHotEncoder {
         let result = slf
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1070,7 +1070,7 @@ impl PyOneHotEncoder {
         let result = self
             .inner
             .inverse_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1159,7 +1159,7 @@ impl PyOrdinalEncoder {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1174,7 +1174,7 @@ impl PyOrdinalEncoder {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1189,7 +1189,7 @@ impl PyOrdinalEncoder {
         let result = slf
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1204,7 +1204,7 @@ impl PyOrdinalEncoder {
         let result = self
             .inner
             .inverse_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1290,7 +1290,7 @@ impl PyLabelEncoder {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit_1d(&y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1315,7 +1315,7 @@ impl PyLabelEncoder {
         let result = self
             .inner
             .transform_1d(&y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1330,7 +1330,7 @@ impl PyLabelEncoder {
         let result = slf
             .inner
             .fit_transform_1d(&y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1345,7 +1345,7 @@ impl PyLabelEncoder {
         let result = self
             .inner
             .inverse_transform_1d(&y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1455,7 +1455,7 @@ impl PySimpleImputer {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1469,7 +1469,7 @@ impl PySimpleImputer {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1483,7 +1483,7 @@ impl PySimpleImputer {
         let result = slf
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1582,7 +1582,7 @@ impl PyPowerTransformer {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1596,7 +1596,7 @@ impl PyPowerTransformer {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1610,7 +1610,7 @@ impl PyPowerTransformer {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1624,7 +1624,7 @@ impl PyPowerTransformer {
         let result = self
             .inner
             .inverse_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1691,7 +1691,7 @@ impl PyQuantileTransformer {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1705,7 +1705,7 @@ impl PyQuantileTransformer {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1719,7 +1719,7 @@ impl PyQuantileTransformer {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1733,7 +1733,7 @@ impl PyQuantileTransformer {
         let result = self
             .inner
             .inverse_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1787,7 +1787,7 @@ impl PyPolynomialFeatures {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1801,7 +1801,7 @@ impl PyPolynomialFeatures {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1815,7 +1815,7 @@ impl PyPolynomialFeatures {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1898,7 +1898,7 @@ impl PyKBinsDiscretizer {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1912,7 +1912,7 @@ impl PyKBinsDiscretizer {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1926,7 +1926,7 @@ impl PyKBinsDiscretizer {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1977,7 +1977,7 @@ impl PyVarianceThreshold {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -1991,7 +1991,7 @@ impl PyVarianceThreshold {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2005,7 +2005,7 @@ impl PyVarianceThreshold {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2075,7 +2075,7 @@ impl PySelectKBest {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit_with_target(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -2089,7 +2089,7 @@ impl PySelectKBest {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2165,7 +2165,7 @@ impl PyKNNImputer {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -2178,7 +2178,7 @@ impl PyKNNImputer {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2191,7 +2191,7 @@ impl PyKNNImputer {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2252,7 +2252,7 @@ impl PyTargetEncoder {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit_with_target(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -2266,7 +2266,7 @@ impl PyTargetEncoder {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2357,7 +2357,7 @@ impl PySelectFromModel {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -2372,7 +2372,7 @@ impl PySelectFromModel {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2387,7 +2387,7 @@ impl PySelectFromModel {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -2486,7 +2486,7 @@ impl PySMOTE {
         let (x_res, y_res) = self
             .inner
             .fit_resample(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok((x_res.into_pyarray(py), y_res.into_pyarray(py)))
     }
 
@@ -2570,7 +2570,7 @@ impl PyADASYN {
         let (x_res, y_res) = self
             .inner
             .fit_resample(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok((x_res.into_pyarray(py), y_res.into_pyarray(py)))
     }
 
@@ -2648,7 +2648,7 @@ impl PyRandomUnderSampler {
         let (x_res, y_res) = self
             .inner
             .fit_resample(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok((x_res.into_pyarray(py), y_res.into_pyarray(py)))
     }
 
@@ -2729,7 +2729,7 @@ impl PyRandomOverSampler {
         let (x_res, y_res) = self
             .inner
             .fit_resample(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok((x_res.into_pyarray(py), y_res.into_pyarray(py)))
     }
 
@@ -3377,7 +3377,7 @@ impl PyRFE {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit_with_target(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -3402,7 +3402,7 @@ impl PyRFE {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3431,11 +3431,11 @@ impl PyRFE {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .fit_with_target(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3607,7 +3607,7 @@ impl PyTfidfTransformer {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -3632,7 +3632,7 @@ impl PyTfidfTransformer {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3657,7 +3657,7 @@ impl PyTfidfTransformer {
         let result = slf
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3691,7 +3691,7 @@ impl PyTfidfTransformer {
         let csr = py_csr_to_ferro(x)?;
         slf.inner
             .fit_sparse(&csr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -3716,7 +3716,7 @@ impl PyTfidfTransformer {
         let result = self
             .inner
             .transform_sparse(&csr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3740,11 +3740,11 @@ impl PyTfidfTransformer {
         let csr = py_csr_to_ferro(x)?;
         slf.inner
             .fit_sparse(&csr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         let result = slf
             .inner
             .transform_sparse(&csr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3845,7 +3845,7 @@ impl PyCountVectorizer {
         use ferroml_core::preprocessing::count_vectorizer::TextTransformer;
         slf.inner
             .fit_text(&documents)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -3868,7 +3868,7 @@ impl PyCountVectorizer {
         let result = self
             .inner
             .transform_text_dense(&documents)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -3891,7 +3891,7 @@ impl PyCountVectorizer {
         let result = slf
             .inner
             .fit_transform_text_dense(&documents)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -4048,7 +4048,7 @@ impl PyTfidfVectorizer {
         use ferroml_core::preprocessing::count_vectorizer::TextTransformer;
         slf.inner
             .fit_text(&documents)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -4069,7 +4069,7 @@ impl PyTfidfVectorizer {
         let csr = self
             .inner
             .transform_text(&documents)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         crate::sparse_utils::ferro_csr_to_py(&csr, py)
     }
 
@@ -4093,11 +4093,11 @@ impl PyTfidfVectorizer {
         use ferroml_core::preprocessing::count_vectorizer::TextTransformer;
         slf.inner
             .fit_text(&documents)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         let csr = slf
             .inner
             .transform_text(&documents)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         crate::sparse_utils::ferro_csr_to_py(&csr, py)
     }
 
@@ -4120,7 +4120,7 @@ impl PyTfidfVectorizer {
         let result = self
             .inner
             .transform_text_dense(&documents)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -4215,7 +4215,7 @@ impl PyNormalizer {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -4229,7 +4229,7 @@ impl PyNormalizer {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -4243,7 +4243,7 @@ impl PyNormalizer {
         let result = slf
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 

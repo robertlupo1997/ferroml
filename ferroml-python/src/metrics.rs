@@ -57,8 +57,7 @@ fn parse_average(average: &str) -> PyResult<Average> {
 fn accuracy_score(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    classification::accuracy(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    classification::accuracy(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute precision score.
@@ -86,8 +85,7 @@ fn precision_score(
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
     let avg = parse_average(average)?;
-    classification::precision(&yt, &yp, avg)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    classification::precision(&yt, &yp, avg).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute recall score.
@@ -115,8 +113,7 @@ fn recall_score(
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
     let avg = parse_average(average)?;
-    classification::recall(&yt, &yp, avg)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    classification::recall(&yt, &yp, avg).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute F1 score.
@@ -144,8 +141,7 @@ fn f1_score(
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
     let avg = parse_average(average)?;
-    classification::f1_score(&yt, &yp, avg)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    classification::f1_score(&yt, &yp, avg).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Matthews Correlation Coefficient.
@@ -169,8 +165,7 @@ fn matthews_corrcoef(
 ) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    classification::matthews_corrcoef(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    classification::matthews_corrcoef(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Cohen's Kappa coefficient.
@@ -194,8 +189,7 @@ fn cohen_kappa_score(
 ) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    classification::cohen_kappa_score(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    classification::cohen_kappa_score(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute balanced accuracy score.
@@ -219,8 +213,7 @@ fn balanced_accuracy_score(
 ) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    classification::balanced_accuracy(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    classification::balanced_accuracy(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute confusion matrix.
@@ -246,8 +239,7 @@ fn confusion_matrix(
 ) -> PyResult<PyObject> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    let cm = ConfusionMatrix::compute(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let cm = ConfusionMatrix::compute(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)?;
     // Convert usize matrix to f64 for numpy compatibility
     let f64_matrix = cm.matrix.mapv(|v| v as f64);
     Ok(f64_matrix.into_pyarray(py).into())
@@ -276,8 +268,7 @@ fn classification_report(
 ) -> PyResult<PyObject> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    let report = ClassificationReport::compute(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let report = ClassificationReport::compute(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     dict.set_item("accuracy", report.accuracy)?;
@@ -327,7 +318,7 @@ fn classification_report(
 fn mse(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    regression::mse(&yt, &yp).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    regression::mse(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Root Mean Squared Error.
@@ -336,7 +327,7 @@ fn mse(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResult
 fn rmse(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    regression::rmse(&yt, &yp).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    regression::rmse(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Mean Absolute Error.
@@ -345,7 +336,7 @@ fn rmse(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResul
 fn mae(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    regression::mae(&yt, &yp).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    regression::mae(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute R² (coefficient of determination).
@@ -366,8 +357,7 @@ fn mae(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResult
 fn r2_score(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    regression::r2_score(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    regression::r2_score(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Explained Variance Score.
@@ -379,8 +369,7 @@ fn explained_variance(
 ) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    regression::explained_variance(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    regression::explained_variance(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Maximum Error.
@@ -389,8 +378,7 @@ fn explained_variance(
 fn max_error(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    metrics::regression::max_error(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    metrics::regression::max_error(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Mean Absolute Percentage Error.
@@ -401,7 +389,7 @@ fn max_error(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> Py
 fn mape(y_true: PyReadonlyArray1<f64>, y_pred: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    regression::mape(&yt, &yp).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    regression::mape(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Median Absolute Error.
@@ -413,8 +401,7 @@ fn median_absolute_error(
 ) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
-    regression::median_absolute_error(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    regression::median_absolute_error(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 // =============================================================================
@@ -439,8 +426,7 @@ fn median_absolute_error(
 fn roc_auc_score(y_true: PyReadonlyArray1<f64>, y_score: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let ys = to_array1(y_score);
-    probabilistic::roc_auc_score(&yt, &ys)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    probabilistic::roc_auc_score(&yt, &ys).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Precision-Recall AUC score.
@@ -449,8 +435,7 @@ fn roc_auc_score(y_true: PyReadonlyArray1<f64>, y_score: PyReadonlyArray1<f64>) 
 fn pr_auc_score(y_true: PyReadonlyArray1<f64>, y_score: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let ys = to_array1(y_score);
-    probabilistic::pr_auc_score(&yt, &ys)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    probabilistic::pr_auc_score(&yt, &ys).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Average Precision score.
@@ -462,8 +447,7 @@ fn average_precision_score(
 ) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let ys = to_array1(y_score);
-    probabilistic::average_precision_score(&yt, &ys)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    probabilistic::average_precision_score(&yt, &ys).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Log Loss (Binary Cross-Entropy).
@@ -490,8 +474,7 @@ fn log_loss(
 ) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_prob);
-    probabilistic::log_loss(&yt, &yp, eps)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    probabilistic::log_loss(&yt, &yp, eps).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Brier Score.
@@ -512,8 +495,7 @@ fn log_loss(
 fn brier_score(y_true: PyReadonlyArray1<f64>, y_prob: PyReadonlyArray1<f64>) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_prob);
-    probabilistic::brier_score(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    probabilistic::brier_score(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Brier Skill Score.
@@ -525,8 +507,7 @@ fn brier_skill_score(
 ) -> PyResult<f64> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_prob);
-    probabilistic::brier_skill_score(&yt, &yp)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    probabilistic::brier_skill_score(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)
 }
 
 // =============================================================================
@@ -555,8 +536,8 @@ fn roc_curve(
 ) -> PyResult<PyObject> {
     let yt = to_array1(y_true);
     let ys = to_array1(y_score);
-    let curve = probabilistic::RocCurve::compute(&yt, &ys)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let curve =
+        probabilistic::RocCurve::compute(&yt, &ys).map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     let fpr_arr = ndarray::Array1::from_vec(curve.fpr);
@@ -592,8 +573,7 @@ fn precision_recall_curve(
 ) -> PyResult<PyObject> {
     let yt = to_array1(y_true);
     let ys = to_array1(y_score);
-    let curve = probabilistic::PrCurve::compute(&yt, &ys)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let curve = probabilistic::PrCurve::compute(&yt, &ys).map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     let prec_arr = ndarray::Array1::from_vec(curve.precision);
@@ -655,8 +635,7 @@ fn paired_ttest(
 ) -> PyResult<PyObject> {
     let s1 = to_array1(scores1);
     let s2 = to_array1(scores2);
-    let result = comparison::paired_ttest(&s1, &s2)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result = comparison::paired_ttest(&s1, &s2).map_err(crate::errors::ferro_to_pyerr)?;
     comparison_result_to_dict(py, &result)
 }
 
@@ -691,7 +670,7 @@ fn corrected_resampled_ttest(
     let s1 = to_array1(scores1);
     let s2 = to_array1(scores2);
     let result = comparison::corrected_resampled_ttest(&s1, &s2, n_train, n_test)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     comparison_result_to_dict(py, &result)
 }
 
@@ -721,8 +700,7 @@ fn mcnemar_test(
     let yt = to_array1(y_true);
     let p1 = to_array1(pred1);
     let p2 = to_array1(pred2);
-    let result = comparison::mcnemar_test(&yt, &p1, &p2)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result = comparison::mcnemar_test(&yt, &p1, &p2).map_err(crate::errors::ferro_to_pyerr)?;
     comparison_result_to_dict(py, &result)
 }
 
@@ -750,8 +728,8 @@ fn wilcoxon_test(
 ) -> PyResult<PyObject> {
     let s1 = to_array1(scores1);
     let s2 = to_array1(scores2);
-    let result = comparison::wilcoxon_signed_rank_test(&s1, &s2)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let result =
+        comparison::wilcoxon_signed_rank_test(&s1, &s2).map_err(crate::errors::ferro_to_pyerr)?;
     comparison_result_to_dict(py, &result)
 }
 

@@ -107,7 +107,7 @@ impl PyLinearSVC {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -134,7 +134,7 @@ impl PyLinearSVC {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -150,7 +150,7 @@ impl PyLinearSVC {
         let result = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -167,7 +167,7 @@ impl PyLinearSVC {
 
         slf.inner
             .fit_sparse(&csr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -184,7 +184,7 @@ impl PyLinearSVC {
         let predictions = self
             .inner
             .predict_sparse(&csr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -218,7 +218,7 @@ impl PyLinearSVC {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -254,7 +254,7 @@ impl PyLinearSVC {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -272,7 +272,19 @@ impl PyLinearSVC {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<pyo3::types::PyBytes>> {
+        crate::pickle::getstate(py, &(&self.inner, &self.loss))
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> PyResult<()> {
+        let (inner, loss): (LinearSVC, String) = crate::pickle::setstate(state.as_bytes())?;
+        self.inner = inner;
+        self.loss = loss;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {
@@ -361,7 +373,7 @@ impl PyLinearSVR {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -388,7 +400,7 @@ impl PyLinearSVR {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -404,7 +416,7 @@ impl PyLinearSVR {
         let result = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -440,7 +452,7 @@ impl PyLinearSVR {
 
         slf.inner
             .fit_sparse(&csr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -457,7 +469,7 @@ impl PyLinearSVR {
         let predictions = self
             .inner
             .predict_sparse(&csr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -491,7 +503,7 @@ impl PyLinearSVR {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -527,7 +539,7 @@ impl PyLinearSVR {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -545,7 +557,19 @@ impl PyLinearSVR {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<pyo3::types::PyBytes>> {
+        crate::pickle::getstate(py, &(&self.inner, &self.loss))
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> PyResult<()> {
+        let (inner, loss): (LinearSVR, String) = crate::pickle::setstate(state.as_bytes())?;
+        self.inner = inner;
+        self.loss = loss;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {
@@ -746,7 +770,7 @@ impl PySVC {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -773,7 +797,7 @@ impl PySVC {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -802,7 +826,7 @@ impl PySVC {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.into_pyarray(py))
     }
@@ -829,7 +853,7 @@ impl PySVC {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
@@ -845,7 +869,7 @@ impl PySVC {
         let result = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -896,7 +920,7 @@ impl PySVC {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -932,7 +956,7 @@ impl PySVC {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -950,7 +974,19 @@ impl PySVC {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<pyo3::types::PyBytes>> {
+        crate::pickle::getstate(py, &(&self.inner, &self.kernel_str))
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> PyResult<()> {
+        let (inner, kernel_str): (SVC, String) = crate::pickle::setstate(state.as_bytes())?;
+        self.inner = inner;
+        self.kernel_str = kernel_str;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {
@@ -1046,7 +1082,7 @@ impl PySVR {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -1073,7 +1109,7 @@ impl PySVR {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -1089,7 +1125,7 @@ impl PySVR {
         let result = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -1158,7 +1194,7 @@ impl PySVR {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -1194,7 +1230,7 @@ impl PySVR {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -1212,7 +1248,19 @@ impl PySVR {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<pyo3::types::PyBytes>> {
+        crate::pickle::getstate(py, &(&self.inner, &self.kernel_str))
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> PyResult<()> {
+        let (inner, kernel_str): (SVR, String) = crate::pickle::setstate(state.as_bytes())?;
+        self.inner = inner;
+        self.kernel_str = kernel_str;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {

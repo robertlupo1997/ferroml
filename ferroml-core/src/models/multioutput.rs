@@ -26,12 +26,14 @@
 use crate::models::{validate_predict_input, Model};
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
+use serde::{Deserialize, Serialize};
 
 /// Multi-output regressor: fits one regressor per target column.
 ///
 /// Wraps any `Model` and trains it independently on each column of
 /// a 2D target matrix, then stacks predictions column-wise.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "M: Serialize", deserialize = "M: Deserialize<'de>"))]
 pub struct MultiOutputRegressor<M: Model + Clone> {
     base_estimator: M,
     estimators_: Option<Vec<M>>,
@@ -147,7 +149,8 @@ impl<M: Model + Clone> MultiOutputRegressor<M> {
 ///
 /// Wraps any `Model` and trains it independently on each column of
 /// a 2D target matrix (multi-label or multi-output classification).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "M: Serialize", deserialize = "M: Deserialize<'de>"))]
 pub struct MultiOutputClassifier<M: Model + Clone> {
     base_estimator: M,
     estimators_: Option<Vec<M>>,

@@ -120,7 +120,7 @@ impl PyIsolationForest {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit_unsupervised(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -135,7 +135,7 @@ impl PyIsolationForest {
         let preds = self
             .inner
             .predict_outliers(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -150,7 +150,7 @@ impl PyIsolationForest {
         let preds = slf
             .inner
             .fit_predict_outliers(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -165,7 +165,7 @@ impl PyIsolationForest {
         let scores = self
             .inner
             .score_samples(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(scores.into_pyarray(py))
     }
 
@@ -180,7 +180,7 @@ impl PyIsolationForest {
         let decision = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(decision.into_pyarray(py))
     }
 
@@ -188,6 +188,16 @@ impl PyIsolationForest {
     #[getter]
     fn offset_(&self) -> f64 {
         self.inner.offset()
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<pyo3::types::PyBytes>> {
+        crate::pickle::getstate(py, &self.inner)
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> PyResult<()> {
+        self.inner = crate::pickle::setstate(state.as_bytes())?;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {
@@ -299,7 +309,7 @@ impl PyLocalOutlierFactor {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit_unsupervised(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -314,7 +324,7 @@ impl PyLocalOutlierFactor {
         let preds = slf
             .inner
             .fit_predict_outliers(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -329,7 +339,7 @@ impl PyLocalOutlierFactor {
         let preds = self
             .inner
             .predict_outliers(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -344,7 +354,7 @@ impl PyLocalOutlierFactor {
         let scores = self
             .inner
             .score_samples(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(scores.into_pyarray(py))
     }
 
@@ -359,7 +369,7 @@ impl PyLocalOutlierFactor {
         let decision = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(decision.into_pyarray(py))
     }
 
@@ -379,6 +389,16 @@ impl PyLocalOutlierFactor {
     #[getter]
     fn offset_(&self) -> f64 {
         self.inner.offset()
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<pyo3::types::PyBytes>> {
+        crate::pickle::getstate(py, &self.inner)
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> PyResult<()> {
+        self.inner = crate::pickle::setstate(state.as_bytes())?;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {

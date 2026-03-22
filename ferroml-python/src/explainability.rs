@@ -70,7 +70,7 @@ impl PyTreeExplainer {
         model: &crate::trees::PyDecisionTreeRegressor,
     ) -> PyResult<Self> {
         let inner = TreeExplainer::from_decision_tree_regressor(model.inner_ref())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(Self { inner })
     }
 
@@ -80,7 +80,7 @@ impl PyTreeExplainer {
         model: &crate::trees::PyDecisionTreeClassifier,
     ) -> PyResult<Self> {
         let inner = TreeExplainer::from_decision_tree_classifier(model.inner_ref())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(Self { inner })
     }
 
@@ -90,7 +90,7 @@ impl PyTreeExplainer {
         model: &crate::trees::PyRandomForestRegressor,
     ) -> PyResult<Self> {
         let inner = TreeExplainer::from_random_forest_regressor(model.inner_ref())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(Self { inner })
     }
 
@@ -100,7 +100,7 @@ impl PyTreeExplainer {
         model: &crate::trees::PyRandomForestClassifier,
     ) -> PyResult<Self> {
         let inner = TreeExplainer::from_random_forest_classifier(model.inner_ref())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(Self { inner })
     }
 
@@ -110,7 +110,7 @@ impl PyTreeExplainer {
         model: &crate::trees::PyGradientBoostingRegressor,
     ) -> PyResult<Self> {
         let inner = TreeExplainer::from_gradient_boosting_regressor(model.inner_ref())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(Self { inner })
     }
 
@@ -133,7 +133,7 @@ impl PyTreeExplainer {
         let result = self
             .inner
             .explain(&x_vec)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         let dict = PyDict::new(py);
         dict.set_item("base_value", result.base_value)?;
@@ -166,7 +166,7 @@ impl PyTreeExplainer {
         let result = self
             .inner
             .explain_batch(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         let dict = PyDict::new(py);
         dict.set_item("base_value", result.base_value)?;
@@ -292,7 +292,7 @@ fn py_permutation_importance_rf_reg<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -318,7 +318,7 @@ fn py_permutation_importance_rf_clf<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -344,7 +344,7 @@ fn py_permutation_importance_dt_reg<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -370,7 +370,7 @@ fn py_permutation_importance_dt_clf<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -396,7 +396,7 @@ fn py_permutation_importance_gb_reg<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -422,7 +422,7 @@ fn py_permutation_importance_gb_clf<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -448,7 +448,7 @@ fn py_permutation_importance_linear<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -474,7 +474,7 @@ fn py_permutation_importance_logistic<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -500,7 +500,7 @@ fn py_permutation_importance_et_clf<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -526,7 +526,7 @@ fn py_permutation_importance_et_reg<'py>(
         n_repeats,
         random_state,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     perm_result_to_dict(py, result)
 }
 
@@ -586,7 +586,7 @@ fn py_partial_dependence_rf_reg<'py>(
 ) -> PyResult<PyObject> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     pdp_result_to_dict(py, result)
 }
 
@@ -602,7 +602,7 @@ fn py_partial_dependence_rf_clf<'py>(
 ) -> PyResult<PyObject> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     pdp_result_to_dict(py, result)
 }
 
@@ -618,7 +618,7 @@ fn py_partial_dependence_gb_reg<'py>(
 ) -> PyResult<PyObject> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     pdp_result_to_dict(py, result)
 }
 
@@ -634,7 +634,7 @@ fn py_partial_dependence_gb_clf<'py>(
 ) -> PyResult<PyObject> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     pdp_result_to_dict(py, result)
 }
 
@@ -650,7 +650,7 @@ fn py_partial_dependence_dt_reg<'py>(
 ) -> PyResult<PyObject> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     pdp_result_to_dict(py, result)
 }
 
@@ -666,7 +666,7 @@ fn py_partial_dependence_dt_clf<'py>(
 ) -> PyResult<PyObject> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     pdp_result_to_dict(py, result)
 }
 
@@ -682,7 +682,7 @@ fn py_partial_dependence_linear<'py>(
 ) -> PyResult<PyObject> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     pdp_result_to_dict(py, result)
 }
 
@@ -758,7 +758,7 @@ fn py_partial_dependence_2d_rf_reg<'py>(
         feature_idx_2,
         grid_resolution,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     pdp_2d_result_to_dict(py, result)
 }
 
@@ -781,7 +781,7 @@ fn py_partial_dependence_2d_gb_reg<'py>(
         feature_idx_2,
         grid_resolution,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     pdp_2d_result_to_dict(py, result)
 }
 
@@ -872,7 +872,7 @@ fn py_ice_rf_reg<'py>(
         center,
         compute_derivative,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     ice_result_to_dict(py, result)
 }
 
@@ -897,7 +897,7 @@ fn py_ice_gb_reg<'py>(
         center,
         compute_derivative,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     ice_result_to_dict(py, result)
 }
 
@@ -922,7 +922,7 @@ fn py_ice_dt_reg<'py>(
         center,
         compute_derivative,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     ice_result_to_dict(py, result)
 }
 
@@ -947,7 +947,7 @@ fn py_ice_linear<'py>(
         center,
         compute_derivative,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     ice_result_to_dict(py, result)
 }
 
@@ -1022,7 +1022,7 @@ fn py_h_statistic_rf_reg<'py>(
         feature_idx_2,
         n_grid_points,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     h_stat_result_to_dict(py, result)
 }
 
@@ -1045,7 +1045,7 @@ fn py_h_statistic_gb_reg<'py>(
         feature_idx_2,
         n_grid_points,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
     h_stat_result_to_dict(py, result)
 }
 
@@ -1085,7 +1085,7 @@ fn py_h_statistic_matrix_rf_reg<'py>(
         feature_indices.as_deref(),
         config,
     )
-    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    .map_err(crate::errors::ferro_to_pyerr)?;
 
     let dict = PyDict::new(py);
     dict.set_item("h_squared_matrix", result.h_squared_matrix.into_pyarray(py))?;
@@ -1162,7 +1162,7 @@ fn py_kernel_shap_rf_reg<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 
@@ -1180,7 +1180,7 @@ fn py_kernel_shap_rf_clf<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 
@@ -1198,7 +1198,7 @@ fn py_kernel_shap_dt_reg<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 
@@ -1216,7 +1216,7 @@ fn py_kernel_shap_dt_clf<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 
@@ -1234,7 +1234,7 @@ fn py_kernel_shap_gb_reg<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 
@@ -1252,7 +1252,7 @@ fn py_kernel_shap_gb_clf<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 
@@ -1270,7 +1270,7 @@ fn py_kernel_shap_linear<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 
@@ -1288,7 +1288,7 @@ fn py_kernel_shap_logistic<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 
@@ -1306,7 +1306,7 @@ fn py_kernel_shap_et_clf<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 
@@ -1324,7 +1324,7 @@ fn py_kernel_shap_et_reg<'py>(
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
     kernel_shap_batch_result_to_dict(py, result)
 }
 

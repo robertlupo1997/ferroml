@@ -157,7 +157,7 @@ impl PyKNeighborsClassifier {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -184,7 +184,7 @@ impl PyKNeighborsClassifier {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -211,7 +211,7 @@ impl PyKNeighborsClassifier {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.into_pyarray(py))
     }
@@ -238,7 +238,7 @@ impl PyKNeighborsClassifier {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
@@ -280,7 +280,7 @@ impl PyKNeighborsClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Return the state of the model for pickling.
@@ -397,7 +397,7 @@ impl PyKNeighborsRegressor {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -424,7 +424,7 @@ impl PyKNeighborsRegressor {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -457,7 +457,7 @@ impl PyKNeighborsRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Return the state of the model for pickling.
@@ -534,7 +534,7 @@ impl PyNearestCentroid {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -551,7 +551,7 @@ impl PyNearestCentroid {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -588,7 +588,7 @@ impl PyNearestCentroid {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     fn __repr__(&self) -> String {

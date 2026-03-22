@@ -65,7 +65,7 @@ impl PyTemperatureScalingCalibrator {
         let y_true_arr = py_array_to_f64_1d(py, y_true)?;
 
         MulticlassCalibrator::fit(&mut slf.inner, &y_prob_arr, &y_true_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -91,7 +91,7 @@ impl PyTemperatureScalingCalibrator {
         let calibrated = self
             .inner
             .transform(&y_prob_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(calibrated.into_pyarray(py))
     }
@@ -104,6 +104,16 @@ impl PyTemperatureScalingCalibrator {
                 "Calibrator is not fitted yet. Call fit() first.",
             )
         })
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<pyo3::types::PyBytes>> {
+        crate::pickle::getstate(py, &self.inner)
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> PyResult<()> {
+        self.inner = crate::pickle::setstate(state.as_bytes())?;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {

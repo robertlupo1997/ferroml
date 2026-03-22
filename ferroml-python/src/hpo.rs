@@ -571,9 +571,7 @@ impl PyStudy {
             study = study.with_sampler(tpe);
 
             for _ in 0..n_trials {
-                let trial = study
-                    .ask()
-                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+                let trial = study.ask().map_err(crate::errors::ferro_to_pyerr)?;
                 let trial_id = trial.id;
 
                 // Convert params to Python dict
@@ -603,9 +601,9 @@ impl PyStudy {
                 match result {
                     Ok(val) => {
                         let value: f64 = val.extract(py)?;
-                        study.tell(trial_id, value).map_err(|e| {
-                            pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
-                        })?;
+                        study
+                            .tell(trial_id, value)
+                            .map_err(crate::errors::ferro_to_pyerr)?;
 
                         let mut param_map = HashMap::new();
                         for (k, v) in &trial.params {

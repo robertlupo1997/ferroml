@@ -86,7 +86,7 @@ impl PyGaussianNB {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -113,7 +113,7 @@ impl PyGaussianNB {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -140,7 +140,7 @@ impl PyGaussianNB {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.into_pyarray(py))
     }
@@ -167,7 +167,7 @@ impl PyGaussianNB {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
@@ -201,7 +201,7 @@ impl PyGaussianNB {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .partial_fit(&x_arr, &y_arr, classes)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -279,7 +279,7 @@ impl PyGaussianNB {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -315,7 +315,7 @@ impl PyGaussianNB {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -333,7 +333,17 @@ impl PyGaussianNB {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<PyBytes>> {
+        crate::pickle::getstate(py, &self.inner)
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = crate::pickle::setstate(state.as_bytes())?;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {
@@ -410,7 +420,7 @@ impl PyMultinomialNB {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -437,7 +447,7 @@ impl PyMultinomialNB {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -464,7 +474,7 @@ impl PyMultinomialNB {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.into_pyarray(py))
     }
@@ -491,7 +501,7 @@ impl PyMultinomialNB {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
@@ -524,7 +534,7 @@ impl PyMultinomialNB {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .partial_fit(&x_arr, &y_arr, classes)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -569,7 +579,7 @@ impl PyMultinomialNB {
 
         slf.inner
             .fit_sparse(&csr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -596,7 +606,7 @@ impl PyMultinomialNB {
         let predictions = self
             .inner
             .predict_sparse(&csr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -630,7 +640,7 @@ impl PyMultinomialNB {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -666,7 +676,7 @@ impl PyMultinomialNB {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -684,7 +694,17 @@ impl PyMultinomialNB {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<PyBytes>> {
+        crate::pickle::getstate(py, &self.inner)
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = crate::pickle::setstate(state.as_bytes())?;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {
@@ -769,7 +789,7 @@ impl PyBernoulliNB {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -796,7 +816,7 @@ impl PyBernoulliNB {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -823,7 +843,7 @@ impl PyBernoulliNB {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.into_pyarray(py))
     }
@@ -850,7 +870,7 @@ impl PyBernoulliNB {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
@@ -883,7 +903,7 @@ impl PyBernoulliNB {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .partial_fit(&x_arr, &y_arr, classes)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -916,7 +936,7 @@ impl PyBernoulliNB {
 
         slf.inner
             .fit_sparse(&csr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -933,7 +953,7 @@ impl PyBernoulliNB {
         let predictions = self
             .inner
             .predict_sparse(&csr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -967,7 +987,7 @@ impl PyBernoulliNB {
         }
         self.inner
             .export_onnx(path, &config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Export the fitted model to ONNX format as bytes.
@@ -1003,7 +1023,7 @@ impl PyBernoulliNB {
         let bytes = self
             .inner
             .to_onnx(&config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(PyBytes::new(py, &bytes).unbind())
     }
 
@@ -1021,7 +1041,17 @@ impl PyBernoulliNB {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<PyBytes>> {
+        crate::pickle::getstate(py, &self.inner)
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = crate::pickle::setstate(state.as_bytes())?;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {
@@ -1102,7 +1132,7 @@ impl PyCategoricalNB {
 
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -1129,7 +1159,7 @@ impl PyCategoricalNB {
         let predictions = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(predictions.into_pyarray(py))
     }
@@ -1156,7 +1186,7 @@ impl PyCategoricalNB {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.into_pyarray(py))
     }
@@ -1183,7 +1213,7 @@ impl PyCategoricalNB {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
@@ -1217,7 +1247,7 @@ impl PyCategoricalNB {
 
         slf.inner
             .partial_fit(&x_arr, &y_arr, classes)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -1281,7 +1311,17 @@ impl PyCategoricalNB {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<PyBytes>> {
+        crate::pickle::getstate(py, &self.inner)
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = crate::pickle::setstate(state.as_bytes())?;
+        Ok(())
     }
 
     fn __repr__(&self) -> String {

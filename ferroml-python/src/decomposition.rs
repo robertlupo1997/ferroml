@@ -85,7 +85,7 @@ impl PyPCA {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -100,7 +100,7 @@ impl PyPCA {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -115,7 +115,7 @@ impl PyPCA {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -130,7 +130,7 @@ impl PyPCA {
         let result = self
             .inner
             .inverse_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -216,7 +216,7 @@ impl PyIncrementalPCA {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -231,7 +231,7 @@ impl PyIncrementalPCA {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -246,7 +246,7 @@ impl PyIncrementalPCA {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -269,7 +269,7 @@ impl PyIncrementalPCA {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .partial_fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -332,7 +332,7 @@ impl PyTruncatedSVD {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -347,7 +347,7 @@ impl PyTruncatedSVD {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -362,7 +362,7 @@ impl PyTruncatedSVD {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -460,7 +460,7 @@ impl PyLDA {
         let y_arr = to_owned_array_1d(y);
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -475,7 +475,7 @@ impl PyLDA {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -568,7 +568,7 @@ impl PyFactorAnalysis {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -583,7 +583,7 @@ impl PyFactorAnalysis {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -598,7 +598,7 @@ impl PyFactorAnalysis {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -775,7 +775,7 @@ impl PyTSNE {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -790,7 +790,7 @@ impl PyTSNE {
         let result = self
             .inner
             .transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -805,7 +805,7 @@ impl PyTSNE {
         let result = self
             .inner
             .fit_transform(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -911,7 +911,7 @@ impl PyQDA {
         use ferroml_core::models::Model;
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -927,7 +927,7 @@ impl PyQDA {
         let preds = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -942,7 +942,7 @@ impl PyQDA {
         let proba = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(proba.into_pyarray(py))
     }
 
@@ -967,7 +967,7 @@ impl PyQDA {
         let proba = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(proba.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
@@ -982,7 +982,7 @@ impl PyQDA {
         let scores = self
             .inner
             .decision_function(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(scores.into_pyarray(py))
     }
 
@@ -1001,7 +1001,7 @@ impl PyQDA {
         use ferroml_core::models::Model;
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {

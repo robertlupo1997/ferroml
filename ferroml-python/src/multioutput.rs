@@ -12,6 +12,7 @@ use ferroml_core::models::{
 use numpy::{IntoPyArray, PyArray2, PyReadonlyArray2};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use serde::{Deserialize, Serialize};
 
 // ============================================================================
 // MultiOutputRegressor
@@ -19,6 +20,7 @@ use pyo3::prelude::*;
 
 /// Internal enum for supported regressor base estimators.
 #[allow(clippy::large_enum_variant)]
+#[derive(Serialize, Deserialize)]
 enum RegressorInner {
     LinearReg(MultiOutputRegressor<LinearRegression>),
     Ridge(MultiOutputRegressor<RidgeRegression>),
@@ -89,25 +91,25 @@ impl PyMultiOutputRegressor {
             "linear_regression" => {
                 let mut mo = MultiOutputRegressor::new(LinearRegression::new());
                 mo.fit_multi(&x_arr, &y_arr)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                    .map_err(crate::errors::ferro_to_pyerr)?;
                 self.inner = Some(RegressorInner::LinearReg(mo));
             }
             "ridge" => {
                 let mut mo = MultiOutputRegressor::new(RidgeRegression::new(1.0));
                 mo.fit_multi(&x_arr, &y_arr)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                    .map_err(crate::errors::ferro_to_pyerr)?;
                 self.inner = Some(RegressorInner::Ridge(mo));
             }
             "decision_tree" => {
                 let mut mo = MultiOutputRegressor::new(DecisionTreeRegressor::new());
                 mo.fit_multi(&x_arr, &y_arr)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                    .map_err(crate::errors::ferro_to_pyerr)?;
                 self.inner = Some(RegressorInner::DecisionTree(mo));
             }
             "knn" => {
                 let mut mo = MultiOutputRegressor::new(KNeighborsRegressor::new(5));
                 mo.fit_multi(&x_arr, &y_arr)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                    .map_err(crate::errors::ferro_to_pyerr)?;
                 self.inner = Some(RegressorInner::Knn(mo));
             }
             _ => unreachable!("Validated in __init__"),
@@ -142,7 +144,7 @@ impl PyMultiOutputRegressor {
             RegressorInner::DecisionTree(mo) => mo.predict_multi(&x_arr),
             RegressorInner::Knn(mo) => mo.predict_multi(&x_arr),
         }
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -162,6 +164,19 @@ impl PyMultiOutputRegressor {
     fn is_fitted(&self) -> bool {
         self.inner.is_some()
     }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<pyo3::types::PyBytes>> {
+        crate::pickle::getstate(py, &(&self.inner, &self.estimator_name))
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> PyResult<()> {
+        let (inner, name): (Option<RegressorInner>, String) =
+            crate::pickle::setstate(state.as_bytes())?;
+        self.inner = inner;
+        self.estimator_name = name;
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -170,6 +185,7 @@ impl PyMultiOutputRegressor {
 
 /// Internal enum for supported classifier base estimators.
 #[allow(clippy::large_enum_variant)]
+#[derive(Serialize, Deserialize)]
 enum ClassifierInner {
     LogisticReg(MultiOutputClassifier<LogisticRegression>),
     DecisionTree(MultiOutputClassifier<DecisionTreeClassifier>),
@@ -237,13 +253,13 @@ impl PyMultiOutputClassifier {
             "logistic_regression" => {
                 let mut mo = MultiOutputClassifier::new(LogisticRegression::new());
                 mo.fit_multi(&x_arr, &y_arr)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                    .map_err(crate::errors::ferro_to_pyerr)?;
                 self.inner = Some(ClassifierInner::LogisticReg(mo));
             }
             "decision_tree" => {
                 let mut mo = MultiOutputClassifier::new(DecisionTreeClassifier::new());
                 mo.fit_multi(&x_arr, &y_arr)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                    .map_err(crate::errors::ferro_to_pyerr)?;
                 self.inner = Some(ClassifierInner::DecisionTree(mo));
             }
             _ => unreachable!("Validated in __init__"),
@@ -276,7 +292,7 @@ impl PyMultiOutputClassifier {
             ClassifierInner::LogisticReg(mo) => mo.predict_multi(&x_arr),
             ClassifierInner::DecisionTree(mo) => mo.predict_multi(&x_arr),
         }
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(result.into_pyarray(py))
     }
 
@@ -308,7 +324,7 @@ impl PyMultiOutputClassifier {
             ClassifierInner::LogisticReg(mo) => mo.predict_proba_multi(&x_arr),
             ClassifierInner::DecisionTree(mo) => mo.predict_proba_multi(&x_arr),
         }
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(results
             .into_iter()
@@ -329,6 +345,19 @@ impl PyMultiOutputClassifier {
     /// Whether the model has been fitted.
     fn is_fitted(&self) -> bool {
         self.inner.is_some()
+    }
+
+    /// Serialize for pickle.
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<pyo3::Py<pyo3::types::PyBytes>> {
+        crate::pickle::getstate(py, &(&self.inner, &self.estimator_name))
+    }
+    /// Deserialize for pickle.
+    pub fn __setstate__(&mut self, state: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> PyResult<()> {
+        let (inner, name): (Option<ClassifierInner>, String) =
+            crate::pickle::setstate(state.as_bytes())?;
+        self.inner = inner;
+        self.estimator_name = name;
+        Ok(())
     }
 }
 

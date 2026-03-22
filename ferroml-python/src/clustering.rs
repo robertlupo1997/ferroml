@@ -116,7 +116,7 @@ impl PyKMeans {
 
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -143,7 +143,7 @@ impl PyKMeans {
         let labels = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(labels.into_pyarray(py))
     }
@@ -170,7 +170,7 @@ impl PyKMeans {
         let labels = self
             .inner
             .fit_predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(labels.into_pyarray(py))
     }
@@ -201,7 +201,7 @@ impl PyKMeans {
         let stability = self
             .inner
             .cluster_stability(&x_arr, n_bootstrap)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(stability.into_pyarray(py))
     }
@@ -229,7 +229,7 @@ impl PyKMeans {
 
         self.inner
             .silhouette_with_ci(&x_arr, confidence)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Find optimal k using the gap statistic.
@@ -264,7 +264,7 @@ impl PyKMeans {
         let x_arr = to_owned_array_2d(x);
 
         let result = KMeans::optimal_k(&x_arr, k_min..k_max, n_refs, random_state)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         let dict = pyo3::types::PyDict::new(py);
         dict.set_item("optimal_k", result.optimal_k)?;
@@ -304,7 +304,7 @@ impl PyKMeans {
         let x_arr = to_owned_array_2d(x);
 
         let result = KMeans::elbow(&x_arr, k_min..k_max, random_state)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         let dict = pyo3::types::PyDict::new(py);
         dict.set_item("optimal_k", result.optimal_k)?;
@@ -350,7 +350,7 @@ impl PyKMeans {
         let labels = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         let centers = self.inner.cluster_centers().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
         })?;
@@ -467,7 +467,7 @@ impl PyDBSCAN {
 
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -497,7 +497,7 @@ impl PyDBSCAN {
         let labels = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(labels.into_pyarray(py))
     }
@@ -524,7 +524,7 @@ impl PyDBSCAN {
         let labels = self
             .inner
             .fit_predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(labels.into_pyarray(py))
     }
@@ -551,8 +551,8 @@ impl PyDBSCAN {
         check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
-        let (suggested_eps, k_distances) = DBSCAN::optimal_eps(&x_arr, min_samples)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let (suggested_eps, k_distances) =
+            DBSCAN::optimal_eps(&x_arr, min_samples).map_err(crate::errors::ferro_to_pyerr)?;
 
         let dict = pyo3::types::PyDict::new(py);
         dict.set_item("suggested_eps", suggested_eps)?;
@@ -586,7 +586,7 @@ impl PyDBSCAN {
         let x_arr = to_owned_array_2d(x);
 
         DBSCAN::cluster_persistence(&x_arr, &eps_values, min_samples)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Analyze noise points statistically.
@@ -610,7 +610,7 @@ impl PyDBSCAN {
         let (noise_ratio, centroid, std) = self
             .inner
             .noise_analysis(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         let dict = pyo3::types::PyDict::new(py);
         dict.set_item("noise_ratio", noise_ratio)?;
@@ -739,7 +739,7 @@ impl PyAgglomerativeClustering {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -753,7 +753,7 @@ impl PyAgglomerativeClustering {
         let x_arr = to_owned_array_2d(x);
         self.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         let labels = self
             .inner
             .labels()
@@ -894,7 +894,7 @@ impl PyGaussianMixture {
         let x_arr = to_owned_array_2d(x);
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -909,7 +909,7 @@ impl PyGaussianMixture {
         let labels = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(labels.into_pyarray(py))
     }
 
@@ -924,7 +924,7 @@ impl PyGaussianMixture {
         let labels = self
             .inner
             .fit_predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(labels.into_pyarray(py))
     }
 
@@ -939,7 +939,7 @@ impl PyGaussianMixture {
         let proba = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(proba.into_pyarray(py))
     }
 
@@ -964,7 +964,7 @@ impl PyGaussianMixture {
         let proba = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(proba.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
@@ -979,7 +979,7 @@ impl PyGaussianMixture {
         let scores = self
             .inner
             .score_samples(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(scores.into_pyarray(py))
     }
 
@@ -989,7 +989,7 @@ impl PyGaussianMixture {
         let x_arr = to_owned_array_2d(x);
         self.inner
             .score(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Compute Bayesian Information Criterion.
@@ -998,7 +998,7 @@ impl PyGaussianMixture {
         let x_arr = to_owned_array_2d(x);
         self.inner
             .bic(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Compute Akaike Information Criterion.
@@ -1007,7 +1007,7 @@ impl PyGaussianMixture {
         let x_arr = to_owned_array_2d(x);
         self.inner
             .aic(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Generate random samples from the fitted model.
@@ -1025,7 +1025,7 @@ impl PyGaussianMixture {
         let (samples, labels) = self
             .inner
             .sample(n_samples)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok((samples.into_pyarray(py), labels.into_pyarray(py)))
     }
 
@@ -1137,8 +1137,7 @@ fn py_silhouette_score(
     let x_arr = to_owned_array_2d(x);
     let labels_arr = labels.as_array().to_owned();
 
-    metrics::silhouette_score(&x_arr, &labels_arr)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    metrics::silhouette_score(&x_arr, &labels_arr).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute silhouette coefficient for each sample.
@@ -1165,8 +1164,8 @@ fn py_silhouette_samples<'py>(
     let x_arr = to_owned_array_2d(x);
     let labels_arr = labels.as_array().to_owned();
 
-    let samples = metrics::silhouette_samples(&x_arr, &labels_arr)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    let samples =
+        metrics::silhouette_samples(&x_arr, &labels_arr).map_err(crate::errors::ferro_to_pyerr)?;
 
     Ok(samples.into_pyarray(py))
 }
@@ -1196,8 +1195,7 @@ fn py_calinski_harabasz_score(
     let x_arr = to_owned_array_2d(x);
     let labels_arr = labels.as_array().to_owned();
 
-    metrics::calinski_harabasz_score(&x_arr, &labels_arr)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    metrics::calinski_harabasz_score(&x_arr, &labels_arr).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Davies-Bouldin score.
@@ -1225,8 +1223,7 @@ fn py_davies_bouldin_score(
     let x_arr = to_owned_array_2d(x);
     let labels_arr = labels.as_array().to_owned();
 
-    metrics::davies_bouldin_score(&x_arr, &labels_arr)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    metrics::davies_bouldin_score(&x_arr, &labels_arr).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Adjusted Rand Index.
@@ -1254,8 +1251,7 @@ fn py_adjusted_rand_index(
     let true_arr = labels_true.as_array().to_owned();
     let pred_arr = labels_pred.as_array().to_owned();
 
-    metrics::adjusted_rand_index(&true_arr, &pred_arr)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    metrics::adjusted_rand_index(&true_arr, &pred_arr).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Normalized Mutual Information.
@@ -1282,8 +1278,7 @@ fn py_normalized_mutual_info(
     let true_arr = labels_true.as_array().to_owned();
     let pred_arr = labels_pred.as_array().to_owned();
 
-    metrics::normalized_mutual_info(&true_arr, &pred_arr)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    metrics::normalized_mutual_info(&true_arr, &pred_arr).map_err(crate::errors::ferro_to_pyerr)
 }
 
 /// Compute Hopkins statistic for clustering tendency.
@@ -1316,7 +1311,7 @@ fn py_hopkins_statistic(
     let x_arr = to_owned_array_2d(x);
 
     metrics::hopkins_statistic(&x_arr, sample_size, random_state)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+        .map_err(crate::errors::ferro_to_pyerr)
 }
 
 // =============================================================================
@@ -1407,7 +1402,7 @@ impl PyHDBSCAN {
 
         slf.inner
             .fit(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(slf)
     }
@@ -1434,7 +1429,7 @@ impl PyHDBSCAN {
         let labels = self
             .inner
             .fit_predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
 
         Ok(labels.into_pyarray(py))
     }

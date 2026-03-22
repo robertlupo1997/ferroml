@@ -200,7 +200,7 @@ impl PyGaussianProcessRegressor {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -215,7 +215,7 @@ impl PyGaussianProcessRegressor {
         let preds = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -238,7 +238,7 @@ impl PyGaussianProcessRegressor {
         let (mean, std) = self
             .inner
             .predict_with_std(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok((mean.into_pyarray(py), std.into_pyarray(py)))
     }
 
@@ -256,7 +256,7 @@ impl PyGaussianProcessRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Log marginal likelihood of the fitted model.
@@ -264,7 +264,7 @@ impl PyGaussianProcessRegressor {
     fn log_marginal_likelihood_(&self) -> PyResult<f64> {
         self.inner
             .log_marginal_likelihood()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 }
 
@@ -320,7 +320,7 @@ impl PyGaussianProcessClassifier {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -335,7 +335,7 @@ impl PyGaussianProcessClassifier {
         let preds = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -355,7 +355,7 @@ impl PyGaussianProcessClassifier {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(probas.into_pyarray(py))
     }
 
@@ -380,7 +380,7 @@ impl PyGaussianProcessClassifier {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
@@ -398,7 +398,7 @@ impl PyGaussianProcessClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 }
 
@@ -477,7 +477,7 @@ impl PySparseGPRegressor {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -491,7 +491,7 @@ impl PySparseGPRegressor {
         let preds = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -506,7 +506,7 @@ impl PySparseGPRegressor {
         let (mean, std) = self
             .inner
             .predict_with_std(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok((mean.into_pyarray(py), std.into_pyarray(py)))
     }
 
@@ -524,14 +524,14 @@ impl PySparseGPRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     #[getter]
     fn log_marginal_likelihood_(&self) -> PyResult<f64> {
         self.inner
             .log_marginal_likelihood()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     #[getter]
@@ -584,7 +584,7 @@ impl PySparseGPClassifier {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -598,7 +598,7 @@ impl PySparseGPClassifier {
         let preds = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -612,7 +612,7 @@ impl PySparseGPClassifier {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(probas.into_pyarray(py))
     }
 
@@ -637,7 +637,7 @@ impl PySparseGPClassifier {
         let probas = self
             .inner
             .predict_proba(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(probas.mapv(|p| p.max(1e-15).ln()).into_pyarray(py))
     }
 
@@ -655,7 +655,7 @@ impl PySparseGPClassifier {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     #[getter]
@@ -716,7 +716,7 @@ impl PySVGPRegressor {
         let y_arr = py_array_to_f64_1d(py, y)?;
         slf.inner
             .fit(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(slf)
     }
 
@@ -730,7 +730,7 @@ impl PySVGPRegressor {
         let preds = self
             .inner
             .predict(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok(preds.into_pyarray(py))
     }
 
@@ -745,7 +745,7 @@ impl PySVGPRegressor {
         let (mean, std) = self
             .inner
             .predict_with_std(&x_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(crate::errors::ferro_to_pyerr)?;
         Ok((mean.into_pyarray(py), std.into_pyarray(py)))
     }
 
@@ -763,7 +763,7 @@ impl PySVGPRegressor {
         let y_arr = to_owned_array_1d(y);
         self.inner
             .score(&x_arr, &y_arr)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+            .map_err(crate::errors::ferro_to_pyerr)
     }
 
     #[getter]

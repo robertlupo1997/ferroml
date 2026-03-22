@@ -800,6 +800,17 @@ where
         }
     };
 
+    // Version compatibility check: reject models from incompatible major versions
+    let current = SemanticVersion::current();
+    if !current.is_compatible_with(&container.metadata.ferroml_version) {
+        return Err(FerroError::SerializationError(format!(
+            "Model was serialized with FerroML v{}, but current version is v{}. \
+             Major version mismatch -- the model format may be incompatible. \
+             Re-train the model with the current version.",
+            container.metadata.ferroml_version, current
+        )));
+    }
+
     Ok(container.model)
 }
 
