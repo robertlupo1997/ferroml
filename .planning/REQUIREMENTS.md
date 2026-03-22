@@ -61,10 +61,10 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 - [x] **ROBU-07**: Unwrap/expect calls in fit/predict paths of clustering models replaced with proper error handling
 - [x] **ROBU-08**: Unwrap/expect calls in remaining modules triaged — safe ones documented, unsafe ones fixed
 - [x] **ROBU-09**: clippy::unwrap_used lint enabled as warning in CI (not deny, to allow gradual cleanup)
-- [ ] **ROBU-10**: Error messages across all FerroError variants are actionable (what went wrong + what to do)
-- [ ] **ROBU-11**: Python exception mapping verified complete (FerroError variants → appropriate Python exceptions)
-- [ ] **ROBU-12**: Model serialization version checking verified on all load paths (is_compatible_with)
-- [ ] **ROBU-13**: Pickle roundtrip verified for all 55+ Python-exposed models
+- [x] **ROBU-10**: Error messages across all FerroError variants are actionable (what went wrong + what to do)
+- [x] **ROBU-11**: Python exception mapping verified complete (FerroError variants → appropriate Python exceptions)
+- [x] **ROBU-12**: Model serialization version checking verified on all load paths (is_compatible_with)
+- [x] **ROBU-13**: Pickle roundtrip verified for all 55+ Python-exposed models
 
 ### Documentation
 
@@ -155,10 +155,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | ROBU-07 | Phase 3 | Complete |
 | ROBU-08 | Phase 3 | Complete |
 | ROBU-09 | Phase 3 | Complete |
-| ROBU-10 | Phase 3 | Pending |
-| ROBU-11 | Phase 3 | Pending |
-| ROBU-12 | Phase 3 | Pending |
-| ROBU-13 | Phase 3 | Pending |
+| ROBU-10 | Phase 3 | Complete |
+| ROBU-11 | Phase 3 | Complete |
+| ROBU-12 | Phase 3 | Complete |
+| ROBU-13 | Phase 3 | Complete |
 | DOCS-01 | Phase 5 | Pending |
 | DOCS-02 | Phase 5 | Pending |
 | DOCS-03 | Phase 5 | Pending |
