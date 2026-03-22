@@ -52,9 +52,9 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 
 ### Robustness
 
-- [ ] **ROBU-01**: Unwrap/expect calls in fit/predict paths of SVM models replaced with proper error handling
-- [ ] **ROBU-02**: Unwrap/expect calls in fit/predict paths of stats modules replaced with proper error handling
-- [ ] **ROBU-03**: Unwrap/expect calls in fit/predict paths of boosting models replaced with proper error handling
+- [x] **ROBU-01**: Unwrap/expect calls in fit/predict paths of SVM models replaced with proper error handling
+- [x] **ROBU-02**: Unwrap/expect calls in fit/predict paths of stats modules replaced with proper error handling
+- [x] **ROBU-03**: Unwrap/expect calls in fit/predict paths of boosting models replaced with proper error handling
 - [ ] **ROBU-04**: Unwrap/expect calls in fit/predict paths of linear models replaced with proper error handling
 - [ ] **ROBU-05**: Unwrap/expect calls in fit/predict paths of tree models replaced with proper error handling
 - [ ] **ROBU-06**: Unwrap/expect calls in fit/predict paths of preprocessing modules replaced with proper error handling
@@ -146,9 +146,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | PERF-12 | Phase 4 | Pending |
 | PERF-13 | Phase 4 | Pending |
 | PERF-14 | Phase 4 | Pending |
-| ROBU-01 | Phase 3 | Pending |
-| ROBU-02 | Phase 3 | Pending |
-| ROBU-03 | Phase 3 | Pending |
+| ROBU-01 | Phase 3 | Complete |
+| ROBU-02 | Phase 3 | Complete |
+| ROBU-03 | Phase 3 | Complete |
 | ROBU-04 | Phase 3 | Pending |
 | ROBU-05 | Phase 3 | Pending |
 | ROBU-06 | Phase 3 | Pending |
