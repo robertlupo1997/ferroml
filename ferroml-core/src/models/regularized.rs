@@ -195,7 +195,7 @@ impl Model for RidgeRegression {
 
         // Center data if fitting intercept
         let (x_centered, y_centered, x_mean, y_mean) = if self.fit_intercept {
-            let x_mean = x.mean_axis(Axis(0)).unwrap();
+            let x_mean = x.mean_axis(Axis(0)).expect("SAFETY: non-empty axis");
             let y_mean = y.mean().unwrap_or(0.0);
             let x_c = x - &x_mean;
             let y_c = y - y_mean;
@@ -271,10 +271,15 @@ impl Model for RidgeRegression {
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.coefficients, "predict")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
-        let coef = self.coefficients.as_ref().unwrap();
+        let coef = self
+            .coefficients
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let intercept = self.intercept.unwrap_or(0.0);
 
         Ok(x.dot(coef) + intercept)
@@ -419,7 +424,10 @@ impl ProbabilisticModel for RidgeRegression {
         check_is_fitted(&self.coefficients, "predict_interval")?;
 
         let predictions = self.predict(x)?;
-        let data = self.fitted_data.as_ref().unwrap();
+        let data = self
+            .fitted_data
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_interval"))?;
 
         let t_crit = t_critical(1.0 - (1.0 - level) / 2.0, data.df_residuals as f64);
         let mse = data.rss / data.df_residuals as f64;
@@ -599,7 +607,7 @@ impl Model for LassoRegression {
 
         // Center data if fitting intercept
         let (x_centered, y_centered, x_mean, y_mean) = if self.fit_intercept {
-            let x_mean = x.mean_axis(Axis(0)).unwrap();
+            let x_mean = x.mean_axis(Axis(0)).expect("SAFETY: non-empty axis");
             let y_mean = y.mean().unwrap_or(0.0);
             let x_c = x - &x_mean;
             let y_c = y - y_mean;
@@ -610,7 +618,9 @@ impl Model for LassoRegression {
 
         // Initialize coefficients
         let mut coef = if self.warm_start && self.coefficients.is_some() {
-            self.coefficients.clone().unwrap()
+            self.coefficients
+                .clone()
+                .ok_or_else(|| FerroError::not_fitted("fit"))?
         } else {
             Array1::zeros(p)
         };
@@ -722,10 +732,15 @@ impl Model for LassoRegression {
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.coefficients, "predict")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
-        let coef = self.coefficients.as_ref().unwrap();
+        let coef = self
+            .coefficients
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let intercept = self.intercept.unwrap_or(0.0);
 
         Ok(x.dot(coef) + intercept)
@@ -1030,7 +1045,7 @@ impl Model for ElasticNet {
 
         // Center data if fitting intercept
         let (x_centered, y_centered, x_mean, y_mean) = if self.fit_intercept {
-            let x_mean = x.mean_axis(Axis(0)).unwrap();
+            let x_mean = x.mean_axis(Axis(0)).expect("SAFETY: non-empty axis");
             let y_mean = y.mean().unwrap_or(0.0);
             let x_c = x - &x_mean;
             let y_c = y - y_mean;
@@ -1041,7 +1056,9 @@ impl Model for ElasticNet {
 
         // Initialize coefficients
         let mut coef = if self.warm_start && self.coefficients.is_some() {
-            self.coefficients.clone().unwrap()
+            self.coefficients
+                .clone()
+                .ok_or_else(|| FerroError::not_fitted("fit"))?
         } else {
             Array1::zeros(p)
         };
@@ -1155,10 +1172,15 @@ impl Model for ElasticNet {
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.coefficients, "predict")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
-        let coef = self.coefficients.as_ref().unwrap();
+        let coef = self
+            .coefficients
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let intercept = self.intercept.unwrap_or(0.0);
 
         Ok(x.dot(coef) + intercept)
@@ -1797,7 +1819,7 @@ impl Model for LassoCV {
         let best_idx = cv_scores
             .iter()
             .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| i)
             .unwrap_or(0);
 
@@ -2124,10 +2146,15 @@ impl RidgeClassifier {
     /// Compute decision function values for each class.
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.ridges, "decision_function")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
         validate_predict_input(x, n_features)?;
 
-        let ridges = self.ridges.as_ref().unwrap();
+        let ridges = self
+            .ridges
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
         let n_samples = x.nrows();
         let n_outputs = ridges.len();
         let mut decision = Array2::zeros((n_samples, n_outputs));
@@ -2193,7 +2220,10 @@ impl Model for RidgeClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let decision = self.decision_function(x)?;
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
 
         if classes.len() == 2 {
             // Binary: threshold at 0
@@ -2660,7 +2690,9 @@ impl crate::models::traits::SparseModel for RidgeRegression {
 
     fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
         check_is_fitted(&self.coefficients, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
         if x.ncols() != n_features {
             return Err(FerroError::ShapeMismatch {
                 expected: format!("{} features", n_features),
@@ -2668,7 +2700,10 @@ impl crate::models::traits::SparseModel for RidgeRegression {
             });
         }
 
-        let coef = self.coefficients.as_ref().unwrap();
+        let coef = self
+            .coefficients
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
         let intercept = self.intercept.unwrap_or(0.0);
 
         // Sparse mat-vec: X @ coef + intercept

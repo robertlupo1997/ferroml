@@ -616,7 +616,12 @@ fn extract_clusters(
     let root_cluster = *all_cluster_ids
         .iter()
         .find(|id| !child_clusters.contains(id))
-        .unwrap_or(all_cluster_ids.iter().next().unwrap());
+        .unwrap_or(
+            all_cluster_ids
+                .iter()
+                .next()
+                .expect("SAFETY: non-empty iterator"),
+        );
 
     // Compute lambda_birth for each cluster (the lambda at which it was created)
     // A cluster's birth lambda is the lambda of the condensed node where it appears as a child
@@ -957,7 +962,12 @@ impl ClusteringModel for HDBSCAN {
         );
 
         let n_clusters = if labels.iter().any(|&l| l >= 0) {
-            labels.iter().filter(|&&l| l >= 0).max().unwrap() + 1
+            labels
+                .iter()
+                .filter(|&&l| l >= 0)
+                .max()
+                .expect("SAFETY: non-empty collection")
+                + 1
         } else {
             0
         };
@@ -976,7 +986,9 @@ impl ClusteringModel for HDBSCAN {
 
     fn fit_predict(&mut self, x: &Array2<f64>) -> Result<Array1<i32>> {
         self.fit(x)?;
-        Ok(self.labels_.clone().unwrap())
+        self.labels_
+            .clone()
+            .ok_or_else(|| FerroError::not_fitted("fit_predict"))
     }
 
     fn labels(&self) -> Option<&Array1<i32>> {

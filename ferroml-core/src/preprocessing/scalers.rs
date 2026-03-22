@@ -43,7 +43,7 @@ use super::{
     column_min, column_quantile, compute_column_statistics, generate_feature_names, Transformer,
 };
 use crate::pipeline::PipelineTransformer;
-use crate::Result;
+use crate::{FerroError, Result};
 
 /// Standardize features by removing the mean and scaling to unit variance.
 ///
@@ -187,11 +187,21 @@ impl Transformer for StandardScaler {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
         check_finite(x)?;
 
-        let mean = self.mean.as_ref().unwrap();
-        let std = self.std.as_ref().unwrap();
+        let mean = self
+            .mean
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let std = self
+            .std
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         let mut result = x.clone();
 
@@ -216,10 +226,20 @@ impl Transformer for StandardScaler {
 
     fn inverse_transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "inverse_transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?,
+        )?;
 
-        let mean = self.mean.as_ref().unwrap();
-        let std = self.std.as_ref().unwrap();
+        let mean = self
+            .mean
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
+        let std = self
+            .std
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
 
         let mut result = x.clone();
 
@@ -402,11 +422,21 @@ impl Transformer for MinMaxScaler {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
         check_finite(x)?;
 
-        let data_min = self.data_min.as_ref().unwrap();
-        let data_range = self.data_range.as_ref().unwrap();
+        let data_min = self
+            .data_min
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let data_range = self
+            .data_range
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         let (target_min, target_max) = self.feature_range;
         let target_range = target_max - target_min;
 
@@ -431,10 +461,20 @@ impl Transformer for MinMaxScaler {
 
     fn inverse_transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "inverse_transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?,
+        )?;
 
-        let data_min = self.data_min.as_ref().unwrap();
-        let data_range = self.data_range.as_ref().unwrap();
+        let data_min = self
+            .data_min
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
+        let data_range = self
+            .data_range
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
         let (target_min, target_max) = self.feature_range;
         let target_range = target_max - target_min;
 
@@ -637,11 +677,21 @@ impl Transformer for RobustScaler {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
         check_finite(x)?;
 
-        let center = self.center.as_ref().unwrap();
-        let scale = self.scale.as_ref().unwrap();
+        let center = self
+            .center
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let scale = self
+            .scale
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         let mut result = x.clone();
 
@@ -665,10 +715,20 @@ impl Transformer for RobustScaler {
 
     fn inverse_transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "inverse_transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?,
+        )?;
 
-        let center = self.center.as_ref().unwrap();
-        let scale = self.scale.as_ref().unwrap();
+        let center = self
+            .center
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
+        let scale = self
+            .scale
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
 
         let mut result = x.clone();
 
@@ -807,10 +867,17 @@ impl Transformer for MaxAbsScaler {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
         check_finite(x)?;
 
-        let max_abs = self.max_abs.as_ref().unwrap();
+        let max_abs = self
+            .max_abs
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
 
         let mut result = x.clone();
 
@@ -826,9 +893,16 @@ impl Transformer for MaxAbsScaler {
 
     fn inverse_transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "inverse_transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?,
+        )?;
 
-        let max_abs = self.max_abs.as_ref().unwrap();
+        let max_abs = self
+            .max_abs
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("inverse_transform"))?;
 
         let mut result = x.clone();
 
@@ -932,7 +1006,9 @@ impl StandardScaler {
         if !self.is_fitted() {
             return Err(crate::FerroError::not_fitted("StandardScaler"));
         }
-        let n_features_in = self.n_features_in.unwrap();
+        let n_features_in = self
+            .n_features_in
+            .ok_or_else(|| FerroError::not_fitted("transform_sparse"))?;
         if x.ncols() != n_features_in {
             return Err(crate::FerroError::shape_mismatch(
                 format!("(*, {})", n_features_in),
@@ -940,8 +1016,14 @@ impl StandardScaler {
             ));
         }
 
-        let mean = self.mean.as_ref().unwrap();
-        let std = self.std.as_ref().unwrap();
+        let mean = self
+            .mean
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform_sparse"))?;
+        let std = self
+            .std
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform_sparse"))?;
 
         let mut result = Array2::zeros((x.nrows(), x.ncols()));
 
@@ -1056,7 +1138,9 @@ impl MaxAbsScaler {
         if !self.is_fitted() {
             return Err(crate::FerroError::not_fitted("MaxAbsScaler"));
         }
-        let n_features_in = self.n_features_in.unwrap();
+        let n_features_in = self
+            .n_features_in
+            .ok_or_else(|| FerroError::not_fitted("transform_sparse"))?;
         if x.ncols() != n_features_in {
             return Err(crate::FerroError::shape_mismatch(
                 format!("(*, {})", n_features_in),
@@ -1064,7 +1148,10 @@ impl MaxAbsScaler {
             ));
         }
 
-        let max_abs = self.max_abs.as_ref().unwrap();
+        let max_abs = self
+            .max_abs
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform_sparse"))?;
         let mut result = Array2::zeros((x.nrows(), x.ncols()));
 
         for i in 0..x.nrows() {
@@ -1144,7 +1231,11 @@ impl Transformer for Normalizer {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
         let mut result = x.clone();
         for mut row in result.rows_mut() {
@@ -1215,7 +1306,9 @@ impl Normalizer {
         if !self.is_fitted() {
             return Err(crate::FerroError::not_fitted("Normalizer"));
         }
-        let n_features_in = self.n_features_in.unwrap();
+        let n_features_in = self
+            .n_features_in
+            .ok_or_else(|| FerroError::not_fitted("transform_sparse"))?;
         if x.ncols() != n_features_in {
             return Err(crate::FerroError::shape_mismatch(
                 format!("(*, {})", n_features_in),
@@ -1299,7 +1392,11 @@ impl Transformer for Binarizer {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
         Ok(x.mapv(|v| if v > self.threshold { 1.0 } else { 0.0 }))
     }

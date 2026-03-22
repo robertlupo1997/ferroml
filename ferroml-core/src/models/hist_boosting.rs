@@ -1841,7 +1841,9 @@ impl HistGradientBoostingClassifier {
     /// the single raw score is expanded to two columns: [-score, +score].
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         let raw = self.raw_predictions(x)?;
-        let n_classes = self.n_classes.unwrap();
+        let n_classes = self
+            .n_classes
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
 
         if n_classes == 2 {
             let n_samples = raw.nrows();

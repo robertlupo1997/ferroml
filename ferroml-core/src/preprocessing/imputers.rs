@@ -389,9 +389,16 @@ impl Transformer for SimpleImputer {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let statistics = self.statistics.as_ref().unwrap();
+        let statistics = self
+            .statistics
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         let n_features = x.ncols();
 
         // If add_indicator is true, we'll have extra columns
@@ -835,10 +842,20 @@ impl Transformer for KNNImputer {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let fit_data = self.fit_data.as_ref().unwrap();
-        let column_means = self.column_means.as_ref().unwrap();
+        let fit_data = self
+            .fit_data
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
+        let column_means = self
+            .column_means
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         let n_features = x.ncols();
         let n_samples = x.nrows();
 

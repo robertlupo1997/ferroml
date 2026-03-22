@@ -155,7 +155,7 @@ pub fn calinski_harabasz_score(x: &Array2<f64>, labels: &Array1<i32>) -> Result<
     }
 
     // Compute overall centroid
-    let overall_centroid = x.mean_axis(Axis(0)).unwrap();
+    let overall_centroid = x.mean_axis(Axis(0)).expect("SAFETY: non-empty axis");
 
     // Compute cluster centroids and sizes
     let mut cluster_centroids: Array2<f64> = Array2::zeros((n_clusters, n_features));

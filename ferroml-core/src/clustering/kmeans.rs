@@ -375,7 +375,7 @@ impl KMeans {
             x_contig = x.as_standard_layout().into_owned();
             &x_contig
         };
-        let x_data = x_ref.as_slice().unwrap();
+        let x_data = x_ref.as_slice().expect("SAFETY: standard-layout array");
 
         // Helper closure: get row i of x as a slice (zero-copy)
         let x_row = |i: usize| -> &[f64] { &x_data[i * n_features..(i + 1) * n_features] };
@@ -393,7 +393,7 @@ impl KMeans {
             let mut min_idx = 0usize;
             for j in 0..k {
                 let cj = centers.row(j);
-                let cj_s = cj.as_slice().unwrap();
+                let cj_s = cj.as_slice().expect("SAFETY: standard-layout array");
                 let dist = crate::linalg::squared_euclidean_distance(xi, cj_s).sqrt();
                 lower[i * k + j] = dist;
                 if dist < min_dist {
@@ -418,14 +418,14 @@ impl KMeans {
             for j in 0..k {
                 s[j] = f64::MAX;
                 let cj = centers.row(j);
-                let cj_s = cj.as_slice().unwrap();
+                let cj_s = cj.as_slice().expect("SAFETY: standard-layout array");
                 for jp in 0..k {
                     if j == jp {
                         center_dists[j * k + jp] = 0.0;
                         continue;
                     }
                     let cjp = centers.row(jp);
-                    let cjp_s = cjp.as_slice().unwrap();
+                    let cjp_s = cjp.as_slice().expect("SAFETY: standard-layout array");
                     let dist = crate::linalg::squared_euclidean_distance(cj_s, cjp_s).sqrt();
                     center_dists[j * k + jp] = dist;
                     let half_dist = dist * 0.5;
@@ -466,7 +466,7 @@ impl KMeans {
                     // Tighten upper bound if not done yet
                     if !r_done {
                         let c_ai = centers.row(ai);
-                        let c_ai_s = c_ai.as_slice().unwrap();
+                        let c_ai_s = c_ai.as_slice().expect("SAFETY: standard-layout array");
                         let d_ai = crate::linalg::squared_euclidean_distance(xi, c_ai_s).sqrt();
                         upper[i] = d_ai;
                         lower[lower_i + ai] = d_ai;
@@ -480,7 +480,7 @@ impl KMeans {
 
                     // Must compute actual distance to center j
                     let cj = centers.row(j);
-                    let cj_s = cj.as_slice().unwrap();
+                    let cj_s = cj.as_slice().expect("SAFETY: standard-layout array");
                     let d_j = crate::linalg::squared_euclidean_distance(xi, cj_s).sqrt();
                     lower[lower_i + j] = d_j;
 
@@ -517,9 +517,9 @@ impl KMeans {
             let deltas: Vec<f64> = (0..k)
                 .map(|j| {
                     let old_cj = centers.row(j);
-                    let old_cj_s = old_cj.as_slice().unwrap();
+                    let old_cj_s = old_cj.as_slice().expect("SAFETY: standard-layout array");
                     let new_cj = new_centers.row(j);
-                    let new_cj_s = new_cj.as_slice().unwrap();
+                    let new_cj_s = new_cj.as_slice().expect("SAFETY: standard-layout array");
                     crate::linalg::squared_euclidean_distance(old_cj_s, new_cj_s).sqrt()
                 })
                 .collect();
@@ -540,7 +540,7 @@ impl KMeans {
                     let ci = labels[i] as usize;
                     let xi = x_row(i);
                     let c = new_centers.row(ci);
-                    let c_s = c.as_slice().unwrap();
+                    let c_s = c.as_slice().expect("SAFETY: standard-layout array");
                     crate::linalg::squared_euclidean_distance(xi, c_s)
                 })
                 .sum();
@@ -560,7 +560,7 @@ impl KMeans {
                 let ci = labels[i] as usize;
                 let xi = x_row(i);
                 let c = centers.row(ci);
-                let c_s = c.as_slice().unwrap();
+                let c_s = c.as_slice().expect("SAFETY: standard-layout array");
                 crate::linalg::squared_euclidean_distance(xi, c_s)
             })
             .sum();
@@ -727,7 +727,10 @@ impl KMeans {
             // Fit kmeans on actual data
             let mut kmeans = KMeans::new(k).random_state(rng.random());
             kmeans.fit(x)?;
-            let w_k = kmeans.inertia().unwrap().ln();
+            let w_k = kmeans
+                .inertia()
+                .expect("SAFETY: kmeans was just fitted")
+                .ln();
 
             // Generate reference datasets and compute their dispersions
             let mut ref_dispersions = Vec::with_capacity(n_refs);
@@ -742,7 +745,12 @@ impl KMeans {
 
                 let mut ref_kmeans = KMeans::new(k).n_init(1).random_state(rng.random());
                 ref_kmeans.fit(&ref_data)?;
-                ref_dispersions.push(ref_kmeans.inertia().unwrap().ln());
+                ref_dispersions.push(
+                    ref_kmeans
+                        .inertia()
+                        .expect("SAFETY: kmeans was just fitted")
+                        .ln(),
+                );
             }
 
             // Compute gap statistic: E[log(W_k^*)] - log(W_k)
@@ -801,7 +809,7 @@ impl KMeans {
         for &k in &k_values {
             let mut kmeans = KMeans::new(k).random_state(rng.random());
             kmeans.fit(x)?;
-            inertias.push(kmeans.inertia().unwrap());
+            inertias.push(kmeans.inertia().expect("SAFETY: kmeans was just fitted"));
         }
 
         // Find elbow using the kneedle algorithm (simplified)
@@ -1034,7 +1042,10 @@ impl ClusteringStatistics for KMeans {
         }
 
         let n_samples = x.nrows();
-        let original_labels = self.labels_.as_ref().unwrap();
+        let original_labels = self
+            .labels_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("cluster_stability"))?;
         let mut rng = StdRng::seed_from_u64(self.random_state.unwrap_or(42));
 
         // For each bootstrap iteration, compute adjusted rand index with original
@@ -1113,7 +1124,10 @@ impl ClusteringStatistics for KMeans {
             return Err(FerroError::not_fitted("silhouette_with_ci"));
         }
 
-        let labels = self.labels_.as_ref().unwrap();
+        let labels = self
+            .labels_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("silhouette_with_ci"))?;
         let n_bootstrap = 1000;
         let mut rng = StdRng::seed_from_u64(self.random_state.unwrap_or(42));
 

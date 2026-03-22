@@ -121,8 +121,10 @@ impl ClusteringModel for AgglomerativeClustering {
         let mut dist = Array2::from_elem((n_samples, n_samples), f64::INFINITY);
         for i in 0..n_samples {
             for j in (i + 1)..n_samples {
-                let d =
-                    squared_distance(x.row(i).as_slice().unwrap(), x.row(j).as_slice().unwrap());
+                let d = squared_distance(
+                    x.row(i).as_slice().expect("SAFETY: standard-layout array"),
+                    x.row(j).as_slice().expect("SAFETY: standard-layout array"),
+                );
                 let d = match self.linkage {
                     Linkage::Ward => d, // Ward uses squared distances internally
                     _ => d.sqrt(),

@@ -520,10 +520,15 @@ impl LogisticRegression {
     /// Positive values predict class 1, negative values predict class 0.
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.coefficients, "decision_function")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
         validate_predict_input(x, n_features)?;
 
-        let coef = self.coefficients.as_ref().unwrap();
+        let coef = self
+            .coefficients
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
         let intercept = self.intercept.unwrap_or(0.0);
 
         Ok(x.dot(coef) + intercept)
@@ -1604,10 +1609,15 @@ impl ProbabilisticModel for LogisticRegression {
     fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.coefficients, "predict_proba")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         validate_predict_input(x, n_features)?;
 
-        let coef = self.coefficients.as_ref().unwrap();
+        let coef = self
+            .coefficients
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         let intercept = self.intercept.unwrap_or(0.0);
 
         let linear_pred = x.dot(coef) + intercept;
@@ -1630,7 +1640,9 @@ impl ProbabilisticModel for LogisticRegression {
         // For logistic regression, return CI for predicted probabilities
         check_is_fitted(&self.coefficients, "predict_interval")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_interval"))?;
         validate_predict_input(x, n_features)?;
 
         let data = self
@@ -1638,7 +1650,10 @@ impl ProbabilisticModel for LogisticRegression {
             .as_ref()
             .ok_or_else(|| FerroError::not_fitted("predict_interval"))?;
 
-        let coef = self.coefficients.as_ref().unwrap();
+        let coef = self
+            .coefficients
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_interval"))?;
         let intercept = self.intercept.unwrap_or(0.0);
 
         // Build design matrix
@@ -2218,7 +2233,9 @@ impl crate::models::traits::SparseModel for LogisticRegression {
 
     fn predict_sparse(&self, x: &crate::sparse::CsrMatrix) -> Result<Array1<f64>> {
         check_is_fitted(&self.coefficients, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
         if x.ncols() != n_features {
             return Err(FerroError::ShapeMismatch {
                 expected: format!("{} features", n_features),
@@ -2226,7 +2243,10 @@ impl crate::models::traits::SparseModel for LogisticRegression {
             });
         }
 
-        let coef = self.coefficients.as_ref().unwrap();
+        let coef = self
+            .coefficients
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_sparse"))?;
         let intercept = self.intercept.unwrap_or(0.0);
 
         // Sparse mat-vec: X @ coef + intercept

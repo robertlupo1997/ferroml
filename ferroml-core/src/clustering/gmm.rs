@@ -284,7 +284,10 @@ impl GaussianMixture {
             .weights_
             .as_ref()
             .ok_or_else(|| FerroError::not_fitted("GaussianMixture"))?;
-        let means = self.means_.as_ref().unwrap();
+        let means = self
+            .means_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("sample"))?;
         let n_features = means.ncols();
 
         let mut rng = match self.random_state {
@@ -428,8 +431,14 @@ impl GaussianMixture {
     }
 
     fn estimate_log_prob_full(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
-        let means = self.means_.as_ref().unwrap();
-        let precisions_chol = self.precisions_cholesky_full_.as_ref().unwrap();
+        let means = self
+            .means_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("estimate_log_prob_full"))?;
+        let precisions_chol = self
+            .precisions_cholesky_full_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("estimate_log_prob_full"))?;
         let n = x.nrows();
         let d = x.ncols();
         let k = self.n_components;
@@ -462,8 +471,14 @@ impl GaussianMixture {
     }
 
     fn estimate_log_prob_tied(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
-        let means = self.means_.as_ref().unwrap();
-        let prec_chol = self.precisions_cholesky_tied_.as_ref().unwrap();
+        let means = self
+            .means_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("estimate_log_prob_tied"))?;
+        let prec_chol = self
+            .precisions_cholesky_tied_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("estimate_log_prob_tied"))?;
         let n = x.nrows();
         let d = x.ncols();
         let k = self.n_components;
@@ -492,8 +507,14 @@ impl GaussianMixture {
     }
 
     fn estimate_log_prob_diagonal(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
-        let means = self.means_.as_ref().unwrap();
-        let diag_cov = self.covariances_diag_.as_ref().unwrap();
+        let means = self
+            .means_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("estimate_log_prob_diagonal"))?;
+        let diag_cov = self
+            .covariances_diag_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("estimate_log_prob_diagonal"))?;
         let n = x.nrows();
         let d = x.ncols();
         let k = self.n_components;
@@ -521,8 +542,14 @@ impl GaussianMixture {
     }
 
     fn estimate_log_prob_spherical(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
-        let means = self.means_.as_ref().unwrap();
-        let sph_cov = self.covariances_spherical_.as_ref().unwrap();
+        let means = self
+            .means_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("estimate_log_prob_spherical"))?;
+        let sph_cov = self
+            .covariances_spherical_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("estimate_log_prob_spherical"))?;
         let n = x.nrows();
         let d = x.ncols();
         let k = self.n_components;
@@ -760,7 +787,10 @@ impl GaussianMixture {
 
         match self.cov_type {
             CovarianceType::Full => {
-                let covs = self.covariances_full_.as_ref().unwrap();
+                let covs = self
+                    .covariances_full_
+                    .as_ref()
+                    .ok_or_else(|| FerroError::not_fitted("sample_from_component"))?;
                 let l = cholesky(&covs[comp], 0.0)?;
                 // x = L * z
                 let mut result = vec![0.0; n_features];
@@ -772,7 +802,10 @@ impl GaussianMixture {
                 Ok(result)
             }
             CovarianceType::Tied => {
-                let cov = self.covariances_tied_.as_ref().unwrap();
+                let cov = self
+                    .covariances_tied_
+                    .as_ref()
+                    .ok_or_else(|| FerroError::not_fitted("sample_from_component"))?;
                 let l = cholesky(cov, 0.0)?;
                 let mut result = vec![0.0; n_features];
                 for i in 0..n_features {
@@ -783,7 +816,10 @@ impl GaussianMixture {
                 Ok(result)
             }
             CovarianceType::Diagonal => {
-                let diag = self.covariances_diag_.as_ref().unwrap();
+                let diag = self
+                    .covariances_diag_
+                    .as_ref()
+                    .ok_or_else(|| FerroError::not_fitted("sample_from_component"))?;
                 let mut result = vec![0.0; n_features];
                 for j in 0..n_features {
                     result[j] = z[j] * diag[[comp, j]].sqrt();
@@ -791,7 +827,10 @@ impl GaussianMixture {
                 Ok(result)
             }
             CovarianceType::Spherical => {
-                let sph = self.covariances_spherical_.as_ref().unwrap();
+                let sph = self
+                    .covariances_spherical_
+                    .as_ref()
+                    .ok_or_else(|| FerroError::not_fitted("sample_from_component"))?;
                 let std = sph[comp].sqrt();
                 let result: Vec<f64> = z.iter().map(|&zi| zi * std).collect();
                 Ok(result)
@@ -923,8 +962,12 @@ impl ClusteringModel for GaussianMixture {
                     if lower_bound > best_lower_bound {
                         best_lower_bound = lower_bound;
                         best_params = Some((
-                            self.weights_.clone().unwrap(),
-                            self.means_.clone().unwrap(),
+                            self.weights_
+                                .clone()
+                                .ok_or_else(|| FerroError::not_fitted("operation"))?,
+                            self.means_
+                                .clone()
+                                .ok_or_else(|| FerroError::not_fitted("operation"))?,
                             self.covariances_full_.clone(),
                             self.covariances_tied_.clone(),
                             self.covariances_diag_.clone(),

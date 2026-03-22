@@ -198,17 +198,27 @@ impl ExtraTreesClassifier {
     /// Predict class probabilities by averaging tree predictions
     pub fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.estimators, "predict_proba")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         validate_predict_input(x, n_features)?;
 
-        let estimators = self.estimators.as_ref().unwrap();
-        let classes = self.classes.as_ref().unwrap();
+        let estimators = self
+            .estimators
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         let n_samples = x.nrows();
         let n_classes = classes.len();
         let mut avg_proba = Array2::zeros((n_samples, n_classes));
 
         for tree in estimators {
-            let tree_struct = tree.tree().unwrap();
+            let tree_struct = tree
+                .tree()
+                .expect("SAFETY: tree was fitted during forest fit");
             for i in 0..n_samples {
                 let sample: Vec<f64> = x.row(i).to_vec();
                 let mut node_id = 0;
@@ -222,12 +232,18 @@ impl ExtraTreesClassifier {
                         }
                         break;
                     }
-                    let fi = node.feature_index.unwrap();
-                    let thr = node.threshold.unwrap();
+                    let fi = node
+                        .feature_index
+                        .expect("SAFETY: split node has feature/threshold");
+                    let thr = node
+                        .threshold
+                        .expect("SAFETY: split node has feature/threshold");
                     node_id = if sample[fi] <= thr {
-                        node.left_child.unwrap()
+                        node.left_child
+                            .expect("SAFETY: split node has feature/threshold")
                     } else {
-                        node.right_child.unwrap()
+                        node.right_child
+                            .expect("SAFETY: split node has feature/threshold")
                     };
                 }
             }
@@ -282,7 +298,9 @@ impl ExtraTreesClassifier {
             }
         }
 
-        let mean_importance = tree_importances.mean_axis(Axis(0)).unwrap();
+        let mean_importance = tree_importances
+            .mean_axis(Axis(0))
+            .expect("SAFETY: non-empty axis");
         let std_error = if n_trees > 1 {
             let mut se = Array1::zeros(n_features);
             for j in 0..n_features {
@@ -408,7 +426,10 @@ impl Model for ExtraTreesClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let proba = self.predict_proba(x)?;
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
         let mut predictions = Array1::zeros(n_samples);
 
@@ -628,7 +649,9 @@ impl ExtraTreesRegressor {
             }
         }
 
-        let mean_importance = tree_importances.mean_axis(Axis(0)).unwrap();
+        let mean_importance = tree_importances
+            .mean_axis(Axis(0))
+            .expect("SAFETY: non-empty axis");
         let std_error = if n_trees > 1 {
             let mut se = Array1::zeros(n_features);
             for j in 0..n_features {
@@ -746,22 +769,33 @@ impl Model for ExtraTreesRegressor {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.estimators, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
-        let estimators = self.estimators.as_ref().unwrap();
+        let estimators = self
+            .estimators
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         #[cfg(feature = "parallel")]
         let tree_preds: Vec<Array1<f64>> = estimators
             .par_iter()
-            .map(|tree| tree.predict(x).unwrap())
+            .map(|tree| {
+                tree.predict(x)
+                    .expect("SAFETY: tree was fitted during forest fit")
+            })
             .collect();
 
         #[cfg(not(feature = "parallel"))]
         let tree_preds: Vec<Array1<f64>> = estimators
             .iter()
-            .map(|tree| tree.predict(x).unwrap())
+            .map(|tree| {
+                tree.predict(x)
+                    .expect("SAFETY: tree was fitted during forest fit")
+            })
             .collect();
 
         let mut avg = Array1::zeros(n_samples);

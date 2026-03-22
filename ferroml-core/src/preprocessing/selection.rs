@@ -163,9 +163,16 @@ impl Transformer for VarianceThreshold {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let selected = self.selected_indices.as_ref().unwrap();
+        let selected = self
+            .selected_indices
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         let n_samples = x.nrows();
         let n_selected = selected.len();
 
@@ -391,9 +398,16 @@ impl Transformer for SelectKBest {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let selected = self.selected_indices.as_ref().unwrap();
+        let selected = self
+            .selected_indices
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         let n_samples = x.nrows();
         let n_selected = selected.len();
 
@@ -616,9 +630,16 @@ impl Transformer for SelectFromModel {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let selected = self.selected_indices.as_ref().unwrap();
+        let selected = self
+            .selected_indices
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         let n_samples = x.nrows();
         let n_selected = selected.len();
 
@@ -687,7 +708,10 @@ fn compute_f_classif(x: &Array2<f64>, y: &Array1<f64>) -> Result<FeatureScores> 
     // Group samples by class
     let mut class_indices: HashMap<usize, Vec<usize>> = HashMap::new();
     for (i, &label) in y.iter().enumerate() {
-        let class_idx = classes.iter().position(|&c| c == label).unwrap();
+        let class_idx = classes
+            .iter()
+            .position(|&c| c == label)
+            .expect("SAFETY: label exists in known class set");
         class_indices.entry(class_idx).or_default().push(i);
     }
 
@@ -844,7 +868,10 @@ fn compute_chi2(x: &Array2<f64>, y: &Array1<f64>) -> Result<FeatureScores> {
         let mut class_counts: Vec<usize> = vec![0; n_classes];
 
         for (i, &label) in y.iter().enumerate() {
-            let class_idx = classes.iter().position(|&c| c == label).unwrap();
+            let class_idx = classes
+                .iter()
+                .position(|&c| c == label)
+                .expect("SAFETY: label exists in known class set");
             class_sums[class_idx] += col[i];
             class_counts[class_idx] += 1;
         }
@@ -1482,9 +1509,16 @@ impl Transformer for RecursiveFeatureElimination {
 
     fn transform(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(self.is_fitted(), "transform")?;
-        check_shape(x, self.n_features_in.unwrap())?;
+        check_shape(
+            x,
+            self.n_features_in
+                .ok_or_else(|| FerroError::not_fitted("transform"))?,
+        )?;
 
-        let selected = self.selected_indices.as_ref().unwrap();
+        let selected = self
+            .selected_indices
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("transform"))?;
         let n_samples = x.nrows();
         let n_selected = selected.len();
 

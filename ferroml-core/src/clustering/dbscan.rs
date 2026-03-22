@@ -188,14 +188,14 @@ impl DBSCAN {
                 .filter(|&j| j != i)
                 .map(|j| euclidean_distance(&x.row(i), &x.row(j)))
                 .collect();
-            distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            distances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
             // k-th nearest neighbor (0-indexed, so k-1)
             k_distances.push(distances[k.min(distances.len()) - 1]);
         }
 
         // Sort k-distances in descending order
-        k_distances.sort_by(|a, b| b.partial_cmp(a).unwrap());
+        k_distances.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
 
         // Find elbow using simple method: maximum curvature
         let n = k_distances.len();
@@ -578,8 +578,14 @@ impl ClusteringModel for DBSCAN {
             .as_ref()
             .ok_or_else(|| FerroError::not_fitted("predict"))?;
 
-        let core_indices = self.core_sample_indices_.as_ref().unwrap();
-        let train_labels = self.labels_.as_ref().unwrap();
+        let core_indices = self
+            .core_sample_indices_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let train_labels = self
+            .labels_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
 
         let n_samples = x.nrows();
         let mut labels = Array1::from_elem(n_samples, -1i32);

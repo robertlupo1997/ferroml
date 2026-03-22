@@ -660,7 +660,11 @@ impl Resampler for BorderlineSMOTE {
         let mut all_x: Vec<Array1<f64>> = x.rows().into_iter().map(|r| r.to_owned()).collect();
         let mut all_y: Vec<f64> = y.to_vec();
 
-        let majority_class = *class_counts.iter().max_by_key(|(_, &v)| v).unwrap().0;
+        let majority_class = *class_counts
+            .iter()
+            .max_by_key(|(_, &v)| v)
+            .expect("SAFETY: non-empty collection")
+            .0;
 
         for (&class_label, &current_count) in &class_counts {
             if class_label == majority_class {
@@ -1084,7 +1088,10 @@ impl Resampler for ADASYN {
         let mut density_ratios: HashMap<i64, Vec<f64>> = HashMap::new();
 
         // Find majority class count
-        let max_class_count = *class_counts.values().max().unwrap();
+        let max_class_count = *class_counts
+            .values()
+            .max()
+            .expect("SAFETY: non-empty collection");
 
         // Number of neighbors for density calculation
         let n_neighbors_density = self.effective_n_neighbors();

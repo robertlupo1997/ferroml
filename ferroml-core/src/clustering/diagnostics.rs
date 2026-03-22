@@ -111,7 +111,7 @@ impl ClusterDiagnostics {
         let total_within_ss: f64 = within_ss.iter().sum();
 
         // Compute overall centroid and between-cluster SS
-        let overall_centroid = x.mean_axis(Axis(0)).unwrap();
+        let overall_centroid = x.mean_axis(Axis(0)).expect("SAFETY: non-empty axis");
         let mut between_ss = 0.0;
         for (k, _) in unique_labels.iter().enumerate() {
             let n_k = cluster_sizes[k] as f64;

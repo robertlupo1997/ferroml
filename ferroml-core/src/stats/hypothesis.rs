@@ -232,7 +232,8 @@ fn run_mann_whitney(x: &Array1<f64>, y: &Array1<f64>) -> Result<StatisticalResul
         .map(|&v| (v, 0))
         .chain(y.iter().map(|&v| (v, 1)))
         .collect();
-    combined.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    // SAFETY: NaN values are ordered to the end via unwrap_or(Equal)
+    combined.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
     // Assign ranks (handling ties)
     let mut ranks = vec![0.0; combined.len()];

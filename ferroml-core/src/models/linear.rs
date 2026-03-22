@@ -214,8 +214,8 @@ impl LinearRegression {
             }
 
             if n_features > 1 {
-                let x_other =
-                    Array2::from_shape_vec((x.nrows(), n_features - 1), x_others).unwrap();
+                let x_other = Array2::from_shape_vec((x.nrows(), n_features - 1), x_others)
+                    .expect("SAFETY: shape computed from data dimensions");
 
                 // Fit regression of x_j on other xs
                 let mut reg = LinearRegression::new();
@@ -541,10 +541,15 @@ impl Model for LinearRegression {
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.coefficients, "predict")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
-        let coef = self.coefficients.as_ref().unwrap();
+        let coef = self
+            .coefficients
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let intercept = self.intercept.unwrap_or(0.0);
 
         let predictions = x.dot(coef) + intercept;
@@ -771,7 +776,9 @@ impl ProbabilisticModel for LinearRegression {
     fn predict_interval(&self, x: &Array2<f64>, level: f64) -> Result<PredictionInterval> {
         check_is_fitted(&self.coefficients, "predict_interval")?;
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_interval"))?;
         validate_predict_input(x, n_features)?;
 
         let data = self

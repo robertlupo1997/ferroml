@@ -537,11 +537,18 @@ impl GradientBoostingRegressor {
         x: &'a Array2<f64>,
     ) -> Result<impl Iterator<Item = Array1<f64>> + 'a> {
         check_is_fitted(&self.estimators, "staged_predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("staged_predict"))?;
         validate_predict_input(x, n_features)?;
 
-        let estimators = self.estimators.as_ref().unwrap();
-        let init = self.init_prediction.unwrap();
+        let estimators = self
+            .estimators
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("staged_predict"))?;
+        let init = self
+            .init_prediction
+            .ok_or_else(|| FerroError::not_fitted("staged_predict"))?;
         let n_samples = x.nrows();
 
         Ok(StagedPredictIterator {
@@ -562,6 +569,7 @@ impl GradientBoostingRegressor {
     /// Compute feature importances from all trees
     fn compute_feature_importances(&mut self) {
         if let Some(ref estimators) = self.estimators {
+            // SAFETY: n_features is always set during fit() before this is called
             let n_features = self.n_features.unwrap();
             let mut importances = Array1::zeros(n_features);
 
@@ -741,6 +749,7 @@ impl Model for GradientBoostingRegressor {
                 let val_loss = self.loss.loss(yv, vp, self.alpha);
                 history.val_loss.push(val_loss);
 
+                // SAFETY: early_stopping is always Some when validation data is provided
                 let early_stopping = self.early_stopping.as_ref().unwrap();
                 if val_loss < best_val_loss - early_stopping.min_delta {
                     best_val_loss = val_loss;
@@ -767,11 +776,18 @@ impl Model for GradientBoostingRegressor {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.estimators, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
-        let estimators = self.estimators.as_ref().unwrap();
-        let init = self.init_prediction.unwrap();
+        let estimators = self
+            .estimators
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
+        let init = self
+            .init_prediction
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         // Parallel prediction: split samples across threads, each thread traverses
@@ -1107,13 +1123,23 @@ impl GradientBoostingClassifier {
     /// Predict class probabilities
     pub fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.estimators, "predict_proba")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         validate_predict_input(x, n_features)?;
 
         let n_samples = x.nrows();
-        let n_classes = self.n_classes.unwrap();
-        let estimators = self.estimators.as_ref().unwrap();
-        let init = self.init_predictions.as_ref().unwrap();
+        let n_classes = self
+            .n_classes
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
+        let estimators = self
+            .estimators
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
+        let init = self
+            .init_predictions
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
 
         // For binary classification, we only have 1 tree per stage
         let n_trees_per_stage = if n_classes == 2 { 1 } else { n_classes };
@@ -1244,6 +1270,7 @@ impl GradientBoostingClassifier {
     /// Compute feature importances from all trees
     fn compute_feature_importances(&mut self) {
         if let Some(ref estimators) = self.estimators {
+            // SAFETY: n_features is always set during fit() before this is called
             let n_features = self.n_features.unwrap();
             let mut importances = Array1::zeros(n_features);
 
@@ -1271,13 +1298,23 @@ impl GradientBoostingClassifier {
     /// n_trees_per_stage is 1 for binary classification and n_classes for multiclass.
     fn raw_predictions(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.estimators, "decision_function")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
         validate_predict_input(x, n_features)?;
 
         let n_samples = x.nrows();
-        let n_classes = self.n_classes.unwrap();
-        let estimators = self.estimators.as_ref().unwrap();
-        let init = self.init_predictions.as_ref().unwrap();
+        let n_classes = self
+            .n_classes
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
+        let estimators = self
+            .estimators
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
+        let init = self
+            .init_predictions
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
         let n_trees_per_stage = if n_classes == 2 { 1 } else { n_classes };
 
         let mut raw = Array2::zeros((n_samples, n_trees_per_stage));
@@ -1311,7 +1348,9 @@ impl GradientBoostingClassifier {
     /// the single raw score is expanded to two columns: [-score, +score].
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         let raw = self.raw_predictions(x)?;
-        let n_classes = self.n_classes.unwrap();
+        let n_classes = self
+            .n_classes
+            .ok_or_else(|| FerroError::not_fitted("decision_function"))?;
 
         if n_classes == 2 {
             // Expand single column to two columns: negative and positive class scores
@@ -1329,6 +1368,7 @@ impl GradientBoostingClassifier {
 
     /// Compute log-loss for validation
     fn compute_log_loss(&self, y: &Array1<f64>, probas: &Array2<f64>) -> f64 {
+        // SAFETY: classes is always set during fit() before this is called
         super::compute_log_loss(y, probas, self.classes.as_ref().unwrap())
     }
 }
@@ -1572,6 +1612,7 @@ impl Model for GradientBoostingClassifier {
                 let val_loss = self.compute_log_loss(yv, &val_probas);
                 history.val_loss.push(val_loss);
 
+                // SAFETY: early_stopping is always Some when validation data is provided
                 let early_stopping = self.early_stopping.as_ref().unwrap();
                 if val_loss < best_val_loss - early_stopping.min_delta {
                     best_val_loss = val_loss;
@@ -1598,7 +1639,10 @@ impl Model for GradientBoostingClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let probas = self.predict_proba(x)?;
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         let mut predictions = Array1::zeros(n_samples);
@@ -1646,6 +1690,7 @@ impl Model for GradientBoostingClassifier {
 
 impl GradientBoostingClassifier {
     fn raw_to_proba(&self, raw: &Array2<f64>) -> Array2<f64> {
+        // SAFETY: n_classes is always set during fit() before this is called
         super::raw_to_proba(raw, self.n_classes.unwrap())
     }
 }

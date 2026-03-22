@@ -376,11 +376,19 @@ impl RandomForestClassifier {
     /// Predict class probabilities
     pub fn predict_proba(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.estimators, "predict_proba")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         validate_predict_input(x, n_features)?;
 
-        let estimators = self.estimators.as_ref().unwrap();
-        let forest_classes = self.classes.as_ref().unwrap();
+        let estimators = self
+            .estimators
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
+        let forest_classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
         let n_classes = forest_classes.len();
         let n_samples = x.nrows();
 
@@ -389,8 +397,12 @@ impl RandomForestClassifier {
 
         // Helper to align tree probabilities to forest class ordering
         let align_tree_probas = |tree: &DecisionTreeClassifier| -> Array2<f64> {
-            let tree_proba = tree.predict_proba(x).unwrap();
-            let tree_classes = tree.classes().unwrap();
+            let tree_proba = tree
+                .predict_proba(x)
+                .expect("SAFETY: tree was fitted during forest fit");
+            let tree_classes = tree
+                .classes()
+                .expect("SAFETY: tree was fitted during forest fit");
 
             // If tree has same classes as forest, return directly
             if tree_classes.len() == n_classes {
@@ -477,9 +489,9 @@ impl RandomForestClassifier {
         oob_indices_per_tree: &[Vec<usize>],
     ) {
         let n_samples = x.nrows();
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self.classes.as_ref().expect("SAFETY: called after fit");
         let n_classes = classes.len();
-        let estimators = self.estimators.as_ref().unwrap();
+        let estimators = self.estimators.as_ref().expect("SAFETY: called after fit");
 
         // Accumulate OOB predictions
         let mut oob_proba = Array2::zeros((n_samples, n_classes));
@@ -549,7 +561,7 @@ impl RandomForestClassifier {
             None => return,
         };
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self.n_features.expect("SAFETY: called after fit");
 
         // Collect importances from all trees
         let all_importances: Vec<Array1<f64>> = estimators
@@ -741,11 +753,16 @@ impl Model for RandomForestClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.estimators, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
         let probas = self.predict_proba(x)?;
-        let classes = self.classes.as_ref().unwrap();
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         let mut predictions = Array1::zeros(n_samples);
@@ -1049,7 +1066,7 @@ impl RandomForestRegressor {
         oob_indices_per_tree: &[Vec<usize>],
     ) {
         let n_samples = x.nrows();
-        let estimators = self.estimators.as_ref().unwrap();
+        let estimators = self.estimators.as_ref().expect("SAFETY: called after fit");
 
         // Accumulate OOB predictions
         let mut oob_predictions = Array1::zeros(n_samples);
@@ -1111,7 +1128,7 @@ impl RandomForestRegressor {
             None => return,
         };
 
-        let n_features = self.n_features.unwrap();
+        let n_features = self.n_features.expect("SAFETY: called after fit");
 
         // Collect importances from all trees
         let all_importances: Vec<Array1<f64>> = estimators
@@ -1280,23 +1297,34 @@ impl Model for RandomForestRegressor {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.estimators, "predict")?;
-        let n_features = self.n_features.unwrap();
+        let n_features = self
+            .n_features
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         validate_predict_input(x, n_features)?;
 
-        let estimators = self.estimators.as_ref().unwrap();
+        let estimators = self
+            .estimators
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         // Collect predictions from all trees (parallel when enabled)
         #[cfg(feature = "parallel")]
         let tree_preds: Vec<Array1<f64>> = estimators
             .par_iter()
-            .map(|tree| tree.predict(x).unwrap())
+            .map(|tree| {
+                tree.predict(x)
+                    .expect("SAFETY: tree was fitted during forest fit")
+            })
             .collect();
 
         #[cfg(not(feature = "parallel"))]
         let tree_preds: Vec<Array1<f64>> = estimators
             .iter()
-            .map(|tree| tree.predict(x).unwrap())
+            .map(|tree| {
+                tree.predict(x)
+                    .expect("SAFETY: tree was fitted during forest fit")
+            })
             .collect();
 
         // Sum all tree predictions
