@@ -2081,8 +2081,105 @@ fn bench_linear_svc_sizes(c: &mut Criterion) {
 }
 
 // =============================================================================
+// SVD PERFORMANCE BENCHMARKS
+// =============================================================================
+
+/// PCA SVD performance at production-relevant sizes.
+/// Key target: 10000x100 must complete in a reasonable time.
+fn bench_pca_svd_sizes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("PCA_SVD_Performance");
+    group.sample_size(10);
+    for (n, p) in [(1000, 50), (5000, 100), (10000, 100)] {
+        let (x, _) = generate_regression_data(n, p);
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(
+            BenchmarkId::new("fit", format!("{}x{}", n, p)),
+            &x,
+            |b, x| {
+                b.iter(|| {
+                    let mut pca = PCA::new().with_n_components(10);
+                    pca.fit(black_box(x)).unwrap()
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+/// TruncatedSVD performance at production-relevant sizes.
+fn bench_truncated_svd_sizes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("TruncatedSVD_Performance");
+    group.sample_size(10);
+    for (n, p) in [(1000, 50), (5000, 100), (10000, 100)] {
+        let (x, _) = generate_regression_data(n, p);
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(
+            BenchmarkId::new("fit", format!("{}x{}", n, p)),
+            &x,
+            |b, x| {
+                b.iter(|| {
+                    let mut svd = TruncatedSVD::new().with_n_components(10);
+                    svd.fit(black_box(x)).unwrap()
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+/// LDA performance benchmarks with classification data.
+fn bench_lda_sizes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("LDA_Performance");
+    group.sample_size(10);
+    for (n, p) in [(1000, 50), (5000, 100)] {
+        let (x, y) = generate_classification_data(n, p, 3);
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(
+            BenchmarkId::new("fit", format!("{}x{}", n, p)),
+            &(x.clone(), y.clone()),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut lda = LDA::new().with_n_components(2);
+                    lda.fit(black_box(x), black_box(y)).unwrap()
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+/// FactorAnalysis performance benchmarks.
+fn bench_factor_analysis_sizes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("FactorAnalysis_Performance");
+    group.sample_size(10);
+    for (n, p) in [(1000, 50), (5000, 50)] {
+        let (x, _) = generate_regression_data(n, p);
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(
+            BenchmarkId::new("fit", format!("{}x{}", n, p)),
+            &x,
+            |b, x| {
+                b.iter(|| {
+                    let mut fa = FactorAnalysis::new().with_n_factors(5);
+                    fa.fit(black_box(x)).unwrap()
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+// =============================================================================
 // BENCHMARK GROUPS
 // =============================================================================
+
+criterion_group!(
+    svd_perf_benches,
+    bench_pca_svd_sizes,
+    bench_truncated_svd_sizes,
+    bench_lda_sizes,
+    bench_factor_analysis_sizes,
+);
 
 criterion_group!(
     linear_models,
@@ -2282,5 +2379,6 @@ criterion_main!(
     additional_classifier_benches,
     decomposition_extended_benches,
     svc_threshold_benches,
-    linear_svc_perf_benches
+    linear_svc_perf_benches,
+    svd_perf_benches
 );
