@@ -1276,6 +1276,16 @@ impl HistTreeBuilder {
     ) -> Vec<Histogram> {
         let n_features = x_col_major.len();
 
+        // SAFETY: Validate that all sample indices are in bounds for gradient/hessian arrays.
+        // Bin indices may exceed n_bins (NaN -> missing_bin), which is why runtime bounds
+        // checks are retained in the inner loop rather than using unsafe indexing.
+        debug_assert!(
+            indices
+                .iter()
+                .all(|&i| i < gradients.len() && i < hessians.len()),
+            "Sample indices must be within bounds of gradient/hessian arrays"
+        );
+
         #[cfg(feature = "parallel")]
         {
             if indices.len() > 5_000 && n_features >= 4 {
