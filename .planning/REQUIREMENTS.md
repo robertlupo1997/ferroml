@@ -47,8 +47,8 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 - [x] **PERF-10**: SVC FULL_MATRIX_THRESHOLD tuned with benchmarks at n=1000,1500,2000,2500,3000
 - [x] **PERF-11**: KMeans squared-distance optimization verified complete (Plan W)
 - [x] **PERF-12**: Stability tests added BEFORE each solver swap (ill-conditioned matrix test suite)
-- [ ] **PERF-13**: Cross-library performance benchmarks run after each optimization to catch regressions
-- [ ] **PERF-14**: Published benchmark comparison page (Criterion results formatted for public consumption)
+- [x] **PERF-13**: Cross-library performance benchmarks run after each optimization to catch regressions
+- [x] **PERF-14**: Published benchmark comparison page (Criterion results formatted for public consumption)
 
 ### Robustness
 
@@ -144,8 +144,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | PERF-10 | Phase 4 | Complete |
 | PERF-11 | Phase 4 | Complete |
 | PERF-12 | Phase 4 | Complete |
-| PERF-13 | Phase 4 | Pending |
-| PERF-14 | Phase 4 | Pending |
+| PERF-13 | Phase 4 | Complete |
+| PERF-14 | Phase 4 | Complete |
 | ROBU-01 | Phase 3 | Complete |
 | ROBU-02 | Phase 3 | Complete |
 | ROBU-03 | Phase 3 | Complete |

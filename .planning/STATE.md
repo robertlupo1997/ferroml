@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.4
 milestone_name: milestone
-status: completed
-stopped_at: Completed 03-03-PLAN.md (Phase 3 complete)
-last_updated: "2026-03-22T01:58:49.814Z"
-last_activity: 2026-03-22 -- Completed 03-03 (Python exception mapping + pickle roundtrip)
+status: executing
+stopped_at: Completed 04-04-PLAN.md (Phase 4 complete)
+last_updated: "2026-03-22T23:49:00.000Z"
+last_activity: 2026-03-22 -- Completed 04-04 (Cross-library benchmarks + published benchmark page)
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  completed_phases: 4
+  total_plans: 13
+  completed_plans: 13
   percent: 100
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 4 of 5 (Performance Optimization)
-Plan: 3 of 4 in current phase (executing)
-Status: In Progress
-Last activity: 2026-03-22 -- Completed 04-03 (OLS/Ridge solver benchmarks + HistGBT histogram analysis)
+Plan: 4 of 4 in current phase (complete)
+Status: Phase 4 Complete
+Last activity: 2026-03-22 -- Completed 04-04 (Cross-library benchmarks + published benchmark page)
 
-Progress: [███████░░░] 75% of Phase 4
+Progress: [██████████] 100% of Phase 4
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [███████░░░] 75% of Phase 4
 | Phase 03 P02 | 116 | 2 tasks | 19 files |
 | Phase 03 P03 | 48 | 2 tasks | 26 files |
 | Phase 04 P03 | 145 | 2 tasks | 3 files |
+| Phase 04 P04 | 15 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions affecting current work:
 - [04-03]: HistGBT bounds checks RETAINED -- BinMapper NaN handling produces out-of-range bin indices (missing_bin = max_bins > histogram size)
 - [04-03]: No unsafe code for histogram loop -- bounds checks free for non-NaN data via branch prediction
 - [04-03]: debug_assert added for gradient/hessian index validation (zero cost in release)
+- [04-04]: 4 algorithms exceed targets (FactorAnalysis 3.66x, Ridge 4.71x, SVC RBF 5.96x, KMeans 4.68x) -- documented as known gaps, BLAS-level differences
+- [04-04]: KMeans apparent regression is benchmark config difference (5000x50 k=10 vs 1000x10 k=5), not code regression
+- [04-04]: PCA at 2.01x classified as borderline pass
 
 ### Pending Todos
 
@@ -115,6 +119,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T19:25:00Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-03-22T23:49:00Z
+Stopped at: Completed 04-04-PLAN.md (Phase 4 complete)
 Resume file: None
