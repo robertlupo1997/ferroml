@@ -2719,7 +2719,14 @@ impl LinearSVC {
                     continue;
                 }
 
-                // Compute w^T x_i using ndarray dot
+                // Compute w^T x_i using ndarray dot.
+                //
+                // f_i cache not beneficial for primal CD: maintaining f[i] = w^T x_i
+                // for all i requires O(n*d) cache update per coordinate step (since w
+                // changes affect all f[i]). This equals O(|active|*d) per epoch when
+                // the active set is large. Shrinking already reduces the active set
+                // effectively, making per-sample O(d) dot products the better approach.
+                // Benchmarked 2026-03-22.
                 let xi = x_design.row(i);
                 let wt_xi: f64 = w_aug.dot(&xi);
 

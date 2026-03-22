@@ -2026,6 +2026,61 @@ fn bench_large_scale_random_forest_predict(c: &mut Criterion) {
 }
 
 // =============================================================================
+// SVC THRESHOLD SWEEP BENCHMARKS
+// =============================================================================
+
+/// Benchmark SVC training across dataset sizes to find the optimal
+/// FULL_MATRIX_THRESHOLD crossover point between full kernel matrix and LRU cache.
+fn bench_svc_threshold_sweep(c: &mut Criterion) {
+    use ferroml_core::models::svm::Kernel;
+
+    let mut group = c.benchmark_group("SVC_Threshold_Sweep");
+    group.sample_size(10); // SVC training is slow
+                           // Test at sizes that straddle the current threshold (2000)
+    for n_samples in [1000, 1500, 2000, 2500, 3000] {
+        let (x, y) = generate_classification_data(n_samples, 20, 2);
+        group.bench_with_input(
+            BenchmarkId::new("fit", n_samples),
+            &(x.clone(), y.clone()),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut svc = SVC::new()
+                        .with_kernel(Kernel::Rbf { gamma: 0.1 })
+                        .with_max_iter(200);
+                    svc.fit(black_box(x), black_box(y)).unwrap()
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+// =============================================================================
+// LINEARSVC PERFORMANCE BENCHMARKS
+// =============================================================================
+
+/// Benchmark LinearSVC training across dataset sizes to establish baseline
+/// performance and verify shrinking effectiveness.
+fn bench_linear_svc_sizes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("LinearSVC_Performance");
+    group.sample_size(10);
+    for n_samples in [1000, 2000, 5000] {
+        let (x, y) = generate_classification_data(n_samples, 50, 2);
+        group.bench_with_input(
+            BenchmarkId::new("fit", format!("{}x50", n_samples)),
+            &(x.clone(), y.clone()),
+            |b, (x, y)| {
+                b.iter(|| {
+                    let mut svc = LinearSVC::new().with_max_iter(1000);
+                    svc.fit(black_box(x), black_box(y)).unwrap()
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+// =============================================================================
 // BENCHMARK GROUPS
 // =============================================================================
 
@@ -2139,6 +2194,10 @@ criterion_group!(elastic_net_benches, bench_elastic_net_fit,);
 
 criterion_group!(svm_extended_benches, bench_linear_svr_fit_predict,);
 
+criterion_group!(svc_threshold_benches, bench_svc_threshold_sweep,);
+
+criterion_group!(linear_svc_perf_benches, bench_linear_svc_sizes,);
+
 criterion_group!(knn_extended_benches, bench_nearest_centroid_fit_predict,);
 
 criterion_group!(
@@ -2221,5 +2280,7 @@ criterion_main!(
     cv_linear_benches,
     robust_quantile_benches,
     additional_classifier_benches,
-    decomposition_extended_benches
+    decomposition_extended_benches,
+    svc_threshold_benches,
+    linear_svc_perf_benches
 );

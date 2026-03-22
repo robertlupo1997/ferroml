@@ -3185,3 +3185,382 @@ mod sparse_pipeline {
         }
     }
 }
+
+mod stability_tests {
+    //! Stability tests for ill-conditioned matrices.
+    //!
+    //! Verifies that linalg primitives (SVD, Cholesky, QR, eigendecomposition)
+    //! and decomposition models (PCA, TruncatedSVD, LDA, FactorAnalysis)
+    //! produce finite results on ill-conditioned inputs.
+
+    use ferroml_core::decomposition::{FactorAnalysis, TruncatedSVD, LDA, PCA};
+    use ferroml_core::linalg;
+    use ferroml_core::preprocessing::Transformer;
+    use ndarray::{Array1, Array2};
+
+    // =========================================================================
+    // Helper: generate ill-conditioned matrices
+    // =========================================================================
+
+    /// Hilbert matrix: h[i][j] = 1.0 / (i + j + 1)
+    fn hilbert(n: usize) -> Array2<f64> {
+        Array2::from_shape_fn((n, n), |(i, j)| 1.0 / (i + j + 1) as f64)
+    }
+
+    /// Simple LCG-based deterministic pseudo-random in [0,1)
+    fn lcg_rand(seed: &mut u64) -> f64 {
+        *seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((*seed >> 33) as f64) / (u32::MAX as f64)
+    }
+
+    /// Generate a random orthogonal matrix via QR of a random matrix
+    fn random_orthogonal(n: usize, seed: &mut u64) -> Array2<f64> {
+        let a = Array2::from_shape_fn((n, n), |(_i, _j)| lcg_rand(seed) - 0.5);
+        let (q, _r) = linalg::qr_decomposition(&a).expect("QR should succeed on random matrix");
+        q
+    }
+
+    /// SPD matrix with prescribed eigenvalues: Q * diag(eigenvalues) * Q^T
+    fn spd_with_eigenvalues(eigenvalues: &[f64], seed: &mut u64) -> Array2<f64> {
+        let n = eigenvalues.len();
+        let q = random_orthogonal(n, seed);
+        let d = Array2::from_shape_fn((n, n), |(i, j)| if i == j { eigenvalues[i] } else { 0.0 });
+        q.dot(&d).dot(&q.t())
+    }
+
+    fn assert_all_finite(arr: &Array2<f64>, label: &str) {
+        for &v in arr.iter() {
+            assert!(v.is_finite(), "{} contains non-finite value: {}", label, v);
+        }
+    }
+
+    fn assert_all_finite_1d(arr: &Array1<f64>, label: &str) {
+        for &v in arr.iter() {
+            assert!(v.is_finite(), "{} contains non-finite value: {}", label, v);
+        }
+    }
+
+    // =========================================================================
+    // SVD stability (4 tests)
+    // =========================================================================
+
+    #[test]
+    fn test_svd_hilbert_matrix() {
+        let h = hilbert(10);
+        let (u, s, vt) = linalg::thin_svd(&h).expect("SVD should succeed on Hilbert matrix");
+        assert_all_finite(&u, "U");
+        assert_all_finite_1d(&s, "S");
+        assert_all_finite(&vt, "Vt");
+
+        // Reconstruction: ||U*diag(S)*Vt - H|| / ||H|| < 1e-6
+        let s_diag =
+            Array2::from_shape_fn((s.len(), s.len()), |(i, j)| if i == j { s[i] } else { 0.0 });
+        let reconstructed = u.dot(&s_diag).dot(&vt);
+        let diff = &reconstructed - &h;
+        let norm_diff: f64 = diff.iter().map(|x| x * x).sum::<f64>().sqrt();
+        let norm_h: f64 = h.iter().map(|x| x * x).sum::<f64>().sqrt();
+        let relative_error = norm_diff / norm_h;
+        assert!(
+            relative_error < 1e-6,
+            "SVD reconstruction error too large: {:.2e}",
+            relative_error
+        );
+    }
+
+    #[test]
+    fn test_svd_near_singular() {
+        // 50x50 matrix where last singular value is 1e-14
+        let mut seed = 12345u64;
+        let n = 50;
+        let mut singular_values: Vec<f64> = (0..n)
+            .map(|i| {
+                if i < n - 1 {
+                    1.0 + lcg_rand(&mut seed) * 0.1
+                } else {
+                    1e-14
+                }
+            })
+            .collect();
+        singular_values.sort_by(|a, b| b.partial_cmp(a).unwrap());
+
+        let q1 = random_orthogonal(n, &mut seed);
+        let q2 = random_orthogonal(n, &mut seed);
+        let s_diag = Array2::from_shape_fn(
+            (n, n),
+            |(i, j)| {
+                if i == j {
+                    singular_values[i]
+                } else {
+                    0.0
+                }
+            },
+        );
+        let a = q1.dot(&s_diag).dot(&q2.t());
+
+        let (u, s, vt) = linalg::thin_svd(&a).expect("SVD should succeed on near-singular matrix");
+        assert_all_finite(&u, "U");
+        assert_all_finite_1d(&s, "S");
+        assert_all_finite(&vt, "Vt");
+    }
+
+    #[test]
+    fn test_svd_rank_deficient() {
+        // 20x10 matrix of rank 5 (constructed via outer product of 5 random vectors)
+        let mut seed = 54321u64;
+        let (n, p, rank) = (20, 10, 5);
+        let left = Array2::from_shape_fn((n, rank), |(_i, _j)| lcg_rand(&mut seed) - 0.5);
+        let right = Array2::from_shape_fn((rank, p), |(_i, _j)| lcg_rand(&mut seed) - 0.5);
+        let a = left.dot(&right);
+
+        let (_u, s, _vt) =
+            linalg::thin_svd(&a).expect("SVD should succeed on rank-deficient matrix");
+        assert_all_finite_1d(&s, "S");
+
+        // Count non-negligible singular values (> 1e-10)
+        let significant = s.iter().filter(|&&v| v > 1e-10).count();
+        assert_eq!(
+            significant, rank,
+            "Expected {} significant singular values, got {}",
+            rank, significant
+        );
+    }
+
+    #[test]
+    fn test_svd_very_ill_conditioned() {
+        // 20x20 diagonal matrix with values [1.0, 1e-3, 1e-6, 1e-9, 1e-12, ...]
+        let n = 20;
+        let a = Array2::from_shape_fn((n, n), |(i, j)| {
+            if i == j {
+                10.0f64.powi(-(i as i32) * 3)
+            } else {
+                0.0
+            }
+        });
+
+        let (u, s, vt) =
+            linalg::thin_svd(&a).expect("SVD should succeed on very ill-conditioned matrix");
+        assert_all_finite(&u, "U");
+        assert_all_finite_1d(&s, "S");
+        assert_all_finite(&vt, "Vt");
+    }
+
+    // =========================================================================
+    // Cholesky stability (3 tests)
+    // =========================================================================
+
+    #[test]
+    fn test_cholesky_near_singular_spd() {
+        let eigenvalues = [1.0, 1e-4, 1e-8, 1e-12];
+        let mut seed = 99999u64;
+        let a = spd_with_eigenvalues(&eigenvalues, &mut seed);
+
+        // Should succeed with some regularization
+        let l = linalg::cholesky(&a, 1e-12).expect("Cholesky should succeed on near-singular SPD");
+        assert_all_finite(&l, "L");
+    }
+
+    #[test]
+    fn test_cholesky_jitter_fallback() {
+        // Matrix that needs jitter to be SPD -- eigenvalues include a near-zero
+        let eigenvalues = [1.0, 0.5, 0.1, 1e-15];
+        let mut seed = 77777u64;
+        let a = spd_with_eigenvalues(&eigenvalues, &mut seed);
+
+        let l = linalg::cholesky(&a, 1e-10).expect("Cholesky with jitter should succeed");
+        assert_all_finite(&l, "L");
+    }
+
+    #[test]
+    fn test_cholesky_well_conditioned_baseline() {
+        // 10x10 identity + small perturbation: should be trivial
+        let n = 10;
+        let mut seed = 11111u64;
+        let perturbation = Array2::from_shape_fn((n, n), |(i, j)| {
+            if i == j {
+                1.0 + lcg_rand(&mut seed) * 0.01
+            } else {
+                lcg_rand(&mut seed) * 0.001
+            }
+        });
+        // Make symmetric: A = (P + P^T) / 2
+        let a = (&perturbation + &perturbation.t()) / 2.0;
+
+        let l =
+            linalg::cholesky(&a, 0.0).expect("Cholesky should succeed on well-conditioned matrix");
+        assert_all_finite(&l, "L");
+
+        // Verify L*L^T ~ A
+        let reconstructed = l.dot(&l.t());
+        let diff = &reconstructed - &a;
+        let max_err: f64 = diff.iter().map(|x| x.abs()).fold(0.0, f64::max);
+        assert!(
+            max_err < 1e-10,
+            "Cholesky reconstruction error too large: {:.2e}",
+            max_err
+        );
+    }
+
+    // =========================================================================
+    // QR stability (2 tests)
+    // =========================================================================
+
+    #[test]
+    fn test_qr_near_collinear() {
+        // Tall matrix (100x3) where columns 2 and 3 differ by 1e-10
+        let mut seed = 22222u64;
+        let n = 100;
+        let col1: Vec<f64> = (0..n).map(|_| lcg_rand(&mut seed)).collect();
+        let col2: Vec<f64> = (0..n).map(|_| lcg_rand(&mut seed)).collect();
+        let col3: Vec<f64> = col2
+            .iter()
+            .map(|&v| v + 1e-10 * lcg_rand(&mut seed))
+            .collect();
+
+        let mut data = Vec::with_capacity(n * 3);
+        for i in 0..n {
+            data.push(col1[i]);
+            data.push(col2[i]);
+            data.push(col3[i]);
+        }
+        let a = Array2::from_shape_vec((n, 3), data).expect("shape ok");
+
+        let (q, r) =
+            linalg::qr_decomposition(&a).expect("QR should succeed on near-collinear matrix");
+        assert_all_finite(&q, "Q");
+        assert_all_finite(&r, "R");
+    }
+
+    #[test]
+    fn test_qr_rank_deficient() {
+        // 20x5 matrix of rank 3
+        let mut seed = 33333u64;
+        let (n, p, rank) = (20, 5, 3);
+        let left = Array2::from_shape_fn((n, rank), |(_i, _j)| lcg_rand(&mut seed) - 0.5);
+        let right = Array2::from_shape_fn((rank, p), |(_i, _j)| lcg_rand(&mut seed) - 0.5);
+        let a = left.dot(&right);
+
+        let (q, r) =
+            linalg::qr_decomposition(&a).expect("QR should succeed on rank-deficient matrix");
+        assert_all_finite(&q, "Q");
+        assert_all_finite(&r, "R");
+
+        // R diagonal should reveal rank: only 'rank' non-negligible diagonal entries
+        let diag_r: Vec<f64> = (0..r.nrows().min(r.ncols()))
+            .map(|i| r[[i, i]].abs())
+            .collect();
+        let significant = diag_r.iter().filter(|&&v| v > 1e-10).count();
+        assert!(
+            significant <= rank + 1,
+            "Expected at most {} significant R diagonal entries, got {}",
+            rank + 1,
+            significant
+        );
+    }
+
+    // =========================================================================
+    // Eigendecomposition stability (2 tests)
+    // =========================================================================
+
+    #[test]
+    fn test_eigh_near_degenerate() {
+        // Symmetric matrix with repeated eigenvalues (1.0, 1.0, 1e-12)
+        let eigenvalues = [1.0, 1.0, 1e-12];
+        let mut seed = 44444u64;
+        let a = spd_with_eigenvalues(&eigenvalues, &mut seed);
+
+        let (vals, vecs) =
+            linalg::symmetric_eigh(&a).expect("Eigh should succeed on near-degenerate matrix");
+        assert_all_finite_1d(&vals, "eigenvalues");
+        assert_all_finite(&vecs, "eigenvectors");
+    }
+
+    #[test]
+    fn test_eigh_hilbert() {
+        let h = hilbert(10);
+        let (vals, vecs) =
+            linalg::symmetric_eigh(&h).expect("Eigh should succeed on Hilbert matrix");
+        assert_all_finite_1d(&vals, "eigenvalues");
+        assert_all_finite(&vecs, "eigenvectors");
+
+        // Hilbert matrix is positive definite -- all eigenvalues should be positive
+        for (i, &v) in vals.iter().enumerate() {
+            assert!(
+                v > -1e-15,
+                "Hilbert eigenvalue {} is negative: {:.2e}",
+                i,
+                v
+            );
+        }
+    }
+
+    // =========================================================================
+    // Decomposition model stability (4 tests)
+    // =========================================================================
+
+    /// Generate an ill-conditioned data matrix (condition number > 1e10)
+    fn ill_conditioned_data(n: usize, p: usize, seed: &mut u64) -> Array2<f64> {
+        // Create data with prescribed singular value spread
+        let k = p.min(n);
+        let u_mat = Array2::from_shape_fn((n, k), |(_i, _j)| lcg_rand(seed) - 0.5);
+        let vt_mat = Array2::from_shape_fn((k, p), |(_i, _j)| lcg_rand(seed) - 0.5);
+        // Singular values from 1.0 down to 1e-12
+        let s_diag = Array2::from_shape_fn((k, k), |(i, j)| {
+            if i == j {
+                10.0f64.powi(-(i as i32) * 12 / (k as i32 - 1).max(1))
+            } else {
+                0.0
+            }
+        });
+        u_mat.dot(&s_diag).dot(&vt_mat)
+    }
+
+    #[test]
+    fn test_pca_ill_conditioned() {
+        let mut seed = 55555u64;
+        let x = ill_conditioned_data(50, 10, &mut seed);
+        let mut pca = PCA::new().with_n_components(3);
+        pca.fit(&x)
+            .expect("PCA fit should succeed on ill-conditioned data");
+        let transformed = pca.transform(&x).expect("PCA transform should succeed");
+        assert_all_finite(&transformed, "PCA output");
+    }
+
+    #[test]
+    fn test_truncated_svd_ill_conditioned() {
+        let mut seed = 66666u64;
+        let x = ill_conditioned_data(50, 10, &mut seed);
+        let mut tsvd = TruncatedSVD::new().with_n_components(3);
+        tsvd.fit(&x)
+            .expect("TruncatedSVD fit should succeed on ill-conditioned data");
+        let transformed = tsvd
+            .transform(&x)
+            .expect("TruncatedSVD transform should succeed");
+        assert_all_finite(&transformed, "TruncatedSVD output");
+    }
+
+    #[test]
+    fn test_lda_ill_conditioned() {
+        let mut seed = 77778u64;
+        let n = 50;
+        let p = 10;
+        let x = ill_conditioned_data(n, p, &mut seed);
+        // Two classes: first half class 0, second half class 1
+        let y = Array1::from_iter((0..n).map(|i| if i < n / 2 { 0.0 } else { 1.0 }));
+
+        let mut lda = LDA::new();
+        lda.fit(&x, &y)
+            .expect("LDA fit should succeed on ill-conditioned data");
+    }
+
+    #[test]
+    fn test_factor_analysis_ill_conditioned() {
+        let mut seed = 88888u64;
+        // FactorAnalysis needs n_samples > n_components and reasonable data
+        let x = ill_conditioned_data(50, 10, &mut seed);
+        let mut fa = FactorAnalysis::new().with_n_factors(3);
+        fa.fit(&x)
+            .expect("FactorAnalysis fit should succeed on ill-conditioned data");
+    }
+}
