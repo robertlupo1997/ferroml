@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 4 of 5 (Performance Optimization)
-Plan: 2 of 4 in current phase (executing)
+Plan: 3 of 4 in current phase (executing)
 Status: In Progress
-Last activity: 2026-03-22 -- Completed 04-02 (SVC/LinearSVC benchmarks + KMeans audit)
+Last activity: 2026-03-22 -- Completed 04-03 (OLS/Ridge solver benchmarks + HistGBT histogram analysis)
 
-Progress: [█████░░░░░] 50% of Phase 4
+Progress: [███████░░░] 75% of Phase 4
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [█████░░░░░] 50% of Phase 4
 | Phase 03 P01 | 82 | 2 tasks | 4 files |
 | Phase 03 P02 | 116 | 2 tasks | 19 files |
 | Phase 03 P03 | 48 | 2 tasks | 26 files |
+| Phase 04 P03 | 145 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,9 @@ Recent decisions affecting current work:
 - [04-02]: FULL_MATRIX_THRESHOLD stays at 2000 -- benchmark sweep confirms optimal crossover
 - [04-02]: f_i cache not implemented -- O(n*d) update cost equals current approach with shrinking
 - [04-02]: LinearSVC shrinking confirmed effective -- sub-linear scaling (5x samples -> 2.6x time)
+- [04-03]: HistGBT bounds checks RETAINED -- BinMapper NaN handling produces out-of-range bin indices (missing_bin = max_bins > histogram size)
+- [04-03]: No unsafe code for histogram loop -- bounds checks free for non-NaN data via branch prediction
+- [04-03]: debug_assert added for gradient/hessian index validation (zero cost in release)
 
 ### Pending Todos
 
@@ -111,6 +115,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T19:06:00Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-03-22T19:25:00Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None

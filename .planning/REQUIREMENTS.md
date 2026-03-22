@@ -41,9 +41,9 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 - [x] **PERF-04**: FactorAnalysis uses faer thin SVD — same optimization as PCA
 - [x] **PERF-05**: LinearSVC implements shrinking (active set management) — target within 2x of sklearn
 - [x] **PERF-06**: LinearSVC implements f_i cache (cached predictions) — complement to shrinking
-- [ ] **PERF-07**: OLS uses Cholesky normal equations for n >> 2d (instead of MGS QR)
-- [ ] **PERF-08**: Ridge uses faer-backed Cholesky instead of hand-rolled
-- [ ] **PERF-09**: HistGBT histogram binning inner loop optimized (pre-allocated buffers, vectorized bin assignment)
+- [x] **PERF-07**: OLS uses Cholesky normal equations for n >> 2d (instead of MGS QR)
+- [x] **PERF-08**: Ridge uses faer-backed Cholesky instead of hand-rolled
+- [x] **PERF-09**: HistGBT histogram binning inner loop optimized (pre-allocated buffers, vectorized bin assignment)
 - [x] **PERF-10**: SVC FULL_MATRIX_THRESHOLD tuned with benchmarks at n=1000,1500,2000,2500,3000
 - [x] **PERF-11**: KMeans squared-distance optimization verified complete (Plan W)
 - [x] **PERF-12**: Stability tests added BEFORE each solver swap (ill-conditioned matrix test suite)
@@ -138,9 +138,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | PERF-04 | Phase 4 | Complete |
 | PERF-05 | Phase 4 | Complete |
 | PERF-06 | Phase 4 | Complete |
-| PERF-07 | Phase 4 | Pending |
-| PERF-08 | Phase 4 | Pending |
-| PERF-09 | Phase 4 | Pending |
+| PERF-07 | Phase 4 | Complete |
+| PERF-08 | Phase 4 | Complete |
+| PERF-09 | Phase 4 | Complete |
 | PERF-10 | Phase 4 | Complete |
 | PERF-11 | Phase 4 | Complete |
 | PERF-12 | Phase 4 | Complete |
