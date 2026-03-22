@@ -2170,8 +2170,72 @@ fn bench_factor_analysis_sizes(c: &mut Criterion) {
 }
 
 // =============================================================================
+// OLS & RIDGE SOLVER PATH BENCHMARKS
+// =============================================================================
+
+/// Benchmark OLS solver paths: Cholesky (tall) vs QR (wide)
+///
+/// OLS uses Cholesky normal equations when n > 2*p (tall datasets),
+/// and QR decomposition otherwise. This benchmark verifies both paths
+/// are active and measures their performance characteristics.
+fn bench_ols_solver_paths(c: &mut Criterion) {
+    let mut group = c.benchmark_group("OLS_Solver_Paths");
+    group.sample_size(10);
+
+    // Cholesky: n > 2*p; QR: n <= 2*p
+    for (n, p, label) in [
+        (5000, 50, "tall_5000x50_cholesky"),     // 5000 > 100 -> Cholesky
+        (10000, 100, "tall_10000x100_cholesky"), // 10000 > 200 -> Cholesky
+        (200, 100, "wide_200x100_qr"),           // 200 <= 200 -> QR
+        (100, 50, "sq_100x50_qr"),               // 100 <= 100 -> QR
+    ] {
+        let (x, y) = generate_regression_data(n, p);
+
+        group.bench_with_input(BenchmarkId::new("fit", label), &(&x, &y), |b, (x, y)| {
+            b.iter(|| {
+                let mut ols = LinearRegression::new();
+                ols.fit(black_box(*x), black_box(*y)).unwrap()
+            });
+        });
+    }
+    group.finish();
+}
+
+/// Benchmark Ridge solver paths
+///
+/// Ridge always uses Cholesky via solve_symmetric_positive_definite (faer-backed).
+/// This benchmark verifies performance across different dataset shapes.
+fn bench_ridge_solver_paths(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Ridge_Solver");
+    group.sample_size(10);
+
+    for (n, p, label) in [
+        (5000, 50, "tall_5000x50"),
+        (10000, 100, "tall_10000x100"),
+        (200, 100, "wide_200x100"),
+        (100, 50, "sq_100x50"),
+    ] {
+        let (x, y) = generate_regression_data(n, p);
+
+        group.bench_with_input(BenchmarkId::new("fit", label), &(&x, &y), |b, (x, y)| {
+            b.iter(|| {
+                let mut ridge = RidgeRegression::new(1.0);
+                ridge.fit(black_box(*x), black_box(*y)).unwrap()
+            });
+        });
+    }
+    group.finish();
+}
+
+// =============================================================================
 // BENCHMARK GROUPS
 // =============================================================================
+
+criterion_group!(
+    solver_path_benches,
+    bench_ols_solver_paths,
+    bench_ridge_solver_paths,
+);
 
 criterion_group!(
     svd_perf_benches,
@@ -2380,5 +2444,6 @@ criterion_main!(
     decomposition_extended_benches,
     svc_threshold_benches,
     linear_svc_perf_benches,
-    svd_perf_benches
+    svd_perf_benches,
+    solver_path_benches
 );
