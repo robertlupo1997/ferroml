@@ -62,8 +62,18 @@ def get_system_info() -> dict:
     }
 
 
-def time_fn(fn: Callable[[], Any], n_repeats: int = 3):
-    """Time *fn*, returning (median_seconds, last_result)."""
+def time_fn(fn: Callable[[], Any], n_repeats: int = 3, n_warmup: int = 0):
+    """Time *fn*, returning (median_seconds, last_result).
+
+    Args:
+        fn: callable to time
+        n_repeats: number of timed runs (median is reported)
+        n_warmup: number of untimed warmup runs before timing
+    """
+    # Warmup runs (not timed)
+    for _ in range(n_warmup):
+        fn()
+
     times: list[float] = []
     result = None
     for _ in range(n_repeats):
@@ -507,7 +517,339 @@ def benchmark_kmeans(n_samples: int) -> BenchmarkResult:
 
 
 # ---------------------------------------------------------------------------
-# Registry
+# PERF-target benchmark functions (Phase 04 cross-library comparison)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PerfBenchmarkResult:
+    """Stores timing data for a single PERF-target benchmark."""
+    name: str
+    perf_id: str
+    dataset: str
+    ferroml_ms: float
+    sklearn_ms: float
+    ratio: float       # ferroml / sklearn (>1 means ferroml slower)
+    target: float      # max acceptable ratio
+    passed: bool
+    notes: str = ""
+
+
+def perf_benchmark_pca() -> PerfBenchmarkResult:
+    """PERF-01: PCA on 10000x100, n_components=10."""
+    rng = np.random.RandomState(42)
+    X = rng.randn(10000, 100)
+
+    from ferroml.decomposition import PCA as FerroPCA
+    from sklearn.decomposition import PCA as SkPCA
+
+    ferro_time, _ = time_fn(lambda: FerroPCA(n_components=10).fit(X), n_repeats=5, n_warmup=1)
+    sk_time, _ = time_fn(lambda: SkPCA(n_components=10).fit(X), n_repeats=5, n_warmup=1)
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="PCA", perf_id="PERF-01", dataset="10000x100, k=10",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=2.0, passed=ratio <= 2.0,
+    )
+
+
+def perf_benchmark_truncated_svd() -> PerfBenchmarkResult:
+    """PERF-02: TruncatedSVD on 10000x100, n_components=10."""
+    rng = np.random.RandomState(42)
+    X = rng.randn(10000, 100)
+
+    from ferroml.decomposition import TruncatedSVD as FerroSVD
+    from sklearn.decomposition import TruncatedSVD as SkSVD
+
+    ferro_time, _ = time_fn(lambda: FerroSVD(n_components=10).fit(X), n_repeats=5, n_warmup=1)
+    sk_time, _ = time_fn(lambda: SkSVD(n_components=10).fit(X), n_repeats=5, n_warmup=1)
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="TruncatedSVD", perf_id="PERF-02", dataset="10000x100, k=10",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=2.0, passed=ratio <= 2.0,
+    )
+
+
+def perf_benchmark_lda() -> PerfBenchmarkResult:
+    """PERF-03: LDA on 5000x50, 3 classes, n_components=2."""
+    from sklearn.datasets import make_classification
+    X, y = make_classification(n_samples=5000, n_features=50, n_informative=10,
+                                n_classes=3, n_clusters_per_class=1, random_state=42)
+    y = y.astype(float)
+
+    from ferroml.decomposition import LDA as FerroLDA
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as SkLDA
+
+    def ferro_fit():
+        m = FerroLDA(n_components=2)
+        m.fit(X, y)
+        return m
+
+    def sk_fit():
+        m = SkLDA(n_components=2)
+        m.fit(X, y)
+        return m
+
+    ferro_time, _ = time_fn(ferro_fit, n_repeats=5, n_warmup=1)
+    sk_time, _ = time_fn(sk_fit, n_repeats=5, n_warmup=1)
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="LDA", perf_id="PERF-03", dataset="5000x50, 3 classes, k=2",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=2.0, passed=ratio <= 2.0,
+    )
+
+
+def perf_benchmark_factor_analysis() -> PerfBenchmarkResult:
+    """PERF-04: FactorAnalysis on 5000x50, n_components=5."""
+    rng = np.random.RandomState(42)
+    X = rng.randn(5000, 50)
+
+    from ferroml.decomposition import FactorAnalysis as FerroFA
+    from sklearn.decomposition import FactorAnalysis as SkFA
+
+    ferro_time, _ = time_fn(lambda: FerroFA(n_factors=5).fit(X), n_repeats=5, n_warmup=1)
+    sk_time, _ = time_fn(lambda: SkFA(n_components=5).fit(X), n_repeats=5, n_warmup=1)
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="FactorAnalysis", perf_id="PERF-04", dataset="5000x50, k=5",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=3.0, passed=ratio <= 3.0,
+    )
+
+
+def perf_benchmark_linear_svc() -> PerfBenchmarkResult:
+    """PERF-05: LinearSVC on 5000x50, binary classification."""
+    from sklearn.datasets import make_classification
+    X, y = make_classification(n_samples=5000, n_features=50, n_informative=10,
+                                random_state=42)
+    y = y.astype(float)
+
+    from ferroml.svm import LinearSVC as FerroLSVC
+    from sklearn.svm import LinearSVC as SkLSVC
+
+    ferro_time, _ = time_fn(lambda: FerroLSVC().fit(X, y), n_repeats=5, n_warmup=1)
+    sk_time, _ = time_fn(lambda: SkLSVC(dual=True, max_iter=1000).fit(X, y), n_repeats=5, n_warmup=1)
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="LinearSVC", perf_id="PERF-05", dataset="5000x50, binary",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=2.0, passed=ratio <= 2.0,
+    )
+
+
+def perf_benchmark_ols() -> PerfBenchmarkResult:
+    """PERF-07: OLS (LinearRegression) on 10000x100."""
+    rng = np.random.RandomState(42)
+    X = rng.randn(10000, 100)
+    coef = rng.randn(100)
+    y = X @ coef + rng.randn(10000) * 0.1
+
+    from ferroml.linear import LinearRegression as FerroLR
+    from sklearn.linear_model import LinearRegression as SkLR
+
+    ferro_time, _ = time_fn(lambda: FerroLR().fit(X, y), n_repeats=5, n_warmup=1)
+    sk_time, _ = time_fn(lambda: SkLR().fit(X, y), n_repeats=5, n_warmup=1)
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="OLS", perf_id="PERF-07", dataset="10000x100",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=2.0, passed=ratio <= 2.0,
+    )
+
+
+def perf_benchmark_ridge() -> PerfBenchmarkResult:
+    """PERF-08: Ridge on 10000x100, alpha=1.0."""
+    rng = np.random.RandomState(42)
+    X = rng.randn(10000, 100)
+    coef = rng.randn(100)
+    y = X @ coef + rng.randn(10000) * 0.1
+
+    from ferroml.linear import RidgeRegression as FerroRidge
+    from sklearn.linear_model import Ridge as SkRidge
+
+    ferro_time, _ = time_fn(lambda: FerroRidge(alpha=1.0).fit(X, y), n_repeats=5, n_warmup=1)
+    sk_time, _ = time_fn(lambda: SkRidge(alpha=1.0).fit(X, y), n_repeats=5, n_warmup=1)
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="Ridge", perf_id="PERF-08", dataset="10000x100, alpha=1.0",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=2.0, passed=ratio <= 2.0,
+    )
+
+
+def perf_benchmark_kmeans() -> PerfBenchmarkResult:
+    """PERF-11: KMeans on 5000x50, n_clusters=10."""
+    from sklearn.datasets import make_blobs
+    X, _ = make_blobs(n_samples=5000, n_features=50, centers=10, random_state=42)
+
+    from ferroml.clustering import KMeans as FerroKM
+    from sklearn.cluster import KMeans as SkKM
+
+    ferro_time, _ = time_fn(
+        lambda: FerroKM(n_clusters=10, random_state=42).fit(X),
+        n_repeats=5, n_warmup=1,
+    )
+    sk_time, _ = time_fn(
+        lambda: SkKM(n_clusters=10, random_state=42, n_init=1).fit(X),
+        n_repeats=5, n_warmup=1,
+    )
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="KMeans", perf_id="PERF-11", dataset="5000x50, k=10",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=2.0, passed=ratio <= 2.0,
+    )
+
+
+def perf_benchmark_hist_gbt() -> PerfBenchmarkResult:
+    """PERF-09: HistGradientBoosting on 10000x20, 50 iterations."""
+    rng = np.random.RandomState(42)
+    X = rng.randn(10000, 20)
+    coef = rng.randn(20)
+    y = X @ coef + rng.randn(10000) * 0.5
+
+    from ferroml.trees import HistGradientBoostingRegressor as FerroHGBT
+    from sklearn.ensemble import HistGradientBoostingRegressor as SkHGBT
+
+    ferro_time, _ = time_fn(
+        lambda: FerroHGBT(max_iter=50, max_depth=5, learning_rate=0.1).fit(X, y),
+        n_repeats=5, n_warmup=1,
+    )
+    sk_time, _ = time_fn(
+        lambda: SkHGBT(max_iter=50, max_depth=5, learning_rate=0.1).fit(X, y),
+        n_repeats=5, n_warmup=1,
+    )
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="HistGBT", perf_id="PERF-09", dataset="10000x20, 50 iters",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=3.0, passed=ratio <= 3.0,
+    )
+
+
+def perf_benchmark_svc_rbf() -> PerfBenchmarkResult:
+    """PERF-10: SVC (RBF kernel) on 2000x20, binary."""
+    from sklearn.datasets import make_classification
+    X, y = make_classification(n_samples=2000, n_features=20, n_informative=10,
+                                random_state=42)
+    y = y.astype(float)
+
+    from ferroml.svm import SVC as FerroSVC
+    from sklearn.svm import SVC as SkSVC
+
+    ferro_time, _ = time_fn(
+        lambda: FerroSVC(kernel="rbf").fit(X, y),
+        n_repeats=5, n_warmup=1,
+    )
+    sk_time, _ = time_fn(
+        lambda: SkSVC(kernel="rbf").fit(X, y),
+        n_repeats=5, n_warmup=1,
+    )
+
+    ratio = ferro_time / max(sk_time, 1e-10)
+    return PerfBenchmarkResult(
+        name="SVC (RBF)", perf_id="PERF-10", dataset="2000x20, binary",
+        ferroml_ms=ferro_time * 1000, sklearn_ms=sk_time * 1000,
+        ratio=ratio, target=3.0, passed=ratio <= 3.0,
+    )
+
+
+PERF_BENCHMARKS = [
+    ("PCA", perf_benchmark_pca),
+    ("TruncatedSVD", perf_benchmark_truncated_svd),
+    ("LDA", perf_benchmark_lda),
+    ("FactorAnalysis", perf_benchmark_factor_analysis),
+    ("LinearSVC", perf_benchmark_linear_svc),
+    ("OLS", perf_benchmark_ols),
+    ("Ridge", perf_benchmark_ridge),
+    ("KMeans", perf_benchmark_kmeans),
+    ("HistGBT", perf_benchmark_hist_gbt),
+    ("SVC (RBF)", perf_benchmark_svc_rbf),
+]
+
+
+def run_perf_benchmarks() -> List[PerfBenchmarkResult]:
+    """Execute all PERF-target benchmarks, returning results."""
+    results: List[PerfBenchmarkResult] = []
+    total = len(PERF_BENCHMARKS)
+    for i, (name, bench_fn) in enumerate(PERF_BENCHMARKS, 1):
+        print(f"[{i}/{total}] PERF: {name}...", end=" ", flush=True)
+        try:
+            result = bench_fn()
+            results.append(result)
+            status = "PASS" if result.passed else "FAIL"
+            print(f"{result.ferroml_ms:.1f}ms vs {result.sklearn_ms:.1f}ms "
+                  f"= {result.ratio:.2f}x (target <={result.target:.1f}x) [{status}]")
+        except Exception as exc:
+            print(f"ERROR: {exc}")
+            traceback.print_exc()
+    return results
+
+
+def print_perf_table(results: List[PerfBenchmarkResult]) -> None:
+    """Print PERF benchmark results as a formatted table."""
+    print()
+    print("=" * 90)
+    print("PERF-TARGET CROSS-LIBRARY BENCHMARK RESULTS")
+    print("=" * 90)
+    header = f"{'PERF':>7} {'Algorithm':<16} {'Dataset':<22} {'FerroML':>10} {'sklearn':>10} {'Ratio':>8} {'Target':>8} {'Status':>6}"
+    print(header)
+    print("-" * 90)
+    for r in results:
+        status = "PASS" if r.passed else "FAIL"
+        print(f"{r.perf_id:>7} {r.name:<16} {r.dataset:<22} "
+              f"{r.ferroml_ms:>8.1f}ms {r.sklearn_ms:>8.1f}ms "
+              f"{r.ratio:>7.2f}x {r.target:>6.1f}x {status:>6}")
+    print("-" * 90)
+
+    passed = sum(1 for r in results if r.passed)
+    failed = sum(1 for r in results if not r.passed)
+    print(f"Results: {passed} passed, {failed} failed out of {len(results)} benchmarks")
+
+    # Check for regressions (> 3x)
+    regressions = [r for r in results if r.ratio > 3.0]
+    if regressions:
+        print(f"\nREGRESSIONS (> 3.0x):")
+        for r in regressions:
+            print(f"  {r.perf_id} {r.name}: {r.ratio:.2f}x (target {r.target:.1f}x)")
+    print()
+
+
+def write_perf_json(results: List[PerfBenchmarkResult], sys_info: dict, path: str) -> None:
+    """Write PERF benchmark results to JSON."""
+    payload = {
+        "system_info": sys_info,
+        "benchmark_type": "perf_targets",
+        "methodology": {
+            "warmup_runs": 1,
+            "timed_runs": 5,
+            "aggregation": "median",
+            "data_seed": 42,
+        },
+        "results": [asdict(r) for r in results],
+        "summary": {
+            "total": len(results),
+            "passed": sum(1 for r in results if r.passed),
+            "failed": sum(1 for r in results if not r.passed),
+        },
+    }
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2)
+    print(f"PERF JSON results written to {path}")
+
+
+# ---------------------------------------------------------------------------
+# Registry (original general-purpose benchmarks)
 # ---------------------------------------------------------------------------
 
 BENCHMARKS = [
@@ -659,6 +1001,16 @@ def main() -> None:
         type=str, default=None,
         help="Path to write Markdown report (e.g. docs/benchmark-vs-sklearn.md)",
     )
+    parser.add_argument(
+        "--perf-only",
+        action="store_true",
+        help="Only run PERF-target benchmarks (skip general suite)",
+    )
+    parser.add_argument(
+        "--perf-json",
+        type=str, default=None,
+        help="Path to write PERF benchmark JSON (e.g. docs/benchmark_results.json)",
+    )
     args = parser.parse_args()
 
     sys_info = get_system_info()
@@ -667,19 +1019,29 @@ def main() -> None:
     print(f"Python:   {sys_info['python_version'].split(chr(10))[0]}")
     print()
 
-    results = run_benchmarks()
+    # Always run PERF-target benchmarks
+    print("--- PERF-Target Benchmarks (Phase 04) ---")
+    perf_results = run_perf_benchmarks()
+    if perf_results:
+        print_perf_table(perf_results)
 
-    if results:
-        print_table(results)
+    perf_json_path = args.perf_json or "docs/benchmark_results.json"
+    if perf_results:
+        write_perf_json(perf_results, sys_info, perf_json_path)
 
-    if args.output and results:
-        write_json(results, sys_info, args.output)
+    if not args.perf_only:
+        # Run general benchmark suite
+        print("--- General Benchmark Suite ---")
+        results = run_benchmarks()
+        if results:
+            print_table(results)
+        if args.output and results:
+            write_json(results, sys_info, args.output)
+        if args.markdown and results:
+            write_markdown(results, sys_info, args.markdown)
 
-    if args.markdown and results:
-        write_markdown(results, sys_info, args.markdown)
-
-    if not results:
-        print("No benchmark results collected.")
+    if not perf_results:
+        print("No PERF benchmark results collected.")
         sys.exit(1)
 
 

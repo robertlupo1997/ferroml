@@ -1,0 +1,133 @@
+{
+  "system_info": {
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python_version": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
+    "cpu": "x86_64",
+    "numpy_version": "2.4.2",
+    "timestamp": "2026-03-22T15:34:30.859097"
+  },
+  "benchmark_type": "perf_targets",
+  "methodology": {
+    "warmup_runs": 1,
+    "timed_runs": 5,
+    "aggregation": "median",
+    "data_seed": 42
+  },
+  "results": [
+    {
+      "name": "PCA",
+      "perf_id": "PERF-01",
+      "dataset": "10000x100, k=10",
+      "ferroml_ms": 10.45219499792438,
+      "sklearn_ms": 5.209754999668803,
+      "ratio": 2.0062738072306376,
+      "target": 2.0,
+      "passed": false,
+      "notes": ""
+    },
+    {
+      "name": "TruncatedSVD",
+      "perf_id": "PERF-02",
+      "dataset": "10000x100, k=10",
+      "ferroml_ms": 39.62272899661912,
+      "sklearn_ms": 455.845661002968,
+      "ratio": 0.08692136919640689,
+      "target": 2.0,
+      "passed": true,
+      "notes": ""
+    },
+    {
+      "name": "LDA",
+      "perf_id": "PERF-03",
+      "dataset": "5000x50, 3 classes, k=2",
+      "ferroml_ms": 8.476039998640772,
+      "sklearn_ms": 11.769750999519601,
+      "ratio": 0.7201545724278052,
+      "target": 2.0,
+      "passed": true,
+      "notes": ""
+    },
+    {
+      "name": "FactorAnalysis",
+      "perf_id": "PERF-04",
+      "dataset": "5000x50, k=5",
+      "ferroml_ms": 117.24379599763779,
+      "sklearn_ms": 31.993576005334035,
+      "ratio": 3.664604293627279,
+      "target": 3.0,
+      "passed": false,
+      "notes": ""
+    },
+    {
+      "name": "LinearSVC",
+      "perf_id": "PERF-05",
+      "dataset": "5000x50, binary",
+      "ferroml_ms": 317.59173199679935,
+      "sklearn_ms": 368.07375700300327,
+      "ratio": 0.8628480731219531,
+      "target": 2.0,
+      "passed": true,
+      "notes": ""
+    },
+    {
+      "name": "OLS",
+      "perf_id": "PERF-07",
+      "dataset": "10000x100",
+      "ferroml_ms": 40.396145996055566,
+      "sklearn_ms": 20.941028000379447,
+      "ratio": 1.9290431202958898,
+      "target": 2.0,
+      "passed": true,
+      "notes": ""
+    },
+    {
+      "name": "Ridge",
+      "perf_id": "PERF-08",
+      "dataset": "10000x100, alpha=1.0",
+      "ferroml_ms": 30.720745999133214,
+      "sklearn_ms": 6.522468000184745,
+      "ratio": 4.709987998141665,
+      "target": 2.0,
+      "passed": false,
+      "notes": ""
+    },
+    {
+      "name": "KMeans",
+      "perf_id": "PERF-11",
+      "dataset": "5000x50, k=10",
+      "ferroml_ms": 21.702976002416108,
+      "sklearn_ms": 4.639202001271769,
+      "ratio": 4.678170081075701,
+      "target": 2.0,
+      "passed": false,
+      "notes": ""
+    },
+    {
+      "name": "HistGBT",
+      "perf_id": "PERF-09",
+      "dataset": "10000x20, 50 iters",
+      "ferroml_ms": 229.1501750005409,
+      "sklearn_ms": 95.58275200106436,
+      "ratio": 2.397400892976896,
+      "target": 3.0,
+      "passed": true,
+      "notes": ""
+    },
+    {
+      "name": "SVC (RBF)",
+      "perf_id": "PERF-10",
+      "dataset": "2000x20, binary",
+      "ferroml_ms": 188.2557179997093,
+      "sklearn_ms": 31.60204499727115,
+      "ratio": 5.957073917715301,
+      "target": 3.0,
+      "passed": false,
+      "notes": ""
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "passed": 5,
+    "failed": 5
+  }
+}
