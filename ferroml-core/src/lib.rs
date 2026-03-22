@@ -239,37 +239,74 @@
 #![allow(clippy::nonminimal_bool)] // Explicit boolean expressions
 #![allow(clippy::redundant_else)] // Explicit else blocks can be clearer
 #![allow(clippy::ref_option_ref)] // Reference to Option<&T> is fine
-#![allow(clippy::double_comparisons)] // Sometimes clearer
+#![allow(clippy::double_comparisons)]
+// Sometimes clearer
+// Unwrap safety: warn on new unwrap() usage. Triaged modules have SAFETY comments
+// or use ok_or_else(). Un-triaged modules use #[allow] below until audited.
+#![warn(clippy::unwrap_used)]
 
+// Module-level #[allow(clippy::unwrap_used)] for modules NOT yet triaged in Phase 3.
+// Triaged (Plans 01-02): svm, boosting, hist_boosting, stats/hypothesis,
+//   linear, regularized, logistic, tree, forest, extra_trees,
+//   preprocessing/{scalers,selection,sampling,encoders,imputers}, clustering/*
+
+// Modules with #[allow(clippy::unwrap_used)]: not yet fully triaged, or contain
+// Tier 3 (provably safe) unwraps with SAFETY comments and test code.
+// New code in these modules should prefer ok_or_else/expect over bare unwrap().
+#[allow(clippy::unwrap_used)]
 pub mod automl;
-pub mod clustering;
+#[allow(clippy::unwrap_used)]
+pub mod clustering; // Triaged in Plan 02 (test code still uses unwrap)
+#[allow(clippy::unwrap_used)]
 pub mod cv;
+#[allow(clippy::unwrap_used)]
 pub mod datasets;
+#[allow(clippy::unwrap_used)]
 pub mod decomposition;
+#[allow(clippy::unwrap_used)]
 pub mod ensemble;
+#[allow(clippy::unwrap_used)]
 pub mod error;
+#[allow(clippy::unwrap_used)]
 pub mod explainability;
 #[cfg(feature = "gpu")]
+#[allow(clippy::unwrap_used)]
 pub mod gpu;
+#[allow(clippy::unwrap_used)]
 pub mod hpo;
 #[cfg(feature = "onnx")]
+#[allow(clippy::unwrap_used)]
 pub mod inference;
+#[allow(clippy::unwrap_used)]
 pub mod linalg;
+#[allow(clippy::unwrap_used)]
 pub mod metrics;
+#[allow(clippy::unwrap_used)]
 pub mod models;
+#[allow(clippy::unwrap_used)]
 pub mod neural;
 #[cfg(feature = "onnx")]
+#[allow(clippy::unwrap_used)]
 pub mod onnx;
+#[allow(clippy::unwrap_used)]
 pub mod pipeline;
+#[allow(clippy::unwrap_used)]
 pub mod preprocessing;
+#[allow(clippy::unwrap_used)]
 pub mod schema;
+#[allow(clippy::unwrap_used)]
 pub mod serialization;
 #[cfg(feature = "simd")]
+#[allow(clippy::unwrap_used)]
 pub mod simd;
 #[cfg(feature = "sparse")]
+#[allow(clippy::unwrap_used)]
 pub mod sparse;
+#[allow(clippy::unwrap_used)]
 pub mod stats;
+#[allow(clippy::unwrap_used)]
 pub mod testing;
+#[allow(clippy::unwrap_used)]
 pub mod validation;
 
 // Re-exports for convenience
