@@ -636,57 +636,30 @@ impl FactorAnalysis {
         let psi_inv: Array1<f64> =
             noise_var.mapv(|v| if v > 1e-10 { 1.0 / v } else { 1.0 / 1e-10 });
 
-        // Compute L^T Ψ^{-1} L + I (n_factors × n_factors)
-        let mut beta_inv = Array2::<f64>::zeros((n_factors, n_factors));
-        for i in 0..n_factors {
-            for j in 0..n_factors {
-                let mut sum = 0.0;
-                for k in 0..loadings.nrows() {
-                    sum += loadings[[k, i]] * psi_inv[k] * loadings[[k, j]];
-                }
-                beta_inv[[i, j]] = sum;
-                if i == j {
-                    beta_inv[[i, j]] += 1.0;
-                }
-            }
+        // Compute L_scaled = Psi^{-1} L (scale each row of loadings by psi_inv)
+        let mut l_scaled = loadings.clone();
+        for k in 0..loadings.nrows() {
+            l_scaled.row_mut(k).mapv_inplace(|v| v * psi_inv[k]);
         }
 
-        // Invert to get β = (L^T Ψ^{-1} L + I)^{-1}
+        // L^T Psi^{-1} L + I (n_factors x n_factors) via matrix multiply
+        let mut beta_inv = l_scaled.t().dot(loadings);
+        for i in 0..n_factors {
+            beta_inv[[i, i]] += 1.0;
+        }
+
+        // Invert to get beta = (L^T Psi^{-1} L + I)^{-1}
         let beta = invert_matrix(&beta_inv)?;
 
-        // β L^T Ψ^{-1}
-        let mut bltp = Array2::<f64>::zeros((n_factors, loadings.nrows()));
-        for f in 0..n_factors {
-            for j in 0..loadings.nrows() {
-                let mut sum = 0.0;
-                for k in 0..n_factors {
-                    sum += beta[[f, k]] * loadings[[j, k]] * psi_inv[j];
-                }
-                bltp[[f, j]] = sum;
-            }
-        }
+        // beta L^T Psi^{-1} via matrix multiply
+        let bltp = beta.dot(&l_scaled.t());
 
-        // E[F|X] = β L^T Ψ^{-1} X^T
-        let mut exp_f = Array2::zeros((n_samples, n_factors));
-        for i in 0..n_samples {
-            for f in 0..n_factors {
-                let mut sum = 0.0;
-                for j in 0..x_centered.ncols() {
-                    sum += bltp[[f, j]] * x_centered[[i, j]];
-                }
-                exp_f[[i, f]] = sum;
-            }
-        }
+        // E[F|X] = X_centered * bltp^T via matrix multiply
+        let exp_f = x_centered.dot(&bltp.t());
 
-        // E[F F^T|X] = β + E[F|X] E[F|X]^T (averaged)
-        // We compute the average over samples: 1/n Σ E[F F^T|X_i]
-        let mut exp_fft = beta;
+        // E[F F^T|X] = beta + (1/n) E[F]^T E[F]
         let eft_outer = exp_f.t().dot(&exp_f) / n_samples as f64;
-        for i in 0..n_factors {
-            for j in 0..n_factors {
-                exp_fft[[i, j]] += eft_outer[[i, j]];
-            }
-        }
+        let exp_fft = beta + &eft_outer;
 
         Ok((exp_f, exp_fft))
     }
