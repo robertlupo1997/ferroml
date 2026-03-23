@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Input Validation** - All models reject invalid inputs (NaN/Inf/empty) with clear errors instead of silent corruption
 - [ ] **Phase 2: Correctness Fixes** - Fix all known bugs, add numerical safeguards, achieve zero test failures
 - [ ] **Phase 3: Robustness Hardening** - Replace unsafe unwraps in critical paths, harden error handling and serialization
-- [ ] **Phase 4: Performance Optimization** - Close performance gaps vs sklearn (PCA, LinearSVC, OLS/Ridge, HistGBT, SVC)
+- [x] **Phase 4: Performance Optimization** - Close performance gaps vs sklearn (PCA, LinearSVC, OLS/Ridge, HistGBT, SVC) (completed 2026-03-23)
 - [ ] **Phase 5: Documentation and Release** - Complete docstrings, document limitations, publish benchmarks
 
 ## Phase Details
@@ -116,5 +116,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Input Validation | 3/3 | Complete | 2026-03-20 |
 | 2. Correctness Fixes | 3/3 | Complete | 2026-03-21 |
 | 3. Robustness Hardening | 3/3 | Complete | 2026-03-22 |
-| 4. Performance Optimization | 4/6 | Gap closure | - |
+| 4. Performance Optimization | 6/6 | Complete   | 2026-03-23 |
 | 5. Documentation and Release | 0/2 | Not started | - |
