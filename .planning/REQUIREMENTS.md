@@ -70,10 +70,10 @@ Requirements for launch-ready release. Each maps to roadmap phases.
 
 - [x] **DOCS-01**: All 55+ Python model classes have complete docstrings (description, parameters, examples)
 - [x] **DOCS-02**: All constructor parameters documented with type, default, valid range
-- [ ] **DOCS-03**: Known limitations documented in README (RF parallel non-determinism, sparse limits, ONNX RC)
+- [x] **DOCS-03**: Known limitations documented in README (RF parallel non-determinism, sparse limits, ONNX RC)
 - [x] **DOCS-04**: Per-model known limitations documented in docstrings where applicable
-- [ ] **DOCS-05**: Upgrade ort dependency status documented (RC vs stable, user expectations)
-- [ ] **DOCS-06**: Published performance benchmark page with methodology and results
+- [x] **DOCS-05**: Upgrade ort dependency status documented (RC vs stable, user expectations)
+- [x] **DOCS-06**: Published performance benchmark page with methodology and results
 
 ## v2 Requirements
 
@@ -161,10 +161,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | ROBU-13 | Phase 3 | Complete |
 | DOCS-01 | Phase 5 | Complete |
 | DOCS-02 | Phase 5 | Complete |
-| DOCS-03 | Phase 5 | Pending |
+| DOCS-03 | Phase 5 | Complete |
 | DOCS-04 | Phase 5 | Complete |
-| DOCS-05 | Phase 5 | Pending |
-| DOCS-06 | Phase 5 | Pending |
+| DOCS-05 | Phase 5 | Complete |
+| DOCS-06 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 53 total
