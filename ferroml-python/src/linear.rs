@@ -2297,6 +2297,22 @@ impl PyElasticNet {
 ///     Estimated coefficients.
 /// intercept_ : float
 ///     Estimated intercept.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.linear import RobustRegression
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 1], [2, 2], [3, 3], [4, 4], [100, 100]])
+/// >>> y = np.array([2.0, 4.0, 6.0, 8.0, 200.0])
+/// >>> model = RobustRegression(estimator="huber")
+/// >>> model.fit(X, y)
+/// >>> model.predict(np.array([[5, 5]]))
+///
+/// Notes
+/// -----
+/// Robust regression downweights outliers automatically. The Huber estimator
+/// is the most commonly used. Use ``summary()`` on the core model for
+/// diagnostic statistics including residual analysis.
 #[pyclass(name = "RobustRegression", module = "ferroml.linear")]
 pub struct PyRobustRegression {
     inner: RobustRegression,
@@ -2495,6 +2511,23 @@ impl PyRobustRegression {
 ///     Estimated coefficients.
 /// intercept_ : float
 ///     Estimated intercept.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.linear import QuantileRegression
+/// >>> import numpy as np
+/// >>> X = np.array([[1], [2], [3], [4], [5]], dtype=np.float64)
+/// >>> y = np.array([1.1, 2.3, 2.8, 4.2, 5.0])
+/// >>> model = QuantileRegression(quantile=0.5)
+/// >>> model.fit(X, y)
+/// >>> model.predict(np.array([[6]], dtype=np.float64))
+///
+/// Notes
+/// -----
+/// Quantile regression estimates conditional quantiles rather than the
+/// conditional mean. The median (quantile=0.5) is more robust to outliers
+/// than OLS. Use different quantile values (e.g., 0.1, 0.9) to understand
+/// the full distribution of the response.
 #[pyclass(name = "QuantileRegression", module = "ferroml.linear")]
 pub struct PyQuantileRegression {
     inner: QuantileRegression,
@@ -2669,9 +2702,30 @@ impl PyQuantileRegression {
 /// Parameters
 /// ----------
 /// max_iter : int, optional (default=1000)
-///     Maximum number of passes over the training data.
+///     Maximum number of passes over the training data. Must be >= 1.
 /// random_state : int or None, optional (default=None)
 ///     Random seed for reproducibility.
+///
+/// Attributes
+/// ----------
+/// n_iter_ : int
+///     Number of iterations actually performed.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.linear import Perceptron
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [2, 1], [3, 3], [6, 7], [7, 6], [8, 8]])
+/// >>> y = np.array([0, 0, 0, 1, 1, 1])
+/// >>> model = Perceptron(max_iter=1000, random_state=42)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
+///
+/// Notes
+/// -----
+/// The Perceptron is equivalent to ``SGDClassifier(loss="perceptron",
+/// penalty=None)``. It supports ``partial_fit()`` for online/incremental
+/// learning and ``decision_function()`` for raw decision scores.
 #[pyclass(name = "Perceptron", module = "ferroml.linear")]
 pub struct PyPerceptron {
     inner: Perceptron,
@@ -2813,6 +2867,17 @@ impl PyPerceptron {
 /// ----------
 /// alpha_ : float
 ///     The best alpha found by cross-validation. Only available after fit.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.linear import RidgeCV
+/// >>> import numpy as np
+/// >>> X = np.random.randn(100, 5)
+/// >>> y = X @ np.array([1.0, 2.0, 3.0, 0.0, 0.0]) + np.random.randn(100) * 0.1
+/// >>> model = RidgeCV(cv=5)
+/// >>> model.fit(X, y)
+/// >>> print(f"Best alpha: {model.alpha_}")
+/// >>> model.predict(X[:5])
 #[pyclass(name = "RidgeCV", module = "ferroml.linear")]
 pub struct PyRidgeCV {
     inner: RidgeCV,
@@ -2912,6 +2977,22 @@ impl PyRidgeCV {
 /// ----------
 /// alpha_ : float
 ///     The best alpha found by cross-validation. Only available after fit.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.linear import LassoCV
+/// >>> import numpy as np
+/// >>> X = np.random.randn(100, 10)
+/// >>> y = X @ np.array([1, 2, 0, 0, 0, 0, 0, 0, 0, 0], dtype=np.float64) + 0.1 * np.random.randn(100)
+/// >>> model = LassoCV(n_alphas=50, cv=5)
+/// >>> model.fit(X, y)
+/// >>> print(f"Best alpha: {model.alpha_}")
+/// >>> model.predict(X[:5])
+///
+/// Notes
+/// -----
+/// LassoCV generates log-spaced alpha candidates from alpha_max (the
+/// smallest alpha that makes all coefficients zero) down to alpha_max / 1000.
 #[pyclass(name = "LassoCV", module = "ferroml.linear")]
 pub struct PyLassoCV {
     inner: LassoCV,
@@ -3017,6 +3098,22 @@ impl PyLassoCV {
 ///     The best alpha found by cross-validation. Only available after fit.
 /// l1_ratio_ : float
 ///     The best l1_ratio found by cross-validation. Only available after fit.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.linear import ElasticNetCV
+/// >>> import numpy as np
+/// >>> X = np.random.randn(100, 10)
+/// >>> y = X @ np.array([1, 2, 0, 0, 3, 0, 0, 0, 0, 0], dtype=np.float64) + 0.1 * np.random.randn(100)
+/// >>> model = ElasticNetCV(n_alphas=50, cv=5)
+/// >>> model.fit(X, y)
+/// >>> print(f"Best alpha: {model.alpha_}, Best l1_ratio: {model.l1_ratio_}")
+/// >>> model.predict(X[:5])
+///
+/// Notes
+/// -----
+/// ElasticNetCV searches over a grid of alpha and l1_ratio values.
+/// l1_ratio=1.0 is equivalent to Lasso, l1_ratio=0.0 to Ridge.
 #[pyclass(name = "ElasticNetCV", module = "ferroml.linear")]
 pub struct PyElasticNetCV {
     inner: ElasticNetCV,
@@ -3119,9 +3216,34 @@ impl PyElasticNetCV {
 /// Parameters
 /// ----------
 /// alpha : float, optional (default=1.0)
-///     Regularization strength. Larger values specify stronger regularization.
+///     Regularization strength. Must be > 0. Larger values specify stronger
+///     regularization.
 /// fit_intercept : bool, optional (default=True)
 ///     Whether to calculate the intercept for this model.
+///
+/// Attributes
+/// ----------
+/// coef_ : ndarray
+///     Fitted coefficients.
+/// intercept_ : float or ndarray
+///     Fitted intercept(s).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.linear import RidgeClassifier
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [2, 1], [3, 3], [6, 7], [7, 6], [8, 8]])
+/// >>> y = np.array([0, 0, 0, 1, 1, 1])
+/// >>> model = RidgeClassifier(alpha=1.0)
+/// >>> model.fit(X, y)
+/// >>> model.predict(np.array([[5, 5]]))
+///
+/// Notes
+/// -----
+/// RidgeClassifier converts classification to regression by encoding
+/// the target as {-1, +1}. It is faster than LogisticRegression for
+/// high-dimensional data because it solves a linear system instead of
+/// an iterative optimization. Use ``decision_function()`` for raw scores.
 #[pyclass(name = "RidgeClassifier", module = "ferroml.linear")]
 pub struct PyRidgeClassifier {
     inner: RidgeClassifier,
@@ -3297,13 +3419,37 @@ impl PyRidgeClassifier {
 /// Parameters
 /// ----------
 /// increasing : str, optional (default="true")
-///     "true" for non-decreasing, "false" for non-increasing, "auto" for auto-detection.
-/// y_min : float, optional
-///     Minimum output value.
-/// y_max : float, optional
-///     Maximum output value.
+///     Monotonicity direction: "true" for non-decreasing, "false" for
+///     non-increasing, "auto" for auto-detection based on Spearman correlation.
+/// y_min : float or None, optional (default=None)
+///     Lower bound on predicted values. If None, no lower clipping.
+/// y_max : float or None, optional (default=None)
+///     Upper bound on predicted values. If None, no upper clipping.
 /// out_of_bounds : str, optional (default="nan")
 ///     How to handle out-of-range predictions: "nan", "clip", or "raise".
+///
+/// Attributes
+/// ----------
+/// X_thresholds_ : ndarray
+///     Unique X values from the fitted piecewise-linear function.
+/// y_thresholds_ : ndarray
+///     Corresponding Y values from the fitted piecewise-linear function.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.linear import IsotonicRegression
+/// >>> import numpy as np
+/// >>> X = np.array([[1], [2], [3], [4], [5]], dtype=np.float64)
+/// >>> y = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+/// >>> model = IsotonicRegression(increasing="true")
+/// >>> model.fit(X, y)
+/// >>> model.predict(np.array([[2.5]], dtype=np.float64))
+///
+/// Notes
+/// -----
+/// Isotonic regression uses the Pool Adjacent Violators Algorithm (PAVA)
+/// to find the best monotonic fit. Input X must be 1-dimensional (single
+/// column). Useful for calibrating classifier probabilities.
 #[pyclass(name = "IsotonicRegression", module = "ferroml.linear")]
 pub struct PyIsotonicRegression {
     inner: ferroml_core::models::IsotonicRegression,

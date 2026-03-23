@@ -48,20 +48,36 @@ use pyo3::types::PyBytes;
 /// Extremely Randomized Trees classifier.
 ///
 /// Like RandomForestClassifier but uses random thresholds at each split
-/// and does not use bootstrap sampling by default.
+/// and does not use bootstrap sampling by default. Reduces variance at the
+/// cost of a slight increase in bias.
 ///
 /// Parameters
 /// ----------
 /// n_estimators : int, optional (default=100)
 ///     Number of trees in the ensemble.
-/// max_depth : int, optional
-///     Maximum depth of each tree.
+/// max_depth : int or None, optional (default=None)
+///     Maximum depth of each tree. None means unlimited.
 /// min_samples_split : int, optional (default=2)
 ///     Minimum samples to split an internal node.
 /// min_samples_leaf : int, optional (default=1)
 ///     Minimum samples at a leaf node.
-/// random_state : int, optional
+/// random_state : int or None, optional (default=None)
 ///     Random seed for reproducibility.
+///
+/// Attributes
+/// ----------
+/// feature_importances_ : ndarray of shape (n_features,)
+///     Gini importance of each feature, averaged over all trees.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.ensemble import ExtraTreesClassifier
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> model = ExtraTreesClassifier(n_estimators=50, random_state=42)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
 #[pyclass(name = "ExtraTreesClassifier", module = "ferroml.ensemble")]
 pub struct PyExtraTreesClassifier {
     inner: ExtraTreesClassifier,
@@ -257,18 +273,36 @@ impl PyExtraTreesClassifier {
 
 /// Extremely Randomized Trees regressor.
 ///
+/// Like RandomForestRegressor but uses random thresholds at each split
+/// and does not use bootstrap sampling by default.
+///
 /// Parameters
 /// ----------
 /// n_estimators : int, optional (default=100)
 ///     Number of trees in the ensemble.
-/// max_depth : int, optional
-///     Maximum depth of each tree.
+/// max_depth : int or None, optional (default=None)
+///     Maximum depth of each tree. None means unlimited.
 /// min_samples_split : int, optional (default=2)
 ///     Minimum samples to split an internal node.
 /// min_samples_leaf : int, optional (default=1)
 ///     Minimum samples at a leaf node.
-/// random_state : int, optional
+/// random_state : int or None, optional (default=None)
 ///     Random seed for reproducibility.
+///
+/// Attributes
+/// ----------
+/// feature_importances_ : ndarray of shape (n_features,)
+///     Gini importance of each feature, averaged over all trees.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.ensemble import ExtraTreesRegressor
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([1.0, 2.0, 3.0, 4.0])
+/// >>> model = ExtraTreesRegressor(n_estimators=50, random_state=42)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
 #[pyclass(name = "ExtraTreesRegressor", module = "ferroml.ensemble")]
 pub struct PyExtraTreesRegressor {
     inner: ExtraTreesRegressor,
@@ -449,18 +483,30 @@ impl PyExtraTreesRegressor {
 
 /// AdaBoost classifier using SAMME.R algorithm.
 ///
-/// Fits an ensemble of weighted decision stumps.
+/// Fits an ensemble of weighted decision stumps. Each subsequent estimator
+/// focuses on samples that previous estimators misclassified.
 ///
 /// Parameters
 /// ----------
 /// n_estimators : int, optional (default=50)
-///     Number of boosting rounds.
+///     Number of boosting rounds. Valid range: [1, inf).
 /// learning_rate : float, optional (default=1.0)
 ///     Weight applied to each classifier at each boosting round.
+///     Valid range: (0, inf). Smaller values require more estimators.
 /// max_depth : int, optional (default=1)
-///     Maximum depth of each base estimator.
-/// random_state : int, optional
-///     Random seed.
+///     Maximum depth of each base estimator (decision stump by default).
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.ensemble import AdaBoostClassifier
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> model = AdaBoostClassifier(n_estimators=50, learning_rate=1.0)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
 #[pyclass(name = "AdaBoostClassifier", module = "ferroml.ensemble")]
 pub struct PyAdaBoostClassifier {
     inner: AdaBoostClassifier,
@@ -644,18 +690,31 @@ impl PyAdaBoostClassifier {
 
 /// AdaBoost regressor using AdaBoost.R2.
 ///
+/// Boosting-based ensemble regressor that iteratively focuses on high-residual
+/// samples.
+///
 /// Parameters
 /// ----------
 /// n_estimators : int, optional (default=50)
-///     Number of boosting rounds.
+///     Number of boosting rounds. Valid range: [1, inf).
 /// learning_rate : float, optional (default=1.0)
-///     Weight applied to each estimator.
+///     Weight applied to each estimator. Valid range: (0, inf).
 /// loss : str, optional (default="linear")
 ///     Loss function: "linear", "square", "exponential".
 /// max_depth : int, optional (default=3)
 ///     Maximum depth of each base estimator.
-/// random_state : int, optional
-///     Random seed.
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.ensemble import AdaBoostRegressor
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([1.0, 2.0, 3.0, 4.0])
+/// >>> model = AdaBoostRegressor(n_estimators=50, learning_rate=0.1)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
 #[pyclass(name = "AdaBoostRegressor", module = "ferroml.ensemble")]
 pub struct PyAdaBoostRegressor {
     inner: AdaBoostRegressor,
@@ -858,22 +917,39 @@ fn parse_penalty(penalty: &str) -> PyResult<ferroml_core::models::sgd::Penalty> 
 
 /// Linear classifier fitted via Stochastic Gradient Descent.
 ///
-/// Supports multiple loss functions and regularization penalties.
+/// Supports multiple loss functions and regularization penalties. Efficient
+/// for large-scale learning and supports incremental fitting via partial_fit().
 ///
 /// Parameters
 /// ----------
 /// loss : str, optional (default="hinge")
-///     Loss function: "hinge", "log", "modified_huber".
+///     Loss function: "hinge" (SVM), "log" (logistic regression),
+///     "modified_huber" (smooth hinge with probability estimates).
 /// penalty : str, optional (default="l2")
 ///     Regularization: "none", "l1", "l2", "elasticnet".
 /// alpha : float, optional (default=0.0001)
-///     Regularization strength.
+///     Regularization strength. Valid range: (0, inf).
 /// max_iter : int, optional (default=1000)
 ///     Maximum number of epochs.
 /// tol : float, optional (default=1e-3)
 ///     Convergence tolerance.
-/// random_state : int, optional
-///     Random seed.
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+///
+/// Attributes
+/// ----------
+/// feature_importances_ : ndarray of shape (n_features,)
+///     Normalized absolute coefficient magnitudes summing to 1.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.ensemble import SGDClassifier
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> model = SGDClassifier(loss="hinge", alpha=0.001, random_state=42)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
 #[pyclass(name = "SGDClassifier", module = "ferroml.ensemble")]
 pub struct PySGDClassifier {
     inner: SGDClassifier,
@@ -1121,20 +1197,43 @@ impl PySGDClassifier {
 
 /// Linear regressor fitted via Stochastic Gradient Descent.
 ///
+/// Efficient for large-scale regression with support for incremental
+/// fitting via partial_fit().
+///
 /// Parameters
 /// ----------
 /// loss : str, optional (default="squared_error")
-///     Loss function: "squared_error", "huber", "epsilon_insensitive".
+///     Loss function: "squared_error", "huber" (robust to outliers),
+///     "epsilon_insensitive" (SVR-like).
 /// penalty : str, optional (default="l2")
 ///     Regularization: "none", "l1", "l2", "elasticnet".
 /// alpha : float, optional (default=0.0001)
-///     Regularization strength.
+///     Regularization strength. Valid range: (0, inf).
 /// max_iter : int, optional (default=1000)
 ///     Maximum number of epochs.
 /// tol : float, optional (default=1e-3)
 ///     Convergence tolerance.
-/// random_state : int, optional
-///     Random seed.
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+///
+/// Attributes
+/// ----------
+/// coef_ : ndarray of shape (n_features,)
+///     Weight vector.
+/// intercept_ : float
+///     Bias term.
+/// feature_importances_ : ndarray of shape (n_features,)
+///     Normalized absolute coefficient magnitudes summing to 1.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.ensemble import SGDRegressor
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([1.0, 2.0, 3.0, 4.0])
+/// >>> model = SGDRegressor(loss="squared_error", alpha=0.001, random_state=42)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
 #[pyclass(name = "SGDRegressor", module = "ferroml.ensemble")]
 pub struct PySGDRegressor {
     inner: SGDRegressor,
@@ -1380,18 +1479,30 @@ impl PySGDRegressor {
 /// Passive Aggressive classifier.
 ///
 /// Online learning classifier that makes aggressive updates when a
-/// prediction violates the margin.
+/// prediction violates the margin. Supports incremental fitting via
+/// partial_fit().
 ///
 /// Parameters
 /// ----------
 /// c : float, optional (default=1.0)
-///     Regularization parameter (aggressiveness).
+///     Regularization parameter (aggressiveness). Valid range: (0, inf).
+///     Larger values allow larger updates.
 /// max_iter : int, optional (default=1000)
 ///     Maximum epochs.
 /// tol : float, optional (default=1e-3)
 ///     Convergence tolerance.
-/// random_state : int, optional
-///     Random seed.
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.ensemble import PassiveAggressiveClassifier
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> model = PassiveAggressiveClassifier(c=1.0)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
 #[pyclass(name = "PassiveAggressiveClassifier", module = "ferroml.ensemble")]
 pub struct PyPassiveAggressiveClassifier {
     inner: PassiveAggressiveClassifier,
@@ -1631,8 +1742,8 @@ impl PyPassiveAggressiveClassifier {
 /// warm_start : bool, optional (default=False)
 ///     Whether to keep existing estimators when fitting again.
 ///
-/// Example
-/// -------
+/// Examples
+/// --------
 /// >>> from ferroml.ensemble import BaggingClassifier
 /// >>> import numpy as np
 /// >>>
@@ -2351,8 +2462,8 @@ impl PyBaggingClassifier {
 /// - ``BaggingRegressor.with_svr(...)``
 /// - ``BaggingRegressor.with_knn(...)``
 ///
-/// Example
-/// -------
+/// Examples
+/// --------
 /// >>> from ferroml.ensemble import BaggingRegressor
 /// >>> import numpy as np
 /// >>> X_train = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
@@ -3249,8 +3360,8 @@ fn build_regressor_final_estimator(name: &str) -> PyResult<Box<dyn Model>> {
 /// weights : list of float, optional
 ///     Weights for each estimator. Must match number of estimators.
 ///
-/// Example
-/// -------
+/// Examples
+/// --------
 /// >>> from ferroml.ensemble import VotingClassifier
 /// >>> model = VotingClassifier([("lr", "logistic_regression"), ("dt", "decision_tree")], voting="soft")
 /// >>> model.fit(X_train, y_train)
@@ -3436,8 +3547,8 @@ impl PyVotingClassifier {
 /// weights : list of float, optional
 ///     Weights for each estimator. Must match number of estimators.
 ///
-/// Example
-/// -------
+/// Examples
+/// --------
 /// >>> from ferroml.ensemble import VotingRegressor
 /// >>> model = VotingRegressor([("lr", "linear_regression"), ("dt", "decision_tree")])
 /// >>> model.fit(X_train, y_train)
@@ -3556,8 +3667,8 @@ impl PyVotingRegressor {
 /// passthrough : bool, optional (default=False)
 ///     Include original features alongside meta-features.
 ///
-/// Example
-/// -------
+/// Examples
+/// --------
 /// >>> from ferroml.ensemble import StackingClassifier
 /// >>> model = StackingClassifier(
 /// ...     [("dt", "decision_tree"), ("nb", "gaussian_nb")],
@@ -3761,8 +3872,8 @@ impl PyStackingClassifier {
 /// passthrough : bool, optional (default=False)
 ///     Include original features alongside meta-features.
 ///
-/// Example
-/// -------
+/// Examples
+/// --------
 /// >>> from ferroml.ensemble import StackingRegressor
 /// >>> model = StackingRegressor(
 /// ...     [("lr", "linear_regression"), ("dt", "decision_tree")],

@@ -20,14 +20,26 @@ use pyo3::types::PyTuple;
 
 /// K-Fold cross-validation splitter.
 ///
+/// Provides train/test indices to split data into k consecutive folds.
+///
 /// Parameters
 /// ----------
 /// n_folds : int, optional (default=5)
-///     Number of folds.
+///     Number of folds. Valid range: [2, n_samples].
 /// shuffle : bool, optional (default=False)
-///     Whether to shuffle before splitting.
+///     Whether to shuffle the data before splitting.
 /// random_state : int or None, optional (default=None)
-///     Random seed for reproducibility.
+///     Random seed for reproducibility (only used when shuffle=True).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.cv import KFold
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]])
+/// >>> kf = KFold(n_folds=3, shuffle=True, random_state=42)
+/// >>> splits = kf.split(X)
+/// >>> for train_idx, test_idx in splits:
+/// ...     print(f"Train: {train_idx}, Test: {test_idx}")
 #[pyclass(name = "KFold")]
 #[derive(Clone)]
 struct PyKFold {
@@ -103,15 +115,25 @@ impl PyKFold {
 /// Stratified K-Fold cross-validation splitter.
 ///
 /// Preserves the percentage of samples for each class across folds.
+/// Preferred over KFold for imbalanced datasets.
 ///
 /// Parameters
 /// ----------
 /// n_folds : int, optional (default=5)
-///     Number of folds.
+///     Number of folds. Valid range: [2, n_samples].
 /// shuffle : bool, optional (default=False)
 ///     Whether to shuffle before splitting.
 /// random_state : int or None, optional (default=None)
-///     Random seed for reproducibility.
+///     Random seed for reproducibility (only used when shuffle=True).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.cv import StratifiedKFold
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> skf = StratifiedKFold(n_folds=2)
+/// >>> splits = skf.split(X, y)
 #[pyclass(name = "StratifiedKFold")]
 #[derive(Clone)]
 struct PyStratifiedKFold {
@@ -192,12 +214,21 @@ impl PyStratifiedKFold {
 /// Time Series cross-validation splitter.
 ///
 /// Provides train/test splits that respect temporal ordering:
-/// each test set is always after the training set.
+/// each test set is always after the training set. The training set
+/// grows with each split.
 ///
 /// Parameters
 /// ----------
 /// n_splits : int, optional (default=5)
 ///     Number of splits.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.cv import TimeSeriesSplit
+/// >>> import numpy as np
+/// >>> X = np.array([[1], [2], [3], [4], [5], [6]])
+/// >>> tscv = TimeSeriesSplit(n_splits=3)
+/// >>> splits = tscv.split(X)
 #[pyclass(name = "TimeSeriesSplit")]
 #[derive(Clone)]
 struct PyTimeSeriesSplit {
@@ -262,7 +293,17 @@ impl PyTimeSeriesSplit {
 /// Leave-One-Out cross-validation splitter.
 ///
 /// Each sample is used once as the test set while the remaining
-/// samples form the training set.
+/// samples form the training set. Produces n_samples splits.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.cv import LeaveOneOut
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6]])
+/// >>> loo = LeaveOneOut()
+/// >>> splits = loo.split(X)
+/// >>> len(splits)
+/// 3
 #[pyclass(name = "LeaveOneOut")]
 #[derive(Clone)]
 struct PyLeaveOneOut;
@@ -322,16 +363,27 @@ impl PyLeaveOneOut {
 
 /// Repeated K-Fold cross-validation splitter.
 ///
-/// Repeats K-Fold n_repeats times with different randomization in each repetition.
+/// Repeats K-Fold n_repeats times with different randomization in each
+/// repetition. Produces n_folds * n_repeats total splits.
 ///
 /// Parameters
 /// ----------
 /// n_folds : int, optional (default=5)
-///     Number of folds.
+///     Number of folds. Valid range: [2, n_samples].
 /// n_repeats : int, optional (default=10)
 ///     Number of times to repeat the cross-validation.
 /// random_state : int or None, optional (default=None)
 ///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.cv import RepeatedKFold
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> rkf = RepeatedKFold(n_folds=2, n_repeats=3, random_state=42)
+/// >>> splits = rkf.split(X)
+/// >>> len(splits)
+/// 6
 #[pyclass(name = "RepeatedKFold")]
 #[derive(Clone)]
 struct PyRepeatedKFold {
@@ -396,13 +448,23 @@ impl PyRepeatedKFold {
 /// Parameters
 /// ----------
 /// n_splits : int, optional (default=10)
-///     Number of re-shuffling & splitting iterations.
+///     Number of re-shuffling and splitting iterations.
 /// test_size : float, optional (default=0.1)
-///     Fraction of the dataset to include in the test split.
+///     Fraction of the dataset to include in the test split. Valid range: (0, 1).
 /// train_size : float or None, optional (default=None)
 ///     Fraction for training. Default is complement of test_size.
 /// random_state : int or None, optional (default=None)
 ///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.cv import ShuffleSplit
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]])
+/// >>> ss = ShuffleSplit(n_splits=3, test_size=0.2, random_state=42)
+/// >>> splits = ss.split(X)
+/// >>> len(splits)
+/// 3
 #[pyclass(name = "ShuffleSplit")]
 #[derive(Clone)]
 struct PyShuffleSplit {
@@ -472,12 +534,22 @@ impl PyShuffleSplit {
 /// K-fold cross-validation with non-overlapping groups.
 ///
 /// Each group appears in exactly one test fold. Groups are assigned to
-/// folds using greedy bin-packing.
+/// folds using greedy bin-packing. Useful when data contains groups
+/// that should not be split across folds.
 ///
 /// Parameters
 /// ----------
 /// n_folds : int, optional (default=5)
-///     Number of folds.
+///     Number of folds. Must not exceed the number of unique groups.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.cv import GroupKFold
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> groups = np.array([0, 0, 1, 1])
+/// >>> gkf = GroupKFold(n_folds=2)
+/// >>> splits = gkf.split(X, groups=groups)
 #[pyclass(name = "GroupKFold")]
 #[derive(Clone)]
 struct PyGroupKFold {
@@ -542,12 +614,23 @@ impl PyGroupKFold {
 
 /// Leave-P-Out cross-validation splitter.
 ///
-/// Each test set contains exactly p samples, chosen from all C(n, p) combinations.
+/// Each test set contains exactly p samples, chosen from all C(n, p)
+/// combinations. Produces C(n, p) splits total.
 ///
 /// Parameters
 /// ----------
 /// p : int, optional (default=2)
-///     Size of the test sets.
+///     Size of the test sets. Valid range: [1, n_samples).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.cv import LeavePOut
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> lpo = LeavePOut(p=2)
+/// >>> splits = lpo.split(X)
+/// >>> len(splits)
+/// 6
 #[pyclass(name = "LeavePOut")]
 #[derive(Clone)]
 struct PyLeavePOut {

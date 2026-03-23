@@ -181,12 +181,42 @@ impl PyPCA {
 ///
 /// Parameters
 /// ----------
-/// n_components : int, optional
-///     Number of components to keep.
+/// n_components : int or None, optional (default=None)
+///     Number of components to keep. If None, keeps min(n_samples, n_features).
 /// whiten : bool, optional (default=False)
 ///     When True, components are scaled to unit variance.
-/// batch_size : int, optional
-///     Size of batches for partial_fit.
+/// batch_size : int or None, optional (default=None)
+///     Size of batches for partial_fit. If None, the entire dataset is used.
+///
+/// Attributes
+/// ----------
+/// components_ : ndarray of shape (n_components, n_features)
+///     Principal axes in feature space.
+/// explained_variance_ratio_ : ndarray of shape (n_components,)
+///     Percentage of variance explained by each component.
+/// n_samples_seen_ : int
+///     Total number of samples seen during fitting.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.decomposition import IncrementalPCA
+/// >>> import numpy as np
+/// >>> X = np.random.randn(200, 10)
+/// >>> ipca = IncrementalPCA(n_components=3)
+/// >>> # Fit on full data
+/// >>> X_t = ipca.fit_transform(X)
+/// >>> X_t.shape
+/// (200, 3)
+/// >>> # Or fit incrementally with partial_fit
+/// >>> ipca2 = IncrementalPCA(n_components=3)
+/// >>> for i in range(0, 200, 50):
+/// ...     ipca2.partial_fit(X[i:i+50])
+///
+/// Notes
+/// -----
+/// IncrementalPCA is useful when the dataset is too large to fit in memory.
+/// Use ``partial_fit()`` to process data in batches. Results may differ
+/// slightly from PCA due to incremental mean/variance estimation.
 #[pyclass(name = "IncrementalPCA", module = "ferroml.decomposition")]
 pub struct PyIncrementalPCA {
     inner: IncrementalPCA,
@@ -299,11 +329,34 @@ impl PyIncrementalPCA {
 /// Parameters
 /// ----------
 /// n_components : int, optional (default=2)
-///     Number of components to keep.
+///     Number of components to keep. Must be < n_features.
 /// n_iter : int, optional (default=5)
-///     Number of iterations for randomized SVD.
-/// random_state : int, optional
+///     Number of iterations for randomized SVD solver.
+/// random_state : int or None, optional (default=None)
 ///     Random seed for reproducibility.
+///
+/// Attributes
+/// ----------
+/// components_ : ndarray of shape (n_components, n_features)
+///     Right singular vectors (loadings).
+/// explained_variance_ratio_ : ndarray of shape (n_components,)
+///     Percentage of variance explained by each component.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.decomposition import TruncatedSVD
+/// >>> import numpy as np
+/// >>> X = np.random.randn(100, 20)
+/// >>> svd = TruncatedSVD(n_components=5, random_state=42)
+/// >>> X_t = svd.fit_transform(X)
+/// >>> X_t.shape
+/// (100, 5)
+///
+/// Notes
+/// -----
+/// Unlike PCA, TruncatedSVD does not center the data before computing SVD.
+/// This makes it suitable for sparse matrices (e.g., term-document matrices
+/// in LSA/LSI). For dense data, PCA is generally preferred.
 #[pyclass(name = "TruncatedSVD", module = "ferroml.decomposition")]
 pub struct PyTruncatedSVD {
     inner: TruncatedSVD,
@@ -415,12 +468,40 @@ impl PyTruncatedSVD {
 ///
 /// Parameters
 /// ----------
-/// n_components : int, optional
-///     Number of components. Max is n_classes - 1.
-/// shrinkage : float, optional
-///     Shrinkage parameter for regularization (0 to 1).
+/// n_components : int or None, optional (default=None)
+///     Number of components for dimensionality reduction. Maximum is
+///     min(n_classes - 1, n_features). If None, uses n_classes - 1.
+/// shrinkage : float or None, optional (default=None)
+///     Shrinkage parameter for regularization (0.0 to 1.0). Useful when
+///     n_samples < n_features. If None, no shrinkage is applied.
 /// tol : float, optional (default=1e-4)
-///     Convergence tolerance.
+///     Convergence tolerance for eigenvalue truncation.
+///
+/// Attributes
+/// ----------
+/// scalings_ : ndarray of shape (n_features, n_components)
+///     Projection vectors (discriminant directions).
+/// classes_ : ndarray
+///     Unique class labels seen during fit.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.decomposition import LDA
+/// >>> import numpy as np
+/// >>> X = np.vstack([np.random.randn(30, 4) + [0, 0, 0, 0],
+/// ...               np.random.randn(30, 4) + [3, 3, 3, 3]])
+/// >>> y = np.array([0]*30 + [1]*30, dtype=np.float64)
+/// >>> lda = LDA(n_components=1)
+/// >>> X_proj = lda.fit(X, y).transform(X)
+/// >>> X_proj.shape
+/// (60, 1)
+///
+/// Notes
+/// -----
+/// LDA is both a classifier and a dimensionality reduction method. It
+/// assumes equal covariance matrices across classes. Use ``shrinkage``
+/// when n_samples is small relative to n_features to regularize the
+/// within-class scatter matrix.
 #[pyclass(name = "LDA", module = "ferroml.decomposition")]
 pub struct PyLDA {
     inner: LDA,
@@ -505,16 +586,40 @@ impl PyLDA {
 ///
 /// Parameters
 /// ----------
-/// n_factors : int, optional
-///     Number of latent factors.
+/// n_factors : int or None, optional (default=None)
+///     Number of latent factors. If None, uses n_features.
 /// rotation : str, optional (default="none")
 ///     Rotation method: "none", "varimax", "quartimax", "promax".
+///     Rotation improves interpretability without changing model fit.
 /// tol : float, optional (default=1e-3)
-///     Convergence tolerance.
+///     Convergence tolerance for the EM algorithm.
 /// max_iter : int, optional (default=1000)
 ///     Maximum number of EM iterations.
-/// random_state : int, optional
-///     Random seed.
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+///
+/// Attributes
+/// ----------
+/// components_ : ndarray of shape (n_factors, n_features)
+///     Factor loading matrix (optionally rotated).
+/// noise_variance_ : ndarray of shape (n_features,)
+///     Estimated noise variance for each feature (uniquenesses).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.decomposition import FactorAnalysis
+/// >>> import numpy as np
+/// >>> X = np.random.randn(200, 6)
+/// >>> fa = FactorAnalysis(n_factors=2, rotation="varimax", random_state=42)
+/// >>> X_scores = fa.fit_transform(X)
+/// >>> X_scores.shape
+/// (200, 2)
+///
+/// Notes
+/// -----
+/// Factor Analysis separates common variance (shared across features)
+/// from unique variance (noise specific to each feature). Use varimax
+/// rotation when you want orthogonal, interpretable factors.
 #[pyclass(name = "FactorAnalysis", module = "ferroml.decomposition")]
 pub struct PyFactorAnalysis {
     inner: FactorAnalysis,
@@ -868,13 +973,37 @@ impl PyTSNE {
 /// Parameters
 /// ----------
 /// reg_param : float, optional (default=0.0)
-///     Regularization: Sigma_k = (1 - reg_param) * Sigma_k + reg_param * I
-/// priors : list of float, optional
+///     Regularization: Sigma_k = (1 - reg_param) * Sigma_k + reg_param * I.
+///     Range: [0.0, 1.0].
+/// priors : list of float or None, optional (default=None)
 ///     Class priors (must sum to 1). If None, estimated from data.
 /// store_covariance : bool, optional (default=False)
 ///     Whether to store full covariance matrices.
 /// tol : float, optional (default=1e-4)
 ///     Tolerance for eigenvalue truncation.
+///
+/// Attributes
+/// ----------
+/// classes_ : ndarray
+///     Unique class labels.
+/// priors_ : ndarray
+///     Class prior probabilities.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.decomposition import QuadraticDiscriminantAnalysis
+/// >>> import numpy as np
+/// >>> X = np.vstack([np.random.randn(30, 3), np.random.randn(30, 3) + 2])
+/// >>> y = np.array([0]*30 + [1]*30, dtype=np.float64)
+/// >>> model = QuadraticDiscriminantAnalysis(reg_param=0.1)
+/// >>> model.fit(X, y)
+/// >>> model.predict(np.array([[1.0, 1.0, 1.0]]))
+///
+/// Notes
+/// -----
+/// QDA fits separate covariance matrices per class, unlike LDA which
+/// assumes shared covariance. Use ``reg_param`` to regularize when
+/// individual class covariance matrices are poorly conditioned.
 #[pyclass(
     name = "QuadraticDiscriminantAnalysis",
     module = "ferroml.decomposition"

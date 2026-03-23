@@ -25,10 +25,14 @@ use pyo3::prelude::*;
 ///
 /// K(x, x') = exp(-||x - x'||^2 / (2 * length_scale^2))
 ///
+/// The most commonly used kernel for Gaussian processes. Produces
+/// infinitely differentiable (smooth) functions.
+///
 /// Parameters
 /// ----------
 /// length_scale : float, optional (default=1.0)
-///     Length scale of the kernel.
+///     Length scale of the kernel. Valid range: (0, inf).
+///     Larger values produce smoother functions.
 #[pyclass(name = "RBF", module = "ferroml.gaussian_process")]
 #[derive(Clone)]
 pub struct PyRBF {
@@ -162,8 +166,13 @@ fn parse_kernel(kernel: Option<&Bound<'_, PyAny>>) -> PyResult<Box<dyn Kernel>> 
 /// normalize_y : bool, optional (default=False)
 ///     Whether to normalize the target values.
 ///
-/// Example
-/// -------
+/// Attributes
+/// ----------
+/// log_marginal_likelihood_ : float
+///     Log marginal likelihood of the fitted model.
+///
+/// Examples
+/// --------
 /// >>> from ferroml.gaussian_process import GaussianProcessRegressor, RBF
 /// >>> import numpy as np
 /// >>> X = np.linspace(0, 5, 20).reshape(-1, 1)
@@ -171,6 +180,12 @@ fn parse_kernel(kernel: Option<&Bound<'_, PyAny>>) -> PyResult<Box<dyn Kernel>> 
 /// >>> gpr = GaussianProcessRegressor(kernel=RBF(1.0))
 /// >>> gpr.fit(X, y)
 /// >>> mean, std = gpr.predict_with_std(X)
+///
+/// Notes
+/// -----
+/// - GP models do not support pickle serialization due to kernel trait objects.
+/// - Computational complexity is O(n^3) for exact inference. For large datasets,
+///   use SparseGPRegressor or SVGPRegressor instead.
 #[pyclass(name = "GaussianProcessRegressor", module = "ferroml.gaussian_process")]
 pub struct PyGaussianProcessRegressor {
     inner: GaussianProcessRegressor,
@@ -274,6 +289,9 @@ impl PyGaussianProcessRegressor {
 
 /// Gaussian Process Classifier (binary, Laplace approximation).
 ///
+/// Uses Laplace approximation for posterior inference with support for
+/// probability estimates via predict_proba().
+///
 /// Parameters
 /// ----------
 /// kernel : kernel object, optional (default=RBF(1.0))
@@ -281,8 +299,8 @@ impl PyGaussianProcessRegressor {
 /// max_iter : int, optional (default=50)
 ///     Maximum number of Newton iterations for Laplace approximation.
 ///
-/// Example
-/// -------
+/// Examples
+/// --------
 /// >>> from ferroml.gaussian_process import GaussianProcessClassifier, RBF
 /// >>> import numpy as np
 /// >>> X = np.array([[1, 1], [2, 1], [5, 5], [6, 5]])
@@ -290,6 +308,11 @@ impl PyGaussianProcessRegressor {
 /// >>> gpc = GaussianProcessClassifier(kernel=RBF(1.0))
 /// >>> gpc.fit(X, y)
 /// >>> preds = gpc.predict(X)
+///
+/// Notes
+/// -----
+/// - GP models do not support pickle serialization due to kernel trait objects.
+/// - Binary classification only. For multiclass, use one-vs-rest.
 #[pyclass(
     name = "GaussianProcessClassifier",
     module = "ferroml.gaussian_process"
@@ -437,6 +460,47 @@ fn parse_approximation(approx: &str) -> PyResult<SparseApproximation> {
 // =============================================================================
 
 /// Sparse Gaussian Process Regressor using inducing points.
+///
+/// Scales GP regression to large datasets by using a set of inducing
+/// points to approximate the full GP posterior. Supports FITC and VFE
+/// approximations.
+///
+/// Parameters
+/// ----------
+/// kernel : kernel object, optional (default=RBF(1.0))
+///     The kernel specifying the covariance function.
+/// alpha : float, optional (default=0.01)
+///     Noise / regularization added to the diagonal.
+/// n_inducing : int, optional (default=100)
+///     Number of inducing points.
+/// inducing_method : str, optional (default="kmeans")
+///     How to select inducing points: "random", "kmeans", "greedy_variance".
+/// approximation : str, optional (default="fitc")
+///     Sparse approximation method: "fitc" or "vfe".
+/// normalize_y : bool, optional (default=False)
+///     Whether to normalize the target values.
+///
+/// Attributes
+/// ----------
+/// log_marginal_likelihood_ : float
+///     Log marginal likelihood of the fitted model.
+/// inducing_points_ : ndarray of shape (n_inducing, n_features)
+///     The selected inducing point locations.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.gaussian_process import SparseGPRegressor, RBF
+/// >>> import numpy as np
+/// >>> X = np.random.randn(500, 2)
+/// >>> y = np.sin(X[:, 0]) + 0.1 * np.random.randn(500)
+/// >>> sgpr = SparseGPRegressor(kernel=RBF(1.0), n_inducing=50)
+/// >>> sgpr.fit(X, y)
+/// >>> mean, std = sgpr.predict_with_std(X[:5])
+///
+/// Notes
+/// -----
+/// - GP models do not support pickle serialization due to kernel trait objects.
+/// - FITC is faster but less accurate; VFE gives a tighter lower bound.
 #[pyclass(name = "SparseGPRegressor", module = "ferroml.gaussian_process")]
 pub struct PySparseGPRegressor {
     inner: SparseGPRegressor,
@@ -549,6 +613,40 @@ impl PySparseGPRegressor {
 // =============================================================================
 
 /// Sparse Gaussian Process Classifier (binary, FITC + Laplace).
+///
+/// Scales GP classification to larger datasets using inducing points
+/// with Laplace approximation for posterior inference.
+///
+/// Parameters
+/// ----------
+/// kernel : kernel object, optional (default=RBF(1.0))
+///     The kernel specifying the covariance function.
+/// n_inducing : int, optional (default=100)
+///     Number of inducing points.
+/// inducing_method : str, optional (default="kmeans")
+///     How to select inducing points: "random", "kmeans", "greedy_variance".
+/// max_iter : int, optional (default=50)
+///     Maximum Newton iterations for Laplace approximation.
+///
+/// Attributes
+/// ----------
+/// inducing_points_ : ndarray of shape (n_inducing, n_features)
+///     The selected inducing point locations.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.gaussian_process import SparseGPClassifier, RBF
+/// >>> import numpy as np
+/// >>> X = np.random.randn(200, 2)
+/// >>> y = (X[:, 0] + X[:, 1] > 0).astype(float)
+/// >>> sgpc = SparseGPClassifier(kernel=RBF(1.0), n_inducing=30)
+/// >>> sgpc.fit(X, y)
+/// >>> preds = sgpc.predict(X[:5])
+///
+/// Notes
+/// -----
+/// - GP models do not support pickle serialization due to kernel trait objects.
+/// - Binary classification only.
 #[pyclass(name = "SparseGPClassifier", module = "ferroml.gaussian_process")]
 pub struct PySparseGPClassifier {
     inner: SparseGPClassifier,
@@ -673,6 +771,48 @@ impl PySparseGPClassifier {
 // =============================================================================
 
 /// Sparse Variational Gaussian Process Regressor for large datasets.
+///
+/// Uses stochastic variational inference with mini-batches for scalable
+/// GP regression. Best suited for datasets with thousands or more samples.
+///
+/// Parameters
+/// ----------
+/// kernel : kernel object, optional (default=RBF(1.0))
+///     The kernel specifying the covariance function.
+/// noise_variance : float, optional (default=1.0)
+///     Observation noise variance.
+/// n_inducing : int, optional (default=100)
+///     Number of inducing points.
+/// inducing_method : str, optional (default="kmeans")
+///     How to select inducing points: "random", "kmeans", "greedy_variance".
+/// n_epochs : int, optional (default=100)
+///     Number of training epochs.
+/// batch_size : int, optional (default=256)
+///     Mini-batch size for stochastic optimization.
+/// learning_rate : float, optional (default=0.01)
+///     Learning rate for variational parameter updates.
+/// normalize_y : bool, optional (default=False)
+///     Whether to normalize the target values.
+///
+/// Attributes
+/// ----------
+/// inducing_points_ : ndarray of shape (n_inducing, n_features)
+///     The selected inducing point locations.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.gaussian_process import SVGPRegressor, RBF
+/// >>> import numpy as np
+/// >>> X = np.random.randn(1000, 3)
+/// >>> y = np.sin(X[:, 0]) + 0.1 * np.random.randn(1000)
+/// >>> svgp = SVGPRegressor(kernel=RBF(1.0), n_inducing=50, n_epochs=50)
+/// >>> svgp.fit(X, y)
+/// >>> mean, std = svgp.predict_with_std(X[:5])
+///
+/// Notes
+/// -----
+/// - GP models do not support pickle serialization due to kernel trait objects.
+/// - For best results, normalize your features before fitting.
 #[pyclass(name = "SVGPRegressor", module = "ferroml.gaussian_process")]
 pub struct PySVGPRegressor {
     inner: SVGPRegressor,

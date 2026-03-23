@@ -503,6 +503,24 @@ impl PyKNeighborsRegressor {
 ///     Centroid of each class.
 /// classes_ : ndarray of shape (n_classes,)
 ///     Unique class labels.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.neighbors import NearestCentroid
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 1], [2, 2], [3, 3], [8, 8], [9, 9], [10, 10]])
+/// >>> y = np.array([0, 0, 0, 1, 1, 1])
+/// >>> model = NearestCentroid()
+/// >>> model.fit(X, y)
+/// >>> model.predict(np.array([[5, 5]]))
+/// >>> model.centroids_
+///
+/// Notes
+/// -----
+/// NearestCentroid is a simple, fast classifier with no hyperparameters
+/// to tune (other than metric). It works well when classes are compact
+/// and well-separated. Use ``shrink_threshold`` for high-dimensional data
+/// to zero out uninformative features (similar to nearest shrunken centroids).
 #[pyclass(name = "NearestCentroid", module = "ferroml.neighbors")]
 pub struct PyNearestCentroid {
     inner: NearestCentroid,
