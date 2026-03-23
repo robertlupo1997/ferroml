@@ -100,11 +100,12 @@ Plans:
   2. README documents known limitations: RandomForest parallel non-determinism, sparse algorithm limits, ort RC status
   3. Per-model docstrings note model-specific limitations where applicable (e.g., SVC scaling sensitivity)
   4. A public benchmark comparison page exists with methodology, dataset descriptions, and formatted results
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: Python docstring audit and completion for all 55+ models
-- [ ] 05-02: README limitations section, per-model limitations, ort status documentation, benchmark page
+- [ ] 05-01-PLAN.md — Docstrings for models with no examples (ensemble, cv, GP, svm, naive_bayes, anomaly, calibration)
+- [ ] 05-02-PLAN.md — Docstrings for partial/audit-only models (linear, preprocessing, decomposition, trees, clustering, neighbors, neural, multioutput)
+- [ ] 05-03-PLAN.md — README known limitations, benchmark verification, docstring completeness test
 
 ## Progress
 
@@ -117,4 +118,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Correctness Fixes | 3/3 | Complete | 2026-03-21 |
 | 3. Robustness Hardening | 3/3 | Complete | 2026-03-22 |
 | 4. Performance Optimization | 6/6 | Complete   | 2026-03-23 |
-| 5. Documentation and Release | 0/2 | Not started | - |
+| 5. Documentation and Release | 0/3 | Not started | - |
