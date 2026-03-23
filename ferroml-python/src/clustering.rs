@@ -700,6 +700,14 @@ impl PyDBSCAN {
 /// ----------
 /// labels_ : ndarray of shape (n_samples,)
 ///     Cluster labels for each sample.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.clustering import AgglomerativeClustering
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [1, 4], [1, 0], [10, 2], [10, 4], [10, 0]])
+/// >>> model = AgglomerativeClustering(n_clusters=2, linkage="ward")
+/// >>> labels = model.fit_predict(X)
 #[pyclass(name = "AgglomerativeClustering", module = "ferroml.clustering")]
 pub struct PyAgglomerativeClustering {
     inner: AgglomerativeClustering,
