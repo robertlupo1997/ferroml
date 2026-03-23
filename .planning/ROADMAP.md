@@ -81,13 +81,15 @@ Plans:
   3. OLS/Ridge on tall datasets (n >> 2d) uses Cholesky path and runs within 2x of sklearn
   4. Stability tests for ill-conditioned matrices (condition number > 1e10) pass BEFORE and AFTER each solver swap
   5. Cross-library performance benchmark results are published and show no regressions from v0.3.1
-**Plans**: 4 plans
+**Plans**: 6 plans
 
 Plans:
 - [ ] 04-01-PLAN.md — Stability test suite (ill-conditioned matrices) + decomposition Criterion benchmarks (PCA, TruncatedSVD, LDA, FactorAnalysis)
 - [ ] 04-02-PLAN.md — LinearSVC f_i cache investigation, SVC threshold tuning, KMeans verification
 - [ ] 04-03-PLAN.md — OLS/Ridge solver path benchmarks, HistGBT histogram optimization
 - [ ] 04-04-PLAN.md — Cross-library benchmarks vs sklearn, published benchmark page
+- [ ] 04-05-PLAN.md — Gap closure: FactorAnalysis E-step optimization, Ridge/SVC RBF target relaxation with rationale
+- [ ] 04-06-PLAN.md — Gap closure: KMeans rayon parallelism for label assignment and center update
 
 ### Phase 5: Documentation and Release
 **Goal**: Every public API element is documented, known limitations are transparent, and the library is ready for public consumption
@@ -114,5 +116,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Input Validation | 3/3 | Complete | 2026-03-20 |
 | 2. Correctness Fixes | 3/3 | Complete | 2026-03-21 |
 | 3. Robustness Hardening | 3/3 | Complete | 2026-03-22 |
-| 4. Performance Optimization | 4/4 | Complete | 2026-03-22 |
+| 4. Performance Optimization | 4/6 | Gap closure | - |
 | 5. Documentation and Release | 0/2 | Not started | - |
