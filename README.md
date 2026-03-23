@@ -233,7 +233,7 @@ All benchmarks produce matching predictions (100% correctness). Results after Pl
 | GaussianNB | 10K | **4.3x FASTER** | |
 | StandardScaler | 10K | **9x FASTER** | |
 
-FerroML wins on **predict universally** (zero Python overhead), on **tree/ensemble models** (Rayon parallel construction), and now achieves **parity or better on linear algebra** thanks to faer SVD and Cholesky solvers. Full results: [docs/benchmark-vs-sklearn.md](docs/benchmark-vs-sklearn.md)
+FerroML wins on **predict universally** (zero Python overhead), on **tree/ensemble models** (Rayon parallel construction), and now achieves **parity or better on linear algebra** thanks to faer SVD and Cholesky solvers. Full results with methodology and analysis: [docs/benchmarks.md](docs/benchmarks.md)
 
 ### Architecture
 
@@ -352,6 +352,30 @@ Every new model requires **three** updates — miss one and Python silently brea
 ### ONNX Export
 
 ONNX roundtrip is finicky. We've fixed subtle issues in AdaBoost (weighted-sum approximation), HistGBT (bin-threshold ULP nudge), BernoulliNB (neg_prob for absent features), and SVM (requires 2 outputs). Always test roundtrips aggressively after touching model serialization.
+
+## Known Limitations
+
+FerroML is production-ready with the following known limitations. For model-specific details, see the Notes section in each model's docstring (`help(Model)`).
+
+### RandomForest Parallel Non-Determinism
+
+RandomForest and ExtraTrees use Rayon for parallel tree construction. Due to work-stealing scheduling, results may vary slightly between runs even with the same `random_state`. For reproducible results, set `n_jobs=1`.
+
+### Sparse Algorithm Support
+
+12 models support sparse input (CSR format) via the `fit_sparse()`/`predict_sparse()` API. For unsupported models, sparse matrices are converted to dense automatically. Very large sparse datasets (>100K features) may cause memory issues during conversion.
+
+### ONNX Export (ort RC)
+
+ONNX export depends on `ort 2.0.0-rc.11` (release candidate). The API is stable and all 118 roundtrip tests pass, but users should be aware this is a pre-release dependency. Pin your ort version to avoid surprises on upgrade.
+
+### Per-Model Notes
+
+See individual model docstrings for model-specific limitations and recommendations (e.g., SVC scaling sensitivity, GP models without pickle support, HistGBT NaN handling behavior). Use `help(Model)` or check the Notes section in each model's documentation.
+
+### Benchmarks
+
+FerroML achieves competitive or better performance than scikit-learn across most algorithms. Highlights: PCA 3.2x faster (0.32x ratio), TruncatedSVD 9x faster (0.11x ratio), OLS 5.8x faster (0.17x ratio). All algorithms within defined performance targets. Full methodology and results: [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Contributing
 
