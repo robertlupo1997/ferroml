@@ -35,6 +35,11 @@ use rand::prelude::*;
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 
+/// Minimum sample count before rayon parallelism is used.
+/// Below this threshold, thread-pool and collect overhead exceeds the gains.
+#[cfg(feature = "parallel")]
+const PARALLEL_MIN_SAMPLES: usize = 10_000;
+
 /// Algorithm variant for KMeans clustering.
 ///
 /// - `Lloyd`: Standard Lloyd's algorithm. Recomputes all distances every iteration.
@@ -277,9 +282,8 @@ impl KMeans {
         let center_data: Vec<Vec<f64>> = (0..n_clusters).map(|k| centers.row(k).to_vec()).collect();
 
         #[cfg(feature = "parallel")]
-        {
+        if n_samples >= PARALLEL_MIN_SAMPLES {
             use rayon::prelude::*;
-            // Use chunks for better cache locality and reduced allocation
             let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
             let results: Vec<(i32, f64)> = (0..n_samples)
                 .into_par_iter()
@@ -306,9 +310,8 @@ impl KMeans {
                 labels[i] = label;
                 total_inertia += dist;
             }
-            (labels, total_inertia)
+            return (labels, total_inertia);
         }
-        #[cfg(not(feature = "parallel"))]
         {
             let mut labels = Array1::zeros(n_samples);
             let mut total_inertia = 0.0;
@@ -321,7 +324,7 @@ impl KMeans {
                     let dist = crate::linalg::squared_euclidean_distance(x_slice, &center_data[k]);
                     if dist < min_dist {
                         min_dist = dist;
-                        min_idx = k;
+                        min_idx = k as i32;
                     }
                 }
                 labels[i] = min_idx;
@@ -389,39 +392,46 @@ impl KMeans {
         // Pre-extract center data as contiguous Vec for cache-friendly parallel access
         let center_data: Vec<Vec<f64>> = (0..k).map(|j| centers.row(j).to_vec()).collect();
 
-        // Initial assignment: compute all distances
+        // Runtime parallel dispatch: only use rayon when dataset is large enough
         #[cfg(feature = "parallel")]
-        {
-            use rayon::prelude::*;
-            let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
-            let results: Vec<(i32, f64, Vec<f64>)> = (0..n_samples)
-                .into_par_iter()
-                .with_min_len(chunk_size)
-                .map(|i| {
-                    let xi = &x_data[i * n_features..(i + 1) * n_features];
-                    let mut min_dist = f64::MAX;
-                    let mut min_idx = 0usize;
-                    let mut lowers = vec![0.0f64; k];
-                    for j in 0..k {
-                        let dist =
-                            crate::linalg::squared_euclidean_distance(xi, &center_data[j]).sqrt();
-                        lowers[j] = dist;
-                        if dist < min_dist {
-                            min_dist = dist;
-                            min_idx = j;
-                        }
-                    }
-                    (min_idx as i32, min_dist, lowers)
-                })
-                .collect();
-            for (i, (label, upper_bound, lowers)) in results.into_iter().enumerate() {
-                labels[i] = label;
-                upper[i] = upper_bound;
-                lower[i * k..i * k + k].copy_from_slice(&lowers);
-            }
-        }
+        let use_parallel = n_samples >= PARALLEL_MIN_SAMPLES;
         #[cfg(not(feature = "parallel"))]
-        {
+        let use_parallel = false;
+
+        // Initial assignment: compute all distances
+        if use_parallel {
+            #[cfg(feature = "parallel")]
+            {
+                use rayon::prelude::*;
+                let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
+                let results: Vec<(i32, f64, Vec<f64>)> = (0..n_samples)
+                    .into_par_iter()
+                    .with_min_len(chunk_size)
+                    .map(|i| {
+                        let xi = &x_data[i * n_features..(i + 1) * n_features];
+                        let mut min_dist = f64::MAX;
+                        let mut min_idx = 0usize;
+                        let mut lowers = vec![0.0f64; k];
+                        for j in 0..k {
+                            let dist =
+                                crate::linalg::squared_euclidean_distance(xi, &center_data[j])
+                                    .sqrt();
+                            lowers[j] = dist;
+                            if dist < min_dist {
+                                min_dist = dist;
+                                min_idx = j;
+                            }
+                        }
+                        (min_idx as i32, min_dist, lowers)
+                    })
+                    .collect();
+                for (i, (label, upper_bound, lowers)) in results.into_iter().enumerate() {
+                    labels[i] = label;
+                    upper[i] = upper_bound;
+                    lower[i * k..i * k + k].copy_from_slice(&lowers);
+                }
+            }
+        } else {
             for i in 0..n_samples {
                 let xi = x_row(i);
                 let mut min_dist = f64::MAX;
@@ -472,88 +482,77 @@ impl KMeans {
             }
 
             // Step 2: For each point, try to skip distance computations
-            // Re-extract center data for parallel access
-            #[cfg(feature = "parallel")]
-            let center_data: Vec<Vec<f64>> = (0..k).map(|j| centers.row(j).to_vec()).collect();
+            if use_parallel {
+                #[cfg(feature = "parallel")]
+                {
+                    use rayon::prelude::*;
+                    let center_data: Vec<Vec<f64>> =
+                        (0..k).map(|j| centers.row(j).to_vec()).collect();
+                    let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
 
-            #[cfg(feature = "parallel")]
-            {
-                use rayon::prelude::*;
-                let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
+                    let results: Vec<(i32, f64, Vec<f64>)> = (0..n_samples)
+                        .into_par_iter()
+                        .with_min_len(chunk_size)
+                        .map(|i| {
+                            let mut label = labels[i];
+                            let mut ai = label as usize;
+                            let mut ub = upper[i];
+                            let mut lowers: Vec<f64> = lower[i * k..i * k + k].to_vec();
 
-                // Each sample's state is independent: labels[i], upper[i], lower[i*k..i*k+k]
-                // Collect per-sample results in parallel, then scatter back
-                let results: Vec<(i32, f64, Vec<f64>)> = (0..n_samples)
-                    .into_par_iter()
-                    .with_min_len(chunk_size)
-                    .map(|i| {
-                        let mut label = labels[i];
-                        let mut ai = label as usize;
-                        let mut ub = upper[i];
-                        let mut lowers: Vec<f64> = lower[i * k..i * k + k].to_vec();
-
-                        // If upper bound <= s[assigned], this point can't change cluster
-                        if ub <= s[ai] {
-                            return (label, ub, lowers);
-                        }
-
-                        let mut r_done = false;
-                        let xi = &x_data[i * n_features..(i + 1) * n_features];
-
-                        for j in 0..k {
-                            if j == ai {
-                                continue;
+                            if ub <= s[ai] {
+                                return (label, ub, lowers);
                             }
 
-                            if ub <= lowers[j] {
-                                continue;
-                            }
+                            let mut r_done = false;
+                            let xi = &x_data[i * n_features..(i + 1) * n_features];
 
-                            if ub <= center_dists[ai * k + j] * 0.5 {
-                                continue;
-                            }
-
-                            if !r_done {
-                                let d_ai =
-                                    crate::linalg::squared_euclidean_distance(xi, &center_data[ai])
-                                        .sqrt();
-                                ub = d_ai;
-                                lowers[ai] = d_ai;
-                                r_done = true;
-
-                                if d_ai <= lowers[j] || d_ai <= center_dists[ai * k + j] * 0.5 {
+                            for j in 0..k {
+                                if j == ai {
                                     continue;
                                 }
-                            }
-
-                            let d_j =
-                                crate::linalg::squared_euclidean_distance(xi, &center_data[j])
+                                if ub <= lowers[j] {
+                                    continue;
+                                }
+                                if ub <= center_dists[ai * k + j] * 0.5 {
+                                    continue;
+                                }
+                                if !r_done {
+                                    let d_ai = crate::linalg::squared_euclidean_distance(
+                                        xi,
+                                        &center_data[ai],
+                                    )
                                     .sqrt();
-                            lowers[j] = d_j;
-
-                            if d_j < ub {
-                                label = j as i32;
-                                ai = j;
-                                ub = d_j;
+                                    ub = d_ai;
+                                    lowers[ai] = d_ai;
+                                    r_done = true;
+                                    if d_ai <= lowers[j] || d_ai <= center_dists[ai * k + j] * 0.5 {
+                                        continue;
+                                    }
+                                }
+                                let d_j =
+                                    crate::linalg::squared_euclidean_distance(xi, &center_data[j])
+                                        .sqrt();
+                                lowers[j] = d_j;
+                                if d_j < ub {
+                                    label = j as i32;
+                                    ai = j;
+                                    ub = d_j;
+                                }
                             }
-                        }
+                            (label, ub, lowers)
+                        })
+                        .collect();
 
-                        (label, ub, lowers)
-                    })
-                    .collect();
-
-                for (i, (label, ub, lowers)) in results.into_iter().enumerate() {
-                    labels[i] = label;
-                    upper[i] = ub;
-                    lower[i * k..i * k + k].copy_from_slice(&lowers);
+                    for (i, (label, ub, lowers)) in results.into_iter().enumerate() {
+                        labels[i] = label;
+                        upper[i] = ub;
+                        lower[i * k..i * k + k].copy_from_slice(&lowers);
+                    }
                 }
-            }
-            #[cfg(not(feature = "parallel"))]
-            {
+            } else {
                 for i in 0..n_samples {
                     let ai = labels[i] as usize;
 
-                    // If upper bound <= s[assigned], this point can't change cluster
                     if upper[i] <= s[ai] {
                         continue;
                     }
@@ -566,15 +565,12 @@ impl KMeans {
                         if j == ai {
                             continue;
                         }
-
                         if upper[i] <= lower[lower_i + j] {
                             continue;
                         }
-
                         if upper[i] <= center_dists[ai * k + j] * 0.5 {
                             continue;
                         }
-
                         if !r_done {
                             let c_ai = centers.row(ai);
                             let c_ai_s = c_ai.as_slice().expect("SAFETY: standard-layout array");
@@ -582,18 +578,15 @@ impl KMeans {
                             upper[i] = d_ai;
                             lower[lower_i + ai] = d_ai;
                             r_done = true;
-
                             if d_ai <= lower[lower_i + j] || d_ai <= center_dists[ai * k + j] * 0.5
                             {
                                 continue;
                             }
                         }
-
                         let cj = centers.row(j);
                         let cj_s = cj.as_slice().expect("SAFETY: standard-layout array");
                         let d_j = crate::linalg::squared_euclidean_distance(xi, cj_s).sqrt();
                         lower[lower_i + j] = d_j;
-
                         if d_j < upper[i] {
                             labels[i] = j as i32;
                             upper[i] = d_j;
@@ -603,57 +596,56 @@ impl KMeans {
             }
 
             // Step 3: Compute new centers
-            #[cfg(feature = "parallel")]
-            {
-                use rayon::prelude::*;
-                let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
+            if use_parallel {
+                #[cfg(feature = "parallel")]
+                {
+                    use rayon::prelude::*;
+                    let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
 
-                let (par_centers, par_counts) = (0..n_samples)
-                    .into_par_iter()
-                    .with_min_len(chunk_size)
-                    .fold(
-                        || (vec![0.0f64; k * n_features], vec![0usize; k]),
-                        |(mut acc_centers, mut acc_counts), i| {
-                            let ci = labels[i] as usize;
-                            let xi = &x_data[i * n_features..(i + 1) * n_features];
-                            let offset = ci * n_features;
+                    let (par_centers, par_counts) = (0..n_samples)
+                        .into_par_iter()
+                        .with_min_len(chunk_size)
+                        .fold(
+                            || (vec![0.0f64; k * n_features], vec![0usize; k]),
+                            |(mut acc_centers, mut acc_counts), i| {
+                                let ci = labels[i] as usize;
+                                let xi = &x_data[i * n_features..(i + 1) * n_features];
+                                let offset = ci * n_features;
+                                for f in 0..n_features {
+                                    acc_centers[offset + f] += xi[f];
+                                }
+                                acc_counts[ci] += 1;
+                                (acc_centers, acc_counts)
+                            },
+                        )
+                        .reduce(
+                            || (vec![0.0f64; k * n_features], vec![0usize; k]),
+                            |(mut a_c, mut a_n), (b_c, b_n)| {
+                                for idx in 0..a_c.len() {
+                                    a_c[idx] += b_c[idx];
+                                }
+                                for j in 0..k {
+                                    a_n[j] += b_n[j];
+                                }
+                                (a_c, a_n)
+                            },
+                        );
+
+                    for j in 0..k {
+                        if par_counts[j] > 0 {
+                            let scale = 1.0 / par_counts[j] as f64;
+                            let offset = j * n_features;
                             for f in 0..n_features {
-                                acc_centers[offset + f] += xi[f];
+                                new_centers[[j, f]] = par_centers[offset + f] * scale;
                             }
-                            acc_counts[ci] += 1;
-                            (acc_centers, acc_counts)
-                        },
-                    )
-                    .reduce(
-                        || (vec![0.0f64; k * n_features], vec![0usize; k]),
-                        |(mut a_c, mut a_n), (b_c, b_n)| {
-                            for idx in 0..a_c.len() {
-                                a_c[idx] += b_c[idx];
-                            }
-                            for j in 0..k {
-                                a_n[j] += b_n[j];
-                            }
-                            (a_c, a_n)
-                        },
-                    );
-
-                // Copy results into new_centers
-                for j in 0..k {
-                    if par_counts[j] > 0 {
-                        let scale = 1.0 / par_counts[j] as f64;
-                        let offset = j * n_features;
-                        for f in 0..n_features {
-                            new_centers[[j, f]] = par_centers[offset + f] * scale;
+                        } else {
+                            let idx = rng.random_range(0..n_samples);
+                            new_centers.row_mut(j).assign(&x.row(idx));
                         }
-                    } else {
-                        let idx = rng.random_range(0..n_samples);
-                        new_centers.row_mut(j).assign(&x.row(idx));
                     }
+                    counts.copy_from_slice(&par_counts);
                 }
-                counts.copy_from_slice(&par_counts);
-            }
-            #[cfg(not(feature = "parallel"))]
-            {
+            } else {
                 new_centers.fill(0.0);
                 counts.fill(0);
 
@@ -688,24 +680,24 @@ impl KMeans {
                 .collect();
 
             // Step 5: Update bounds
-            #[cfg(feature = "parallel")]
-            {
-                use rayon::prelude::*;
-                let labels_slice = labels.as_slice().expect("SAFETY: contiguous");
-                upper
-                    .par_chunks_mut(1)
-                    .zip(lower.par_chunks_mut(k))
-                    .zip(labels_slice.par_iter())
-                    .for_each(|((ub_chunk, lower_chunk), &label)| {
-                        let ai = label as usize;
-                        for j in 0..k {
-                            lower_chunk[j] = (lower_chunk[j] - deltas[j]).max(0.0);
-                        }
-                        ub_chunk[0] += deltas[ai];
-                    });
-            }
-            #[cfg(not(feature = "parallel"))]
-            {
+            if use_parallel {
+                #[cfg(feature = "parallel")]
+                {
+                    use rayon::prelude::*;
+                    let labels_slice = labels.as_slice().expect("SAFETY: contiguous");
+                    upper
+                        .par_chunks_mut(1)
+                        .zip(lower.par_chunks_mut(k))
+                        .zip(labels_slice.par_iter())
+                        .for_each(|((ub_chunk, lower_chunk), &label)| {
+                            let ai = label as usize;
+                            for j in 0..k {
+                                lower_chunk[j] = (lower_chunk[j] - deltas[j]).max(0.0);
+                            }
+                            ub_chunk[0] += deltas[ai];
+                        });
+                }
+            } else {
                 for i in 0..n_samples {
                     let ai = labels[i] as usize;
                     let lower_i = i * k;

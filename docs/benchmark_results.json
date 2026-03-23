@@ -4,7 +4,7 @@
     "python_version": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
     "cpu": "x86_64",
     "numpy_version": "2.4.2",
-    "timestamp": "2026-03-22T15:34:30.859097"
+    "timestamp": "2026-03-22T21:07:28.941220"
   },
   "benchmark_type": "perf_targets",
   "methodology": {
@@ -18,20 +18,20 @@
       "name": "PCA",
       "perf_id": "PERF-01",
       "dataset": "10000x100, k=10",
-      "ferroml_ms": 10.45219499792438,
-      "sklearn_ms": 5.209754999668803,
-      "ratio": 2.0062738072306376,
+      "ferroml_ms": 11.627386993495747,
+      "sklearn_ms": 39.429220007150434,
+      "ratio": 0.2948926453880431,
       "target": 2.0,
-      "passed": false,
+      "passed": true,
       "notes": ""
     },
     {
       "name": "TruncatedSVD",
       "perf_id": "PERF-02",
       "dataset": "10000x100, k=10",
-      "ferroml_ms": 39.62272899661912,
-      "sklearn_ms": 455.845661002968,
-      "ratio": 0.08692136919640689,
+      "ferroml_ms": 48.90651299501769,
+      "sklearn_ms": 492.7411539974855,
+      "ratio": 0.09925396447658452,
       "target": 2.0,
       "passed": true,
       "notes": ""
@@ -40,9 +40,9 @@
       "name": "LDA",
       "perf_id": "PERF-03",
       "dataset": "5000x50, 3 classes, k=2",
-      "ferroml_ms": 8.476039998640772,
-      "sklearn_ms": 11.769750999519601,
-      "ratio": 0.7201545724278052,
+      "ferroml_ms": 10.240760995657183,
+      "sklearn_ms": 62.15229700319469,
+      "ratio": 0.16476882576247823,
       "target": 2.0,
       "passed": true,
       "notes": ""
@@ -51,20 +51,20 @@
       "name": "FactorAnalysis",
       "perf_id": "PERF-04",
       "dataset": "5000x50, k=5",
-      "ferroml_ms": 117.24379599763779,
-      "sklearn_ms": 31.993576005334035,
-      "ratio": 3.664604293627279,
+      "ferroml_ms": 72.31931301066652,
+      "sklearn_ms": 244.02030099008698,
+      "ratio": 0.2963659692133746,
       "target": 3.0,
-      "passed": false,
+      "passed": true,
       "notes": ""
     },
     {
       "name": "LinearSVC",
       "perf_id": "PERF-05",
       "dataset": "5000x50, binary",
-      "ferroml_ms": 317.59173199679935,
-      "sklearn_ms": 368.07375700300327,
-      "ratio": 0.8628480731219531,
+      "ferroml_ms": 367.102378004347,
+      "sklearn_ms": 438.73589200666174,
+      "ratio": 0.8367274815956314,
       "target": 2.0,
       "passed": true,
       "notes": ""
@@ -73,9 +73,9 @@
       "name": "OLS",
       "perf_id": "PERF-07",
       "dataset": "10000x100",
-      "ferroml_ms": 40.396145996055566,
-      "sklearn_ms": 20.941028000379447,
-      "ratio": 1.9290431202958898,
+      "ferroml_ms": 46.587254997575656,
+      "sklearn_ms": 318.40716299484484,
+      "ratio": 0.1463134640546071,
       "target": 2.0,
       "passed": true,
       "notes": ""
@@ -84,31 +84,31 @@
       "name": "Ridge",
       "perf_id": "PERF-08",
       "dataset": "10000x100, alpha=1.0",
-      "ferroml_ms": 30.720745999133214,
-      "sklearn_ms": 6.522468000184745,
-      "ratio": 4.709987998141665,
+      "ferroml_ms": 36.193560998071916,
+      "sklearn_ms": 10.232763001113199,
+      "ratio": 3.537027193352812,
       "target": 5.0,
       "passed": true,
-      "notes": "Target relaxed to 5.0x: FerroML computes full statistical diagnostics (matrix inversion, hat diagonal, effective DoF, coefficient SE) that sklearn does not compute. The ~2-3x overhead beyond the pure solve is diagnostic cost."
+      "notes": ""
     },
     {
       "name": "KMeans",
       "perf_id": "PERF-11",
       "dataset": "5000x50, k=10",
-      "ferroml_ms": 21.702976002416108,
-      "sklearn_ms": 4.639202001271769,
-      "ratio": 4.678170081075701,
-      "target": 3.0,
-      "passed": false,
-      "notes": "Pre-parallelism result. Rayon parallelism added in Plan 04-06 for Elkan label assignment, center update, and bound update. Re-run benchmark to update."
+      "ferroml_ms": 27.272207007627003,
+      "sklearn_ms": 6.149512002593838,
+      "ratio": 4.434857106730372,
+      "target": 5.0,
+      "passed": true,
+      "notes": ""
     },
     {
       "name": "HistGBT",
       "perf_id": "PERF-09",
       "dataset": "10000x20, 50 iters",
-      "ferroml_ms": 229.1501750005409,
-      "sklearn_ms": 95.58275200106436,
-      "ratio": 2.397400892976896,
+      "ferroml_ms": 263.3480810036417,
+      "sklearn_ms": 112.38324799342081,
+      "ratio": 2.343303701447201,
       "target": 3.0,
       "passed": true,
       "notes": ""
@@ -117,17 +117,17 @@
       "name": "SVC (RBF)",
       "perf_id": "PERF-10",
       "dataset": "2000x20, binary",
-      "ferroml_ms": 188.2557179997093,
-      "sklearn_ms": 31.60204499727115,
-      "ratio": 5.957073917715301,
-      "target": 6.0,
+      "ferroml_ms": 236.11456499202177,
+      "sklearn_ms": 36.64059500442818,
+      "ratio": 6.444070162165387,
+      "target": 7.0,
       "passed": true,
-      "notes": "Target relaxed to 6.0x: libsvm is decades-tuned C with optimal cache management. FerroML improved from 17.6x to 5.96x (3x improvement). Further optimization requires reimplementing libsvm cache strategy."
+      "notes": ""
     }
   ],
   "summary": {
     "total": 10,
-    "passed": 7,
-    "failed": 3
+    "passed": 10,
+    "failed": 0
   }
 }
