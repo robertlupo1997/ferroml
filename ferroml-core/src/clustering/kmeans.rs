@@ -386,23 +386,59 @@ impl KMeans {
                                                  // Flat lower bounds: lower[i * k + j] = lower bound on d(x_i, c_j)
         let mut lower = vec![0.0f64; n_samples * k];
 
+        // Pre-extract center data as contiguous Vec for cache-friendly parallel access
+        let center_data: Vec<Vec<f64>> = (0..k).map(|j| centers.row(j).to_vec()).collect();
+
         // Initial assignment: compute all distances
-        for i in 0..n_samples {
-            let xi = x_row(i);
-            let mut min_dist = f64::MAX;
-            let mut min_idx = 0usize;
-            for j in 0..k {
-                let cj = centers.row(j);
-                let cj_s = cj.as_slice().expect("SAFETY: standard-layout array");
-                let dist = crate::linalg::squared_euclidean_distance(xi, cj_s).sqrt();
-                lower[i * k + j] = dist;
-                if dist < min_dist {
-                    min_dist = dist;
-                    min_idx = j;
-                }
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
+            let results: Vec<(i32, f64, Vec<f64>)> = (0..n_samples)
+                .into_par_iter()
+                .with_min_len(chunk_size)
+                .map(|i| {
+                    let xi = &x_data[i * n_features..(i + 1) * n_features];
+                    let mut min_dist = f64::MAX;
+                    let mut min_idx = 0usize;
+                    let mut lowers = vec![0.0f64; k];
+                    for j in 0..k {
+                        let dist =
+                            crate::linalg::squared_euclidean_distance(xi, &center_data[j]).sqrt();
+                        lowers[j] = dist;
+                        if dist < min_dist {
+                            min_dist = dist;
+                            min_idx = j;
+                        }
+                    }
+                    (min_idx as i32, min_dist, lowers)
+                })
+                .collect();
+            for (i, (label, upper_bound, lowers)) in results.into_iter().enumerate() {
+                labels[i] = label;
+                upper[i] = upper_bound;
+                lower[i * k..i * k + k].copy_from_slice(&lowers);
             }
-            labels[i] = min_idx as i32;
-            upper[i] = min_dist;
+        }
+        #[cfg(not(feature = "parallel"))]
+        {
+            for i in 0..n_samples {
+                let xi = x_row(i);
+                let mut min_dist = f64::MAX;
+                let mut min_idx = 0usize;
+                for j in 0..k {
+                    let cj = centers.row(j);
+                    let cj_s = cj.as_slice().expect("SAFETY: standard-layout array");
+                    let dist = crate::linalg::squared_euclidean_distance(xi, cj_s).sqrt();
+                    lower[i * k + j] = dist;
+                    if dist < min_dist {
+                        min_dist = dist;
+                        min_idx = j;
+                    }
+                }
+                labels[i] = min_idx as i32;
+                upper[i] = min_dist;
+            }
         }
 
         // Pre-allocate working buffers
@@ -436,80 +472,207 @@ impl KMeans {
             }
 
             // Step 2: For each point, try to skip distance computations
-            for i in 0..n_samples {
-                let ai = labels[i] as usize;
+            // Re-extract center data for parallel access
+            #[cfg(feature = "parallel")]
+            let center_data: Vec<Vec<f64>> = (0..k).map(|j| centers.row(j).to_vec()).collect();
 
-                // If upper bound <= s[assigned], this point can't change cluster
-                if upper[i] <= s[ai] {
-                    continue;
+            #[cfg(feature = "parallel")]
+            {
+                use rayon::prelude::*;
+                let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
+
+                // Each sample's state is independent: labels[i], upper[i], lower[i*k..i*k+k]
+                // Collect per-sample results in parallel, then scatter back
+                let results: Vec<(i32, f64, Vec<f64>)> = (0..n_samples)
+                    .into_par_iter()
+                    .with_min_len(chunk_size)
+                    .map(|i| {
+                        let mut label = labels[i];
+                        let mut ai = label as usize;
+                        let mut ub = upper[i];
+                        let mut lowers: Vec<f64> = lower[i * k..i * k + k].to_vec();
+
+                        // If upper bound <= s[assigned], this point can't change cluster
+                        if ub <= s[ai] {
+                            return (label, ub, lowers);
+                        }
+
+                        let mut r_done = false;
+                        let xi = &x_data[i * n_features..(i + 1) * n_features];
+
+                        for j in 0..k {
+                            if j == ai {
+                                continue;
+                            }
+
+                            if ub <= lowers[j] {
+                                continue;
+                            }
+
+                            if ub <= center_dists[ai * k + j] * 0.5 {
+                                continue;
+                            }
+
+                            if !r_done {
+                                let d_ai =
+                                    crate::linalg::squared_euclidean_distance(xi, &center_data[ai])
+                                        .sqrt();
+                                ub = d_ai;
+                                lowers[ai] = d_ai;
+                                r_done = true;
+
+                                if d_ai <= lowers[j] || d_ai <= center_dists[ai * k + j] * 0.5 {
+                                    continue;
+                                }
+                            }
+
+                            let d_j =
+                                crate::linalg::squared_euclidean_distance(xi, &center_data[j])
+                                    .sqrt();
+                            lowers[j] = d_j;
+
+                            if d_j < ub {
+                                label = j as i32;
+                                ai = j;
+                                ub = d_j;
+                            }
+                        }
+
+                        (label, ub, lowers)
+                    })
+                    .collect();
+
+                for (i, (label, ub, lowers)) in results.into_iter().enumerate() {
+                    labels[i] = label;
+                    upper[i] = ub;
+                    lower[i * k..i * k + k].copy_from_slice(&lowers);
                 }
+            }
+            #[cfg(not(feature = "parallel"))]
+            {
+                for i in 0..n_samples {
+                    let ai = labels[i] as usize;
 
-                let mut r_done = false; // whether we've tightened u[i] this iteration
-                let xi = x_row(i);
-                let lower_i = i * k; // base offset for lower bounds of sample i
-
-                for j in 0..k {
-                    if j == ai {
+                    // If upper bound <= s[assigned], this point can't change cluster
+                    if upper[i] <= s[ai] {
                         continue;
                     }
 
-                    // Skip if lower bound already guarantees j is farther
-                    if upper[i] <= lower[lower_i + j] {
-                        continue;
-                    }
+                    let mut r_done = false;
+                    let xi = x_row(i);
+                    let lower_i = i * k;
 
-                    // Skip using center-to-center distance
-                    if upper[i] <= center_dists[ai * k + j] * 0.5 {
-                        continue;
-                    }
-
-                    // Tighten upper bound if not done yet
-                    if !r_done {
-                        let c_ai = centers.row(ai);
-                        let c_ai_s = c_ai.as_slice().expect("SAFETY: standard-layout array");
-                        let d_ai = crate::linalg::squared_euclidean_distance(xi, c_ai_s).sqrt();
-                        upper[i] = d_ai;
-                        lower[lower_i + ai] = d_ai;
-                        r_done = true;
-
-                        // Re-check after tightening
-                        if d_ai <= lower[lower_i + j] || d_ai <= center_dists[ai * k + j] * 0.5 {
+                    for j in 0..k {
+                        if j == ai {
                             continue;
                         }
-                    }
 
-                    // Must compute actual distance to center j
-                    let cj = centers.row(j);
-                    let cj_s = cj.as_slice().expect("SAFETY: standard-layout array");
-                    let d_j = crate::linalg::squared_euclidean_distance(xi, cj_s).sqrt();
-                    lower[lower_i + j] = d_j;
+                        if upper[i] <= lower[lower_i + j] {
+                            continue;
+                        }
 
-                    if d_j < upper[i] {
-                        labels[i] = j as i32;
-                        upper[i] = d_j;
+                        if upper[i] <= center_dists[ai * k + j] * 0.5 {
+                            continue;
+                        }
+
+                        if !r_done {
+                            let c_ai = centers.row(ai);
+                            let c_ai_s = c_ai.as_slice().expect("SAFETY: standard-layout array");
+                            let d_ai = crate::linalg::squared_euclidean_distance(xi, c_ai_s).sqrt();
+                            upper[i] = d_ai;
+                            lower[lower_i + ai] = d_ai;
+                            r_done = true;
+
+                            if d_ai <= lower[lower_i + j] || d_ai <= center_dists[ai * k + j] * 0.5
+                            {
+                                continue;
+                            }
+                        }
+
+                        let cj = centers.row(j);
+                        let cj_s = cj.as_slice().expect("SAFETY: standard-layout array");
+                        let d_j = crate::linalg::squared_euclidean_distance(xi, cj_s).sqrt();
+                        lower[lower_i + j] = d_j;
+
+                        if d_j < upper[i] {
+                            labels[i] = j as i32;
+                            upper[i] = d_j;
+                        }
                     }
                 }
             }
 
             // Step 3: Compute new centers
-            new_centers.fill(0.0);
-            counts.fill(0);
+            #[cfg(feature = "parallel")]
+            {
+                use rayon::prelude::*;
+                let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
 
-            for i in 0..n_samples {
-                let ci = labels[i] as usize;
-                let x_row = x.row(i);
-                let mut center_row = new_centers.row_mut(ci);
-                center_row += &x_row;
-                counts[ci] += 1;
+                let (par_centers, par_counts) = (0..n_samples)
+                    .into_par_iter()
+                    .with_min_len(chunk_size)
+                    .fold(
+                        || (vec![0.0f64; k * n_features], vec![0usize; k]),
+                        |(mut acc_centers, mut acc_counts), i| {
+                            let ci = labels[i] as usize;
+                            let xi = &x_data[i * n_features..(i + 1) * n_features];
+                            let offset = ci * n_features;
+                            for f in 0..n_features {
+                                acc_centers[offset + f] += xi[f];
+                            }
+                            acc_counts[ci] += 1;
+                            (acc_centers, acc_counts)
+                        },
+                    )
+                    .reduce(
+                        || (vec![0.0f64; k * n_features], vec![0usize; k]),
+                        |(mut a_c, mut a_n), (b_c, b_n)| {
+                            for idx in 0..a_c.len() {
+                                a_c[idx] += b_c[idx];
+                            }
+                            for j in 0..k {
+                                a_n[j] += b_n[j];
+                            }
+                            (a_c, a_n)
+                        },
+                    );
+
+                // Copy results into new_centers
+                for j in 0..k {
+                    if par_counts[j] > 0 {
+                        let scale = 1.0 / par_counts[j] as f64;
+                        let offset = j * n_features;
+                        for f in 0..n_features {
+                            new_centers[[j, f]] = par_centers[offset + f] * scale;
+                        }
+                    } else {
+                        let idx = rng.random_range(0..n_samples);
+                        new_centers.row_mut(j).assign(&x.row(idx));
+                    }
+                }
+                counts.copy_from_slice(&par_counts);
             }
+            #[cfg(not(feature = "parallel"))]
+            {
+                new_centers.fill(0.0);
+                counts.fill(0);
 
-            for j in 0..k {
-                if counts[j] > 0 {
-                    let scale = 1.0 / counts[j] as f64;
-                    new_centers.row_mut(j).mapv_inplace(|v| v * scale);
-                } else {
-                    let idx = rng.random_range(0..n_samples);
-                    new_centers.row_mut(j).assign(&x.row(idx));
+                for i in 0..n_samples {
+                    let ci = labels[i] as usize;
+                    let x_row = x.row(i);
+                    let mut center_row = new_centers.row_mut(ci);
+                    center_row += &x_row;
+                    counts[ci] += 1;
+                }
+
+                for j in 0..k {
+                    if counts[j] > 0 {
+                        let scale = 1.0 / counts[j] as f64;
+                        new_centers.row_mut(j).mapv_inplace(|v| v * scale);
+                    } else {
+                        let idx = rng.random_range(0..n_samples);
+                        new_centers.row_mut(j).assign(&x.row(idx));
+                    }
                 }
             }
 
@@ -525,13 +688,32 @@ impl KMeans {
                 .collect();
 
             // Step 5: Update bounds
-            for i in 0..n_samples {
-                let ai = labels[i] as usize;
-                let lower_i = i * k;
-                for j in 0..k {
-                    lower[lower_i + j] = (lower[lower_i + j] - deltas[j]).max(0.0);
+            #[cfg(feature = "parallel")]
+            {
+                use rayon::prelude::*;
+                let labels_slice = labels.as_slice().expect("SAFETY: contiguous");
+                upper
+                    .par_chunks_mut(1)
+                    .zip(lower.par_chunks_mut(k))
+                    .zip(labels_slice.par_iter())
+                    .for_each(|((ub_chunk, lower_chunk), &label)| {
+                        let ai = label as usize;
+                        for j in 0..k {
+                            lower_chunk[j] = (lower_chunk[j] - deltas[j]).max(0.0);
+                        }
+                        ub_chunk[0] += deltas[ai];
+                    });
+            }
+            #[cfg(not(feature = "parallel"))]
+            {
+                for i in 0..n_samples {
+                    let ai = labels[i] as usize;
+                    let lower_i = i * k;
+                    for j in 0..k {
+                        lower[lower_i + j] = (lower[lower_i + j] - deltas[j]).max(0.0);
+                    }
+                    upper[i] += deltas[ai];
                 }
-                upper[i] += deltas[ai];
             }
 
             // Compute inertia for convergence check (squared distances)
