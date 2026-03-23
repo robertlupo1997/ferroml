@@ -37,8 +37,17 @@ use ferroml_core::models::traits::SparseModel;
 ///     Portion of the largest variance of all features that is added to
 ///     variances for calculation stability.
 ///
-/// Example
-/// -------
+/// Attributes
+/// ----------
+/// classes_ : ndarray of shape (n_classes,)
+///     Unique class labels.
+/// theta_ : ndarray of shape (n_classes, n_features)
+///     Per-class mean for each feature.
+/// var_ : ndarray of shape (n_classes, n_features)
+///     Per-class variance for each feature.
+///
+/// Examples
+/// --------
 /// >>> from ferroml.naive_bayes import GaussianNB
 /// >>> import numpy as np
 /// >>> X = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]])
@@ -369,8 +378,13 @@ impl PyGaussianNB {
 ///     Whether to learn class prior probabilities. If False, a uniform prior
 ///     will be used.
 ///
-/// Example
-/// -------
+/// Attributes
+/// ----------
+/// classes_ : ndarray of shape (n_classes,)
+///     Unique class labels.
+///
+/// Examples
+/// --------
 /// >>> from ferroml.naive_bayes import MultinomialNB
 /// >>> import numpy as np
 /// >>> X = np.array([[5.0, 1.0, 0.0], [4.0, 2.0, 0.0], [0.0, 1.0, 5.0], [0.0, 0.0, 6.0]])
@@ -737,8 +751,13 @@ impl PyMultinomialNB {
 ///     Whether to learn class prior probabilities. If False, a uniform prior
 ///     will be used.
 ///
-/// Example
-/// -------
+/// Attributes
+/// ----------
+/// classes_ : ndarray of shape (n_classes,)
+///     Unique class labels.
+///
+/// Examples
+/// --------
 /// >>> from ferroml.naive_bayes import BernoulliNB
 /// >>> import numpy as np
 /// >>> X = np.array([[1.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, 0.0, 1.0]])
@@ -1081,8 +1100,8 @@ impl PyBernoulliNB {
 ///     Whether to learn class prior probabilities. If False, a uniform prior
 ///     will be used.
 ///
-/// Example
-/// -------
+/// Examples
+/// --------
 /// >>> from ferroml.naive_bayes import CategoricalNB
 /// >>> import numpy as np
 /// >>> X = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])

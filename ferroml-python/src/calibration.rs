@@ -24,7 +24,25 @@ use pyo3::prelude::*;
 /// max_iter : int, optional (default=100)
 ///     Maximum number of optimization iterations.
 /// learning_rate : float, optional (default=0.01)
-///     Learning rate for gradient descent optimization.
+///     Learning rate for gradient descent optimization. Valid range: (0, inf).
+///
+/// Attributes
+/// ----------
+/// temperature_ : float
+///     The learned temperature parameter. Values > 1 soften probabilities
+///     (reduce confidence), values < 1 sharpen them.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.calibration import TemperatureScalingCalibrator
+/// >>> import numpy as np
+/// >>> # Uncalibrated probabilities from a classifier
+/// >>> y_prob = np.array([[0.9, 0.1], [0.8, 0.2], [0.3, 0.7], [0.1, 0.9]])
+/// >>> y_true = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> cal = TemperatureScalingCalibrator(max_iter=100)
+/// >>> cal.fit(y_prob, y_true)
+/// >>> calibrated = cal.transform(y_prob)
+/// >>> print(f"Temperature: {cal.temperature_}")
 #[pyclass(name = "TemperatureScalingCalibrator", module = "ferroml.calibration")]
 pub struct PyTemperatureScalingCalibrator {
     inner: TemperatureScalingCalibrator,

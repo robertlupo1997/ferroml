@@ -37,11 +37,35 @@ use ferroml_core::models::traits::SparseModel;
 /// Parameters
 /// ----------
 /// c : float, optional (default=1.0)
-///     Regularization parameter. Larger values specify stronger regularization.
+///     Regularization parameter. Valid range: (0, inf).
+/// loss : str, optional (default="squared_hinge")
+///     Loss function: "hinge" or "squared_hinge".
 /// max_iter : int, optional (default=1000)
 ///     Maximum number of iterations.
 /// tol : float, optional (default=1e-4)
 ///     Tolerance for stopping criterion.
+/// class_weight : str, dict, or None, optional (default=None)
+///     Class weight strategy: None (uniform), "balanced", or dict.
+///
+/// Attributes
+/// ----------
+/// coef_ : ndarray of shape (n_features,)
+///     Weight vector (available via decision_function).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.svm import LinearSVC
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> model = LinearSVC(c=1.0)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
+///
+/// Notes
+/// -----
+/// - Uses shrinking optimization for improved performance on large datasets.
+/// - For non-linear classification, use SVC with an RBF or polynomial kernel.
 #[pyclass(name = "LinearSVC", module = "ferroml.svm")]
 pub struct PyLinearSVC {
     inner: LinearSVC,
@@ -307,14 +331,33 @@ impl PyLinearSVC {
 /// Parameters
 /// ----------
 /// c : float, optional (default=1.0)
-///     Regularization parameter.
+///     Regularization parameter. Valid range: (0, inf).
 /// epsilon : float, optional (default=0.0)
 ///     Epsilon in the epsilon-SVR model. Specifies the epsilon-tube within which
 ///     no penalty is associated in the training loss function.
+/// loss : str, optional (default="epsilon_insensitive")
+///     Loss function: "epsilon_insensitive" or "squared_epsilon_insensitive".
 /// max_iter : int, optional (default=1000)
 ///     Maximum number of iterations.
 /// tol : float, optional (default=1e-4)
 ///     Tolerance for stopping criterion.
+///
+/// Attributes
+/// ----------
+/// coef_ : ndarray of shape (n_features,)
+///     Weight vector.
+/// intercept_ : float
+///     Bias term.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.svm import LinearSVR
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([1.0, 2.0, 3.0, 4.0])
+/// >>> model = LinearSVR(c=1.0, epsilon=0.1)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
 #[pyclass(name = "LinearSVR", module = "ferroml.svm")]
 pub struct PyLinearSVR {
     inner: LinearSVR,
@@ -682,17 +725,19 @@ fn parse_class_weight(class_weight: Option<&Bound<'_, PyAny>>) -> PyResult<Class
 ///
 /// Uses SMO (Sequential Minimal Optimization) to solve the dual problem
 /// with support for RBF, polynomial, sigmoid, and linear kernels.
+/// FerroML provides decision_function() for raw scores and predict_proba()
+/// when probability=True.
 ///
 /// Parameters
 /// ----------
 /// kernel : str, optional (default="rbf")
 ///     Kernel type: "linear", "rbf", "poly", "sigmoid".
 /// c : float, optional (default=1.0)
-///     Regularization parameter.
+///     Regularization parameter. Valid range: (0, inf).
 /// gamma : float, optional (default=0.0)
 ///     Kernel coefficient. 0.0 means "auto" (1/n_features).
 /// degree : int, optional (default=3)
-///     Degree for polynomial kernel.
+///     Degree for polynomial kernel. Only used when kernel="poly".
 /// coef0 : float, optional (default=0.0)
 ///     Independent term in polynomial/sigmoid kernels.
 /// tol : float, optional (default=1e-3)
@@ -700,11 +745,44 @@ fn parse_class_weight(class_weight: Option<&Bound<'_, PyAny>>) -> PyResult<Class
 /// max_iter : int, optional (default=1000)
 ///     Maximum number of SMO iterations.
 /// probability : bool, optional (default=False)
-///     Whether to enable probability estimates.
+///     Whether to enable probability estimates via Platt scaling.
 /// multiclass : str, optional (default="ovo")
 ///     Multiclass strategy: "ovo" (one-vs-one) or "ovr" (one-vs-rest).
 /// class_weight : str, dict, or None, optional (default=None)
 ///     Class weight strategy: None (uniform), "balanced", or dict {class: weight}.
+/// random_state : int or None, optional (default=None)
+///     Random seed (accepted for sklearn API compatibility; SVM is deterministic).
+///
+/// Attributes
+/// ----------
+/// n_support_vectors : int
+///     Total number of support vectors.
+/// support_indices_ : list of int
+///     Indices of support vectors in the training data.
+/// dual_coef_ : ndarray of shape (n_support_vectors,)
+///     Dual coefficients of support vectors.
+/// intercept_ : float
+///     Bias term.
+/// classes_ : ndarray of shape (n_classes,)
+///     Unique class labels.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.svm import SVC
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
+/// >>> model = SVC(kernel="rbf", c=1.0)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
+/// >>> model.decision_function(X)
+///
+/// Notes
+/// -----
+/// - Feature scaling is strongly recommended. The RBF kernel is sensitive to
+///   feature magnitudes. Use StandardScaler before SVC.
+/// - For datasets > 3000 samples, consider LinearSVC for better scaling.
+/// - The decision_function() method returns raw scores without thresholding.
 #[pyclass(name = "SVC", module = "ferroml.svm")]
 pub struct PySVC {
     inner: SVC,
@@ -1011,19 +1089,33 @@ impl PySVC {
 /// kernel : str, optional (default="rbf")
 ///     Kernel type: "linear", "rbf", "poly", "sigmoid".
 /// c : float, optional (default=1.0)
-///     Regularization parameter.
+///     Regularization parameter. Valid range: (0, inf).
 /// epsilon : float, optional (default=0.1)
 ///     Width of the epsilon-insensitive tube.
 /// gamma : float, optional (default=0.0)
 ///     Kernel coefficient. 0.0 means "auto" (1/n_features).
 /// degree : int, optional (default=3)
-///     Degree for polynomial kernel.
+///     Degree for polynomial kernel. Only used when kernel="poly".
 /// coef0 : float, optional (default=0.0)
 ///     Independent term in polynomial/sigmoid kernels.
 /// tol : float, optional (default=1e-3)
 ///     Tolerance for stopping criterion.
 /// max_iter : int, optional (default=1000)
 ///     Maximum number of SMO iterations.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.svm import SVR
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+/// >>> y = np.array([1.0, 2.0, 3.0, 4.0])
+/// >>> model = SVR(kernel="rbf", c=1.0, epsilon=0.1)
+/// >>> model.fit(X, y)
+/// >>> model.predict(X)
+///
+/// Notes
+/// -----
+/// - Feature scaling is strongly recommended for RBF kernel.
 #[pyclass(name = "SVR", module = "ferroml.svm")]
 pub struct PySVR {
     inner: SVR,

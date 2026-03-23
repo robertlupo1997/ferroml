@@ -1544,9 +1544,31 @@ impl PySimpleImputer {
 /// Parameters
 /// ----------
 /// method : str, optional (default="yeo-johnson")
-///     Power transform method: "yeo-johnson" or "box-cox".
+///     Power transform method: "yeo-johnson" (works with any data) or
+///     "box-cox" (requires strictly positive data).
 /// standardize : bool, optional (default=True)
-///     Whether to standardize the transformed output.
+///     Whether to standardize the transformed output to zero mean and unit
+///     variance.
+///
+/// Attributes
+/// ----------
+/// lambdas_ : ndarray of shape (n_features,)
+///     The fitted lambda parameters for each feature.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import PowerTransformer
+/// >>> import numpy as np
+/// >>> X = np.random.exponential(2.0, size=(100, 3))
+/// >>> pt = PowerTransformer(method="yeo-johnson")
+/// >>> X_t = pt.fit_transform(X)
+/// >>> # X_t is now approximately Gaussian
+///
+/// Notes
+/// -----
+/// Use "yeo-johnson" for data that may contain zero or negative values.
+/// Use "box-cox" only when all values are strictly positive. The transformer
+/// supports ``inverse_transform()`` to recover original scale.
 #[pyclass(name = "PowerTransformer", module = "ferroml.preprocessing")]
 pub struct PyPowerTransformer {
     inner: PowerTransformer,
@@ -1653,9 +1675,29 @@ impl PyPowerTransformer {
 /// Parameters
 /// ----------
 /// output_distribution : str, optional (default="uniform")
-///     Target distribution: "uniform" or "normal".
+///     Target distribution: "uniform" maps to U(0,1), "normal" maps to N(0,1).
 /// n_quantiles : int, optional (default=1000)
-///     Number of quantiles to compute.
+///     Number of quantiles to compute. Should be <= n_samples.
+///
+/// Attributes
+/// ----------
+/// quantiles_ : ndarray
+///     The computed quantile boundaries per feature.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import QuantileTransformer
+/// >>> import numpy as np
+/// >>> X = np.random.exponential(2.0, size=(200, 3))
+/// >>> qt = QuantileTransformer(output_distribution="normal", n_quantiles=100)
+/// >>> X_t = qt.fit_transform(X)
+/// >>> # X_t columns are now approximately standard normal
+///
+/// Notes
+/// -----
+/// This transform is non-parametric and robust to outliers. It maps each
+/// feature to a uniform or normal distribution using estimated quantiles.
+/// Supports ``inverse_transform()`` to recover the original scale.
 #[pyclass(name = "QuantileTransformer", module = "ferroml.preprocessing")]
 pub struct PyQuantileTransformer {
     inner: QuantileTransformer,
@@ -1760,11 +1802,26 @@ impl PyQuantileTransformer {
 /// Parameters
 /// ----------
 /// degree : int, optional (default=2)
-///     Maximum degree of polynomial features.
+///     Maximum degree of polynomial features. Must be >= 1.
 /// interaction_only : bool, optional (default=False)
 ///     If True, only interaction features (not powers) are produced.
 /// include_bias : bool, optional (default=True)
 ///     If True, include a bias column of ones.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import PolynomialFeatures
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [3, 4]], dtype=np.float64)
+/// >>> poly = PolynomialFeatures(degree=2)
+/// >>> X_poly = poly.fit_transform(X)
+/// >>> # X_poly includes [1, a, b, a^2, ab, b^2] for each row
+///
+/// Notes
+/// -----
+/// The number of output features grows combinatorially with degree and
+/// input features. For n features and degree d, the output has
+/// C(n+d, d) columns. Use with caution on high-dimensional data.
 #[pyclass(name = "PolynomialFeatures", module = "ferroml.preprocessing")]
 pub struct PyPolynomialFeatures {
     inner: PolynomialFeatures,
@@ -1842,11 +1899,27 @@ impl PyPolynomialFeatures {
 /// Parameters
 /// ----------
 /// n_bins : int, optional (default=5)
-///     Number of bins.
+///     Number of bins per feature. Must be >= 2.
 /// strategy : str, optional (default="quantile")
-///     Strategy: "uniform", "quantile", or "kmeans".
+///     Binning strategy: "uniform" (equal width), "quantile" (equal frequency),
+///     or "kmeans" (k-means clustering).
 /// encode : str, optional (default="ordinal")
-///     Output encoding: "ordinal" or "onehot".
+///     Output encoding: "ordinal" (integer bin labels) or "onehot"
+///     (one-hot encoded).
+///
+/// Attributes
+/// ----------
+/// bin_edges_ : list of ndarray
+///     Bin edges for each feature.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import KBinsDiscretizer
+/// >>> import numpy as np
+/// >>> X = np.random.randn(100, 3)
+/// >>> kbd = KBinsDiscretizer(n_bins=4, strategy="quantile")
+/// >>> X_binned = kbd.fit_transform(X)
+/// >>> # Each feature is now discretized into 4 bins (0, 1, 2, 3)
 #[pyclass(name = "KBinsDiscretizer", module = "ferroml.preprocessing")]
 pub struct PyKBinsDiscretizer {
     inner: KBinsDiscretizer,
@@ -1953,7 +2026,24 @@ impl PyKBinsDiscretizer {
 /// Parameters
 /// ----------
 /// threshold : float, optional (default=0.0)
-///     Features with variance below this value are removed.
+///     Features with variance below this value are removed. Must be >= 0.
+///     A threshold of 0.0 removes only constant features.
+///
+/// Attributes
+/// ----------
+/// variances_ : ndarray of shape (n_features,)
+///     Variance of each feature in the training data.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import VarianceThreshold
+/// >>> import numpy as np
+/// >>> X = np.array([[0, 2, 0.1], [0, 1, 0.2], [0, 3, 0.3]], dtype=np.float64)
+/// >>> # First column is constant (variance=0), will be removed
+/// >>> vt = VarianceThreshold(threshold=0.0)
+/// >>> X_sel = vt.fit_transform(X)
+/// >>> X_sel.shape
+/// (3, 2)
 #[pyclass(name = "VarianceThreshold", module = "ferroml.preprocessing")]
 pub struct PyVarianceThreshold {
     inner: VarianceThreshold,
@@ -2032,9 +2122,29 @@ impl PyVarianceThreshold {
 /// Parameters
 /// ----------
 /// score_func : str, optional (default="f_classif")
-///     Scoring function: "f_classif", "f_regression", "chi2".
+///     Scoring function: "f_classif" (ANOVA F for classification),
+///     "f_regression" (F-statistic for regression), "chi2" (chi-squared
+///     for non-negative features in classification).
 /// k : int, optional (default=10)
-///     Number of features to select.
+///     Number of top features to select. Must be <= n_features.
+///
+/// Attributes
+/// ----------
+/// scores_ : ndarray of shape (n_features,)
+///     Scores of each feature.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import SelectKBest
+/// >>> import numpy as np
+/// >>> X = np.random.randn(100, 10)
+/// >>> y = (X[:, 0] + X[:, 3] > 0).astype(np.float64)
+/// >>> sel = SelectKBest(score_func="f_classif", k=3)
+/// >>> sel.fit(X, y)
+/// >>> X_sel = sel.transform(X)
+/// >>> X_sel.shape
+/// (100, 3)
+/// >>> sel.scores_  # feature importance scores
 #[pyclass(name = "SelectKBest", module = "ferroml.preprocessing")]
 pub struct PySelectKBest {
     inner: SelectKBest,
@@ -2128,9 +2238,26 @@ impl PySelectKBest {
 /// Parameters
 /// ----------
 /// n_neighbors : int, optional (default=5)
-///     Number of nearest neighbors to use.
+///     Number of nearest neighbors to use for imputation.
 /// weights : str, optional (default="uniform")
-///     Weight function: "uniform" or "distance".
+///     Weight function: "uniform" (equal weight) or "distance" (inverse
+///     distance weighting).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import KNNImputer
+/// >>> import numpy as np
+/// >>> X = np.array([[1, 2], [np.nan, 3], [7, 6], [4, np.nan]])
+/// >>> imputer = KNNImputer(n_neighbors=2)
+/// >>> X_imputed = imputer.fit_transform(X)
+/// >>> # NaN values are replaced with weighted means from nearest neighbors
+///
+/// Notes
+/// -----
+/// KNNImputer handles NaN values natively (exempt from finite check).
+/// Distance computation ignores features with missing values. This is
+/// more accurate than SimpleImputer for data with complex correlations
+/// but slower for large datasets.
 #[pyclass(name = "KNNImputer", module = "ferroml.preprocessing")]
 pub struct PyKNNImputer {
     inner: KNNImputer,
@@ -2222,9 +2349,26 @@ impl PyKNNImputer {
 /// ----------
 /// smooth : float, optional (default=1.0)
 ///     Smoothing parameter. Higher values pull rare category encodings
-///     toward the global mean.
+///     toward the global mean. Must be >= 0.
 /// cv : int, optional (default=5)
-///     Number of CV folds for internal cross-validation.
+///     Number of CV folds for internal cross-validation. Must be >= 2.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import TargetEncoder
+/// >>> import numpy as np
+/// >>> X = np.array([[0], [1], [0], [1], [2], [2]], dtype=np.float64)
+/// >>> y = np.array([10.0, 20.0, 12.0, 22.0, 30.0, 28.0])
+/// >>> enc = TargetEncoder(smooth=1.0, cv=3)
+/// >>> enc.fit(X, y)
+/// >>> X_enc = enc.transform(X)
+/// >>> # Each category is replaced by smoothed target mean
+///
+/// Notes
+/// -----
+/// TargetEncoder uses internal cross-validation to prevent target leakage.
+/// Requires a target variable y during fit. Works best with categorical
+/// features encoded as integers.
 #[pyclass(name = "TargetEncoder", module = "ferroml.preprocessing")]
 pub struct PyTargetEncoder {
     inner: TargetEncoder,
@@ -2513,8 +2657,25 @@ impl PySMOTE {
 ///     Number of nearest neighbors for synthetic sample generation.
 /// sampling_strategy : str, optional (default="auto")
 ///     Strategy: "auto" balances all classes to majority.
-/// random_state : int, optional
-///     Random seed.
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import ADASYN
+/// >>> import numpy as np
+/// >>> X = np.vstack([np.random.randn(90, 2), np.random.randn(10, 2) + 3])
+/// >>> y = np.array([0]*90 + [1]*10, dtype=np.float64)
+/// >>> ada = ADASYN(random_state=42)
+/// >>> X_res, y_res = ada.fit_resample(X, y)
+/// >>> # y_res is now approximately balanced
+///
+/// Notes
+/// -----
+/// ADASYN generates more synthetic samples for minority instances that
+/// are harder to learn (near the decision boundary), unlike SMOTE which
+/// generates uniformly. This can improve classifier performance in
+/// difficult regions.
 #[pyclass(name = "ADASYN", module = "ferroml.preprocessing")]
 pub struct PyADASYN {
     inner: ferroml_core::preprocessing::sampling::ADASYN,
@@ -2590,11 +2751,21 @@ impl PyADASYN {
 /// Parameters
 /// ----------
 /// sampling_strategy : str, optional (default="auto")
-///     Strategy: "auto" balances all classes.
+///     Strategy: "auto" balances all classes to the minority count.
 /// replacement : bool, optional (default=False)
 ///     Whether to sample with replacement.
-/// random_state : int, optional
-///     Random seed.
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import RandomUnderSampler
+/// >>> import numpy as np
+/// >>> X = np.vstack([np.random.randn(90, 2), np.random.randn(10, 2) + 3])
+/// >>> y = np.array([0]*90 + [1]*10, dtype=np.float64)
+/// >>> rus = RandomUnderSampler(random_state=42)
+/// >>> X_res, y_res = rus.fit_resample(X, y)
+/// >>> # Majority class reduced to match minority class count
 #[pyclass(name = "RandomUnderSampler", module = "ferroml.preprocessing")]
 pub struct PyRandomUnderSampler {
     inner: ferroml_core::preprocessing::sampling::RandomUnderSampler,
@@ -2668,12 +2839,22 @@ impl PyRandomUnderSampler {
 /// Parameters
 /// ----------
 /// sampling_strategy : str, optional (default="auto")
-///     Strategy: "auto" balances all classes to majority.
-/// shrinkage : float, optional
+///     Strategy: "auto" balances all classes to the majority count.
+/// shrinkage : float or None, optional (default=None)
 ///     If provided, adds slight noise to duplicated samples using a smoothed
-///     bootstrap approach.
-/// random_state : int, optional
-///     Random seed.
+///     bootstrap approach. Higher values add more noise.
+/// random_state : int or None, optional (default=None)
+///     Random seed for reproducibility.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import RandomOverSampler
+/// >>> import numpy as np
+/// >>> X = np.vstack([np.random.randn(90, 2), np.random.randn(10, 2) + 3])
+/// >>> y = np.array([0]*90 + [1]*10, dtype=np.float64)
+/// >>> ros = RandomOverSampler(random_state=42)
+/// >>> X_res, y_res = ros.fit_resample(X, y)
+/// >>> # Minority class duplicated to match majority class count
 #[pyclass(name = "RandomOverSampler", module = "ferroml.preprocessing")]
 pub struct PyRandomOverSampler {
     inner: ferroml_core::preprocessing::sampling::RandomOverSampler,
@@ -4180,7 +4361,23 @@ impl PyTfidfVectorizer {
 /// Parameters
 /// ----------
 /// norm : str, optional (default="l2")
-///     The norm to use: "l1", "l2", or "max".
+///     The norm to use: "l1" (sum of absolute values), "l2" (Euclidean),
+///     or "max" (maximum absolute value).
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import Normalizer
+/// >>> import numpy as np
+/// >>> X = np.array([[3.0, 4.0], [1.0, 0.0], [0.0, 0.0]])
+/// >>> norm = Normalizer(norm="l2")
+/// >>> X_norm = norm.fit_transform(X)
+/// >>> # First row: [0.6, 0.8] (unit L2 norm)
+///
+/// Notes
+/// -----
+/// Normalizer operates on each sample (row) independently, not on
+/// features (columns). This is useful for text classification (TF-IDF
+/// vectors) or when feature magnitudes vary across samples.
 #[pyclass(name = "Normalizer")]
 pub struct PyNormalizer {
     inner: Normalizer,

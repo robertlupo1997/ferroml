@@ -634,6 +634,12 @@ impl PyDecisionTreeRegressor {
 /// >>> model = RandomForestClassifier(n_estimators=100, random_state=42)
 /// >>> model.fit(X, y)
 /// >>> model.predict(X)
+///
+/// Notes
+/// -----
+/// Results may vary between runs due to Rayon work-stealing parallelism.
+/// Set n_jobs=1 for reproducibility. Feature importances are computed
+/// from mean decrease in impurity (Gini or entropy).
 #[pyclass(name = "RandomForestClassifier", module = "ferroml.trees")]
 pub struct PyRandomForestClassifier {
     inner: RandomForestClassifier,
@@ -955,6 +961,12 @@ impl PyRandomForestClassifier {
 /// >>> from ferroml.trees import RandomForestRegressor
 /// >>> model = RandomForestRegressor(n_estimators=100)
 /// >>> model.fit(X, y)
+///
+/// Notes
+/// -----
+/// Results may vary between runs due to Rayon work-stealing parallelism.
+/// Set n_jobs=1 for reproducibility. Feature importances are computed
+/// from mean decrease in impurity (MSE reduction).
 #[pyclass(name = "RandomForestRegressor", module = "ferroml.trees")]
 pub struct PyRandomForestRegressor {
     inner: RandomForestRegressor,
@@ -1747,6 +1759,12 @@ impl PyGradientBoostingRegressor {
 /// >>> model = HistGradientBoostingClassifier(max_iter=100)
 /// >>> model.fit(X, y)
 /// >>> model.predict_proba(X)
+///
+/// Notes
+/// -----
+/// Handles NaN values natively. Missing values are routed to the optimal
+/// split direction during training. Uses histogram-based splitting for
+/// faster training on large datasets compared to GradientBoostingClassifier.
 #[pyclass(name = "HistGradientBoostingClassifier", module = "ferroml.trees")]
 pub struct PyHistGradientBoostingClassifier {
     inner: HistGradientBoostingClassifier,
@@ -2017,6 +2035,12 @@ impl PyHistGradientBoostingClassifier {
 /// >>> from ferroml.trees import HistGradientBoostingRegressor
 /// >>> model = HistGradientBoostingRegressor(max_iter=100)
 /// >>> model.fit(X, y)
+///
+/// Notes
+/// -----
+/// Handles NaN values natively. Missing values are routed to the optimal
+/// split direction during training. Uses histogram-based splitting for
+/// faster training on large datasets compared to GradientBoostingRegressor.
 #[pyclass(name = "HistGradientBoostingRegressor", module = "ferroml.trees")]
 pub struct PyHistGradientBoostingRegressor {
     inner: HistGradientBoostingRegressor,

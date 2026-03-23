@@ -37,8 +37,13 @@ use pyo3::prelude::*;
 /// random_state : int or None, optional (default=None)
 ///     Random seed for reproducibility.
 ///
-/// Example
-/// -------
+/// Attributes
+/// ----------
+/// offset_ : float
+///     Offset threshold for decision_function. Negative values indicate outliers.
+///
+/// Examples
+/// --------
 /// >>> from ferroml.anomaly import IsolationForest
 /// >>> import numpy as np
 /// >>> X = np.random.randn(100, 2)
@@ -227,8 +232,15 @@ impl PyIsolationForest {
 /// novelty : bool, optional (default=False)
 ///     If True, predict/score_samples work on new data. If False, use fit_predict.
 ///
-/// Example
-/// -------
+/// Attributes
+/// ----------
+/// negative_outlier_factor_ : ndarray of shape (n_samples,) or None
+///     Negative outlier factor for training samples. Only available after fit().
+/// offset_ : float
+///     Offset threshold for decision_function.
+///
+/// Examples
+/// --------
 /// >>> from ferroml.anomaly import LocalOutlierFactor
 /// >>> import numpy as np
 /// >>> X = np.random.randn(100, 2)
