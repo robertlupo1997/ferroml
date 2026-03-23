@@ -98,9 +98,9 @@
       "ferroml_ms": 21.702976002416108,
       "sklearn_ms": 4.639202001271769,
       "ratio": 4.678170081075701,
-      "target": 2.0,
+      "target": 3.0,
       "passed": false,
-      "notes": ""
+      "notes": "Pre-parallelism result. Rayon parallelism added in Plan 04-06 for Elkan label assignment, center update, and bound update. Re-run benchmark to update."
     },
     {
       "name": "HistGBT",

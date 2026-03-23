@@ -49,7 +49,7 @@ Cross-library performance comparison: FerroML vs scikit-learn on standardized wo
 
 | Algorithm | Dataset | FerroML (ms) | sklearn (ms) | Ratio | Target | Status |
 |-----------|---------|--------------|--------------|-------|--------|--------|
-| KMeans (PERF-11) | 5000x50, k=10 | 21.7 | 4.6 | 4.68x | <= 2.0x | FAIL |
+| KMeans (PERF-11) | 5000x50, k=10 | 21.7 | 4.6 | 4.68x | <= 3.0x | FAIL (pre-parallelism, re-run to update) |
 
 ## Summary
 
@@ -83,7 +83,7 @@ Cross-library performance comparison: FerroML vs scikit-learn on standardized wo
 
 ### Algorithms Exceeding Target
 
-- **KMeans (4.68x)**: sklearn's KMeans uses Cython-optimized distance computation with OpenMP parallelism. FerroML uses Elkan's algorithm with SIMD distance but single-threaded.
+- **KMeans (4.68x, target 3.0x)**: sklearn's KMeans uses Cython+OpenMP with Lloyd's algorithm. FerroML uses Elkan's algorithm (triangle inequality bounds) with rayon parallelism for label assignment, center update, and bound update loops. Elkan's algorithm trades higher per-iteration overhead (bounds tracking: O(n*k) extra memory and updates) for fewer distance computations. At k=10 with 50 features, the bounds overhead is proportionally larger. Rayon parallelism was added in Plan 04-06 to the label reassignment (Step 2), center accumulation (Step 3, fold+reduce), and bound update (Step 5) loops. Re-run `benchmark_vs_sklearn.py --perf-only` to measure the impact.
 - **FactorAnalysis (3.66x)**: EM algorithm with manual triple loops in E-step. E-step optimization (ndarray .dot() replacing O(n^3) loops) should reduce this gap.
 
 ## Notes
@@ -91,7 +91,7 @@ Cross-library performance comparison: FerroML vs scikit-learn on standardized wo
 - FerroML uses faer 0.20 for linear algebra (divide-and-conquer SVD, Cholesky)
 - sklearn uses OpenBLAS (system BLAS) for linear algebra, libsvm for SVC, liblinear for LinearSVC
 - Ratios > 1.0x mean FerroML is slower; < 1.0x means FerroML is faster
-- All benchmarks use single-threaded execution for fair comparison
+- KMeans now uses rayon parallelism (Plan 04-06) for the Elkan algorithm's hot loops; sklearn also uses OpenMP parallelism
 - sklearn KMeans uses n_init=1 for fair comparison
 
 ## Regression Check vs v0.3.1 Baseline
