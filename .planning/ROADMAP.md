@@ -12,11 +12,11 @@ This milestone hardens FerroML for public release by addressing all known concer
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Input Validation** - All models reject invalid inputs (NaN/Inf/empty) with clear errors instead of silent corruption
-- [ ] **Phase 2: Correctness Fixes** - Fix all known bugs, add numerical safeguards, achieve zero test failures
-- [ ] **Phase 3: Robustness Hardening** - Replace unsafe unwraps in critical paths, harden error handling and serialization
+- [x] **Phase 1: Input Validation** - All models reject invalid inputs (NaN/Inf/empty) with clear errors instead of silent corruption (completed 2026-03-20)
+- [x] **Phase 2: Correctness Fixes** - Fix all known bugs, add numerical safeguards, achieve zero test failures (completed 2026-03-21)
+- [x] **Phase 3: Robustness Hardening** - Replace unsafe unwraps in critical paths, harden error handling and serialization (completed 2026-03-22)
 - [x] **Phase 4: Performance Optimization** - Close performance gaps vs sklearn (PCA, LinearSVC, OLS/Ridge, HistGBT, SVC) (completed 2026-03-23)
-- [ ] **Phase 5: Documentation and Release** - Complete docstrings, document limitations, publish benchmarks
+- [x] **Phase 5: Documentation and Release** - Complete docstrings, document limitations, publish benchmarks (completed 2026-03-23)
 
 ## Phase Details
 
@@ -103,9 +103,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Docstrings for models with no examples (ensemble, cv, GP, svm, naive_bayes, anomaly, calibration)
-- [ ] 05-02-PLAN.md — Docstrings for partial/audit-only models (linear, preprocessing, decomposition, trees, clustering, neighbors, neural, multioutput)
-- [ ] 05-03-PLAN.md — README known limitations, benchmark verification, docstring completeness test
+- [x] 05-01-PLAN.md — Docstrings for models with no examples (ensemble, cv, GP, svm, naive_bayes, anomaly, calibration)
+- [x] 05-02-PLAN.md — Docstrings for partial/audit-only models (linear, preprocessing, decomposition, trees, clustering, neighbors, neural, multioutput)
+- [x] 05-03-PLAN.md — README known limitations, benchmark verification, docstring completeness test
 
 ## Progress
 
@@ -118,4 +118,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Correctness Fixes | 3/3 | Complete | 2026-03-21 |
 | 3. Robustness Hardening | 3/3 | Complete | 2026-03-22 |
 | 4. Performance Optimization | 6/6 | Complete   | 2026-03-23 |
-| 5. Documentation and Release | 1/3 | In Progress|  |
+| 5. Documentation and Release | 3/3 | Complete | 2026-03-23 |
