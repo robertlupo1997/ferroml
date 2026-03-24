@@ -725,13 +725,12 @@ impl KMeans {
                 }
             }
 
-            // Swap centers: new_centers becomes current centers for next iteration
             std::mem::swap(&mut centers, &mut new_centers);
 
-            // Check convergence on center movement (matches sklearn behavior)
-            let max_delta_sq: f64 = deltas.iter().map(|d| d * d).fold(0.0f64, f64::max);
-            if max_delta_sq < self.tol * self.tol {
-                // Compute final inertia only on convergence
+            // Check convergence: skip inertia computation if centers moved significantly
+            let center_shift_total: f64 = deltas.iter().map(|d| d * d).sum();
+            if center_shift_total < self.tol {
+                // Centers barely moved — compute final inertia and return
                 let inertia: f64 = (0..n_samples)
                     .map(|i| {
                         let ci = labels[i] as usize;
@@ -848,14 +847,15 @@ impl KMeans {
                 }
             }
 
-            // Check convergence on center movement (matches sklearn behavior)
-            let max_delta_sq: f64 = (0..self.n_clusters)
+            // Check convergence on center movement (matches sklearn behavior:
+            // sum of squared center shifts < tol)
+            let center_shift_total: f64 = (0..self.n_clusters)
                 .map(|j| squared_euclidean(&centers.row(j), &new_centers.row(j)))
-                .fold(0.0f64, f64::max);
+                .sum();
 
             std::mem::swap(&mut centers, &mut new_centers);
 
-            if max_delta_sq < self.tol * self.tol {
+            if center_shift_total < self.tol {
                 // Compute final inertia only on convergence
                 let (_, inertia) = Self::cpu_assign(x, &centers, self.n_clusters, n_samples);
                 return (centers, labels, inertia, iter + 1);
