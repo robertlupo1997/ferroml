@@ -20,36 +20,36 @@ Cross-library performance comparison: FerroML vs scikit-learn on standardized wo
 
 | Algorithm | Dataset | FerroML (ms) | sklearn (ms) | Ratio | Target | Status |
 |-----------|---------|--------------|--------------|-------|--------|--------|
-| PCA (PERF-01) | 10000x100, k=10 | 12.0 | 37.8 | 0.32x | <= 2.0x | PASS |
-| TruncatedSVD (PERF-02) | 10000x100, k=10 | 48.6 | 461.4 | 0.11x | <= 2.0x | PASS |
-| LDA (PERF-03) | 5000x50, 3 classes | 10.3 | 40.3 | 0.26x | <= 2.0x | PASS |
-| FactorAnalysis (PERF-04) | 5000x50, k=5 | 71.0 | 228.1 | 0.31x | <= 3.0x | PASS |
+| PCA (PERF-01) | 10000x100, k=10 | 10.3 | 7.2 | 1.43x | <= 2.0x | PASS |
+| TruncatedSVD (PERF-02) | 10000x100, k=10 | 40.2 | 495.9 | 0.08x | <= 2.0x | PASS |
+| LDA (PERF-03) | 5000x50, 3 classes | 8.5 | 12.4 | 0.68x | <= 2.0x | PASS |
+| FactorAnalysis (PERF-04) | 5000x50, k=5 | 65.6 | 80.0 | 0.82x | <= 3.0x | PASS |
 
 ### Linear Models
 
 | Algorithm | Dataset | FerroML (ms) | sklearn (ms) | Ratio | Target | Status |
 |-----------|---------|--------------|--------------|-------|--------|--------|
-| OLS (PERF-07) | 10000x100 | 49.2 | 284.9 | 0.17x | <= 2.0x | PASS |
-| Ridge (PERF-08) | 10000x100, alpha=1.0 | 41.2 | 16.7 | 2.46x | <= 5.0x | PASS (diagnostic overhead) |
+| OLS (PERF-07) | 10000x100 | 43.9 | 23.4 | 1.87x | <= 2.0x | PASS |
+| Ridge (PERF-08) | 10000x100, alpha=1.0 | 32.1 | 6.6 | 4.88x | <= 5.0x | PASS (diagnostic overhead) |
 
 ### SVM
 
 | Algorithm | Dataset | FerroML (ms) | sklearn (ms) | Ratio | Target | Status |
 |-----------|---------|--------------|--------------|-------|--------|--------|
-| LinearSVC (PERF-05) | 5000x50, binary | 349.1 | 424.6 | 0.82x | <= 2.0x | PASS |
-| SVC RBF (PERF-10) | 2000x20, binary | 251.7 | 36.8 | 6.84x | <= 7.0x | PASS |
+| LinearSVC (PERF-05) | 5000x50, binary | 318.8 | 368.9 | 0.86x | <= 2.0x | PASS |
+| SVC RBF (PERF-10) | 2000x20, binary | 196.9 | 31.8 | 6.20x | <= 7.0x | PASS |
 
 ### Ensemble / Boosting
 
 | Algorithm | Dataset | FerroML (ms) | sklearn (ms) | Ratio | Target | Status |
 |-----------|---------|--------------|--------------|-------|--------|--------|
-| HistGBT (PERF-09) | 10000x20, 50 iters | 272.3 | 115.8 | 2.35x | <= 3.0x | PASS |
+| HistGBT (PERF-09) | 10000x20, 50 iters | 230.4 | 93.2 | 2.47x | <= 3.0x | PASS |
 
 ### Clustering
 
 | Algorithm | Dataset | FerroML (ms) | sklearn (ms) | Ratio | Target | Status |
 |-----------|---------|--------------|--------------|-------|--------|--------|
-| KMeans (PERF-11) | 5000x50, k=10 | 27.7 | 6.1 | 4.53x | <= 5.0x | PASS |
+| KMeans (PERF-11) | 5000x50, k=10 | 21.1 | 5.0 | 4.25x | <= 5.0x | PASS |
 
 ## Summary
 
@@ -66,19 +66,19 @@ Cross-library performance comparison: FerroML vs scikit-learn on standardized wo
 
 ### Algorithms Beating sklearn
 
-- **PCA**: 3.2x faster (0.32x ratio). FerroML's faer thin SVD outperforms sklearn on this workload.
-- **TruncatedSVD**: 9x faster (0.11x ratio). FerroML's randomized SVD implementation outperforms sklearn's randomized approach significantly.
-- **LDA**: 3.9x faster (0.26x ratio). FerroML's eigendecomposition path is highly competitive.
-- **FactorAnalysis**: 3.2x faster (0.31x ratio). After E-step optimization (ndarray `.dot()` replacing O(n^3) manual triple loops), FerroML significantly outperforms sklearn.
-- **OLS**: 5.8x faster (0.17x ratio). FerroML's faer Cholesky solver outperforms sklearn on this workload.
-- **LinearSVC**: 1.2x faster (0.82x ratio). FerroML's coordinate descent with shrinking matches liblinear.
+- **TruncatedSVD**: 12x faster (0.08x ratio). FerroML's randomized SVD implementation significantly outperforms sklearn.
+- **LDA**: 1.5x faster (0.68x ratio). FerroML's eigendecomposition path is competitive.
+- **FactorAnalysis**: 1.2x faster (0.82x ratio). After E-step optimization (ndarray `.dot()` replacing O(n^3) manual triple loops), FerroML matches sklearn.
+- **LinearSVC**: 1.2x faster (0.86x ratio). FerroML's coordinate descent with shrinking matches liblinear.
 
 ### Algorithms Within Target (with rationale)
 
-- **Ridge (2.46x, target 5.0x)**: FerroML's Ridge.fit() computes full statistical diagnostics as first-class features: matrix inversion (xtx_inv), hat diagonal (compute_hat_diagonal), effective degrees of freedom, and coefficient standard errors. sklearn's Ridge.fit() only solves the linear system and stores coefficients. This is FerroML's core differentiator -- every model includes statistical diagnostics.
-- **HistGBT (2.35x, target 3.0x)**: FerroML's histogram-based gradient boosting is within the 3x target. Bounds checks retained for NaN safety contribute minimal overhead.
-- **KMeans (4.53x, target 5.0x)**: FerroML uses Elkan's algorithm with rayon parallelism (gated behind `#[cfg(feature = "parallel")]` with sequential fallback for small datasets < 10K samples). sklearn uses Cython+OpenMP with Lloyd's algorithm. The gap reflects the structural difference between pure Rust and optimized Cython/OpenMP.
-- **SVC RBF (6.84x, target 7.0x)**: sklearn's libsvm is decades-tuned C code with highly optimized cache management. FerroML improved from 17.6x (v0.3.1) to ~6.8x -- a 2.6x improvement through WSS3 fixes, LRU kernel cache, and shrinking heuristics. The target acknowledges pure-Rust overhead vs libsvm while remaining competitive.
+- **PCA (1.43x, target 2.0x)**: FerroML's faer thin SVD is competitive with sklearn's OpenBLAS-backed SVD.
+- **OLS (1.87x, target 2.0x)**: FerroML's faer Cholesky solver is near-parity with sklearn.
+- **Ridge (4.88x, target 5.0x)**: FerroML's Ridge.fit() computes full statistical diagnostics as first-class features: matrix inversion (xtx_inv), hat diagonal (compute_hat_diagonal), effective degrees of freedom, and coefficient standard errors. sklearn's Ridge.fit() only solves the linear system and stores coefficients. This is FerroML's core differentiator -- every model includes statistical diagnostics.
+- **HistGBT (2.47x, target 3.0x)**: FerroML's histogram-based gradient boosting is within the 3x target. Bounds checks retained for NaN safety contribute minimal overhead.
+- **KMeans (4.25x, target 5.0x)**: FerroML uses Elkan's algorithm with rayon parallelism (gated behind `#[cfg(feature = "parallel")]` with sequential fallback for small datasets < 10K samples). sklearn uses Cython+OpenMP with Lloyd's algorithm. The gap reflects the structural difference between pure Rust and optimized Cython/OpenMP.
+- **SVC RBF (6.20x, target 7.0x)**: sklearn's libsvm is decades-tuned C code with highly optimized cache management. FerroML improved from 17.6x (v0.3.1) to ~6.2x -- a 2.8x improvement through WSS3 fixes, LRU kernel cache, and shrinking heuristics. The target acknowledges pure-Rust overhead vs libsvm while remaining competitive.
 
 ## Notes
 
@@ -94,13 +94,13 @@ Comparison against v0.3.1 (Plan W) benchmark baselines:
 
 | Algorithm | v0.3.1 Status | Current Status | Regression? |
 |-----------|---------------|----------------|-------------|
-| KMeans | 3.4x FASTER than sklearn | 4.53x slower | YES - different benchmark config (5000x50 k=10 vs previous 1000x10 k=5) |
+| KMeans | 3.4x FASTER than sklearn | 4.25x slower | YES - different benchmark config (5000x50 k=10 vs previous 1000x10 k=5) |
 | RandomForest | 5x FASTER | Not in PERF targets | N/A |
 | GaussianNB | 4.3x FASTER | Not in PERF targets | N/A |
 | StandardScaler | 9x FASTER | Not in PERF targets | N/A |
-| HistGBT | 2.6x slower | 2.35x slower | NO - improved slightly |
+| HistGBT | 2.6x slower | 2.47x slower | NO - comparable |
 | LogReg | 2.1x slower | Not in PERF targets | N/A |
-| SVC | 17.6x slower | 6.84x slower | NO - improved from 17.6x to ~6.8x |
+| SVC | 17.6x slower | 6.20x slower | NO - improved from 17.6x to ~6.2x |
 
 **Note on KMeans**: The v0.3.1 "3.4x faster" result used a small dataset (1000x10, k=5) where FerroML's Elkan algorithm excels. The current PERF benchmark uses a larger dataset (5000x50, k=10) where sklearn's Cython+OpenMP implementation has a larger advantage. This is not a code regression but a different benchmark configuration.
 
