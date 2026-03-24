@@ -40,6 +40,39 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "parallel")]
 const PARALLEL_MIN_SAMPLES: usize = 2_000;
 
+/// Compute squared L2 norms for each row: x_norms[i] = ||x_i||^2
+fn compute_row_norms(x: &Array2<f64>) -> Array1<f64> {
+    x.rows().into_iter().map(|row| row.dot(&row)).collect()
+}
+
+/// Compute all pairwise squared distances between rows of X and rows of C
+/// using the GEMM decomposition: ||x_i - c_j||^2 = x_norms[i] + c_norms[j] - 2*(X@C^T)[i,j]
+/// Returns Array2 of shape (n_samples, k) with squared distances clamped to >= 0.
+fn batch_squared_distances(
+    x: &Array2<f64>,
+    centers: &Array2<f64>,
+    x_norms: &Array1<f64>,
+) -> Array2<f64> {
+    let k = centers.nrows();
+    let n = x.nrows();
+    // c_norms[j] = sum of squares of center j
+    let c_norms: Array1<f64> = centers
+        .rows()
+        .into_iter()
+        .map(|row| row.dot(&row))
+        .collect();
+    // XC^T via BLAS GEMM: (n, d) @ (d, k) = (n, k)
+    let xct = x.dot(&centers.t());
+    let mut dists = Array2::zeros((n, k));
+    for i in 0..n {
+        for j in 0..k {
+            let d = x_norms[i] + c_norms[j] - 2.0 * xct[[i, j]];
+            dists[[i, j]] = d.max(0.0); // clamp for numerical stability
+        }
+    }
+    dists
+}
+
 /// Algorithm variant for KMeans clustering.
 ///
 /// - `Lloyd`: Standard Lloyd's algorithm. Recomputes all distances every iteration.
@@ -270,68 +303,40 @@ impl KMeans {
 
     /// CPU assignment step: assign each point to nearest center.
     ///
-    /// Uses SIMD-optimized squared Euclidean distance for fast assignment.
-    /// Pre-computes center slices to avoid repeated row extraction overhead.
+    /// Uses GEMM-based batch distance computation for fast assignment.
+    /// When `x_norms` is provided, avoids recomputing row norms.
     fn cpu_assign(
         x: &Array2<f64>,
         centers: &Array2<f64>,
         n_clusters: usize,
         n_samples: usize,
+        x_norms: Option<&Array1<f64>>,
     ) -> (Array1<i32>, f64) {
-        // Pre-extract center data as contiguous Vec for cache-friendly access
-        let center_data: Vec<Vec<f64>> = (0..n_clusters).map(|k| centers.row(k).to_vec()).collect();
-
-        #[cfg(feature = "parallel")]
-        if n_samples >= PARALLEL_MIN_SAMPLES {
-            use rayon::prelude::*;
-            let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
-            let results: Vec<(i32, f64)> = (0..n_samples)
-                .into_par_iter()
-                .with_min_len(chunk_size)
-                .map(|i| {
-                    let x_row = x.row(i);
-                    let x_slice = x_row.as_slice().unwrap_or(&[]);
-                    let mut min_dist = f64::MAX;
-                    let mut min_idx = 0i32;
-                    for k in 0..n_clusters {
-                        let dist =
-                            crate::linalg::squared_euclidean_distance(x_slice, &center_data[k]);
-                        if dist < min_dist {
-                            min_dist = dist;
-                            min_idx = k as i32;
-                        }
-                    }
-                    (min_idx, min_dist)
-                })
-                .collect();
-            let mut labels = Array1::zeros(n_samples);
-            let mut total_inertia = 0.0;
-            for (i, &(label, dist)) in results.iter().enumerate() {
-                labels[i] = label;
-                total_inertia += dist;
+        let owned_norms;
+        let norms = match x_norms {
+            Some(n) => n,
+            None => {
+                owned_norms = compute_row_norms(x);
+                &owned_norms
             }
-            return (labels, total_inertia);
-        }
-        {
-            let mut labels = Array1::zeros(n_samples);
-            let mut total_inertia = 0.0;
-            for i in 0..n_samples {
-                let x_row = x.row(i);
-                let x_slice = x_row.as_slice().unwrap_or(&[]);
-                let mut min_dist = f64::MAX;
-                let mut min_idx = 0i32;
-                for k in 0..n_clusters {
-                    let dist = crate::linalg::squared_euclidean_distance(x_slice, &center_data[k]);
-                    if dist < min_dist {
-                        min_dist = dist;
-                        min_idx = k as i32;
-                    }
+        };
+        let dists = batch_squared_distances(x, centers, norms);
+        let mut labels = Array1::zeros(n_samples);
+        let mut total_inertia = 0.0;
+        for i in 0..n_samples {
+            let mut min_dist = f64::MAX;
+            let mut min_idx = 0i32;
+            for j in 0..n_clusters {
+                let d = dists[[i, j]];
+                if d < min_dist {
+                    min_dist = d;
+                    min_idx = j as i32;
                 }
-                labels[i] = min_idx;
-                total_inertia += min_dist;
             }
-            (labels, total_inertia)
+            labels[i] = min_idx;
+            total_inertia += min_dist;
         }
+        (labels, total_inertia)
     }
 
     /// Resolve the algorithm choice: Auto picks Elkan when k is moderate relative to n.
@@ -389,72 +394,32 @@ impl KMeans {
                                                  // Flat lower bounds: lower[i * k + j] = lower bound on d(x_i, c_j)
         let mut lower = vec![0.0f64; n_samples * k];
 
-        // Extract initial center data as contiguous flat slice for cache-friendly access
-        let init_centers_contig;
-        let init_centers_ref = if centers.is_standard_layout() {
-            &centers
-        } else {
-            init_centers_contig = centers.as_standard_layout().into_owned();
-            &init_centers_contig
-        };
-        let init_centers_data = init_centers_ref
-            .as_slice()
-            .expect("SAFETY: standard-layout");
-
         // Runtime parallel dispatch: only use rayon when dataset is large enough
         #[cfg(feature = "parallel")]
         let use_parallel = n_samples >= PARALLEL_MIN_SAMPLES;
         #[cfg(not(feature = "parallel"))]
         let use_parallel = false;
 
-        // Initial assignment: compute all distances
-        if use_parallel {
-            #[cfg(feature = "parallel")]
-            {
-                use rayon::prelude::*;
-                let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
-                let results: Vec<(i32, f64, Vec<f64>)> = (0..n_samples)
-                    .into_par_iter()
-                    .with_min_len(chunk_size)
-                    .map(|i| {
-                        let xi = &x_data[i * n_features..(i + 1) * n_features];
-                        let mut min_dist = f64::MAX;
-                        let mut min_idx = 0usize;
-                        let mut lowers = vec![0.0f64; k];
-                        for j in 0..k {
-                            let cj = &init_centers_data[j * n_features..(j + 1) * n_features];
-                            let dist = crate::linalg::squared_euclidean_distance(xi, cj).sqrt();
-                            lowers[j] = dist;
-                            if dist < min_dist {
-                                min_dist = dist;
-                                min_idx = j;
-                            }
-                        }
-                        (min_idx as i32, min_dist, lowers)
-                    })
-                    .collect();
-                for (i, (label, upper_bound, lowers)) in results.into_iter().enumerate() {
-                    labels[i] = label;
-                    upper[i] = upper_bound;
-                    lower[i * k..i * k + k].copy_from_slice(&lowers);
-                }
-            }
-        } else {
+        // Precompute row norms once for the entire fit (reused for final inertia)
+        let x_norms = compute_row_norms(x_ref);
+
+        // Initial assignment: use batch GEMM distances
+        {
+            let init_sq_dists = batch_squared_distances(x_ref, &centers, &x_norms);
             for i in 0..n_samples {
-                let xi = x_row(i);
-                let mut min_dist = f64::MAX;
+                let mut min_sq = f64::MAX;
                 let mut min_idx = 0usize;
                 for j in 0..k {
-                    let cj = &init_centers_data[j * n_features..(j + 1) * n_features];
-                    let dist = crate::linalg::squared_euclidean_distance(xi, cj).sqrt();
-                    lower[i * k + j] = dist;
-                    if dist < min_dist {
-                        min_dist = dist;
+                    let sq = init_sq_dists[[i, j]];
+                    // Elkan bounds use Euclidean (not squared) distances
+                    lower[i * k + j] = sq.sqrt();
+                    if sq < min_sq {
+                        min_sq = sq;
                         min_idx = j;
                     }
                 }
                 labels[i] = min_idx as i32;
-                upper[i] = min_dist;
+                upper[i] = min_sq.sqrt();
             }
         }
 
@@ -730,29 +695,19 @@ impl KMeans {
             // Check convergence: skip inertia computation if centers moved significantly
             let center_shift_total: f64 = deltas.iter().map(|d| d * d).sum();
             if center_shift_total < self.tol {
-                // Centers barely moved — compute final inertia and return
+                // Centers barely moved — compute final inertia using batch distances
+                let final_dists = batch_squared_distances(x_ref, &centers, &x_norms);
                 let inertia: f64 = (0..n_samples)
-                    .map(|i| {
-                        let ci = labels[i] as usize;
-                        let xi = x_row(i);
-                        let c = centers.row(ci);
-                        let c_s = c.as_slice().expect("SAFETY: standard-layout array");
-                        crate::linalg::squared_euclidean_distance(xi, c_s)
-                    })
+                    .map(|i| final_dists[[i, labels[i] as usize]])
                     .sum();
                 return (centers, labels, inertia, iter + 1);
             }
         }
 
-        // Compute final inertia at max_iter
+        // Compute final inertia at max_iter using batch distances
+        let final_dists = batch_squared_distances(x_ref, &centers, &x_norms);
         let inertia: f64 = (0..n_samples)
-            .map(|i| {
-                let ci = labels[i] as usize;
-                let xi = x_row(i);
-                let c = centers.row(ci);
-                let c_s = c.as_slice().expect("SAFETY: standard-layout array");
-                crate::linalg::squared_euclidean_distance(xi, c_s)
-            })
+            .map(|i| final_dists[[i, labels[i] as usize]])
             .sum();
 
         (centers, labels, inertia, self.max_iter)
@@ -817,11 +772,11 @@ impl KMeans {
             let new_labels = if let Some(result) = gpu_result {
                 result
             } else {
-                Self::cpu_assign(x, &centers, self.n_clusters, n_samples).0
+                Self::cpu_assign(x, &centers, self.n_clusters, n_samples, None).0
             };
 
             #[cfg(not(feature = "gpu"))]
-            let new_labels = Self::cpu_assign(x, &centers, self.n_clusters, n_samples).0;
+            let new_labels = Self::cpu_assign(x, &centers, self.n_clusters, n_samples, None).0;
 
             labels = new_labels;
 
@@ -857,13 +812,13 @@ impl KMeans {
 
             if center_shift_total < self.tol {
                 // Compute final inertia only on convergence
-                let (_, inertia) = Self::cpu_assign(x, &centers, self.n_clusters, n_samples);
+                let (_, inertia) = Self::cpu_assign(x, &centers, self.n_clusters, n_samples, None);
                 return (centers, labels, inertia, iter + 1);
             }
         }
 
         // Compute final inertia at max_iter
-        let (_, inertia) = Self::cpu_assign(x, &centers, self.n_clusters, n_samples);
+        let (_, inertia) = Self::cpu_assign(x, &centers, self.n_clusters, n_samples, None);
 
         (centers, labels, inertia, self.max_iter)
     }
@@ -1483,7 +1438,7 @@ mod tests {
             Array2::from_shape_vec((3, 3), vec![1.5, 1.8, 2.3, 10.2, 10.0, 10.2, 5.2, 4.8, 5.2])
                 .unwrap();
 
-        let (labels, inertia) = KMeans::cpu_assign(&x, &centers, 3, 8);
+        let (labels, inertia) = KMeans::cpu_assign(&x, &centers, 3, 8, None);
 
         // Compute expected assignments using direct squared Euclidean
         for i in 0..8 {
@@ -1522,7 +1477,7 @@ mod tests {
 
         let centers = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
 
-        let (labels, inertia) = KMeans::cpu_assign(&x, &centers, 2, 4);
+        let (labels, inertia) = KMeans::cpu_assign(&x, &centers, 2, 4, None);
 
         // Points matching centroids should have 0 distance contribution
         assert_eq!(labels[0], 0);
