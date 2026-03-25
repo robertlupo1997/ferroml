@@ -7,6 +7,7 @@
 //!
 //! - **kmeans++ initialization**: Smart centroid initialization for faster convergence
 //! - **Elkan's algorithm**: Triangle inequality bounds to skip ~70% of distance computations
+//! - **Hamerly's algorithm**: Single lower bound per point (O(n) memory) for cache-friendly performance at small k
 //! - **Cluster stability**: Bootstrap-based stability assessment
 //! - **Gap statistic**: Optimal k selection with standard error
 //! - **Silhouette with CI**: Confidence intervals on silhouette scores
@@ -78,14 +79,18 @@ fn batch_squared_distances(
 /// - `Lloyd`: Standard Lloyd's algorithm. Recomputes all distances every iteration.
 /// - `Elkan`: Elkan's algorithm using triangle inequality bounds to skip ~70% of
 ///   distance computations. Generally faster, especially for moderate k.
-/// - `Auto`: Automatically selects Elkan when `k < n/2` and `k <= 256`, otherwise Lloyd.
+/// - `Hamerly`: Hamerly's algorithm with single lower bound per point (O(n) memory).
+///   Best for small k where the reduced memory fits in L1 cache.
+/// - `Auto`: Automatically selects Hamerly for k<=20, Elkan for k<=256, otherwise Lloyd.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KMeansAlgorithm {
     /// Standard Lloyd's algorithm
     Lloyd,
     /// Elkan's algorithm with triangle inequality bounds
     Elkan,
-    /// Automatic selection (Elkan when beneficial, Lloyd otherwise)
+    /// Hamerly's algorithm with single lower bound per point (O(n) memory)
+    Hamerly,
+    /// Automatic selection (Hamerly for k<=20, Elkan for k<=256, Lloyd otherwise)
     Auto,
 }
 
@@ -94,6 +99,7 @@ impl std::fmt::Display for KMeansAlgorithm {
         match self {
             KMeansAlgorithm::Lloyd => write!(f, "lloyd"),
             KMeansAlgorithm::Elkan => write!(f, "elkan"),
+            KMeansAlgorithm::Hamerly => write!(f, "hamerly"),
             KMeansAlgorithm::Auto => write!(f, "auto"),
         }
     }
@@ -114,8 +120,10 @@ impl Default for KMeansAlgorithm {
 /// # Algorithm Variants
 ///
 /// - **Lloyd** (classic): Recomputes all n*k distances each iteration.
-/// - **Elkan** (default via Auto): Uses triangle inequality bounds to skip
+/// - **Elkan**: Uses triangle inequality bounds with O(n*k) lower bounds to skip
 ///   distance computations, typically reducing work by ~70%.
+/// - **Hamerly**: Uses a single lower bound per point (O(n) memory) for better
+///   cache performance at small k. Auto-selected when k<=20.
 ///
 /// # Statistical Extensions
 ///
@@ -344,10 +352,15 @@ impl KMeans {
         match self.algorithm {
             KMeansAlgorithm::Lloyd => KMeansAlgorithm::Lloyd,
             KMeansAlgorithm::Elkan => KMeansAlgorithm::Elkan,
+            KMeansAlgorithm::Hamerly => KMeansAlgorithm::Hamerly,
             KMeansAlgorithm::Auto => {
-                // Elkan has O(n*k) bounds overhead per iteration, which is only worth it
-                // when k is small enough that the skip rate compensates.
-                if self.n_clusters <= 256 && self.n_clusters * 2 <= n_samples {
+                // Three-tier selection:
+                // - Hamerly: O(n) bounds fit in L1 cache, best for small k
+                // - Elkan: O(n*k) bounds, good for moderate k
+                // - Lloyd: No bounds overhead, best for large k
+                if self.n_clusters <= 20 && self.n_clusters * 2 <= n_samples {
+                    KMeansAlgorithm::Hamerly
+                } else if self.n_clusters <= 256 && self.n_clusters * 2 <= n_samples {
                     KMeansAlgorithm::Elkan
                 } else {
                     KMeansAlgorithm::Lloyd
@@ -721,8 +734,351 @@ impl KMeans {
     ) -> (Array2<f64>, Array1<i32>, f64, usize) {
         match self.resolve_algorithm(x.nrows()) {
             KMeansAlgorithm::Elkan => self.run_elkan(x, initial_centers),
+            KMeansAlgorithm::Hamerly => self.run_hamerly(x, initial_centers),
             KMeansAlgorithm::Lloyd | KMeansAlgorithm::Auto => self.run_lloyd(x, initial_centers),
         }
+    }
+
+    /// Run Hamerly's KMeans algorithm.
+    ///
+    /// Uses a single lower bound per point (O(n) memory) instead of Elkan's O(n*k).
+    /// The reduced memory footprint fits in L1 cache for typical n, giving better
+    /// cache performance at small k (<=20). When a point's bounds are insufficient,
+    /// all k distances are recomputed (no per-center lower bounds to consult).
+    fn run_hamerly(
+        &self,
+        x: &Array2<f64>,
+        initial_centers: Array2<f64>,
+    ) -> (Array2<f64>, Array1<i32>, f64, usize) {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+        let k = self.n_clusters;
+        let mut centers = initial_centers;
+        let mut rng = StdRng::seed_from_u64(self.random_state.unwrap_or(42));
+
+        // Ensure contiguous layout for cache-friendly access
+        let x_contig;
+        let x_ref = if x.is_standard_layout() {
+            x
+        } else {
+            x_contig = x.as_standard_layout().into_owned();
+            &x_contig
+        };
+        let x_data = x_ref.as_slice().expect("SAFETY: standard-layout array");
+
+        let x_row = |i: usize| -> &[f64] { &x_data[i * n_features..(i + 1) * n_features] };
+
+        // Runtime parallel dispatch
+        #[cfg(feature = "parallel")]
+        let use_parallel = n_samples >= PARALLEL_MIN_SAMPLES;
+        #[cfg(not(feature = "parallel"))]
+        let use_parallel = false;
+
+        // Precompute row norms once
+        let x_norms = compute_row_norms(x_ref);
+
+        // --- Initial full assignment ---
+        let mut labels = Array1::<i32>::zeros(n_samples);
+        let mut upper = vec![0.0f64; n_samples]; // u[i]: upper bound on d(x_i, c_{a_i})
+        let mut lower = vec![0.0f64; n_samples]; // l[i]: lower bound on d(x_i, second-closest)
+
+        {
+            let init_sq_dists = batch_squared_distances(x_ref, &centers, &x_norms);
+            for i in 0..n_samples {
+                let mut min_sq = f64::MAX;
+                let mut min_idx = 0usize;
+                let mut second_min_sq = f64::MAX;
+                for j in 0..k {
+                    let sq = init_sq_dists[[i, j]];
+                    if sq < min_sq {
+                        second_min_sq = min_sq;
+                        min_sq = sq;
+                        min_idx = j;
+                    } else if sq < second_min_sq {
+                        second_min_sq = sq;
+                    }
+                }
+                labels[i] = min_idx as i32;
+                upper[i] = min_sq.sqrt();
+                lower[i] = second_min_sq.sqrt();
+            }
+        }
+
+        // Pre-allocate working buffers
+        let mut new_centers = Array2::zeros((k, n_features));
+        let mut counts = vec![0usize; k];
+        let mut s = vec![0.0f64; k]; // s[j] = 0.5 * min_{j'!=j} d(c_j, c_j')
+
+        for iter in 0..self.max_iter {
+            // Extract centers as contiguous flat slice
+            let centers_contig;
+            let centers_ref = if centers.is_standard_layout() {
+                &centers
+            } else {
+                centers_contig = centers.as_standard_layout().into_owned();
+                &centers_contig
+            };
+            let centers_data = centers_ref.as_slice().expect("SAFETY: standard-layout");
+            let center_row_fn =
+                |j: usize| -> &[f64] { &centers_data[j * n_features..(j + 1) * n_features] };
+
+            // Step 1: Compute s[j] = 0.5 * min_{j'!=j} d(c_j, c_j')
+            for j in 0..k {
+                s[j] = f64::MAX;
+                let cj_s = center_row_fn(j);
+                for jp in 0..k {
+                    if j == jp {
+                        continue;
+                    }
+                    let cjp_s = center_row_fn(jp);
+                    let dist = crate::linalg::squared_euclidean_distance(cj_s, cjp_s).sqrt();
+                    let half_dist = dist * 0.5;
+                    if half_dist < s[j] {
+                        s[j] = half_dist;
+                    }
+                }
+            }
+
+            // Step 2: For each point, check bounds and possibly reassign
+            if use_parallel {
+                #[cfg(feature = "parallel")]
+                {
+                    use rayon::prelude::*;
+                    let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
+                    let labels_slice = labels.as_slice_mut().expect("SAFETY: contiguous");
+
+                    upper
+                        .par_iter_mut()
+                        .zip(lower.par_iter_mut())
+                        .zip(labels_slice.par_iter_mut())
+                        .enumerate()
+                        .with_min_len(chunk_size)
+                        .for_each(|(i, ((ub, lb), label))| {
+                            let ai = *label as usize;
+
+                            // Hamerly filter: if upper bound <= max(s[a_i], lower[i]), skip
+                            let m = s[ai].max(*lb);
+                            if *ub <= m {
+                                return;
+                            }
+
+                            // Tighten upper bound
+                            let xi = &x_data[i * n_features..(i + 1) * n_features];
+                            let c_ai = &centers_data[ai * n_features..(ai + 1) * n_features];
+                            *ub = crate::linalg::squared_euclidean_distance(xi, c_ai).sqrt();
+
+                            // Re-check after tightening
+                            if *ub <= m {
+                                return;
+                            }
+
+                            // Recompute all k distances for this point
+                            let mut min_dist = *ub;
+                            let mut min_idx = ai;
+                            let mut second_min_dist = f64::MAX;
+                            for j in 0..k {
+                                if j == ai {
+                                    if *ub < second_min_dist {
+                                        second_min_dist = *ub;
+                                    }
+                                    continue;
+                                }
+                                let c_j = &centers_data[j * n_features..(j + 1) * n_features];
+                                let d_j = crate::linalg::squared_euclidean_distance(xi, c_j).sqrt();
+                                if d_j < min_dist {
+                                    second_min_dist = min_dist;
+                                    min_dist = d_j;
+                                    min_idx = j;
+                                } else if d_j < second_min_dist {
+                                    second_min_dist = d_j;
+                                }
+                            }
+                            *label = min_idx as i32;
+                            *ub = min_dist;
+                            *lb = second_min_dist;
+                        });
+                }
+            } else {
+                for i in 0..n_samples {
+                    let ai = labels[i] as usize;
+
+                    let m = s[ai].max(lower[i]);
+                    if upper[i] <= m {
+                        continue;
+                    }
+
+                    // Tighten upper bound
+                    let xi = x_row(i);
+                    let c_ai = center_row_fn(ai);
+                    upper[i] = crate::linalg::squared_euclidean_distance(xi, c_ai).sqrt();
+
+                    if upper[i] <= m {
+                        continue;
+                    }
+
+                    // Recompute all k distances
+                    let mut min_dist = upper[i];
+                    let mut min_idx = ai;
+                    let mut second_min_dist = f64::MAX;
+                    for j in 0..k {
+                        if j == ai {
+                            if upper[i] < second_min_dist {
+                                second_min_dist = upper[i];
+                            }
+                            continue;
+                        }
+                        let c_j = center_row_fn(j);
+                        let d_j = crate::linalg::squared_euclidean_distance(xi, c_j).sqrt();
+                        if d_j < min_dist {
+                            second_min_dist = min_dist;
+                            min_dist = d_j;
+                            min_idx = j;
+                        } else if d_j < second_min_dist {
+                            second_min_dist = d_j;
+                        }
+                    }
+                    labels[i] = min_idx as i32;
+                    upper[i] = min_dist;
+                    lower[i] = second_min_dist;
+                }
+            }
+
+            // Step 3: Compute new centers
+            if use_parallel {
+                #[cfg(feature = "parallel")]
+                {
+                    use rayon::prelude::*;
+                    let chunk_size = (n_samples / rayon::current_num_threads().max(1)).max(64);
+
+                    let (par_centers, par_counts) = (0..n_samples)
+                        .into_par_iter()
+                        .with_min_len(chunk_size)
+                        .fold(
+                            || (vec![0.0f64; k * n_features], vec![0usize; k]),
+                            |(mut acc_centers, mut acc_counts), i| {
+                                let ci = labels[i] as usize;
+                                let xi = &x_data[i * n_features..(i + 1) * n_features];
+                                let offset = ci * n_features;
+                                for f in 0..n_features {
+                                    acc_centers[offset + f] += xi[f];
+                                }
+                                acc_counts[ci] += 1;
+                                (acc_centers, acc_counts)
+                            },
+                        )
+                        .reduce(
+                            || (vec![0.0f64; k * n_features], vec![0usize; k]),
+                            |(mut a_c, mut a_n), (b_c, b_n)| {
+                                for idx in 0..a_c.len() {
+                                    a_c[idx] += b_c[idx];
+                                }
+                                for j in 0..k {
+                                    a_n[j] += b_n[j];
+                                }
+                                (a_c, a_n)
+                            },
+                        );
+
+                    for j in 0..k {
+                        if par_counts[j] > 0 {
+                            let scale = 1.0 / par_counts[j] as f64;
+                            let offset = j * n_features;
+                            for f in 0..n_features {
+                                new_centers[[j, f]] = par_centers[offset + f] * scale;
+                            }
+                        } else {
+                            let idx = rng.random_range(0..n_samples);
+                            new_centers.row_mut(j).assign(&x.row(idx));
+                        }
+                    }
+                    counts.copy_from_slice(&par_counts);
+                }
+            } else {
+                new_centers.fill(0.0);
+                counts.fill(0);
+
+                for i in 0..n_samples {
+                    let ci = labels[i] as usize;
+                    let x_row_i = x.row(i);
+                    let mut center_row_mut = new_centers.row_mut(ci);
+                    center_row_mut += &x_row_i;
+                    counts[ci] += 1;
+                }
+
+                for j in 0..k {
+                    if counts[j] > 0 {
+                        let scale = 1.0 / counts[j] as f64;
+                        new_centers.row_mut(j).mapv_inplace(|v| v * scale);
+                    } else {
+                        let idx = rng.random_range(0..n_samples);
+                        new_centers.row_mut(j).assign(&x.row(idx));
+                    }
+                }
+            }
+
+            // Step 4: Compute center movement deltas (Euclidean distances)
+            let new_centers_contig;
+            let new_centers_ref = if new_centers.is_standard_layout() {
+                &new_centers
+            } else {
+                new_centers_contig = new_centers.as_standard_layout().into_owned();
+                &new_centers_contig
+            };
+            let new_centers_data = new_centers_ref.as_slice().expect("SAFETY: standard-layout");
+            let deltas: Vec<f64> = (0..k)
+                .map(|j| {
+                    let old_cj_s = center_row_fn(j);
+                    let new_cj_s = &new_centers_data[j * n_features..(j + 1) * n_features];
+                    crate::linalg::squared_euclidean_distance(old_cj_s, new_cj_s).sqrt()
+                })
+                .collect();
+
+            // Step 5: Update bounds using max_delta (conservative Hamerly update)
+            let max_delta = deltas.iter().cloned().fold(0.0f64, f64::max);
+
+            if use_parallel {
+                #[cfg(feature = "parallel")]
+                {
+                    use rayon::prelude::*;
+                    let labels_slice = labels.as_slice().expect("SAFETY: contiguous");
+                    upper
+                        .par_iter_mut()
+                        .zip(lower.par_iter_mut())
+                        .zip(labels_slice.par_iter())
+                        .for_each(|((ub, lb), &label)| {
+                            let ai = label as usize;
+                            *ub += deltas[ai];
+                            *lb = (*lb - max_delta).max(0.0);
+                        });
+                }
+            } else {
+                for i in 0..n_samples {
+                    let ai = labels[i] as usize;
+                    upper[i] += deltas[ai];
+                    lower[i] = (lower[i] - max_delta).max(0.0);
+                }
+            }
+
+            std::mem::swap(&mut centers, &mut new_centers);
+
+            // Check convergence: sum of squared center shifts < tol
+            let center_shift_total: f64 = deltas.iter().map(|d| d * d).sum();
+            if center_shift_total < self.tol {
+                let final_dists = batch_squared_distances(x_ref, &centers, &x_norms);
+                let inertia: f64 = (0..n_samples)
+                    .map(|i| final_dists[[i, labels[i] as usize]])
+                    .sum();
+                return (centers, labels, inertia, iter + 1);
+            }
+        }
+
+        // Compute final inertia at max_iter
+        let final_dists = batch_squared_distances(x_ref, &centers, &x_norms);
+        let inertia: f64 = (0..n_samples)
+            .map(|i| final_dists[[i, labels[i] as usize]])
+            .sum();
+
+        (centers, labels, inertia, self.max_iter)
     }
 
     /// Run Lloyd's KMeans algorithm (standard).
