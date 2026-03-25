@@ -765,7 +765,7 @@ impl PyLogisticRegression {
     ///     "sag"/"saga" use Stochastic Average Gradient — O(d) per iteration,
     ///     best for large datasets (n > 10K).
     #[new]
-    #[pyo3(signature = (fit_intercept=true, max_iter=100, tol=1e-8, l2_penalty=0.0, confidence_level=0.95, solver="auto"))]
+    #[pyo3(signature = (fit_intercept=true, max_iter=100, tol=1e-8, l2_penalty=0.0, confidence_level=0.95, solver="auto", compute_diagnostics=true))]
     fn new(
         fit_intercept: bool,
         max_iter: usize,
@@ -773,6 +773,7 @@ impl PyLogisticRegression {
         l2_penalty: f64,
         confidence_level: f64,
         solver: &str,
+        compute_diagnostics: bool,
     ) -> Self {
         let inner = LogisticRegression::new()
             .with_fit_intercept(fit_intercept)
@@ -780,7 +781,8 @@ impl PyLogisticRegression {
             .with_tol(tol)
             .with_l2_penalty(l2_penalty)
             .with_confidence_level(confidence_level)
-            .with_solver(LogisticSolver::from_str_lossy(solver));
+            .with_solver(LogisticSolver::from_str_lossy(solver))
+            .with_compute_diagnostics(compute_diagnostics);
         Self { inner }
     }
 

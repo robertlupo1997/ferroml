@@ -58,6 +58,7 @@ from ferroml import ferroml as _native
 
 # Classes
 KMeans = _native.clustering.KMeans
+MiniBatchKMeans = _native.clustering.MiniBatchKMeans
 DBSCAN = _native.clustering.DBSCAN
 AgglomerativeClustering = _native.clustering.AgglomerativeClustering
 GaussianMixture = _native.clustering.GaussianMixture
@@ -75,6 +76,7 @@ hopkins_statistic = _native.clustering.hopkins_statistic
 __all__ = [
     # Classes
     "KMeans",
+    "MiniBatchKMeans",
     "DBSCAN",
     "AgglomerativeClustering",
     "GaussianMixture",

@@ -4,20 +4,480 @@
     "python_version": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
     "cpu": "x86_64",
     "numpy_version": "2.4.2",
-    "timestamp": "2026-03-24T22:34:50.283212",
+    "timestamp": "2026-03-24T23:46:44.002840",
     "sklearn_version": "1.8.0",
     "xgboost_version": "3.2.0",
     "lightgbm_version": "4.6.0"
   },
   "results": [
     {
+      "algorithm": "LinearRegression",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.257,
+      "predict_time_ms": 0.008,
+      "score": 0.999572
+    },
+    {
+      "algorithm": "LinearRegression",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.657,
+      "predict_time_ms": 0.062,
+      "score": 0.999572
+    },
+    {
+      "algorithm": "Ridge",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.244,
+      "predict_time_ms": 0.008,
+      "score": 0.999573
+    },
+    {
+      "algorithm": "Ridge",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.613,
+      "predict_time_ms": 0.052,
+      "score": 0.999573
+    },
+    {
+      "algorithm": "Lasso",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.079,
+      "predict_time_ms": 0.007,
+      "score": 0.486227
+    },
+    {
+      "algorithm": "Lasso",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.455,
+      "predict_time_ms": 0.058,
+      "score": 0.486227
+    },
+    {
+      "algorithm": "LogisticRegression",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.498,
+      "predict_time_ms": 0.01,
+      "score": 0.83
+    },
+    {
+      "algorithm": "LogisticRegression",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 3.247,
+      "predict_time_ms": 0.09,
+      "score": 0.835
+    },
+    {
+      "algorithm": "DecisionTreeRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 6.062,
+      "predict_time_ms": 0.019,
+      "score": 0.024593
+    },
+    {
+      "algorithm": "DecisionTreeRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 9.199,
+      "predict_time_ms": 0.097,
+      "score": -0.030895
+    },
+    {
+      "algorithm": "DecisionTreeClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 5.893,
+      "predict_time_ms": 0.013,
+      "score": 0.855
+    },
+    {
+      "algorithm": "DecisionTreeClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 9.231,
+      "predict_time_ms": 0.085,
+      "score": 0.835
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 23.997,
+      "predict_time_ms": 0.717,
+      "score": 0.409112
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 497.186,
+      "predict_time_ms": 6.548,
+      "score": 0.643418
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 1652.441,
+      "predict_time_ms": 0.938,
+      "score": 0.654008
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 35.436,
+      "predict_time_ms": 0.714,
+      "score": 0.463732
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 21.175,
+      "predict_time_ms": 0.509,
+      "score": 0.91
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 180.691,
+      "predict_time_ms": 6.065,
+      "score": 0.95
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 402.919,
+      "predict_time_ms": 0.557,
+      "score": 0.92
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 36.36,
+      "predict_time_ms": 0.798,
+      "score": 0.85
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 377.446,
+      "predict_time_ms": 0.885,
+      "score": 0.769032
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 491.186,
+      "predict_time_ms": 0.85,
+      "score": 0.768562
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 316.919,
+      "predict_time_ms": 0.429,
+      "score": 0.781563
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 21.824,
+      "predict_time_ms": 0.55,
+      "score": 0.817619
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 345.95,
+      "predict_time_ms": 0.792,
+      "score": 0.885
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 546.175,
+      "predict_time_ms": 0.732,
+      "score": 0.94
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 293.683,
+      "predict_time_ms": 0.495,
+      "score": 0.945
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 24.066,
+      "predict_time_ms": 1.022,
+      "score": 0.95
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 97.414,
+      "predict_time_ms": 0.478,
+      "score": 0.820317
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 90.832,
+      "predict_time_ms": 1.15,
+      "score": 0.809532
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 432.201,
+      "predict_time_ms": 0.826,
+      "score": 0.781563
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 19.879,
+      "predict_time_ms": 0.763,
+      "score": 0.817619
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 100.664,
+      "predict_time_ms": 0.49,
+      "score": 0.935
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 101.927,
+      "predict_time_ms": 1.045,
+      "score": 0.94
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 480.783,
+      "predict_time_ms": 0.521,
+      "score": 0.945
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 24.366,
+      "predict_time_ms": 0.938,
+      "score": 0.95
+    },
+    {
+      "algorithm": "KNeighborsClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.193,
+      "predict_time_ms": 1.236,
+      "score": 0.905
+    },
+    {
+      "algorithm": "KNeighborsClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.315,
+      "predict_time_ms": 1.398,
+      "score": 0.905
+    },
+    {
+      "algorithm": "SVC",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 26.099,
+      "predict_time_ms": 2.416,
+      "score": 0.955
+    },
+    {
+      "algorithm": "SVC",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 8.086,
+      "predict_time_ms": 2.474,
+      "score": 0.945
+    },
+    {
+      "algorithm": "GaussianNB",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.094,
+      "predict_time_ms": 0.024,
+      "score": 0.83
+    },
+    {
+      "algorithm": "GaussianNB",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.819,
+      "predict_time_ms": 0.18,
+      "score": 0.83
+    },
+    {
+      "algorithm": "StandardScaler",
+      "library": "ferroml",
+      "task": "preprocessing",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.043,
+      "predict_time_ms": 0.011,
+      "score": null
+    },
+    {
+      "algorithm": "StandardScaler",
+      "library": "sklearn",
+      "task": "preprocessing",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.406,
+      "predict_time_ms": 0.104,
+      "score": null
+    },
+    {
+      "algorithm": "PCA",
+      "library": "ferroml",
+      "task": "preprocessing",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.14,
+      "predict_time_ms": 0.019,
+      "score": null
+    },
+    {
+      "algorithm": "PCA",
+      "library": "sklearn",
+      "task": "preprocessing",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 0.5,
+      "predict_time_ms": 0.095,
+      "score": null
+    },
+    {
       "algorithm": "KMeans",
       "library": "ferroml",
       "task": "clustering",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 1.223,
-      "predict_time_ms": 0.014,
+      "fit_time_ms": 0.886,
+      "predict_time_ms": 0.024,
       "score": 16074.907144
     },
     {
@@ -26,9 +486,469 @@
       "task": "clustering",
       "n_samples": 1000,
       "n_features": 20,
-      "fit_time_ms": 13.427,
-      "predict_time_ms": 0.19,
+      "fit_time_ms": 13.441,
+      "predict_time_ms": 0.152,
       "score": 16074.907144
+    },
+    {
+      "algorithm": "LinearRegression",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1.232,
+      "predict_time_ms": 0.04,
+      "score": 0.999688
+    },
+    {
+      "algorithm": "LinearRegression",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1.61,
+      "predict_time_ms": 0.083,
+      "score": 0.999688
+    },
+    {
+      "algorithm": "Ridge",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1.008,
+      "predict_time_ms": 0.042,
+      "score": 0.999688
+    },
+    {
+      "algorithm": "Ridge",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1.01,
+      "predict_time_ms": 0.075,
+      "score": 0.999688
+    },
+    {
+      "algorithm": "Lasso",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 0.54,
+      "predict_time_ms": 0.05,
+      "score": 0.604452
+    },
+    {
+      "algorithm": "Lasso",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 0.763,
+      "predict_time_ms": 0.08,
+      "score": 0.604453
+    },
+    {
+      "algorithm": "LogisticRegression",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 13.931,
+      "predict_time_ms": 0.041,
+      "score": 0.835
+    },
+    {
+      "algorithm": "LogisticRegression",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 5.759,
+      "predict_time_ms": 0.105,
+      "score": 0.835
+    },
+    {
+      "algorithm": "DecisionTreeRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 42.54,
+      "predict_time_ms": 0.144,
+      "score": 0.50461
+    },
+    {
+      "algorithm": "DecisionTreeRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 47.572,
+      "predict_time_ms": 0.156,
+      "score": 0.508328
+    },
+    {
+      "algorithm": "DecisionTreeClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 41.827,
+      "predict_time_ms": 0.076,
+      "score": 0.902
+    },
+    {
+      "algorithm": "DecisionTreeClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 56.483,
+      "predict_time_ms": 0.125,
+      "score": 0.898
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 136.041,
+      "predict_time_ms": 1.709,
+      "score": 0.371234
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 2785.697,
+      "predict_time_ms": 13.242,
+      "score": 0.78934
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 2552.506,
+      "predict_time_ms": 1.399,
+      "score": 0.780632
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 75.478,
+      "predict_time_ms": 1.13,
+      "score": 0.62346
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 137.684,
+      "predict_time_ms": 1.776,
+      "score": 0.913
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 762.827,
+      "predict_time_ms": 10.217,
+      "score": 0.94
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1087.281,
+      "predict_time_ms": 1.532,
+      "score": 0.935
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 63.765,
+      "predict_time_ms": 1.209,
+      "score": 0.892
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 2397.73,
+      "predict_time_ms": 1.092,
+      "score": 0.917818
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 2863.416,
+      "predict_time_ms": 2.563,
+      "score": 0.918068
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 470.794,
+      "predict_time_ms": 0.972,
+      "score": 0.918111
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 41.295,
+      "predict_time_ms": 1.275,
+      "score": 0.922467
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 2370.521,
+      "predict_time_ms": 1.125,
+      "score": 0.917
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 2953.313,
+      "predict_time_ms": 2.352,
+      "score": 0.956
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 64.124,
+      "predict_time_ms": 0.536,
+      "score": 0.956
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 38.215,
+      "predict_time_ms": 1.303,
+      "score": 0.954
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 231.815,
+      "predict_time_ms": 2.254,
+      "score": 0.921073
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 128.491,
+      "predict_time_ms": 1.266,
+      "score": 0.924706
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 80.647,
+      "predict_time_ms": 0.455,
+      "score": 0.918111
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 39.483,
+      "predict_time_ms": 1.391,
+      "score": 0.922467
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 215.902,
+      "predict_time_ms": 2.248,
+      "score": 0.951
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 126.869,
+      "predict_time_ms": 1.448,
+      "score": 0.952
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 352.26,
+      "predict_time_ms": 0.899,
+      "score": 0.956
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 41.48,
+      "predict_time_ms": 1.833,
+      "score": 0.954
+    },
+    {
+      "algorithm": "KNeighborsClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1.015,
+      "predict_time_ms": 9.437,
+      "score": 0.954
+    },
+    {
+      "algorithm": "KNeighborsClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 0.383,
+      "predict_time_ms": 4.301,
+      "score": 0.954
+    },
+    {
+      "algorithm": "SVC",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1033.412,
+      "predict_time_ms": 39.118,
+      "score": 0.969
+    },
+    {
+      "algorithm": "SVC",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 105.032,
+      "predict_time_ms": 36.91,
+      "score": 0.956
+    },
+    {
+      "algorithm": "GaussianNB",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 0.367,
+      "predict_time_ms": 0.106,
+      "score": 0.815
+    },
+    {
+      "algorithm": "GaussianNB",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1.164,
+      "predict_time_ms": 0.224,
+      "score": 0.815
+    },
+    {
+      "algorithm": "StandardScaler",
+      "library": "ferroml",
+      "task": "preprocessing",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 0.171,
+      "predict_time_ms": 0.054,
+      "score": null
+    },
+    {
+      "algorithm": "StandardScaler",
+      "library": "sklearn",
+      "task": "preprocessing",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 0.655,
+      "predict_time_ms": 0.108,
+      "score": null
+    },
+    {
+      "algorithm": "PCA",
+      "library": "ferroml",
+      "task": "preprocessing",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 0.428,
+      "predict_time_ms": 0.065,
+      "score": null
+    },
+    {
+      "algorithm": "PCA",
+      "library": "sklearn",
+      "task": "preprocessing",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 0.483,
+      "predict_time_ms": 0.101,
+      "score": null
     },
     {
       "algorithm": "KMeans",
@@ -36,8 +956,8 @@
       "task": "clustering",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 8.369,
-      "predict_time_ms": 0.06,
+      "fit_time_ms": 4.031,
+      "predict_time_ms": 0.075,
       "score": 80200.918078
     },
     {
@@ -46,9 +966,469 @@
       "task": "clustering",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 19.702,
-      "predict_time_ms": 0.255,
+      "fit_time_ms": 14.895,
+      "predict_time_ms": 0.206,
       "score": 80200.918078
+    },
+    {
+      "algorithm": "LinearRegression",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 2.244,
+      "predict_time_ms": 0.067,
+      "score": 0.999297
+    },
+    {
+      "algorithm": "LinearRegression",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 2.545,
+      "predict_time_ms": 0.086,
+      "score": 0.999297
+    },
+    {
+      "algorithm": "Ridge",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1.889,
+      "predict_time_ms": 0.066,
+      "score": 0.999297
+    },
+    {
+      "algorithm": "Ridge",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1.158,
+      "predict_time_ms": 0.067,
+      "score": 0.999297
+    },
+    {
+      "algorithm": "Lasso",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.787,
+      "predict_time_ms": 0.066,
+      "score": 0.388931
+    },
+    {
+      "algorithm": "Lasso",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.793,
+      "predict_time_ms": 0.071,
+      "score": 0.388931
+    },
+    {
+      "algorithm": "LogisticRegression",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 24.694,
+      "predict_time_ms": 0.081,
+      "score": 0.8175
+    },
+    {
+      "algorithm": "LogisticRegression",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 8.48,
+      "predict_time_ms": 0.095,
+      "score": 0.8175
+    },
+    {
+      "algorithm": "DecisionTreeRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 84.309,
+      "predict_time_ms": 0.219,
+      "score": 0.502125
+    },
+    {
+      "algorithm": "DecisionTreeRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 96.31,
+      "predict_time_ms": 0.207,
+      "score": 0.503633
+    },
+    {
+      "algorithm": "DecisionTreeClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 91.787,
+      "predict_time_ms": 0.192,
+      "score": 0.866
+    },
+    {
+      "algorithm": "DecisionTreeClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 119.237,
+      "predict_time_ms": 0.202,
+      "score": 0.8635
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 303.524,
+      "predict_time_ms": 2.99,
+      "score": 0.421747
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 5889.456,
+      "predict_time_ms": 21.364,
+      "score": 0.786271
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1863.744,
+      "predict_time_ms": 1.081,
+      "score": 0.778473
+    },
+    {
+      "algorithm": "RandomForestRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 93.41,
+      "predict_time_ms": 1.359,
+      "score": 0.553714
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 323.187,
+      "predict_time_ms": 2.739,
+      "score": 0.8935
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1603.759,
+      "predict_time_ms": 16.612,
+      "score": 0.93
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1471.391,
+      "predict_time_ms": 1.805,
+      "score": 0.921
+    },
+    {
+      "algorithm": "RandomForestClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 90.57,
+      "predict_time_ms": 1.718,
+      "score": 0.865
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 5593.444,
+      "predict_time_ms": 1.627,
+      "score": 0.929753
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 6157.029,
+      "predict_time_ms": 4.882,
+      "score": 0.929611
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 422.298,
+      "predict_time_ms": 1.171,
+      "score": 0.932335
+    },
+    {
+      "algorithm": "GradientBoostingRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 50.42,
+      "predict_time_ms": 1.799,
+      "score": 0.933587
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 5435.521,
+      "predict_time_ms": 1.398,
+      "score": 0.906
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 6373.124,
+      "predict_time_ms": 4.428,
+      "score": 0.9285
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 226.057,
+      "predict_time_ms": 1.014,
+      "score": 0.9335
+    },
+    {
+      "algorithm": "GradientBoostingClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 52.745,
+      "predict_time_ms": 2.162,
+      "score": 0.939
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "ferroml",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 415.571,
+      "predict_time_ms": 5.451,
+      "score": 0.930093
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "sklearn",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 146.622,
+      "predict_time_ms": 2.136,
+      "score": 0.93129
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "xgboost",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 557.0,
+      "predict_time_ms": 0.578,
+      "score": 0.932335
+    },
+    {
+      "algorithm": "HistGradientBoostingRegressor",
+      "library": "lightgbm",
+      "task": "regression",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 51.851,
+      "predict_time_ms": 1.847,
+      "score": 0.933587
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 399.921,
+      "predict_time_ms": 4.392,
+      "score": 0.931
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 142.681,
+      "predict_time_ms": 2.257,
+      "score": 0.9355
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "xgboost",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 359.38,
+      "predict_time_ms": 1.261,
+      "score": 0.9335
+    },
+    {
+      "algorithm": "HistGradientBoostingClassifier",
+      "library": "lightgbm",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 53.032,
+      "predict_time_ms": 2.14,
+      "score": 0.939
+    },
+    {
+      "algorithm": "KNeighborsClassifier",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 2.321,
+      "predict_time_ms": 29.884,
+      "score": 0.9425
+    },
+    {
+      "algorithm": "KNeighborsClassifier",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.424,
+      "predict_time_ms": 13.671,
+      "score": 0.9425
+    },
+    {
+      "algorithm": "SVC",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 1015.446,
+      "predict_time_ms": 39.575,
+      "score": 0.969
+    },
+    {
+      "algorithm": "SVC",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 5000,
+      "n_features": 20,
+      "fit_time_ms": 99.835,
+      "predict_time_ms": 34.463,
+      "score": 0.956
+    },
+    {
+      "algorithm": "GaussianNB",
+      "library": "ferroml",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.769,
+      "predict_time_ms": 0.211,
+      "score": 0.7995
+    },
+    {
+      "algorithm": "GaussianNB",
+      "library": "sklearn",
+      "task": "classification",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1.915,
+      "predict_time_ms": 0.378,
+      "score": 0.7995
+    },
+    {
+      "algorithm": "StandardScaler",
+      "library": "ferroml",
+      "task": "preprocessing",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.362,
+      "predict_time_ms": 0.134,
+      "score": null
+    },
+    {
+      "algorithm": "StandardScaler",
+      "library": "sklearn",
+      "task": "preprocessing",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 1.098,
+      "predict_time_ms": 0.163,
+      "score": null
+    },
+    {
+      "algorithm": "PCA",
+      "library": "ferroml",
+      "task": "preprocessing",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.737,
+      "predict_time_ms": 0.129,
+      "score": null
+    },
+    {
+      "algorithm": "PCA",
+      "library": "sklearn",
+      "task": "preprocessing",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 0.661,
+      "predict_time_ms": 0.145,
+      "score": null
     },
     {
       "algorithm": "KMeans",
@@ -56,8 +1436,8 @@
       "task": "clustering",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 8.436,
-      "predict_time_ms": 0.128,
+      "fit_time_ms": 14.87,
+      "predict_time_ms": 0.129,
       "score": 159775.178721
     },
     {
@@ -66,8 +1446,8 @@
       "task": "clustering",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 23.958,
-      "predict_time_ms": 0.454,
+      "fit_time_ms": 18.938,
+      "predict_time_ms": 0.271,
       "score": 159775.178721
     }
   ]

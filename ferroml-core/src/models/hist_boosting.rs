@@ -369,22 +369,45 @@ impl BinMapperInfo for BinMapper {
     }
 }
 
-/// Convert binned Array2 to column-major Vec<Vec<u8>> for cache-friendly histogram building.
-/// When the input is already in column-major (Fortran) order, each column is contiguous in memory,
-/// so `as_slice().unwrap()` provides a direct view that is then cheaply memcpy'd into a Vec.
-fn to_col_major(x_binned: &Array2<u8>) -> Vec<Vec<u8>> {
-    x_binned
-        .columns()
-        .into_iter()
-        .map(|col| {
-            // If column is contiguous (column-major layout), use fast slice copy
-            if let Some(slice) = col.as_slice() {
-                slice.to_vec()
-            } else {
-                col.to_vec()
+/// Contiguous column-major storage for binned features.
+/// Single allocation with stride-based indexing eliminates pointer indirection
+/// compared to `Vec<Vec<u8>>`.
+struct ColMajorBins {
+    data: Vec<u8>,
+    n_samples: usize,
+    n_features: usize,
+}
+
+impl ColMajorBins {
+    /// Get a slice for a feature column.
+    #[inline]
+    fn col(&self, feature: usize) -> &[u8] {
+        let start = feature * self.n_samples;
+        &self.data[start..start + self.n_samples]
+    }
+}
+
+/// Convert binned Array2 to contiguous column-major storage for cache-friendly histogram building.
+fn to_col_major(x_binned: &Array2<u8>) -> ColMajorBins {
+    let n_samples = x_binned.nrows();
+    let n_features = x_binned.ncols();
+    let mut data = vec![0u8; n_features * n_samples];
+    for f in 0..n_features {
+        let offset = f * n_samples;
+        let col = x_binned.column(f);
+        if let Some(slice) = col.as_slice() {
+            data[offset..offset + n_samples].copy_from_slice(slice);
+        } else {
+            for (i, &val) in col.iter().enumerate() {
+                data[offset + i] = val;
             }
-        })
-        .collect()
+        }
+    }
+    ColMajorBins {
+        data,
+        n_samples,
+        n_features,
+    }
 }
 
 /// A single histogram bin — packs gradient, hessian, and count into one cache line.
@@ -790,13 +813,13 @@ impl HistTreeBuilder {
     /// Build a tree using leaf-wise growth strategy (column-major optimized)
     fn build_leaf_wise_col_major(
         &self,
-        x_col_major: &[Vec<u8>],
+        x_col_major: &ColMajorBins,
         gradients: &[f64],
         hessians: &[f64],
         sample_indices: &[usize],
         n_bins_per_feature: &[usize],
     ) -> HistTree {
-        let n_features = x_col_major.len();
+        let n_features = x_col_major.n_features;
         let mut tree = HistTree::new();
 
         if sample_indices.is_empty() {
@@ -874,7 +897,7 @@ impl HistTreeBuilder {
 
             // Partition samples using column-major data (cache-friendly)
             let parent_samples = &node_samples[node_idx];
-            let feature_col = &x_col_major[split.feature_idx];
+            let feature_col = x_col_major.col(split.feature_idx);
             let threshold = split.bin_threshold;
 
             let mut left_samples = Vec::with_capacity(split.n_left);
@@ -1268,13 +1291,13 @@ impl HistTreeBuilder {
     ///   pattern, making the check effectively free (< 1% overhead measured).
     fn build_histograms_col_major(
         &self,
-        x_col_major: &[Vec<u8>],
+        x_col_major: &ColMajorBins,
         gradients: &[f64],
         hessians: &[f64],
         indices: &[usize],
         n_bins_per_feature: &[usize],
     ) -> Vec<Histogram> {
-        let n_features = x_col_major.len();
+        let n_features = x_col_major.n_features;
 
         // SAFETY: Validate that all sample indices are in bounds for gradient/hessian arrays.
         // Bin indices may exceed n_bins (NaN -> missing_bin), which is why runtime bounds
@@ -1296,7 +1319,7 @@ impl HistTreeBuilder {
                     .map(|f| {
                         let n_bins = n_bins_per_feature[f];
                         let mut histogram = Histogram::new(n_bins);
-                        let col = &x_col_major[f];
+                        let col = x_col_major.col(f);
                         let bins = &mut histogram.bins;
 
                         // Process 4 samples at a time for CPU pipelining
@@ -1354,7 +1377,7 @@ impl HistTreeBuilder {
 
         for f in 0..n_features {
             let n_bins = n_bins_per_feature[f];
-            let col = &x_col_major[f];
+            let col = x_col_major.col(f);
             let bins = &mut histograms[f].bins;
 
             // Process 4 samples at a time for CPU pipelining

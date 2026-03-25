@@ -297,7 +297,7 @@ def bench_logistic_regression(n_samples: int, n_features: int) -> List[Benchmark
     constructors = {}
     if has_ferroml():
         from ferroml.linear import LogisticRegression as FerroLR
-        constructors["ferroml"] = lambda: FerroLR()
+        constructors["ferroml"] = lambda: FerroLR(compute_diagnostics=False)
     if has_sklearn():
         from sklearn.linear_model import LogisticRegression as SkLR
         constructors["sklearn"] = lambda: SkLR(max_iter=1000)

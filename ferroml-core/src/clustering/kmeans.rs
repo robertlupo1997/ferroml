@@ -1665,8 +1665,534 @@ impl ClusteringStatistics for KMeans {
     }
 }
 
-/// Compute squared Euclidean distance between two vectors
+// =============================================================================
+// MiniBatchKMeans
+// =============================================================================
+
+/// Mini-Batch K-Means clustering algorithm (Sculley, 2010).
 ///
+/// Trades clustering quality for speed by processing random mini-batches
+/// instead of the full dataset each iteration. Ideal for large datasets
+/// where full KMeans is too slow.
+///
+/// # Algorithm
+///
+/// Each iteration:
+/// 1. Sample `batch_size` points uniformly at random
+/// 2. Assign each point to nearest center (GEMM batch distances)
+/// 3. Update centers with learning rate decay: `c_j += (1/count_j) * (x_i - c_j)`
+///
+/// # Statistical Extensions
+///
+/// - `cluster_stability()` - Bootstrap-based cluster stability scores
+/// - `silhouette_with_ci()` - Silhouette scores with confidence intervals
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MiniBatchKMeans {
+    /// Number of clusters
+    n_clusters: usize,
+    /// Size of each mini-batch
+    batch_size: usize,
+    /// Maximum number of iterations
+    max_iter: usize,
+    /// Number of initialization runs
+    n_init: usize,
+    /// Convergence tolerance (EWA inertia)
+    tol: f64,
+    /// Reassignment ratio for dead centers
+    reassignment_ratio: f64,
+    /// Random seed
+    random_state: Option<u64>,
+    /// Initialization method
+    init: KMeansInit,
+
+    // Fitted state
+    cluster_centers_: Option<Array2<f64>>,
+    labels_: Option<Array1<i32>>,
+    inertia_: Option<f64>,
+    n_iter_: Option<usize>,
+    /// Per-center sample counts accumulated during fit
+    counts_: Option<Array1<f64>>,
+}
+
+/// Initialization method for MiniBatchKMeans
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KMeansInit {
+    /// kmeans++ initialization
+    KMeansPlusPlus,
+    /// Random initialization
+    Random,
+}
+
+impl Default for KMeansInit {
+    fn default() -> Self {
+        KMeansInit::KMeansPlusPlus
+    }
+}
+
+impl Default for MiniBatchKMeans {
+    fn default() -> Self {
+        Self::new(8)
+    }
+}
+
+impl MiniBatchKMeans {
+    /// Create a new MiniBatchKMeans model
+    pub fn new(n_clusters: usize) -> Self {
+        Self {
+            n_clusters,
+            batch_size: 1024,
+            max_iter: 100,
+            n_init: 3,
+            tol: 0.0,
+            reassignment_ratio: 0.01,
+            random_state: None,
+            init: KMeansInit::KMeansPlusPlus,
+            cluster_centers_: None,
+            labels_: None,
+            inertia_: None,
+            n_iter_: None,
+            counts_: None,
+        }
+    }
+
+    /// Set batch size
+    pub fn batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
+
+    /// Set maximum iterations
+    pub fn max_iter(mut self, max_iter: usize) -> Self {
+        self.max_iter = max_iter;
+        self
+    }
+
+    /// Set number of initialization runs
+    pub fn n_init(mut self, n_init: usize) -> Self {
+        self.n_init = n_init;
+        self
+    }
+
+    /// Set convergence tolerance
+    pub fn tol(mut self, tol: f64) -> Self {
+        self.tol = tol;
+        self
+    }
+
+    /// Set reassignment ratio for dead centers
+    pub fn reassignment_ratio(mut self, ratio: f64) -> Self {
+        self.reassignment_ratio = ratio;
+        self
+    }
+
+    /// Set random seed
+    pub fn random_state(mut self, seed: u64) -> Self {
+        self.random_state = Some(seed);
+        self
+    }
+
+    /// Set initialization method
+    pub fn init(mut self, init: KMeansInit) -> Self {
+        self.init = init;
+        self
+    }
+
+    /// Get cluster centers
+    pub fn cluster_centers(&self) -> Option<&Array2<f64>> {
+        self.cluster_centers_.as_ref()
+    }
+
+    /// Get inertia
+    pub fn inertia(&self) -> Option<f64> {
+        self.inertia_
+    }
+
+    /// Get number of iterations
+    pub fn n_iter(&self) -> Option<usize> {
+        self.n_iter_
+    }
+
+    /// Initialize centers using kmeans++ on a sample
+    fn init_centers(&self, x: &Array2<f64>, rng: &mut StdRng) -> Array2<f64> {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+
+        match self.init {
+            KMeansInit::KMeansPlusPlus => {
+                // Use kmeans++ on a subsample for efficiency
+                let init_size = (self.batch_size * 3).min(n_samples);
+                let indices: Vec<usize> = if init_size < n_samples {
+                    let mut idx: Vec<usize> = (0..n_samples).collect();
+                    idx.shuffle(rng);
+                    idx.truncate(init_size);
+                    idx
+                } else {
+                    (0..n_samples).collect()
+                };
+
+                let subsample =
+                    Array2::from_shape_fn((indices.len(), n_features), |(i, j)| x[[indices[i], j]]);
+
+                // Reuse KMeans kmeans++ init logic inline
+                let mut centers = Array2::zeros((self.n_clusters, n_features));
+                let first_idx = rng.random_range(0..subsample.nrows());
+                centers.row_mut(0).assign(&subsample.row(first_idx));
+
+                for k in 1..self.n_clusters {
+                    let mut min_sq_dists = Array1::from_elem(subsample.nrows(), f64::MAX);
+                    for i in 0..subsample.nrows() {
+                        for j in 0..k {
+                            let dist_sq = squared_euclidean(&subsample.row(i), &centers.row(j));
+                            if dist_sq < min_sq_dists[i] {
+                                min_sq_dists[i] = dist_sq;
+                            }
+                        }
+                    }
+                    let total: f64 = min_sq_dists.sum();
+                    if total <= 0.0 {
+                        let idx = rng.random_range(0..subsample.nrows());
+                        centers.row_mut(k).assign(&subsample.row(idx));
+                    } else {
+                        let threshold = rng.random::<f64>() * total;
+                        let mut cumsum = 0.0;
+                        for i in 0..subsample.nrows() {
+                            cumsum += min_sq_dists[i];
+                            if cumsum >= threshold {
+                                centers.row_mut(k).assign(&subsample.row(i));
+                                break;
+                            }
+                        }
+                    }
+                }
+                centers
+            }
+            KMeansInit::Random => {
+                let mut indices: Vec<usize> = (0..n_samples).collect();
+                indices.shuffle(rng);
+                Array2::from_shape_fn((self.n_clusters, n_features), |(i, j)| x[[indices[i], j]])
+            }
+        }
+    }
+
+    /// Run one mini-batch KMeans pass, return (centers, counts, inertia, n_iter)
+    fn run_minibatch(
+        &self,
+        x: &Array2<f64>,
+        mut centers: Array2<f64>,
+        rng: &mut StdRng,
+    ) -> (Array2<f64>, Array1<f64>, f64, usize) {
+        let n_samples = x.nrows();
+        let n_features = x.ncols();
+        let batch_size = self.batch_size.min(n_samples);
+
+        let mut counts = Array1::zeros(self.n_clusters);
+        let reassign_threshold = self.reassignment_ratio * batch_size as f64;
+
+        let mut ewa_inertia = f64::NAN;
+        let ewa_alpha = batch_size as f64 / (batch_size as f64 + 1.0);
+        let mut n_iter = 0;
+
+        let mut batch_indices: Vec<usize> = (0..n_samples).collect();
+
+        for iter in 0..self.max_iter {
+            n_iter = iter + 1;
+
+            // Sample a mini-batch
+            batch_indices.shuffle(rng);
+            let batch_idx = &batch_indices[..batch_size];
+
+            // Build batch matrix
+            let batch =
+                Array2::from_shape_fn((batch_size, n_features), |(i, j)| x[[batch_idx[i], j]]);
+
+            // Assign batch points to nearest center
+            let batch_norms = compute_row_norms(&batch);
+            let dists = batch_squared_distances(&batch, &centers, &batch_norms);
+
+            let mut batch_labels = vec![0usize; batch_size];
+            let mut batch_inertia = 0.0;
+            for i in 0..batch_size {
+                let mut min_dist = f64::MAX;
+                let mut min_idx = 0usize;
+                for j in 0..self.n_clusters {
+                    let d = dists[[i, j]];
+                    if d < min_dist {
+                        min_dist = d;
+                        min_idx = j;
+                    }
+                }
+                batch_labels[i] = min_idx;
+                batch_inertia += min_dist;
+            }
+
+            // Update EWA inertia for convergence detection
+            let batch_inertia_normalized = batch_inertia / batch_size as f64;
+            if ewa_inertia.is_nan() {
+                ewa_inertia = batch_inertia_normalized;
+            } else {
+                let new_ewa =
+                    ewa_alpha * ewa_inertia + (1.0 - ewa_alpha) * batch_inertia_normalized;
+                if self.tol > 0.0 && ewa_inertia > 0.0 {
+                    let change = (new_ewa - ewa_inertia).abs() / ewa_inertia;
+                    if change < self.tol {
+                        ewa_inertia = new_ewa;
+                        break;
+                    }
+                }
+                ewa_inertia = new_ewa;
+            }
+
+            // Update centers with learning rate decay
+            for i in 0..batch_size {
+                let cluster = batch_labels[i];
+                counts[cluster] += 1.0;
+                let lr = 1.0 / counts[cluster];
+                for j in 0..n_features {
+                    centers[[cluster, j]] += lr * (batch[[i, j]] - centers[[cluster, j]]);
+                }
+            }
+
+            // Reassign dead centers
+            for k in 0..self.n_clusters {
+                if counts[k] < reassign_threshold {
+                    // Pick a random point from the batch
+                    let idx = rng.random_range(0..batch_size);
+                    centers.row_mut(k).assign(&batch.row(idx));
+                    counts[k] = 1.0;
+                }
+            }
+        }
+
+        (centers, counts, ewa_inertia, n_iter)
+    }
+
+    /// Perform a partial_fit step (streaming mini-batch update)
+    pub fn partial_fit(&mut self, x: &Array2<f64>) -> Result<()> {
+        crate::validation::validate_unsupervised_input(x)?;
+
+        let n_samples = x.nrows();
+        if n_samples == 0 {
+            return Ok(());
+        }
+
+        let mut rng = match self.random_state {
+            Some(seed) => StdRng::seed_from_u64(seed),
+            None => StdRng::from_os_rng(),
+        };
+
+        // Initialize if not fitted
+        if self.cluster_centers_.is_none() {
+            let centers = self.init_centers(x, &mut rng);
+            self.cluster_centers_ = Some(centers);
+            self.counts_ = Some(Array1::zeros(self.n_clusters));
+        }
+
+        let mut centers = self.cluster_centers_.take().unwrap();
+        let mut counts = self.counts_.take().unwrap();
+        let n_features = x.ncols();
+        let batch_size = self.batch_size.min(n_samples);
+
+        // Sample and assign
+        let mut indices: Vec<usize> = (0..n_samples).collect();
+        indices.shuffle(&mut rng);
+        let batch_idx = &indices[..batch_size];
+
+        let batch = Array2::from_shape_fn((batch_size, n_features), |(i, j)| x[[batch_idx[i], j]]);
+
+        let batch_norms = compute_row_norms(&batch);
+        let dists = batch_squared_distances(&batch, &centers, &batch_norms);
+
+        for i in 0..batch_size {
+            let mut min_dist = f64::MAX;
+            let mut min_idx = 0usize;
+            for j in 0..self.n_clusters {
+                let d = dists[[i, j]];
+                if d < min_dist {
+                    min_dist = d;
+                    min_idx = j;
+                }
+            }
+            counts[min_idx] += 1.0;
+            let lr = 1.0 / counts[min_idx];
+            for j in 0..n_features {
+                centers[[min_idx, j]] += lr * (batch[[i, j]] - centers[[min_idx, j]]);
+            }
+        }
+
+        self.cluster_centers_ = Some(centers);
+        self.counts_ = Some(counts);
+        Ok(())
+    }
+}
+
+impl ClusteringModel for MiniBatchKMeans {
+    fn fit(&mut self, x: &Array2<f64>) -> Result<()> {
+        crate::validation::validate_unsupervised_input(x)?;
+
+        if self.n_clusters == 0 {
+            return Err(FerroError::invalid_input(
+                "Parameter n_clusters must be >= 1, got 0",
+            ));
+        }
+
+        let n_samples = x.nrows();
+        if n_samples < self.n_clusters {
+            return Err(FerroError::InvalidInput(format!(
+                "n_samples={} should be >= n_clusters={}",
+                n_samples, self.n_clusters
+            )));
+        }
+
+        let base_seed = self.random_state.unwrap_or_else(rand::random);
+
+        let mut best_centers = None;
+        let mut best_inertia = f64::MAX;
+        let mut best_n_iter = 0;
+        let mut best_counts = None;
+
+        for run in 0..self.n_init {
+            let mut rng = StdRng::seed_from_u64(base_seed.wrapping_add(run as u64));
+            let centers = self.init_centers(x, &mut rng);
+            let (centers, counts, _ewa_inertia, n_iter) = self.run_minibatch(x, centers, &mut rng);
+
+            // Compute actual inertia on full dataset for comparison
+            let (_, inertia) = KMeans::cpu_assign(x, &centers, self.n_clusters, n_samples, None);
+
+            if inertia < best_inertia {
+                best_inertia = inertia;
+                best_centers = Some(centers);
+                best_n_iter = n_iter;
+                best_counts = Some(counts);
+            }
+        }
+
+        let centers = best_centers.unwrap();
+        let (labels, inertia) = KMeans::cpu_assign(x, &centers, self.n_clusters, n_samples, None);
+
+        self.cluster_centers_ = Some(centers);
+        self.labels_ = Some(labels);
+        self.inertia_ = Some(inertia);
+        self.n_iter_ = Some(best_n_iter);
+        self.counts_ = best_counts;
+
+        Ok(())
+    }
+
+    fn predict(&self, x: &Array2<f64>) -> Result<Array1<i32>> {
+        let centers = self
+            .cluster_centers_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("MiniBatchKMeans has not been fitted yet"))?;
+
+        let n_samples = x.nrows();
+        let (labels, _) = KMeans::cpu_assign(x, centers, self.n_clusters, n_samples, None);
+        Ok(labels)
+    }
+
+    fn labels(&self) -> Option<&Array1<i32>> {
+        self.labels_.as_ref()
+    }
+
+    fn is_fitted(&self) -> bool {
+        self.cluster_centers_.is_some()
+    }
+}
+
+impl ClusteringStatistics for MiniBatchKMeans {
+    fn cluster_stability(&self, x: &Array2<f64>, n_bootstrap: usize) -> Result<Array1<f64>> {
+        let _centers = self
+            .cluster_centers_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("MiniBatchKMeans has not been fitted yet"))?;
+        let base_labels = self
+            .labels_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("MiniBatchKMeans has not been fitted yet"))?;
+
+        let n_samples = x.nrows();
+        let mut stability = Array1::zeros(self.n_clusters);
+        let mut rng = StdRng::seed_from_u64(self.random_state.unwrap_or(42));
+
+        for _ in 0..n_bootstrap {
+            // Bootstrap sample
+            let indices: Vec<usize> = (0..n_samples)
+                .map(|_| rng.random_range(0..n_samples))
+                .collect();
+            let x_boot = Array2::from_shape_fn((n_samples, x.ncols()), |(i, j)| x[[indices[i], j]]);
+
+            let mut boot_model = MiniBatchKMeans::new(self.n_clusters)
+                .batch_size(self.batch_size)
+                .max_iter(self.max_iter)
+                .n_init(1)
+                .random_state(rng.random());
+            if boot_model.fit(&x_boot).is_ok() {
+                let boot_labels = boot_model
+                    .predict(x)
+                    .unwrap_or_else(|_| base_labels.clone());
+                // Compare label agreement per cluster
+                for k in 0..self.n_clusters {
+                    let mut agree = 0usize;
+                    let mut total = 0usize;
+                    for i in 0..n_samples {
+                        if base_labels[i] == k as i32 {
+                            total += 1;
+                            // Find which boot cluster most of this cluster maps to
+                            if boot_labels[i] == base_labels[i] {
+                                agree += 1;
+                            }
+                        }
+                    }
+                    if total > 0 {
+                        stability[k] += agree as f64 / total as f64;
+                    }
+                }
+            }
+        }
+
+        stability /= n_bootstrap as f64;
+        Ok(stability)
+    }
+
+    fn silhouette_with_ci(&self, x: &Array2<f64>, confidence: f64) -> Result<(f64, f64, f64)> {
+        let labels = self
+            .labels_
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("MiniBatchKMeans has not been fitted yet"))?;
+
+        let base_score = crate::clustering::metrics::silhouette_score(x, labels)?;
+
+        let mut rng = StdRng::seed_from_u64(self.random_state.unwrap_or(42));
+        let n_bootstrap = 100;
+        let mut scores = Vec::with_capacity(n_bootstrap);
+
+        let n_samples = x.nrows();
+        for _ in 0..n_bootstrap {
+            let indices: Vec<usize> = (0..n_samples)
+                .map(|_| rng.random_range(0..n_samples))
+                .collect();
+            let x_boot = Array2::from_shape_fn((n_samples, x.ncols()), |(i, j)| x[[indices[i], j]]);
+            let labels_boot = Array1::from_shape_fn(n_samples, |i| labels[indices[i]]);
+
+            if let Ok(s) = crate::clustering::metrics::silhouette_score(&x_boot, &labels_boot) {
+                scores.push(s);
+            }
+        }
+
+        if scores.is_empty() {
+            return Ok((base_score, base_score, base_score));
+        }
+
+        scores.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let alpha = 1.0 - confidence;
+        let lo_idx = ((alpha / 2.0) * scores.len() as f64).floor() as usize;
+        let hi_idx = ((1.0 - alpha / 2.0) * scores.len() as f64).ceil() as usize;
+        let lo = scores[lo_idx.min(scores.len() - 1)];
+        let hi = scores[hi_idx.min(scores.len() - 1)];
+
+        Ok((base_score, lo, hi))
+    }
+}
+
 /// Uses SIMD-accelerated computation when the `simd` feature is enabled via
 /// the shared `linalg` module.
 #[inline]
@@ -1888,6 +2414,61 @@ mod tests {
             matches!(status, crate::ConvergenceStatus::Converged { .. }),
             "Easy data should converge"
         );
+    }
+
+    #[test]
+    fn test_minibatch_kmeans_basic() {
+        let x = Array2::from_shape_vec(
+            (8, 2),
+            vec![
+                1.0, 1.0, 1.1, 1.1, 1.0, 1.1, 1.1, 1.0, 10.0, 10.0, 10.1, 10.1, 10.0, 10.1, 10.1,
+                10.0,
+            ],
+        )
+        .unwrap();
+
+        let mut mbk = MiniBatchKMeans::new(2).random_state(42).batch_size(4);
+        mbk.fit(&x).unwrap();
+
+        assert!(mbk.is_fitted());
+        assert!(mbk.cluster_centers().is_some());
+        let labels = mbk.labels().unwrap();
+        assert_eq!(labels.len(), 8);
+        // First 4 in one cluster, last 4 in another
+        assert_eq!(labels[0], labels[1]);
+        assert_eq!(labels[1], labels[2]);
+        assert_eq!(labels[4], labels[5]);
+        assert_ne!(labels[0], labels[4]);
+        assert!(mbk.inertia().unwrap() < 1.0);
+    }
+
+    #[test]
+    fn test_minibatch_kmeans_predict() {
+        let x = Array2::from_shape_vec((4, 2), vec![1.0, 1.0, 1.5, 1.5, 10.0, 10.0, 10.5, 10.5])
+            .unwrap();
+
+        let mut mbk = MiniBatchKMeans::new(2).random_state(42);
+        mbk.fit(&x).unwrap();
+
+        let new_x = Array2::from_shape_vec((2, 2), vec![1.2, 1.2, 10.2, 10.2]).unwrap();
+        let labels = mbk.predict(&new_x).unwrap();
+        assert_eq!(labels.len(), 2);
+        assert_ne!(labels[0], labels[1]);
+    }
+
+    #[test]
+    fn test_minibatch_kmeans_partial_fit() {
+        let x1 = Array2::from_shape_vec((4, 2), vec![1.0, 1.0, 1.1, 1.1, 10.0, 10.0, 10.1, 10.1])
+            .unwrap();
+        let x2 = Array2::from_shape_vec((4, 2), vec![1.0, 1.2, 1.2, 1.0, 10.0, 10.2, 10.2, 10.0])
+            .unwrap();
+
+        let mut mbk = MiniBatchKMeans::new(2).random_state(42).batch_size(4);
+        mbk.partial_fit(&x1).unwrap();
+        assert!(mbk.cluster_centers().is_some());
+        mbk.partial_fit(&x2).unwrap();
+        // Should still have centers after two partial_fit calls
+        assert!(mbk.cluster_centers().is_some());
     }
 
     #[test]

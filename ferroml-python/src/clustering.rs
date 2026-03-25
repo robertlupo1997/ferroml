@@ -18,7 +18,7 @@ use crate::pickle::{getstate, setstate};
 use ferroml_core::clustering::metrics;
 use ferroml_core::clustering::{
     AgglomerativeClustering, ClusteringModel, ClusteringStatistics, CovarianceType,
-    GaussianMixture, GmmInit, KMeans, KMeansAlgorithm, DBSCAN,
+    GaussianMixture, GmmInit, KMeans, KMeansAlgorithm, KMeansInit, MiniBatchKMeans, DBSCAN,
 };
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -1503,12 +1503,197 @@ impl PyHDBSCAN {
 // Module registration
 // =============================================================================
 
-/// Register the clustering submodule.
+/// Mini-Batch K-Means Clustering (Sculley, 2010).
+///
+/// Trades clustering quality for speed by processing random mini-batches.
+///
+/// Parameters
+/// ----------
+/// n_clusters : int, optional (default=8)
+///     Number of clusters.
+/// batch_size : int, optional (default=1024)
+///     Size of each mini-batch.
+/// max_iter : int, optional (default=100)
+///     Maximum iterations.
+/// n_init : int, optional (default=3)
+///     Number of initialization runs.
+/// tol : float, optional (default=0.0)
+///     Convergence tolerance on EWA inertia.
+/// reassignment_ratio : float, optional (default=0.01)
+///     Ratio for reassigning dead centers.
+/// random_state : int, optional
+///     Random seed.
+/// init : str, optional (default="k-means++")
+///     Initialization method: "k-means++" or "random".
+#[pyclass(name = "MiniBatchKMeans", module = "ferroml.clustering")]
+pub struct PyMiniBatchKMeans {
+    inner: MiniBatchKMeans,
+}
+
+#[pymethods]
+impl PyMiniBatchKMeans {
+    #[new]
+    #[pyo3(signature = (n_clusters=8, batch_size=1024, max_iter=100, n_init=3, tol=0.0, reassignment_ratio=0.01, random_state=None, init="k-means++"))]
+    fn new(
+        n_clusters: usize,
+        batch_size: usize,
+        max_iter: usize,
+        n_init: usize,
+        tol: f64,
+        reassignment_ratio: f64,
+        random_state: Option<u64>,
+        init: &str,
+    ) -> PyResult<Self> {
+        let init_method = match init {
+            "k-means++" => KMeansInit::KMeansPlusPlus,
+            "random" => KMeansInit::Random,
+            other => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Unknown init '{}'. Expected 'k-means++' or 'random'",
+                    other
+                )));
+            }
+        };
+
+        let mut inner = MiniBatchKMeans::new(n_clusters)
+            .batch_size(batch_size)
+            .max_iter(max_iter)
+            .n_init(n_init)
+            .tol(tol)
+            .reassignment_ratio(reassignment_ratio)
+            .init(init_method);
+
+        if let Some(seed) = random_state {
+            inner = inner.random_state(seed);
+        }
+
+        Ok(Self { inner })
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(crate::errors::ferro_to_pyerr)?;
+        Ok(slf)
+    }
+
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
+        let x_arr = to_owned_array_2d(x);
+        let labels = self
+            .inner
+            .predict(&x_arr)
+            .map_err(crate::errors::ferro_to_pyerr)?;
+        Ok(labels.into_pyarray(py))
+    }
+
+    fn fit_predict<'py>(
+        &mut self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        check_array_finite(&x)?;
+        let x_arr = to_owned_array_2d(x);
+        let labels = self
+            .inner
+            .fit_predict(&x_arr)
+            .map_err(crate::errors::ferro_to_pyerr)?;
+        Ok(labels.into_pyarray(py))
+    }
+
+    fn partial_fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .partial_fit(&x_arr)
+            .map_err(crate::errors::ferro_to_pyerr)?;
+        Ok(slf)
+    }
+
+    #[getter]
+    fn cluster_centers_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let centers = self.inner.cluster_centers().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(centers.clone().into_pyarray(py))
+    }
+
+    #[getter]
+    fn labels_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<i32>>> {
+        let labels = self.inner.labels().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        Ok(labels.clone().into_pyarray(py))
+    }
+
+    #[getter]
+    fn inertia_(&self) -> PyResult<f64> {
+        self.inner.inertia().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    #[getter]
+    fn n_iter_(&self) -> PyResult<usize> {
+        self.inner.n_iter().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })
+    }
+
+    fn score(&self, x: PyReadonlyArray2<'_, f64>) -> PyResult<f64> {
+        check_array_finite(&x)?;
+        let x_arr = to_owned_array_2d(x);
+        let labels = self
+            .inner
+            .predict(&x_arr)
+            .map_err(crate::errors::ferro_to_pyerr)?;
+        let centers = self.inner.cluster_centers().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Model not fitted. Call fit() first.")
+        })?;
+        let mut inertia = 0.0;
+        for (i, &label) in labels.iter().enumerate() {
+            let center = centers.row(label as usize);
+            let diff = &x_arr.row(i) - &center;
+            inertia += diff.dot(&diff);
+        }
+        Ok(-inertia)
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+        getstate(py, &self.inner)
+    }
+
+    pub fn __setstate__(&mut self, state: &Bound<'_, PyBytes>) -> PyResult<()> {
+        self.inner = setstate(state.as_bytes())?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "MiniBatchKMeans(n_clusters={})",
+            self.inner.cluster_centers().map_or(0, |c| c.nrows())
+        )
+    }
+}
+
 pub fn register_clustering_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
     let clustering_module = PyModule::new(parent_module.py(), "clustering")?;
 
     // Add classes
     clustering_module.add_class::<PyKMeans>()?;
+    clustering_module.add_class::<PyMiniBatchKMeans>()?;
     clustering_module.add_class::<PyDBSCAN>()?;
     clustering_module.add_class::<PyAgglomerativeClustering>()?;
     clustering_module.add_class::<PyGaussianMixture>()?;

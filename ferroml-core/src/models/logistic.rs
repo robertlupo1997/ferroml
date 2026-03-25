@@ -148,6 +148,10 @@ pub struct LogisticRegression {
     pub warm_start: bool,
     /// Solver strategy for optimization
     pub solver: LogisticSolver,
+    /// Whether to compute statistical diagnostics during fit.
+    /// Set to false for pure fit-predict workloads to skip Fisher info,
+    /// residuals, and covariance matrix computation.
+    pub compute_diagnostics: bool,
 
     // Fitted parameters (None before fit)
     coefficients: Option<Array1<f64>>,
@@ -219,6 +223,7 @@ impl LogisticRegression {
             class_weight: ClassWeight::Uniform,
             warm_start: false,
             solver: LogisticSolver::Auto,
+            compute_diagnostics: true,
             coefficients: None,
             intercept: None,
             n_features: None,
@@ -342,6 +347,15 @@ impl LogisticRegression {
     #[must_use]
     pub fn with_solver(mut self, solver: LogisticSolver) -> Self {
         self.solver = solver;
+        self
+    }
+
+    /// Set whether to compute statistical diagnostics during fit.
+    /// When false, Fisher information, covariance matrix, residuals, and
+    /// deviance statistics are skipped, significantly improving fit speed.
+    #[must_use]
+    pub fn with_compute_diagnostics(mut self, compute: bool) -> Self {
+        self.compute_diagnostics = compute;
         self
     }
 
@@ -671,67 +685,6 @@ impl LogisticRegression {
             }
         }
 
-        // Compute final probabilities
-        let eta = x_design.dot(&beta);
-        let mu = eta.mapv(sigmoid);
-
-        // Compute weighted log-likelihood
-        let log_likelihood = compute_weighted_log_likelihood(y, &mu, sample_weights);
-
-        // Compute null log-likelihood (intercept only)
-        // Use weighted mean for the null model
-        let total_weight: f64 = sample_weights.sum();
-        let p_bar = if total_weight > 0.0 {
-            y.iter()
-                .zip(sample_weights.iter())
-                .map(|(&yi, &wi)| yi * wi)
-                .sum::<f64>()
-                / total_weight
-        } else {
-            y.mean().unwrap_or(0.5)
-        };
-        let null_log_likelihood = y
-            .iter()
-            .zip(sample_weights.iter())
-            .map(|(&yi, &wi)| {
-                wi * if yi > 0.5 {
-                    p_bar.max(1e-15).ln()
-                } else {
-                    (1.0 - p_bar).max(1e-15).ln()
-                }
-            })
-            .sum::<f64>();
-
-        // Deviance
-        let deviance = -2.0 * log_likelihood;
-        let null_deviance = -2.0 * null_log_likelihood;
-
-        // Compute Fisher information matrix (= X'WX at convergence)
-        // Use efficient matrix multiplication: X'WX = (W^½X)' @ (W^½X)
-        let w_final = &mu * &(1.0 - &mu) * sample_weights;
-        let w_clamped_final: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
-
-        // Reuse scaled_x buffer for Fisher info computation
-        scaled_x.assign(x_design);
-        for i in 0..n {
-            let w_sqrt = w_clamped_final[i].sqrt();
-            scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
-        }
-        let fisher_info = scaled_x.t().dot(&scaled_x);
-
-        // Covariance matrix = (Fisher information)^-1
-        let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
-
-        // Standard errors
-        let mut coef_std_errors = Array1::zeros(p);
-        for i in 0..p {
-            coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
-        }
-
-        // Compute residuals
-        let deviance_residuals = compute_deviance_residuals(y, &mu);
-        let pearson_residuals = compute_pearson_residuals(y, &mu);
-
         // Store coefficients
         let n_orig = if self.fit_intercept { p - 1 } else { p };
         if self.fit_intercept {
@@ -739,30 +692,82 @@ impl LogisticRegression {
             self.coefficients = Some(beta.slice(s![1..]).to_owned());
         } else {
             self.intercept = Some(0.0);
-            self.coefficients = Some(beta);
+            self.coefficients = Some(beta.clone());
         }
 
         self.n_features = Some(n_orig);
 
-        // Store fitted data
-        self.fitted_data = Some(FittedLogisticData {
-            n_samples: n,
-            n_features: n_orig,
-            n_iterations: n_iter,
-            converged,
-            fitted_probabilities: mu,
-            y: y.clone(),
-            deviance_residuals,
-            pearson_residuals,
-            coef_std_errors,
-            coef_covariance,
-            log_likelihood,
-            null_log_likelihood,
-            deviance,
-            null_deviance,
-            df_residuals: n.saturating_sub(p),
-            df_null: n.saturating_sub(1),
-        });
+        // Compute diagnostics only when requested
+        if self.compute_diagnostics {
+            let eta = x_design.dot(&beta);
+            let mu = eta.mapv(sigmoid);
+
+            let log_likelihood = compute_weighted_log_likelihood(y, &mu, sample_weights);
+
+            let total_weight: f64 = sample_weights.sum();
+            let p_bar = if total_weight > 0.0 {
+                y.iter()
+                    .zip(sample_weights.iter())
+                    .map(|(&yi, &wi)| yi * wi)
+                    .sum::<f64>()
+                    / total_weight
+            } else {
+                y.mean().unwrap_or(0.5)
+            };
+            let null_log_likelihood = y
+                .iter()
+                .zip(sample_weights.iter())
+                .map(|(&yi, &wi)| {
+                    wi * if yi > 0.5 {
+                        p_bar.max(1e-15).ln()
+                    } else {
+                        (1.0 - p_bar).max(1e-15).ln()
+                    }
+                })
+                .sum::<f64>();
+
+            let deviance = -2.0 * log_likelihood;
+            let null_deviance = -2.0 * null_log_likelihood;
+
+            let w_final = &mu * &(1.0 - &mu) * sample_weights;
+            let w_clamped_final: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
+
+            scaled_x.assign(x_design);
+            for i in 0..n {
+                let w_sqrt = w_clamped_final[i].sqrt();
+                scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
+            }
+            let fisher_info = scaled_x.t().dot(&scaled_x);
+
+            let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
+
+            let mut coef_std_errors = Array1::zeros(p);
+            for i in 0..p {
+                coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
+            }
+
+            let deviance_residuals = compute_deviance_residuals(y, &mu);
+            let pearson_residuals = compute_pearson_residuals(y, &mu);
+
+            self.fitted_data = Some(FittedLogisticData {
+                n_samples: n,
+                n_features: n_orig,
+                n_iterations: n_iter,
+                converged,
+                fitted_probabilities: mu,
+                y: y.clone(),
+                deviance_residuals,
+                pearson_residuals,
+                coef_std_errors,
+                coef_covariance,
+                log_likelihood,
+                null_log_likelihood,
+                deviance,
+                null_deviance,
+                df_residuals: n.saturating_sub(p),
+                df_null: n.saturating_sub(1),
+            });
+        }
 
         if converged {
             self.convergence_status_ =
@@ -859,93 +864,94 @@ impl LogisticRegression {
 
         let beta = Array1::from_vec(best_param.clone());
 
-        // Compute final probabilities and diagnostics (same as IRLS post-processing)
-        let eta = x_design.dot(&beta);
-        let mu = eta.mapv(sigmoid);
-
-        let log_likelihood = compute_weighted_log_likelihood(y, &mu, sample_weights);
-
-        let total_weight: f64 = sample_weights.sum();
-        let p_bar = if total_weight > 0.0 {
-            y.iter()
-                .zip(sample_weights.iter())
-                .map(|(&yi, &wi)| yi * wi)
-                .sum::<f64>()
-                / total_weight
-        } else {
-            y.mean().unwrap_or(0.5)
-        };
-        let null_log_likelihood = y
-            .iter()
-            .zip(sample_weights.iter())
-            .map(|(&yi, &wi)| {
-                wi * if yi > 0.5 {
-                    p_bar.max(1e-15).ln()
-                } else {
-                    (1.0 - p_bar).max(1e-15).ln()
-                }
-            })
-            .sum::<f64>();
-
-        let deviance = -2.0 * log_likelihood;
-        let null_deviance = -2.0 * null_log_likelihood;
-
-        // Fisher information for standard errors
-        let w_final = &mu * &(1.0 - &mu) * sample_weights;
-        let w_clamped_final: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
-
-        let mut scaled_x = x_design.clone();
-        for i in 0..n {
-            let w_sqrt = w_clamped_final[i].sqrt();
-            scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
-        }
-        let mut fisher_info = scaled_x.t().dot(&scaled_x);
-
-        if l2_override > 0.0 {
-            let start = usize::from(self.fit_intercept);
-            for i in start..p {
-                fisher_info[[i, i]] += l2_override;
-            }
-        }
-
-        let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
-        let mut coef_std_errors = Array1::zeros(p);
-        for i in 0..p {
-            coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
-        }
-
-        let deviance_residuals = compute_deviance_residuals(y, &mu);
-        let pearson_residuals = compute_pearson_residuals(y, &mu);
-
+        // Store coefficients
         let n_orig = if self.fit_intercept { p - 1 } else { p };
         if self.fit_intercept {
             self.intercept = Some(beta[0]);
             self.coefficients = Some(beta.slice(s![1..]).to_owned());
         } else {
             self.intercept = Some(0.0);
-            self.coefficients = Some(beta);
+            self.coefficients = Some(beta.clone());
         }
 
         self.n_features = Some(n_orig);
 
-        self.fitted_data = Some(FittedLogisticData {
-            n_samples: n,
-            n_features: n_orig,
-            n_iterations: n_iter,
-            converged,
-            fitted_probabilities: mu,
-            y: y.clone(),
-            deviance_residuals,
-            pearson_residuals,
-            coef_std_errors,
-            coef_covariance,
-            log_likelihood,
-            null_log_likelihood,
-            deviance,
-            null_deviance,
-            df_residuals: n.saturating_sub(p),
-            df_null: n.saturating_sub(1),
-        });
+        if self.compute_diagnostics {
+            let eta = x_design.dot(&beta);
+            let mu = eta.mapv(sigmoid);
+
+            let log_likelihood = compute_weighted_log_likelihood(y, &mu, sample_weights);
+
+            let total_weight: f64 = sample_weights.sum();
+            let p_bar = if total_weight > 0.0 {
+                y.iter()
+                    .zip(sample_weights.iter())
+                    .map(|(&yi, &wi)| yi * wi)
+                    .sum::<f64>()
+                    / total_weight
+            } else {
+                y.mean().unwrap_or(0.5)
+            };
+            let null_log_likelihood = y
+                .iter()
+                .zip(sample_weights.iter())
+                .map(|(&yi, &wi)| {
+                    wi * if yi > 0.5 {
+                        p_bar.max(1e-15).ln()
+                    } else {
+                        (1.0 - p_bar).max(1e-15).ln()
+                    }
+                })
+                .sum::<f64>();
+
+            let deviance = -2.0 * log_likelihood;
+            let null_deviance = -2.0 * null_log_likelihood;
+
+            let w_final = &mu * &(1.0 - &mu) * sample_weights;
+            let w_clamped_final: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
+
+            let mut scaled_x = x_design.clone();
+            for i in 0..n {
+                let w_sqrt = w_clamped_final[i].sqrt();
+                scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
+            }
+            let mut fisher_info = scaled_x.t().dot(&scaled_x);
+
+            if l2_override > 0.0 {
+                let start = usize::from(self.fit_intercept);
+                for i in start..p {
+                    fisher_info[[i, i]] += l2_override;
+                }
+            }
+
+            let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
+            let mut coef_std_errors = Array1::zeros(p);
+            for i in 0..p {
+                coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
+            }
+
+            let deviance_residuals = compute_deviance_residuals(y, &mu);
+            let pearson_residuals = compute_pearson_residuals(y, &mu);
+
+            self.fitted_data = Some(FittedLogisticData {
+                n_samples: n,
+                n_features: n_orig,
+                n_iterations: n_iter,
+                converged,
+                fitted_probabilities: mu,
+                y: y.clone(),
+                deviance_residuals,
+                pearson_residuals,
+                coef_std_errors,
+                coef_covariance,
+                log_likelihood,
+                null_log_likelihood,
+                deviance,
+                null_deviance,
+                df_residuals: n.saturating_sub(p),
+                df_null: n.saturating_sub(1),
+            });
+        }
 
         if converged {
             self.convergence_status_ =
@@ -1089,93 +1095,94 @@ impl LogisticRegression {
 
         let n_iter = n_epoch;
 
-        // Post-processing: compute final probabilities and diagnostics
-        let eta = x_design.dot(&beta);
-        let mu = eta.mapv(sigmoid);
-
-        let log_likelihood = compute_weighted_log_likelihood(y, &mu, sample_weights);
-
-        let total_weight: f64 = sample_weights.sum();
-        let p_bar = if total_weight > 0.0 {
-            y.iter()
-                .zip(sample_weights.iter())
-                .map(|(&yi, &wi)| yi * wi)
-                .sum::<f64>()
-                / total_weight
-        } else {
-            y.mean().unwrap_or(0.5)
-        };
-        let null_log_likelihood = y
-            .iter()
-            .zip(sample_weights.iter())
-            .map(|(&yi, &wi)| {
-                wi * if yi > 0.5 {
-                    p_bar.max(1e-15).ln()
-                } else {
-                    (1.0 - p_bar).max(1e-15).ln()
-                }
-            })
-            .sum::<f64>();
-
-        let deviance = -2.0 * log_likelihood;
-        let null_deviance = -2.0 * null_log_likelihood;
-
-        // Fisher information for standard errors
-        let w_final = &mu * &(1.0 - &mu) * sample_weights;
-        let w_clamped_final: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
-
-        let mut scaled_x = x_design.clone();
-        for i in 0..n {
-            let w_sqrt = w_clamped_final[i].sqrt();
-            scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
-        }
-        let mut fisher_info = scaled_x.t().dot(&scaled_x);
-
-        if l2_override > 0.0 {
-            let start = usize::from(self.fit_intercept);
-            for i in start..p {
-                fisher_info[[i, i]] += l2_override;
-            }
-        }
-
-        let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
-        let mut coef_std_errors = Array1::zeros(p);
-        for i in 0..p {
-            coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
-        }
-
-        let deviance_residuals = compute_deviance_residuals(y, &mu);
-        let pearson_residuals = compute_pearson_residuals(y, &mu);
-
+        // Store coefficients
         let n_orig = if self.fit_intercept { p - 1 } else { p };
         if self.fit_intercept {
             self.intercept = Some(beta[0]);
             self.coefficients = Some(beta.slice(s![1..]).to_owned());
         } else {
             self.intercept = Some(0.0);
-            self.coefficients = Some(beta);
+            self.coefficients = Some(beta.clone());
         }
 
         self.n_features = Some(n_orig);
 
-        self.fitted_data = Some(FittedLogisticData {
-            n_samples: n,
-            n_features: n_orig,
-            n_iterations: n_iter,
-            converged,
-            fitted_probabilities: mu,
-            y: y.clone(),
-            deviance_residuals,
-            pearson_residuals,
-            coef_std_errors,
-            coef_covariance,
-            log_likelihood,
-            null_log_likelihood,
-            deviance,
-            null_deviance,
-            df_residuals: n.saturating_sub(p),
-            df_null: n.saturating_sub(1),
-        });
+        if self.compute_diagnostics {
+            let eta = x_design.dot(&beta);
+            let mu = eta.mapv(sigmoid);
+
+            let log_likelihood = compute_weighted_log_likelihood(y, &mu, sample_weights);
+
+            let total_weight: f64 = sample_weights.sum();
+            let p_bar = if total_weight > 0.0 {
+                y.iter()
+                    .zip(sample_weights.iter())
+                    .map(|(&yi, &wi)| yi * wi)
+                    .sum::<f64>()
+                    / total_weight
+            } else {
+                y.mean().unwrap_or(0.5)
+            };
+            let null_log_likelihood = y
+                .iter()
+                .zip(sample_weights.iter())
+                .map(|(&yi, &wi)| {
+                    wi * if yi > 0.5 {
+                        p_bar.max(1e-15).ln()
+                    } else {
+                        (1.0 - p_bar).max(1e-15).ln()
+                    }
+                })
+                .sum::<f64>();
+
+            let deviance = -2.0 * log_likelihood;
+            let null_deviance = -2.0 * null_log_likelihood;
+
+            let w_final = &mu * &(1.0 - &mu) * sample_weights;
+            let w_clamped_final: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
+
+            let mut scaled_x = x_design.clone();
+            for i in 0..n {
+                let w_sqrt = w_clamped_final[i].sqrt();
+                scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt);
+            }
+            let mut fisher_info = scaled_x.t().dot(&scaled_x);
+
+            if l2_override > 0.0 {
+                let start = usize::from(self.fit_intercept);
+                for i in start..p {
+                    fisher_info[[i, i]] += l2_override;
+                }
+            }
+
+            let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
+            let mut coef_std_errors = Array1::zeros(p);
+            for i in 0..p {
+                coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
+            }
+
+            let deviance_residuals = compute_deviance_residuals(y, &mu);
+            let pearson_residuals = compute_pearson_residuals(y, &mu);
+
+            self.fitted_data = Some(FittedLogisticData {
+                n_samples: n,
+                n_features: n_orig,
+                n_iterations: n_iter,
+                converged,
+                fitted_probabilities: mu,
+                y: y.clone(),
+                deviance_residuals,
+                pearson_residuals,
+                coef_std_errors,
+                coef_covariance,
+                log_likelihood,
+                null_log_likelihood,
+                deviance,
+                null_deviance,
+                df_residuals: n.saturating_sub(p),
+                df_null: n.saturating_sub(1),
+            });
+        }
 
         if converged {
             self.convergence_status_ =
@@ -1205,7 +1212,7 @@ impl LogisticRegression {
                     // SAG is O(d) per iteration with linear convergence —
                     // dominates IRLS/L-BFGS for very large n (100K+)
                     LogisticSolver::Sag
-                } else if n_features < 50 && n_samples <= 5_000 {
+                } else if n_features < 50 && n_samples <= 1_000 {
                     // IRLS: Newton's method, fast for small/medium with few features
                     LogisticSolver::Irls
                 } else {
@@ -2133,100 +2140,98 @@ impl crate::models::traits::SparseModel for LogisticRegression {
         if self.fit_intercept {
             eta.mapv_inplace(|v| v + intercept);
         }
-        let mu = eta.mapv(sigmoid);
-
-        // Compute weighted log-likelihood
-        let log_likelihood = compute_weighted_log_likelihood(y, &mu, &sample_weights);
-
-        // Null log-likelihood
-        let total_weight: f64 = sample_weights.sum();
-        let p_bar = if total_weight > 0.0 {
-            y.iter()
-                .zip(sample_weights.iter())
-                .map(|(&yi, &wi)| yi * wi)
-                .sum::<f64>()
-                / total_weight
-        } else {
-            y.mean().unwrap_or(0.5)
-        };
-        let null_log_likelihood = y
-            .iter()
-            .zip(sample_weights.iter())
-            .map(|(&yi, &wi)| {
-                wi * if yi > 0.5 {
-                    p_bar.max(1e-15).ln()
-                } else {
-                    (1.0 - p_bar).max(1e-15).ln()
-                }
-            })
-            .sum::<f64>();
-
-        let deviance = -2.0 * log_likelihood;
-        let null_deviance = -2.0 * null_log_likelihood;
-
-        // Fisher information: X'WX at convergence (using sparse weighted gram)
-        let w_final = &mu * &(1.0 - &mu) * &sample_weights;
-        let w_final_clamped: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
-
-        let p_design = if self.fit_intercept { p + 1 } else { p };
-
-        // Build Fisher info matrix
-        let fisher_feature = x.weighted_gram(&w_final_clamped);
-        let mut fisher_info = if self.fit_intercept {
-            let mut fi = Array2::zeros((p_design, p_design));
-            fi.slice_mut(ndarray::s![1.., 1..]).assign(&fisher_feature);
-            let xw1 = x.transpose_dot(&w_final_clamped);
-            for j in 0..p {
-                fi[[0, j + 1]] = xw1[j];
-                fi[[j + 1, 0]] = xw1[j];
-            }
-            fi[[0, 0]] = w_final_clamped.sum();
-            fi
-        } else {
-            fisher_feature
-        };
-
-        // Add L2 regularization to Fisher info for proper covariance
-        if l2_override > 0.0 {
-            let start = usize::from(self.fit_intercept);
-            for i in start..p_design {
-                fisher_info[[i, i]] += l2_override;
-            }
-        }
-
-        let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
-
-        let mut coef_std_errors = Array1::zeros(p_design);
-        for i in 0..p_design {
-            coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
-        }
-
-        let deviance_residuals = compute_deviance_residuals(y, &mu);
-        let pearson_residuals = compute_pearson_residuals(y, &mu);
 
         // Store coefficients
         self.coefficients = Some(beta);
         self.intercept = Some(if self.fit_intercept { intercept } else { 0.0 });
         self.n_features = Some(p_orig);
 
-        self.fitted_data = Some(FittedLogisticData {
-            n_samples: n,
-            n_features: p_orig,
-            n_iterations: n_iter,
-            converged,
-            fitted_probabilities: mu,
-            y: y.clone(),
-            deviance_residuals,
-            pearson_residuals,
-            coef_std_errors,
-            coef_covariance,
-            log_likelihood,
-            null_log_likelihood,
-            deviance,
-            null_deviance,
-            df_residuals: n.saturating_sub(p_design),
-            df_null: n.saturating_sub(1),
-        });
+        if self.compute_diagnostics {
+            let mu = eta.mapv(sigmoid);
+
+            let log_likelihood = compute_weighted_log_likelihood(y, &mu, &sample_weights);
+
+            let total_weight: f64 = sample_weights.sum();
+            let p_bar = if total_weight > 0.0 {
+                y.iter()
+                    .zip(sample_weights.iter())
+                    .map(|(&yi, &wi)| yi * wi)
+                    .sum::<f64>()
+                    / total_weight
+            } else {
+                y.mean().unwrap_or(0.5)
+            };
+            let null_log_likelihood = y
+                .iter()
+                .zip(sample_weights.iter())
+                .map(|(&yi, &wi)| {
+                    wi * if yi > 0.5 {
+                        p_bar.max(1e-15).ln()
+                    } else {
+                        (1.0 - p_bar).max(1e-15).ln()
+                    }
+                })
+                .sum::<f64>();
+
+            let deviance = -2.0 * log_likelihood;
+            let null_deviance = -2.0 * null_log_likelihood;
+
+            let w_final = &mu * &(1.0 - &mu) * &sample_weights;
+            let w_final_clamped: Array1<f64> = w_final.mapv(|wi| wi.max(1e-10));
+
+            let p_design = if self.fit_intercept { p + 1 } else { p };
+
+            let fisher_feature = x.weighted_gram(&w_final_clamped);
+            let mut fisher_info = if self.fit_intercept {
+                let mut fi = Array2::zeros((p_design, p_design));
+                fi.slice_mut(ndarray::s![1.., 1..]).assign(&fisher_feature);
+                let xw1 = x.transpose_dot(&w_final_clamped);
+                for j in 0..p {
+                    fi[[0, j + 1]] = xw1[j];
+                    fi[[j + 1, 0]] = xw1[j];
+                }
+                fi[[0, 0]] = w_final_clamped.sum();
+                fi
+            } else {
+                fisher_feature
+            };
+
+            if l2_override > 0.0 {
+                let start = usize::from(self.fit_intercept);
+                for i in start..p_design {
+                    fisher_info[[i, i]] += l2_override;
+                }
+            }
+
+            let coef_covariance = invert_symmetric_matrix(&fisher_info)?;
+
+            let mut coef_std_errors = Array1::zeros(p_design);
+            for i in 0..p_design {
+                coef_std_errors[i] = coef_covariance[[i, i]].max(0.0).sqrt();
+            }
+
+            let deviance_residuals = compute_deviance_residuals(y, &mu);
+            let pearson_residuals = compute_pearson_residuals(y, &mu);
+
+            self.fitted_data = Some(FittedLogisticData {
+                n_samples: n,
+                n_features: p_orig,
+                n_iterations: n_iter,
+                converged,
+                fitted_probabilities: mu,
+                y: y.clone(),
+                deviance_residuals,
+                pearson_residuals,
+                coef_std_errors,
+                coef_covariance,
+                log_likelihood,
+                null_log_likelihood,
+                deviance,
+                null_deviance,
+                df_residuals: n.saturating_sub(p_design),
+                df_null: n.saturating_sub(1),
+            });
+        }
 
         Ok(())
     }
