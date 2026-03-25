@@ -4,7 +4,7 @@
     "python_version": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
     "cpu": "x86_64",
     "numpy_version": "2.4.2",
-    "timestamp": "2026-03-24T12:23:56.300432",
+    "timestamp": "2026-03-24T22:34:50.283212",
     "sklearn_version": "1.8.0",
     "xgboost_version": "3.2.0",
     "lightgbm_version": "4.6.0"
@@ -14,10 +14,30 @@
       "algorithm": "KMeans",
       "library": "ferroml",
       "task": "clustering",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 1.223,
+      "predict_time_ms": 0.014,
+      "score": 16074.907144
+    },
+    {
+      "algorithm": "KMeans",
+      "library": "sklearn",
+      "task": "clustering",
+      "n_samples": 1000,
+      "n_features": 20,
+      "fit_time_ms": 13.427,
+      "predict_time_ms": 0.19,
+      "score": 16074.907144
+    },
+    {
+      "algorithm": "KMeans",
+      "library": "ferroml",
+      "task": "clustering",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 32.88,
-      "predict_time_ms": 0.061,
+      "fit_time_ms": 8.369,
+      "predict_time_ms": 0.06,
       "score": 80200.918078
     },
     {
@@ -26,9 +46,29 @@
       "task": "clustering",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 16.313,
-      "predict_time_ms": 0.268,
+      "fit_time_ms": 19.702,
+      "predict_time_ms": 0.255,
       "score": 80200.918078
+    },
+    {
+      "algorithm": "KMeans",
+      "library": "ferroml",
+      "task": "clustering",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 8.436,
+      "predict_time_ms": 0.128,
+      "score": 159775.178721
+    },
+    {
+      "algorithm": "KMeans",
+      "library": "sklearn",
+      "task": "clustering",
+      "n_samples": 10000,
+      "n_features": 20,
+      "fit_time_ms": 23.958,
+      "predict_time_ms": 0.454,
+      "score": 159775.178721
     }
   ]
 }
