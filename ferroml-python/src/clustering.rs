@@ -18,7 +18,7 @@ use crate::pickle::{getstate, setstate};
 use ferroml_core::clustering::metrics;
 use ferroml_core::clustering::{
     AgglomerativeClustering, ClusteringModel, ClusteringStatistics, CovarianceType,
-    GaussianMixture, GmmInit, KMeans, DBSCAN,
+    GaussianMixture, GmmInit, KMeans, KMeansAlgorithm, DBSCAN,
 };
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -46,6 +46,9 @@ use pyo3::types::PyBytes;
 ///     Random seed for centroid initialization.
 /// n_init : int, optional (default=10)
 ///     Number of times to run with different centroid seeds.
+/// algorithm : str, optional (default="auto")
+///     Algorithm variant: "auto", "lloyd", "elkan", "hamerly".
+///     Auto selects Hamerly for k<=20, Elkan for k<=256, Lloyd otherwise.
 ///
 /// Attributes
 /// ----------
@@ -76,24 +79,39 @@ pub struct PyKMeans {
 impl PyKMeans {
     /// Create a new KMeans model.
     #[new]
-    #[pyo3(signature = (n_clusters=8, max_iter=300, tol=1e-4, random_state=None, n_init=10))]
+    #[pyo3(signature = (n_clusters=8, max_iter=300, tol=1e-4, random_state=None, n_init=10, algorithm="auto"))]
     fn new(
         n_clusters: usize,
         max_iter: usize,
         tol: f64,
         random_state: Option<u64>,
         n_init: usize,
-    ) -> Self {
+        algorithm: &str,
+    ) -> PyResult<Self> {
+        let algo = match algorithm {
+            "auto" => KMeansAlgorithm::Auto,
+            "lloyd" => KMeansAlgorithm::Lloyd,
+            "elkan" => KMeansAlgorithm::Elkan,
+            "hamerly" => KMeansAlgorithm::Hamerly,
+            other => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Unknown algorithm '{}'. Expected one of: 'auto', 'lloyd', 'elkan', 'hamerly'",
+                    other
+                )));
+            }
+        };
+
         let mut inner = KMeans::new(n_clusters)
             .max_iter(max_iter)
             .tol(tol)
-            .n_init(n_init);
+            .n_init(n_init)
+            .algorithm(algo);
 
         if let Some(seed) = random_state {
             inner = inner.random_state(seed);
         }
 
-        Self { inner }
+        Ok(Self { inner })
     }
 
     /// Fit the KMeans model to the data.
