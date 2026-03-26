@@ -578,8 +578,6 @@ struct SplitInfo {
     sum_gradient_right: f64,
     sum_hessian_left: f64,
     sum_hessian_right: f64,
-    n_left: usize,
-    n_right: usize,
     missing_go_left: bool,
 }
 
@@ -798,8 +796,6 @@ impl HistTreeBuilder {
                             sum_gradient_right,
                             sum_hessian_left,
                             sum_hessian_right,
-                            n_left,
-                            n_right,
                             missing_go_left,
                         });
                     }
@@ -811,6 +807,8 @@ impl HistTreeBuilder {
     }
 
     /// Build a tree using leaf-wise growth strategy (column-major optimized)
+    /// Returns (tree, leaf_predictions) where leaf_predictions[i] is the leaf value
+    /// for sample_indices[i]. This avoids O(n*depth) tree traversal in the boosting loop.
     fn build_leaf_wise_col_major(
         &self,
         x_col_major: &ColMajorBins,
@@ -818,6 +816,7 @@ impl HistTreeBuilder {
         hessians: &[f64],
         sample_indices: &[usize],
         n_bins_per_feature: &[usize],
+        leaf_predictions: &mut [f64],
     ) -> HistTree {
         let n_features = x_col_major.n_features;
         let mut tree = HistTree::new();
@@ -895,29 +894,28 @@ impl HistTreeBuilder {
 
             let (left_value, right_value) = split.compute_leaf_values(self.l2_regularization);
 
-            // Partition samples using column-major data (cache-friendly)
-            let parent_samples = &node_samples[node_idx];
+            // Partition samples in-place (avoids second allocation)
+            let mut samples = std::mem::take(&mut node_samples[node_idx]);
             let feature_col = x_col_major.col(split.feature_idx);
             let threshold = split.bin_threshold;
 
-            let mut left_samples = Vec::with_capacity(split.n_left);
-            let mut right_samples = Vec::with_capacity(split.n_right);
-
-            for &sample_idx in parent_samples {
-                let bin = feature_col[sample_idx];
-                let is_missing = bin as usize >= self.max_bins;
-                let go_left = if is_missing {
+            let mut left_end = 0usize;
+            for i in 0..samples.len() {
+                let bin = feature_col[samples[i]];
+                let go_left = if bin as usize >= self.max_bins {
                     split.missing_go_left
                 } else {
                     bin <= threshold
                 };
-
                 if go_left {
-                    left_samples.push(sample_idx);
-                } else {
-                    right_samples.push(sample_idx);
+                    samples.swap(left_end, i);
+                    left_end += 1;
                 }
             }
+
+            let right_samples = samples[left_end..].to_vec();
+            samples.truncate(left_end);
+            let left_samples = samples;
 
             // Create child nodes
             let left_node = HistTreeNode::new_leaf(
@@ -1026,6 +1024,16 @@ impl HistTreeBuilder {
             }
         }
 
+        // Populate leaf predictions from node_samples (avoids O(n*depth) tree traversal)
+        for (node_idx, samples) in node_samples.iter().enumerate() {
+            if tree.nodes[node_idx].is_leaf() {
+                let value = tree.nodes[node_idx].value;
+                for &sample_idx in samples {
+                    leaf_predictions[sample_idx] = value;
+                }
+            }
+        }
+
         tree
     }
 
@@ -1108,29 +1116,28 @@ impl HistTreeBuilder {
             // Perform the split
             let (left_value, right_value) = split.compute_leaf_values(self.l2_regularization);
 
-            // Partition samples
-            let parent_samples = &node_samples[node_idx];
+            // Partition samples in-place (avoids second allocation)
+            let mut samples = std::mem::take(&mut node_samples[node_idx]);
             let feature_idx = split.feature_idx;
             let threshold = split.bin_threshold;
 
-            let mut left_samples = Vec::with_capacity(split.n_left);
-            let mut right_samples = Vec::with_capacity(split.n_right);
-
-            for &sample_idx in parent_samples {
-                let bin = x_binned[[sample_idx, feature_idx]];
-                let is_missing = bin as usize >= self.max_bins;
-                let go_left = if is_missing {
+            let mut left_end = 0usize;
+            for i in 0..samples.len() {
+                let bin = x_binned[[samples[i], feature_idx]];
+                let go_left = if bin as usize >= self.max_bins {
                     split.missing_go_left
                 } else {
                     bin <= threshold
                 };
-
                 if go_left {
-                    left_samples.push(sample_idx);
-                } else {
-                    right_samples.push(sample_idx);
+                    samples.swap(left_end, i);
+                    left_end += 1;
                 }
             }
+
+            let right_samples = samples[left_end..].to_vec();
+            samples.truncate(left_end);
+            let left_samples = samples;
 
             // Create child nodes
             let left_node = HistTreeNode::new_leaf(
@@ -1311,9 +1318,12 @@ impl HistTreeBuilder {
 
         #[cfg(feature = "parallel")]
         {
-            if indices.len() > 5_000 && n_features >= 4 {
-                // Parallel over features for large datasets
-                // (raised from 1000 — Rayon overhead dominates for smaller workloads)
+            if indices.len() > 10_000 && n_features >= 8 {
+                // Parallel histogram building over features for very large nodes
+                // Rayon task scheduling overhead (~2μs/feature) dominates for moderate
+                // workloads. Benchmarks show single-threaded is faster for n<=10K with
+                // 20 features. Require both enough samples AND enough features for
+                // parallelism to pay off.
                 return (0..n_features)
                     .into_par_iter()
                     .map(|f| {
@@ -2086,9 +2096,10 @@ impl Model for HistGradientBoostingClassifier {
         // Sample indices
         let sample_indices: Vec<usize> = (0..n_train).collect();
 
-        // Pre-allocate gradient/hessian buffers (reused across iterations and classes)
+        // Pre-allocate gradient/hessian/leaf prediction buffers (reused across iterations)
         let mut gradients = vec![0.0f64; n_train];
         let mut hessians = vec![0.0f64; n_train];
+        let mut leaf_preds = vec![0.0f64; n_train];
 
         // Main boosting loop
         for _iteration in 0..self.max_iter {
@@ -2143,13 +2154,12 @@ impl Model for HistGradientBoostingClassifier {
                     &hessians,
                     &sample_indices,
                     &n_bins_per_feature,
+                    &mut leaf_preds,
                 );
 
-                // Update predictions
+                // Update predictions using leaf assignments (O(n) vs O(n*depth) tree traversal)
                 for i in 0..n_train {
-                    let row = x_binned.row(i);
-                    let row_slice = row.as_slice().expect("x_binned is standard layout");
-                    raw_predictions[[i, k]] += self.learning_rate * tree.predict_single(row_slice);
+                    raw_predictions[[i, k]] += self.learning_rate * leaf_preds[i];
                 }
 
                 // Update validation predictions
@@ -2166,15 +2176,12 @@ impl Model for HistGradientBoostingClassifier {
                 iteration_trees.push(tree);
             }
 
-            // Compute training loss
-            {
+            // Early stopping check (only compute loss when early stopping is enabled)
+            if let (Some(ref yv), Some(ref vrp)) = (&y_val, &val_raw_predictions) {
+                // Compute training loss only when monitoring for early stopping
                 let train_probas = self.raw_to_proba(&raw_predictions);
                 let train_loss = self.compute_log_loss(&y_train, &train_probas);
                 train_loss_history.push(train_loss);
-            }
-
-            // Early stopping check
-            if let (Some(ref yv), Some(ref vrp)) = (&y_val, &val_raw_predictions) {
                 let val_probas = self.raw_to_proba(vrp);
                 let val_loss = self.compute_log_loss(yv, &val_probas);
                 val_loss_history.push(val_loss);
@@ -2748,9 +2755,10 @@ impl Model for HistGradientBoostingRegressor {
         // Sample indices
         let sample_indices: Vec<usize> = (0..n_train).collect();
 
-        // Pre-allocate gradient/hessian buffers (reused across iterations)
+        // Pre-allocate gradient/hessian/leaf prediction buffers (reused across iterations)
         let mut gradients = vec![0.0f64; n_train];
         let mut hessians = vec![0.0f64; n_train];
+        let mut leaf_preds = vec![0.0f64; n_train];
 
         // Main boosting loop
         for _iteration in 0..self.max_iter {
@@ -2772,13 +2780,12 @@ impl Model for HistGradientBoostingRegressor {
                 &hessians,
                 &sample_indices,
                 &n_bins_per_feature,
+                &mut leaf_preds,
             );
 
-            // Update predictions using row-major data for tree traversal
+            // Update predictions using leaf assignments (O(n) vs O(n*depth) tree traversal)
             for i in 0..n_train {
-                let row = x_binned.row(i);
-                let row_slice = row.as_slice().expect("x_binned is standard layout");
-                predictions[i] += self.learning_rate * tree.predict_single(row_slice);
+                predictions[i] += self.learning_rate * leaf_preds[i];
             }
 
             // Update validation predictions
