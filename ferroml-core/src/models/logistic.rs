@@ -605,16 +605,22 @@ impl LogisticRegression {
         let mut n_iter = 0;
         let mut converged = false;
 
-        // Pre-allocate buffers reused across iterations
+        // Pre-allocate all buffers reused across iterations
         let mut scaled_x = Array2::zeros((n, p));
         let mut w_sqrt_buf = Array1::zeros(n);
+        let mut w_clamped = Array1::zeros(n);
+        let mut wz = Array1::zeros(n);
+        let mut eta = Array1::zeros(n);
+        let mut mu = Array1::zeros(n);
 
         for iter in 0..self.max_iter {
             n_iter = iter + 1;
 
             // Compute linear predictor and probabilities
-            let eta = x_design.dot(&beta);
-            let mu = eta.mapv(sigmoid);
+            ndarray::linalg::general_mat_vec_mul(1.0, x_design, &beta, 0.0, &mut eta);
+            for i in 0..n {
+                mu[i] = sigmoid(eta[i]);
+            }
 
             // Check for numerical issues (only warn once)
             if iter == 0 {
@@ -626,22 +632,21 @@ impl LogisticRegression {
                 }
             }
 
-            // Weights: w_i = μ_i * (1 - μ_i) * sample_weight_i, clamped
-            // Compute variance part and w_clamped in one pass
-            let mut w_clamped = Array1::zeros(n);
-            let mut z = Array1::zeros(n);
+            // Compute weights, working response, and scaled_x in one pass over rows
             for i in 0..n {
                 let var = (mu[i] * (1.0 - mu[i])).clamp(1e-10, 0.25);
                 w_clamped[i] = (var * sample_weights[i]).clamp(1e-10, 0.25);
-                z[i] = eta[i] + (y[i] - mu[i]) / var;
-                w_sqrt_buf[i] = w_clamped[i].sqrt();
-            }
-
-            // Weighted least squares: solve (X'WX)β = X'Wz
-            // Compute X'WX = (W^½X)' @ (W^½X) — reuse scaled_x buffer
-            scaled_x.assign(x_design);
-            for i in 0..n {
-                scaled_x.row_mut(i).mapv_inplace(|v| v * w_sqrt_buf[i]);
+                let w_sqrt = w_clamped[i].sqrt();
+                w_sqrt_buf[i] = w_sqrt;
+                // Working response z_i = eta_i + (y_i - mu_i) / var
+                // wz_i = w_i * z_i
+                wz[i] = w_clamped[i] * (eta[i] + (y[i] - mu[i]) / var);
+                // Scale x row in-place: scaled_x[i,:] = x_design[i,:] * w_sqrt
+                let src = x_design.row(i);
+                let mut dst = scaled_x.row_mut(i);
+                for j in 0..p {
+                    dst[j] = src[j] * w_sqrt;
+                }
             }
             let mut xtwx = scaled_x.t().dot(&scaled_x);
 
@@ -666,8 +671,7 @@ impl LogisticRegression {
                 }
             }
 
-            // Compute X'Wz = X' @ (W ⊙ z)
-            let wz: Array1<f64> = &w_clamped * &z;
+            // Compute X'Wz = X' @ wz (wz already computed above)
             let xtwz = x_design.t().dot(&wz);
 
             // Solve using Cholesky decomposition
@@ -1212,8 +1216,10 @@ impl LogisticRegression {
                     // SAG is O(d) per iteration with linear convergence —
                     // dominates IRLS/L-BFGS for very large n (100K+)
                     LogisticSolver::Sag
-                } else if n_features < 50 && n_samples <= 1_000 {
-                    // IRLS: Newton's method, fast for small/medium with few features
+                } else if n_features < 50 && n_samples <= 10_000 {
+                    // IRLS: Newton's method with exact Hessian. Converges in fewer
+                    // iterations than L-BFGS. O(d^3) per iteration is cheap for d<50.
+                    // Benchmarks show IRLS beats L-BFGS up to ~10K samples at d=20.
                     LogisticSolver::Irls
                 } else {
                     // L-BFGS: quasi-Newton, good for medium-large datasets
