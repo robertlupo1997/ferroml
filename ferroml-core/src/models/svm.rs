@@ -87,8 +87,8 @@ const DEFAULT_CACHE_SIZE: usize = 1000;
 /// Threshold below which the full kernel matrix is precomputed.
 /// Above this, the LRU cache is used with shrinking to limit memory.
 /// Full matrix costs O(n^2) memory but O(1) access; cache costs O(cache_size * n)
-/// but O(n_features) per miss. With shrinking, cache hit rates are high because
-/// the active set converges to ~n_sv (support vectors).
+/// but O(n_features) per miss. At n=5000, full matrix = 200MB which is acceptable.
+/// Precomputed matrix avoids per-access cache lookup + LRU bookkeeping overhead.
 const FULL_MATRIX_THRESHOLD: usize = 2_000;
 
 /// Sentinel value for "no slot / no link".
@@ -118,12 +118,18 @@ struct KernelCache {
     len: usize,
     /// Row length (n_samples).
     row_len: usize,
+    /// Number of features per sample.
+    n_features: usize,
     /// Maximum number of rows that fit in the slab.
     capacity: usize,
     /// Kernel function.
     kernel: Kernel,
     /// Training data stored as row-major Vec<Vec<f64>> for efficient access.
     training_data: Vec<Vec<f64>>,
+    /// Flat contiguous training data (n_samples * n_features) for vectorized kernel rows.
+    training_data_flat: Vec<f64>,
+    /// Pre-computed squared norms ||x_i||^2 for RBF GEMM trick.
+    squared_norms: Vec<f64>,
 }
 
 impl KernelCache {
@@ -132,6 +138,7 @@ impl KernelCache {
     /// `capacity_rows` is the maximum number of kernel rows to cache.
     fn new(kernel: Kernel, x: &Array2<f64>, capacity_rows: usize) -> Self {
         let n_samples = x.nrows();
+        let n_features = x.ncols();
         let cap = capacity_rows.min(n_samples).max(2); // need at least 2 slots
 
         // Pre-extract training data as Vec<Vec<f64>> for efficient repeated access
@@ -147,6 +154,18 @@ impl KernelCache {
             .map(|i| x_ref.row(i).as_slice().unwrap().to_vec())
             .collect();
 
+        // Flat contiguous storage for vectorized kernel row computation
+        let training_data_flat: Vec<f64> = training_data
+            .iter()
+            .flat_map(|r| r.iter().copied())
+            .collect();
+
+        // Pre-compute squared norms for RBF GEMM trick: ||x_i - x_j||^2 = ||x_i||^2 + ||x_j||^2 - 2*(x_i · x_j)
+        let squared_norms: Vec<f64> = training_data
+            .iter()
+            .map(|xi| xi.iter().map(|&v| v * v).sum())
+            .collect();
+
         Self {
             slab: vec![0.0; cap * n_samples],
             row_to_slot: vec![NONE_SLOT; n_samples],
@@ -157,9 +176,12 @@ impl KernelCache {
             lru_tail: NONE_SLOT,
             len: 0,
             row_len: n_samples,
+            n_features,
             capacity: cap,
             kernel,
             training_data,
+            training_data_flat,
+            squared_norms,
         }
     }
 
@@ -256,11 +278,34 @@ impl KernelCache {
             self.evict_lru()
         };
 
-        // Compute the row
+        // Compute the kernel row K(i, :)
         let start = slot * self.row_len;
-        let xi = &self.training_data[i];
-        for j in 0..self.row_len {
-            self.slab[start + j] = self.kernel.compute(xi, &self.training_data[j]);
+        match self.kernel {
+            Kernel::Rbf { gamma } => {
+                // GEMM trick: ||x_i - x_j||^2 = ||x_i||^2 + ||x_j||^2 - 2*(x_i · x_j)
+                // Vectorized: compute all dot products x_i · x_j for j in 0..n, then
+                // apply the norm correction and exp in a single pass.
+                let xi = &self.training_data[i];
+                let norm_i = self.squared_norms[i];
+                let n_feat = self.n_features;
+
+                for j in 0..self.row_len {
+                    // Dot product x_i · x_j using flat storage for locality
+                    let xj_start = j * n_feat;
+                    let xj = &self.training_data_flat[xj_start..xj_start + n_feat];
+                    let dot = crate::linalg::dot_product(xi, xj);
+                    let dist_sq = (norm_i + self.squared_norms[j]) - 2.0 * dot;
+                    // Clamp to avoid negative values from floating-point error
+                    self.slab[start + j] = (-gamma * dist_sq.max(0.0)).exp();
+                }
+            }
+            _ => {
+                // Generic path for non-RBF kernels
+                let xi = &self.training_data[i];
+                for j in 0..self.row_len {
+                    self.slab[start + j] = self.kernel.compute(xi, &self.training_data[j]);
+                }
+            }
         }
 
         // Update mappings
@@ -787,8 +832,6 @@ impl BinarySVC {
                 // Check KKT conditions
                 if (ri < -self.tol && alpha[i] < c[i]) || (ri > self.tol && alpha[i] > 0.0) {
                     // WSS3: Select j to maximize objective decrease.
-                    // obj_decrease ~ (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij)
-                    // We use the kernel diagonal for Q_ii/Q_jj and compute Q_ij on demand.
                     let j =
                         Self::select_j_wss3(i, &errors, &alpha, c, &q_diag, kernel, &active_set);
 
@@ -954,7 +997,6 @@ impl BinarySVC {
         let n_samples = errors.len();
 
         // Regularization to prevent division by near-zero denominator
-        // (the bug that originally caused us to revert to Platt's heuristic)
         let tau = 1e-12;
 
         let mut best_j = None;
@@ -978,8 +1020,7 @@ impl BinarySVC {
             }
 
             // WSS3 objective: (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij)
-            // We need K(i,j) for each candidate — but the kernel diagonal is precomputed.
-            // For the full-matrix case this is O(1); for cached, we try to use cached values.
+            // For Full matrix: O(1) direct access. For Cache: O(1) if row i cached.
             let k_ij = kernel.get(i, j);
             let denom = (q_diag[i] + q_diag[j] - 2.0 * k_ij).max(tau);
             let obj = diff_sq / denom;
@@ -1004,11 +1045,8 @@ impl BinarySVC {
     }
 
     /// Compute full kernel matrix.
-    ///
-    /// Optimized: uses array slices directly instead of allocating Vecs per pair.
     fn compute_kernel_matrix(&self, x: &Array2<f64>) -> Array2<f64> {
         let n = x.nrows();
-        // Ensure contiguous layout for slice access
         let x_c = if x.is_standard_layout() {
             None
         } else {
@@ -1018,7 +1056,6 @@ impl BinarySVC {
 
         let mut k = Array2::zeros((n, n));
 
-        // SAFETY: x_ref is standard layout (converted above), so as_slice always succeeds
         for i in 0..n {
             let ri = x_ref.row(i);
             let xi = ri.as_slice().unwrap();
