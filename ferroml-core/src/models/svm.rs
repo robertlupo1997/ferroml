@@ -749,9 +749,13 @@ impl BinarySVC {
     /// SMO (Sequential Minimal Optimization) algorithm with WSS3 working set
     /// selection and active-set gradient updates.
     ///
-    /// WSS3 (Fan, Chen, Lin 2005) selects the second variable j by maximizing
-    /// the objective decrease: (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij), which
-    /// converges in far fewer iterations than Platt's max-|E_i - E_j| heuristic.
+    /// Uses libsvm-style decomposition: each iteration selects the globally
+    /// best (i, j) pair via WSS3 (Fan, Chen, Lin 2005), performs a single alpha
+    /// update, and updates gradients. This is faster than Platt's original SMO
+    /// which scans all violators per outer iteration, because:
+    /// - Only 2 kernel rows fetched per iteration (not 2*K for K violators)
+    /// - Gradients are always up-to-date when selecting the next pair
+    /// - Gap-based shrinking is more effective with single-pair updates
     fn smo(
         &self,
         kernel: &mut KernelProvider,
@@ -766,38 +770,197 @@ impl BinarySVC {
         let mut errors: Array1<f64> = -y.clone();
 
         // Precompute kernel diagonal: Q_ii = K(i,i). Needed for WSS3 j-selection.
-        // O(n) cost, trivial compared to the solver.
         let mut q_diag = vec![0.0; n_samples];
         for i in 0..n_samples {
             q_diag[i] = kernel.get(i, i);
         }
 
-        // Buffers for kernel rows (used in incremental error update)
+        // Buffers for kernel rows (row_i_buf reused for WSS3 + gradient update)
         let mut row_i_buf = vec![0.0; n_samples];
         let mut row_j_buf = vec![0.0; n_samples];
-
-        let mut n_changed = 0;
-        let mut examine_all = true;
-        let mut iter = 0;
-        let mut total_updates: u64 = 0;
-        // Reconstruct errors from scratch every N updates to prevent floating-point drift.
-        let reconstruct_interval: u64 = (n_samples as u64).max(200);
 
         // Shrinking: track which samples are "active" (may change) vs "shrunk" (at bounds)
         let mut active: Vec<bool> = vec![true; n_samples];
         let mut active_set: Vec<usize> = (0..n_samples).collect();
-        // Only start shrinking after the solver has had time to explore.
-        let shrink_interval = if n_samples < 500 {
-            self.max_iter // effectively disable shrinking for small datasets
-        } else {
-            1000.min(self.max_iter)
-        };
+        // Shrink more aggressively than before (was 1000). libsvm shrinks frequently.
+        let shrink_interval = n_samples.clamp(100, 1000);
+        // Reconstruct errors from scratch periodically to prevent floating-point drift.
+        let reconstruct_interval = (n_samples * 2).max(500);
 
-        while (n_changed > 0 || examine_all) && iter < self.max_iter {
-            n_changed = 0;
+        let mut converged = false;
+        let mut shrink_counter = 0;
+        let eps = 1e-12;
 
-            // Periodically shrink the active set
-            if iter > 0 && iter % shrink_interval == 0 && !examine_all {
+        for iter in 0..self.max_iter {
+            // === Working Set Selection (libsvm-style WSS3) ===
+            //
+            // Define sets (for the dual with equality constraint y^T alpha = 0):
+            //   I_up  = {t : (alpha[t] < C[t] and y[t] > 0) or (alpha[t] > 0 and y[t] < 0)}
+            //   I_low = {t : (alpha[t] < C[t] and y[t] < 0) or (alpha[t] > 0 and y[t] > 0)}
+            //
+            // The optimality gap uses -y[t]*G[t] = b - errors[t] (bias cancels in gap).
+            //   gap = max{errors[t] : I_low} - min{errors[t] : I_up}
+            //
+            // Step 1: Select i from I_up with min errors[t] (= max violation).
+            let mut best_i: Option<usize> = None;
+            let mut min_error_iup = f64::INFINITY;
+
+            for &t in &active_set {
+                let in_iup = (alpha[t] < c[t] && y[t] > 0.0) || (alpha[t] > eps && y[t] < 0.0);
+                if !in_iup {
+                    continue;
+                }
+                if errors[t] < min_error_iup {
+                    min_error_iup = errors[t];
+                    best_i = Some(t);
+                }
+            }
+
+            let Some(i) = best_i else {
+                converged = true;
+                break;
+            };
+
+            // Fill row i once — reused for WSS3 j-selection AND gradient update.
+            kernel.fill_row(i, &mut row_i_buf);
+
+            // Step 2: Select j from I_low to maximize WSS3 objective.
+            // Also track max_error_ilow for the convergence gap.
+            let ei = errors[i];
+            let mut best_j: Option<usize> = None;
+            let mut best_obj = f64::NEG_INFINITY;
+            let mut max_error_ilow = f64::NEG_INFINITY;
+
+            for &t in &active_set {
+                let in_ilow = (alpha[t] < c[t] && y[t] < 0.0) || (alpha[t] > eps && y[t] > 0.0);
+                if !in_ilow {
+                    continue;
+                }
+
+                if errors[t] > max_error_ilow {
+                    max_error_ilow = errors[t];
+                }
+
+                let diff = ei - errors[t];
+                let diff_sq = diff * diff;
+                if diff_sq < 1e-20 {
+                    continue;
+                }
+
+                // WSS3 objective: (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij)
+                // row_i_buf[t] = K(i, t), already fetched.
+                let k_it = row_i_buf[t];
+                let denom = (q_diag[i] + q_diag[t] - 2.0 * k_it).max(eps);
+                let obj = diff_sq / denom;
+
+                if obj > best_obj {
+                    best_obj = obj;
+                    best_j = Some(t);
+                }
+            }
+
+            // Check convergence: gap = max_error_ilow - min_error_iup
+            let gap = max_error_ilow - min_error_iup;
+            if gap < self.tol || best_j.is_none() {
+                // Try unshrinking before declaring convergence
+                if active_set.len() < n_samples {
+                    Self::reconstruct_errors(&mut errors, &alpha, y, kernel, b, n_samples);
+                    active.fill(true);
+                    active_set = (0..n_samples).collect();
+                    shrink_counter = 0;
+                    continue; // Re-check with full set
+                }
+                converged = true;
+                break;
+            }
+
+            let j = best_j.unwrap();
+            let ej = errors[j];
+
+            // === SMO Step: update alpha[i], alpha[j] ===
+            let alpha_i_old = alpha[i];
+            let alpha_j_old = alpha[j];
+
+            // Compute bounds
+            let (low, high) = if (y[i] - y[j]).abs() < 1e-10 {
+                (
+                    (alpha[i] + alpha[j] - c[i]).max(0.0),
+                    (alpha[i] + alpha[j]).min(c[j]),
+                )
+            } else {
+                (
+                    (alpha[j] - alpha[i]).max(0.0),
+                    (c[i] + alpha[j] - alpha[i]).min(c[j]),
+                )
+            };
+
+            if (low - high).abs() < 1e-10 {
+                continue;
+            }
+
+            // Compute eta = 2*K_ij - K_ii - K_jj
+            let k_ij = row_i_buf[j]; // K(i,j) from the already-fetched row
+            let eta = 2.0f64.mul_add(k_ij, -q_diag[i]) - q_diag[j];
+
+            if eta >= 0.0 {
+                continue;
+            }
+
+            // Update alpha_j
+            alpha[j] = alpha_j_old - y[j] * (ei - ej) / eta;
+            alpha[j] = alpha[j].max(low).min(high);
+
+            if (alpha[j] - alpha_j_old).abs() < 1e-8 {
+                continue;
+            }
+
+            // Update alpha_i
+            alpha[i] = (y[i] * y[j]).mul_add(alpha_j_old - alpha[j], alpha_i_old);
+
+            // Update threshold
+            let b_old = b;
+            let b1 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
+                -k_ij,
+                (y[i] * (alpha[i] - alpha_i_old)).mul_add(-q_diag[i], b - ei),
+            );
+
+            let b2 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
+                -q_diag[j],
+                (y[i] * (alpha[i] - alpha_i_old)).mul_add(-k_ij, b - ej),
+            );
+
+            b = if alpha[i] > 0.0 && alpha[i] < c[i] {
+                b1
+            } else if alpha[j] > 0.0 && alpha[j] < c[j] {
+                b2
+            } else {
+                (b1 + b2) / 2.0
+            };
+
+            // === Gradient update for active set ===
+            // errors[k] = f(x_k) - y[k], delta_f(k) = di*K(i,k) + dj*K(j,k) + db
+            // row_i_buf already filled above; only need row_j.
+            let di = (alpha[i] - alpha_i_old) * y[i];
+            let dj = (alpha[j] - alpha_j_old) * y[j];
+            let db = b - b_old;
+
+            kernel.fill_row(j, &mut row_j_buf);
+
+            for &k in &active_set {
+                errors[k] += di.mul_add(row_i_buf[k], dj * row_j_buf[k]) + db;
+            }
+
+            // Periodically reconstruct error cache from scratch
+            // to prevent floating-point drift from accumulating.
+            if iter > 0 && iter % reconstruct_interval == 0 {
+                Self::reconstruct_errors(&mut errors, &alpha, y, kernel, b, n_samples);
+            }
+
+            // === Shrinking ===
+            // Gap-based: shrink samples whose violation is beyond the current gap.
+            shrink_counter += 1;
+            if shrink_counter >= shrink_interval && n_samples >= 500 {
+                shrink_counter = 0;
                 Self::shrink_active_set(
                     &mut active,
                     &mut active_set,
@@ -805,152 +968,40 @@ impl BinarySVC {
                     &errors,
                     y,
                     c,
-                    self.tol,
+                    min_error_iup,
+                    max_error_ilow,
                 );
             }
-
-            let indices: Vec<usize> = if examine_all {
-                // Full pass: unshrink all samples to re-evaluate
-                for i in 0..n_samples {
-                    active[i] = true;
-                }
-                active_set = (0..n_samples).collect();
-                (0..n_samples).collect()
-            } else {
-                // Only examine non-bound active examples
-                active_set
-                    .iter()
-                    .copied()
-                    .filter(|&i| alpha[i] > 0.0 && alpha[i] < c[i])
-                    .collect()
-            };
-
-            for &i in &indices {
-                let ei = errors[i];
-                let ri = ei * y[i];
-
-                // Check KKT conditions
-                if (ri < -self.tol && alpha[i] < c[i]) || (ri > self.tol && alpha[i] > 0.0) {
-                    // WSS3: Select j to maximize objective decrease.
-                    let j =
-                        Self::select_j_wss3(i, &errors, &alpha, c, &q_diag, kernel, &active_set);
-
-                    if let Some(j) = j {
-                        let ej = errors[j];
-
-                        // Save old alphas
-                        let alpha_i_old = alpha[i];
-                        let alpha_j_old = alpha[j];
-
-                        // Compute bounds
-                        let (low, high) = if (y[i] - y[j]).abs() < 1e-10 {
-                            (
-                                (alpha[i] + alpha[j] - c[i]).max(0.0),
-                                (alpha[i] + alpha[j]).min(c[j]),
-                            )
-                        } else {
-                            (
-                                (alpha[j] - alpha[i]).max(0.0),
-                                (c[i] + alpha[j] - alpha[i]).min(c[j]),
-                            )
-                        };
-
-                        if (low - high).abs() < 1e-10 {
-                            continue;
-                        }
-
-                        // Compute eta = 2*K_ij - K_ii - K_jj
-                        let k_ij = kernel.get(i, j);
-                        let eta = 2.0f64.mul_add(k_ij, -q_diag[i]) - q_diag[j];
-
-                        if eta >= 0.0 {
-                            continue;
-                        }
-
-                        // Update alpha_j
-                        alpha[j] = alpha_j_old - y[j] * (ei - ej) / eta;
-                        alpha[j] = alpha[j].max(low).min(high);
-
-                        if (alpha[j] - alpha_j_old).abs() < 1e-8 {
-                            continue;
-                        }
-
-                        // Update alpha_i
-                        alpha[i] = (y[i] * y[j]).mul_add(alpha_j_old - alpha[j], alpha_i_old);
-
-                        // Update threshold
-                        let b_old = b;
-                        let b1 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
-                            -k_ij,
-                            (y[i] * (alpha[i] - alpha_i_old)).mul_add(-q_diag[i], b - ei),
-                        );
-
-                        let b2 = (y[j] * (alpha[j] - alpha_j_old)).mul_add(
-                            -q_diag[j],
-                            (y[i] * (alpha[i] - alpha_i_old)).mul_add(-k_ij, b - ej),
-                        );
-
-                        b = if alpha[i] > 0.0 && alpha[i] < c[i] {
-                            b1
-                        } else if alpha[j] > 0.0 && alpha[j] < c[j] {
-                            b2
-                        } else {
-                            (b1 + b2) / 2.0
-                        };
-
-                        // Incremental error cache update — only active set.
-                        // errors[k] = f(x_k) - y[k], and f changed only at indices i,j:
-                        // delta_f(k) = di*K(i,k) + dj*K(j,k) + (b_new - b_old)
-                        {
-                            let di = (alpha[i] - alpha_i_old) * y[i];
-                            let dj = (alpha[j] - alpha_j_old) * y[j];
-                            let db = b - b_old;
-
-                            // Fill row buffers for i and j
-                            kernel.fill_row(i, &mut row_i_buf);
-                            kernel.fill_row(j, &mut row_j_buf);
-
-                            // Update only active samples (non-bound + free)
-                            // Non-active samples get their errors recomputed on unshrink.
-                            for &k in &active_set {
-                                errors[k] += di * row_i_buf[k] + dj * row_j_buf[k] + db;
-                            }
-                        }
-
-                        n_changed += 1;
-                        total_updates += 1;
-
-                        // Periodically reconstruct error cache from scratch
-                        // to prevent floating-point drift from accumulating
-                        if total_updates % reconstruct_interval == 0 {
-                            for k in 0..n_samples {
-                                let mut fk = b;
-                                for m in 0..n_samples {
-                                    if alpha[m] > 1e-12 {
-                                        fk += alpha[m] * y[m] * kernel.get(m, k);
-                                    }
-                                }
-                                errors[k] = fk - y[k];
-                            }
-                        }
-                    }
-                }
-            }
-
-            if examine_all {
-                examine_all = false;
-            } else if n_changed == 0 {
-                examine_all = true;
-            }
-
-            iter += 1;
         }
 
-        let converged = iter < self.max_iter;
         Ok((alpha.to_owned(), b, converged))
     }
 
-    /// Shrink samples that are firmly at their bounds and unlikely to change.
+    /// Reconstruct error cache from scratch: errors[k] = f(x_k) - y[k].
+    /// Called on unshrink and periodically to prevent floating-point drift.
+    fn reconstruct_errors(
+        errors: &mut Array1<f64>,
+        alpha: &ndarray::ArrayViewMut1<f64>,
+        y: &Array1<f64>,
+        kernel: &mut KernelProvider,
+        b: f64,
+        n: usize,
+    ) {
+        for k in 0..n {
+            let mut fk = b;
+            for m in 0..n {
+                if alpha[m] > 1e-12 {
+                    fk += alpha[m] * y[m] * kernel.get(m, k);
+                }
+            }
+            errors[k] = fk - y[k];
+        }
+    }
+
+    /// Gap-based shrinking (libsvm-style).
+    ///
+    /// Shrink non-free samples whose violation is beyond the current optimality
+    /// gap, meaning they are unlikely to become violators again.
     fn shrink_active_set(
         active: &mut [bool],
         active_set: &mut Vec<usize>,
@@ -958,90 +1009,36 @@ impl BinarySVC {
         errors: &Array1<f64>,
         y: &Array1<f64>,
         c: &Array1<f64>,
-        tol: f64,
+        min_error_iup: f64,
+        max_error_ilow: f64,
     ) {
-        let threshold = 1e-8;
-        for &i in active_set.iter() {
-            if !active[i] {
+        let bound_eps = 1e-8;
+        for &t in active_set.iter() {
+            if !active[t] {
                 continue;
             }
-            let ri = errors[i] * y[i]; // KKT residual
+            let is_free = alpha[t] > bound_eps && alpha[t] < c[t] - bound_eps;
+            if is_free {
+                continue; // Never shrink free variables
+            }
 
-            // At lower bound (alpha = 0) and gradient says "stay"
-            let at_lower = alpha[i] < threshold && ri >= -tol;
-            // At upper bound (alpha = C) and gradient says "stay"
-            let at_upper = (alpha[i] - c[i]).abs() < threshold && ri <= tol;
+            let in_iup_only = ((alpha[t] < c[t] && y[t] > 0.0)
+                || (alpha[t] > bound_eps && y[t] < 0.0))
+                && !((alpha[t] < c[t] && y[t] < 0.0) || (alpha[t] > bound_eps && y[t] > 0.0));
+            let in_ilow_only = ((alpha[t] < c[t] && y[t] < 0.0)
+                || (alpha[t] > bound_eps && y[t] > 0.0))
+                && !((alpha[t] < c[t] && y[t] > 0.0) || (alpha[t] > bound_eps && y[t] < 0.0));
 
-            if at_lower || at_upper {
-                active[i] = false;
+            // I_up-only at bound: shrink if errors[t] >= max_error_ilow (beyond gap)
+            if in_iup_only && errors[t] >= max_error_ilow {
+                active[t] = false;
+            }
+            // I_low-only at bound: shrink if errors[t] <= min_error_iup (beyond gap)
+            if in_ilow_only && errors[t] <= min_error_iup {
+                active[t] = false;
             }
         }
-        // Rebuild active_set from active flags
-        active_set.retain(|&i| active[i]);
-    }
-
-    /// WSS3 second-order working set selection (Fan, Chen, Lin 2005).
-    ///
-    /// Select j to maximize objective decrease: (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij).
-    /// Falls back to max-|E_i - E_j| (first-order) if no valid pair is found.
-    fn select_j_wss3(
-        i: usize,
-        errors: &Array1<f64>,
-        alpha: &ndarray::ArrayViewMut1<f64>,
-        c: &Array1<f64>,
-        q_diag: &[f64],
-        kernel: &mut KernelProvider,
-        active_set: &[usize],
-    ) -> Option<usize> {
-        let ei = errors[i];
-        let n_samples = errors.len();
-
-        // Regularization to prevent division by near-zero denominator
-        let tau = 1e-12;
-
-        let mut best_j = None;
-        let mut best_obj = f64::NEG_INFINITY;
-
-        // First pass: try non-bound active examples with WSS3
-        for &j in active_set {
-            if j == i {
-                continue;
-            }
-            // Only consider examples that can make progress
-            let is_free = alpha[j] > 0.0 && alpha[j] < c[j];
-            if !is_free {
-                continue;
-            }
-
-            let diff = ei - errors[j];
-            let diff_sq = diff * diff;
-            if diff_sq < 1e-20 {
-                continue;
-            }
-
-            // WSS3 objective: (E_i - E_j)^2 / (Q_ii + Q_jj - 2*Q_ij)
-            // For Full matrix: O(1) direct access. For Cache: O(1) if row i cached.
-            let k_ij = kernel.get(i, j);
-            let denom = (q_diag[i] + q_diag[j] - 2.0 * k_ij).max(tau);
-            let obj = diff_sq / denom;
-
-            if obj > best_obj {
-                best_obj = obj;
-                best_j = Some(j);
-            }
-        }
-
-        if best_j.is_some() {
-            return best_j;
-        }
-
-        // Fallback: select from all examples using first-order heuristic (max |E_i - E_j|)
-        // This handles the case where there are no free variables (early iterations)
-        (0..n_samples).filter(|&j| j != i).max_by(|&a, &b| {
-            let diff_a = (ei - errors[a]).abs();
-            let diff_b = (ei - errors[b]).abs();
-            diff_a.partial_cmp(&diff_b).unwrap_or(Ordering::Equal)
-        })
+        active_set.retain(|&t| active[t]);
     }
 
     /// Compute full kernel matrix.
