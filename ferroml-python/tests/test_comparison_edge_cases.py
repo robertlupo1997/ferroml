@@ -82,7 +82,7 @@ class TestHighDimensionality:
         assert not np.any(np.isnan(sp))
 
         # FerroML raises because it requires n > p for OLS — a valid design choice
-        with pytest.raises(RuntimeError, match="Need more observations"):
+        with pytest.raises(ValueError, match="Need more observations"):
             ferro = FerroLR()
             ferro.fit(X, y)
 
@@ -428,7 +428,7 @@ class TestConstantTarget:
         assert np.all(sp == 0.0)
 
         # FerroML requires at least 2 classes — a valid design choice
-        with pytest.raises(RuntimeError, match="at least 2 classes"):
+        with pytest.raises(ValueError, match="at least 2 classes"):
             ferro = FerroDT(random_state=42)
             ferro.fit(X, y)
 
@@ -560,7 +560,7 @@ class TestSmallDatasets:
         y = np.array([0.0, 1.0, 0.0])
 
         # FerroML raises
-        with pytest.raises(RuntimeError, match="n_neighbors.*cannot be greater"):
+        with pytest.raises(ValueError, match="n_neighbors.*must be <="):
             ferro = FerroKNN(n_neighbors=5)
             ferro.fit(X, y)
 

@@ -99,7 +99,7 @@ class TestSingleSample:
         assert sk.predict(X).shape == (1,)
 
         # FerroML requires n > p (intercept counts as a param)
-        with pytest.raises(RuntimeError, match="Need more observations"):
+        with pytest.raises(ValueError, match="Need more observations"):
             FerroLR().fit(X, y)
 
     def test_ridge_single_sample(self):
@@ -158,7 +158,7 @@ class TestSingleSample:
         y = np.array([0.0])
 
         # FerroML requires at least 2 classes
-        with pytest.raises(RuntimeError, match="at least 2 classes"):
+        with pytest.raises(ValueError, match="at least 2 classes"):
             FerroDTC(random_state=42).fit(X, y)
 
         # sklearn allows single-class
@@ -309,7 +309,7 @@ class TestHighDimensional:
     def test_linear_regression_high_dim_errors(self, high_dim_data):
         """LR on p >> n: FerroML rejects, sklearn uses pseudo-inverse."""
         X, y, _ = high_dim_data
-        with pytest.raises(RuntimeError, match="Need more observations"):
+        with pytest.raises(ValueError, match="Need more observations"):
             FerroLR().fit(X, y)
 
         sk = SkLR()
@@ -796,7 +796,7 @@ class TestConstantTarget:
         X = rng.randn(40, 3)
         y = np.zeros(40)
 
-        with pytest.raises(RuntimeError, match="at least 2 classes"):
+        with pytest.raises(ValueError, match="at least 2 classes"):
             FerroDTC(random_state=42).fit(X, y)
 
         # sklearn allows it
@@ -852,7 +852,7 @@ class TestLargeClassCount:
         X_tr, y_tr, X_te, y_te = multiclass_20
 
         # FerroML rejects multiclass labels
-        with pytest.raises(RuntimeError, match="binary labels"):
+        with pytest.raises(ValueError, match="binary labels"):
             FerroLogR().fit(X_tr, y_tr)
 
         # sklearn handles 20 classes

@@ -790,16 +790,16 @@ class TestBarnesHutTSNE:
         assert embedding.shape == (50, 2), f"Shape: {embedding.shape}"
         assert np.all(np.isfinite(embedding)), "Non-finite values in exact embedding"
 
-    def test_barnes_hut_3d_raises(self):
-        """Barnes-Hut raises error for n_components != 2."""
+    def test_barnes_hut_3d_falls_back_to_exact(self):
+        """Barnes-Hut with n_components=3 falls back to exact method (Session 3a fix)."""
         from ferroml.decomposition import TSNE as FerroTSNE
-        import pytest
 
         np.random.seed(42)
         X = np.random.randn(100, 10)
         tsne = FerroTSNE(n_components=3, method="barnes_hut", theta=0.5, random_state=42)
-        with pytest.raises(RuntimeError, match="Barnes-Hut.*only supports n_components=2"):
-            tsne.fit_transform(X)
+        result = tsne.fit_transform(X)
+        assert result.shape == (100, 3), f"Expected (100, 3), got {result.shape}"
+        assert np.all(np.isfinite(result)), "Non-finite values in fallback embedding"
 
     def test_exact_3d(self):
         """Exact method works for 3D output."""

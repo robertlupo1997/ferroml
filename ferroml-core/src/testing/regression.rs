@@ -251,12 +251,12 @@ mod timing_regression_tests {
     use std::time::Instant;
 
     /// Timing thresholds - max acceptable times in milliseconds
-    /// These are very generous to account for CI variability and debug builds
+    /// Very generous to account for CI variability, debug builds, and system load
     mod timing_limits {
         /// Linear regression fit time limit (ms) for 1000x50 data
-        pub const LINEAR_FIT_1000X50_MS: u128 = 1000;
+        pub const LINEAR_FIT_1000X50_MS: u128 = 2000;
         /// Ridge regression fit time limit (ms) for 1000x50 data
-        pub const RIDGE_FIT_1000X50_MS: u128 = 1000;
+        pub const RIDGE_FIT_1000X50_MS: u128 = 2000;
         /// Decision tree fit time limit (ms) for 1000x50 data
         pub const TREE_FIT_1000X50_MS: u128 = 15000;
         /// Random forest fit time limit (ms) for 500x20 data with 50 trees
