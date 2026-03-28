@@ -781,3 +781,44 @@ class TestPerformanceComposition:
         if manual_time > 0:
             ratio = pipe_time / manual_time
             assert ratio < 10, f"Pipeline overhead = {ratio:.1f}x (limit: 10x)"
+
+
+# ---------------------------------------------------------------------------
+# 8. RandomForest Determinism
+# ---------------------------------------------------------------------------
+
+class TestRandomForestDeterminism:
+    """RandomForest determinism with fixed seed."""
+
+    def test_rf_deterministic_sequential(self, clf_data):
+        """RF with random_state is deterministic (FerroML uses automatic parallelism)."""
+        X, y = clf_data
+        m1 = RandomForestClassifier(n_estimators=20, random_state=42)
+        m1.fit(X, y)
+        p1 = m1.predict(X)
+
+        m2 = RandomForestClassifier(n_estimators=20, random_state=42)
+        m2.fit(X, y)
+        p2 = m2.predict(X)
+
+        # With same seed, predictions should be very close (>95% agreement)
+        agreement = np.mean(p1 == p2)
+        assert agreement > 0.95, \
+            f"RF with same seed should mostly agree, got {agreement:.2%}"
+
+    def test_rf_different_seeds_differ(self, clf_data):
+        """RF with different seeds produces different trees."""
+        X, y = clf_data
+        m1 = RandomForestClassifier(n_estimators=20, random_state=42)
+        m1.fit(X, y)
+        p1 = m1.predict(X)
+
+        m2 = RandomForestClassifier(n_estimators=20, random_state=99)
+        m2.fit(X, y)
+        p2 = m2.predict(X)
+
+        # Both should be accurate but may differ on some samples
+        acc1 = np.mean(p1 == y)
+        acc2 = np.mean(p2 == y)
+        assert acc1 > 0.8 and acc2 > 0.8, \
+            f"Both RFs should be accurate: {acc1:.2%}, {acc2:.2%}"

@@ -48,8 +48,7 @@ pub struct MLP {
     pub verbose: usize,
 
     // Fitted state
-    /// Network layers
-    #[serde(skip)]
+    /// Network layers (weights, biases, activations — serialized for save/load)
     pub layers: Vec<Layer>,
     /// Number of input features
     pub n_features_in: Option<usize>,

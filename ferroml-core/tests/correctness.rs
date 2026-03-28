@@ -7631,3 +7631,243 @@ mod property_invariant_tests {
         }
     }
 }
+
+// =============================================================================
+// Layer 5: Frankenstein Tests — Composition Correctness
+// =============================================================================
+
+mod layer5_frankenstein {
+    use ferroml_core::decomposition::PCA;
+    use ferroml_core::metrics::r2_score;
+    use ferroml_core::models::{LinearRegression, LogisticRegression, Model};
+    use ferroml_core::pipeline::Pipeline;
+    use ferroml_core::preprocessing::scalers::{MinMaxScaler, StandardScaler};
+    use ferroml_core::preprocessing::Transformer;
+    use ndarray::{Array1, Array2};
+
+    /// Generate deterministic regression data: y = 3*x0 - 2*x1 + 0.5*x2 + noise
+    fn make_reg_data(seed: u64) -> (Array2<f64>, Array1<f64>) {
+        use rand::SeedableRng;
+        use rand_distr::{Distribution, Normal};
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let normal = Normal::new(0.0, 1.0).unwrap();
+        let n = 200;
+        let p = 4;
+        let mut x_data = Vec::with_capacity(n * p);
+        let mut y_data = Vec::with_capacity(n);
+        for _ in 0..n {
+            let row: Vec<f64> = (0..p).map(|_| normal.sample(&mut rng)).collect();
+            let y_val = 3.0 * row[0] - 2.0 * row[1] + 0.5 * row[2] + normal.sample(&mut rng) * 0.1;
+            y_data.push(y_val);
+            x_data.extend(row);
+        }
+        (
+            Array2::from_shape_vec((n, p), x_data).unwrap(),
+            Array1::from_vec(y_data),
+        )
+    }
+
+    /// Generate deterministic binary classification data with linearly separable classes
+    fn make_clf_data(seed: u64) -> (Array2<f64>, Array1<f64>) {
+        use rand::SeedableRng;
+        use rand_distr::{Distribution, Normal};
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let normal = Normal::new(0.0, 1.0).unwrap();
+        let n = 200;
+        let p = 5;
+        let mut x_data = Vec::with_capacity(n * p);
+        let mut y_data = Vec::with_capacity(n);
+        for i in 0..n {
+            let label = if i < n / 2 { 0.0 } else { 1.0 };
+            let offset = if label == 0.0 { -2.0 } else { 2.0 };
+            let row: Vec<f64> = (0..p)
+                .map(|_| offset + normal.sample(&mut rng) * 0.5)
+                .collect();
+            y_data.push(label);
+            x_data.extend(row);
+        }
+        (
+            Array2::from_shape_vec((n, p), x_data).unwrap(),
+            Array1::from_vec(y_data),
+        )
+    }
+
+    #[test]
+    fn test_pipeline_scaler_linreg_matches_manual() {
+        let (x, y) = make_reg_data(42);
+
+        // Pipeline approach
+        let mut pipe = Pipeline::new()
+            .add_transformer("scaler", StandardScaler::new())
+            .add_model("linreg", LinearRegression::new());
+        pipe.fit(&x, &y).unwrap();
+        let pipe_preds = pipe.predict(&x).unwrap();
+
+        // Manual approach
+        let mut scaler = StandardScaler::new();
+        scaler.fit(&x).unwrap();
+        let x_scaled = scaler.transform(&x).unwrap();
+        let mut linreg = LinearRegression::new();
+        linreg.fit(&x_scaled, &y).unwrap();
+        let manual_preds = linreg.predict(&x_scaled).unwrap();
+
+        // Pipeline and manual should produce identical results
+        assert_eq!(pipe_preds.len(), manual_preds.len());
+        for (i, (p, m)) in pipe_preds.iter().zip(manual_preds.iter()).enumerate() {
+            assert!(
+                (p - m).abs() < 1e-10,
+                "Pipeline vs manual mismatch at [{}]: {} vs {}",
+                i,
+                p,
+                m
+            );
+        }
+    }
+
+    #[test]
+    fn test_pipeline_minmax_linreg() {
+        let (x, y) = make_reg_data(101);
+
+        let mut pipe = Pipeline::new()
+            .add_transformer("minmax", MinMaxScaler::new())
+            .add_model("linreg", LinearRegression::new());
+        pipe.fit(&x, &y).unwrap();
+        let preds = pipe.predict(&x).unwrap();
+
+        let r2 = r2_score(&y, &preds).unwrap();
+        assert!(
+            r2 > 0.9,
+            "Pipeline(MinMaxScaler, LinReg) R^2 = {}, expected > 0.9",
+            r2
+        );
+    }
+
+    #[test]
+    fn test_pipeline_scaler_logreg() {
+        let (x, y) = make_clf_data(77);
+
+        let mut pipe = Pipeline::new()
+            .add_transformer("scaler", StandardScaler::new())
+            .add_model("logreg", LogisticRegression::new());
+        pipe.fit(&x, &y).unwrap();
+        let preds = pipe.predict(&x).unwrap();
+
+        let correct = preds
+            .iter()
+            .zip(y.iter())
+            .filter(|(&p, &t)| (p - t).abs() < 0.5)
+            .count();
+        let accuracy = correct as f64 / y.len() as f64;
+        assert!(
+            accuracy > 0.85,
+            "Pipeline(StandardScaler, LogReg) accuracy = {}, expected > 0.85",
+            accuracy
+        );
+    }
+
+    #[test]
+    fn test_pipeline_predict_before_fit_errors() {
+        let (x, _y) = make_reg_data(99);
+
+        let pipe = Pipeline::new()
+            .add_transformer("scaler", StandardScaler::new())
+            .add_model("linreg", LinearRegression::new());
+
+        let result = pipe.predict(&x);
+        assert!(
+            result.is_err(),
+            "Pipeline.predict() before fit() should return Err"
+        );
+    }
+
+    #[test]
+    fn test_pipeline_refit_replaces_state() {
+        let (x1, y1) = make_reg_data(10);
+        let (x2, y2) = make_reg_data(20);
+
+        let mut pipe = Pipeline::new()
+            .add_transformer("scaler", StandardScaler::new())
+            .add_model("linreg", LinearRegression::new());
+
+        // Fit on first dataset
+        pipe.fit(&x1, &y1).unwrap();
+        let _preds1 = pipe.predict(&x1).unwrap();
+
+        // Refit on second dataset — pipeline should learn new data
+        pipe.fit(&x2, &y2).unwrap();
+        let preds2 = pipe.predict(&x2).unwrap();
+
+        let r2 = r2_score(&y2, &preds2).unwrap();
+        assert!(
+            r2 > 0.8,
+            "After refit, Pipeline R^2 on new data = {}, expected > 0.8",
+            r2
+        );
+    }
+
+    #[test]
+    fn test_pipeline_scaler_pca_logreg() {
+        let (x, y) = make_clf_data(55);
+
+        // Pipeline approach
+        let mut pipe = Pipeline::new()
+            .add_transformer("scaler", StandardScaler::new())
+            .add_transformer("pca", PCA::new().with_n_components(3))
+            .add_model("logreg", LogisticRegression::new());
+        pipe.fit(&x, &y).unwrap();
+        let pipe_preds = pipe.predict(&x).unwrap();
+
+        // Manual approach
+        let mut scaler = StandardScaler::new();
+        scaler.fit(&x).unwrap();
+        let x_scaled = scaler.transform(&x).unwrap();
+
+        let mut pca = PCA::new().with_n_components(3);
+        pca.fit(&x_scaled).unwrap();
+        let x_pca = pca.transform(&x_scaled).unwrap();
+
+        let mut logreg = LogisticRegression::new();
+        logreg.fit(&x_pca, &y).unwrap();
+        let manual_preds = logreg.predict(&x_pca).unwrap();
+
+        // Pipeline and manual should produce identical results
+        assert_eq!(pipe_preds.len(), manual_preds.len());
+        for (i, (p, m)) in pipe_preds.iter().zip(manual_preds.iter()).enumerate() {
+            assert!(
+                (p - m).abs() < 1e-10,
+                "Pipeline(Scaler+PCA+LogReg) vs manual mismatch at [{}]: {} vs {}",
+                i,
+                p,
+                m
+            );
+        }
+    }
+
+    #[test]
+    fn test_mlp_serialization_preserves_predictions() {
+        use ferroml_core::neural::{MLPClassifier, NeuralModel};
+
+        let (x, y) = make_clf_data(42);
+
+        let mut mlp = MLPClassifier::new()
+            .hidden_layer_sizes(&[10, 5])
+            .max_iter(50)
+            .random_state(42);
+        mlp.fit(&x, &y).unwrap();
+        let preds_before = mlp.predict(&x).unwrap();
+
+        // Serialize and deserialize via JSON
+        let json = serde_json::to_string(&mlp).unwrap();
+        let mlp_loaded: MLPClassifier = serde_json::from_str(&json).unwrap();
+        let preds_after = mlp_loaded.predict(&x).unwrap();
+
+        for (a, b) in preds_before.iter().zip(preds_after.iter()) {
+            assert!(
+                (a - b).abs() < 1e-10,
+                "MLP serialization changed prediction: {} vs {}",
+                a,
+                b
+            );
+        }
+    }
+}
