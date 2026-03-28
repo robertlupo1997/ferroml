@@ -7014,3 +7014,620 @@ mod preprocessing {
         assert_eq!(out_names, vec!["income"]); // Only non-constant feature
     }
 }
+
+mod property_invariant_tests {
+    //! Layer 3: Property/Invariant tests.
+    //!
+    //! These tests verify mathematical properties and invariants that must hold
+    //! for ML models regardless of the specific data. They check structural
+    //! correctness rather than exact numerical values.
+
+    use ndarray::{Array1, Array2};
+
+    // =========================================================================
+    // Helper: generate simple 2-class classification data
+    // =========================================================================
+    fn make_classification_data() -> (Array2<f64>, Array1<f64>) {
+        // 20 samples, 3 features; first 10 are class 0, last 10 are class 1
+        let x = Array2::from_shape_fn((20, 3), |(i, j)| ((i * 3 + j) as f64) * 0.1);
+        let y = Array1::from_iter((0..20).map(|i| if i < 10 { 0.0 } else { 1.0 }));
+        (x, y)
+    }
+
+    // =========================================================================
+    // Helper: generate simple regression data
+    // =========================================================================
+    fn make_regression_data() -> (Array2<f64>, Array1<f64>) {
+        let x = Array2::from_shape_fn((20, 3), |(i, j)| ((i * 3 + j) as f64) * 0.1);
+        let y = Array1::from_iter((0..20).map(|i| i as f64 * 0.5 + 1.0));
+        (x, y)
+    }
+
+    // =========================================================================
+    // 1. Classifier probability sum-to-1
+    // =========================================================================
+
+    /// Helper to verify predict_proba rows sum to 1.0
+    fn assert_proba_sums_to_one(proba: &Array2<f64>, model_name: &str) {
+        for (i, row) in proba.rows().into_iter().enumerate() {
+            let sum: f64 = row.iter().sum();
+            assert!(
+                (sum - 1.0).abs() < 1e-6,
+                "{}: row {} proba sum = {}, expected ~1.0",
+                model_name,
+                i,
+                sum
+            );
+            // All probabilities should be non-negative
+            for (j, &p) in row.iter().enumerate() {
+                assert!(
+                    p >= -1e-10,
+                    "{}: row {} col {} has negative probability {}",
+                    model_name,
+                    i,
+                    j,
+                    p
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_logistic_regression_proba_sums_to_one() {
+        use ferroml_core::models::{LogisticRegression, Model, ProbabilisticModel};
+        let (x, y) = make_classification_data();
+        let mut model = LogisticRegression::new();
+        model.fit(&x, &y).unwrap();
+        let proba = model.predict_proba(&x).unwrap();
+        assert_eq!(proba.nrows(), 20);
+        assert_proba_sums_to_one(&proba, "LogisticRegression");
+    }
+
+    #[test]
+    fn test_gaussian_nb_proba_sums_to_one() {
+        use ferroml_core::models::{GaussianNB, Model, ProbabilisticModel};
+        let (x, y) = make_classification_data();
+        let mut model = GaussianNB::new();
+        model.fit(&x, &y).unwrap();
+        let proba = model.predict_proba(&x).unwrap();
+        assert_eq!(proba.nrows(), 20);
+        assert_proba_sums_to_one(&proba, "GaussianNB");
+    }
+
+    #[test]
+    fn test_bernoulli_nb_proba_sums_to_one() {
+        use ferroml_core::models::{BernoulliNB, Model, ProbabilisticModel};
+        let (x, y) = make_classification_data();
+        let mut model = BernoulliNB::new();
+        model.fit(&x, &y).unwrap();
+        let proba = model.predict_proba(&x).unwrap();
+        assert_eq!(proba.nrows(), 20);
+        assert_proba_sums_to_one(&proba, "BernoulliNB");
+    }
+
+    #[test]
+    fn test_decision_tree_classifier_proba_sums_to_one() {
+        use ferroml_core::models::{DecisionTreeClassifier, Model};
+        let (x, y) = make_classification_data();
+        let mut model = DecisionTreeClassifier::new();
+        model.fit(&x, &y).unwrap();
+        let proba = model.predict_proba(&x).unwrap();
+        assert_eq!(proba.nrows(), 20);
+        assert_proba_sums_to_one(&proba, "DecisionTreeClassifier");
+    }
+
+    #[test]
+    fn test_random_forest_classifier_proba_sums_to_one() {
+        use ferroml_core::models::{Model, RandomForestClassifier};
+        let (x, y) = make_classification_data();
+        let mut model = RandomForestClassifier::new()
+            .with_n_estimators(10)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+        let proba = model.predict_proba(&x).unwrap();
+        assert_eq!(proba.nrows(), 20);
+        assert_proba_sums_to_one(&proba, "RandomForestClassifier");
+    }
+
+    #[test]
+    fn test_gradient_boosting_classifier_proba_sums_to_one() {
+        use ferroml_core::models::{GradientBoostingClassifier, Model};
+        let (x, y) = make_classification_data();
+        let mut model = GradientBoostingClassifier::new()
+            .with_n_estimators(10)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+        let proba = model.predict_proba(&x).unwrap();
+        assert_eq!(proba.nrows(), 20);
+        assert_proba_sums_to_one(&proba, "GradientBoostingClassifier");
+    }
+
+    #[test]
+    fn test_kneighbors_classifier_proba_sums_to_one() {
+        use ferroml_core::models::{KNeighborsClassifier, Model, ProbabilisticModel};
+        let (x, y) = make_classification_data();
+        let mut model = KNeighborsClassifier::new(5);
+        model.fit(&x, &y).unwrap();
+        let proba = model.predict_proba(&x).unwrap();
+        assert_eq!(proba.nrows(), 20);
+        assert_proba_sums_to_one(&proba, "KNeighborsClassifier");
+    }
+
+    #[test]
+    fn test_svc_proba_sums_to_one() {
+        use ferroml_core::models::{Model, ProbabilisticModel, SVC};
+        let (x, y) = make_classification_data();
+        let mut model = SVC::new().with_probability(true);
+        model.fit(&x, &y).unwrap();
+        let proba = model.predict_proba(&x).unwrap();
+        assert_eq!(proba.nrows(), 20);
+        assert_proba_sums_to_one(&proba, "SVC");
+    }
+
+    // =========================================================================
+    // 2. Iterative models: convergence and loss properties
+    // =========================================================================
+
+    #[test]
+    fn test_kmeans_inertia_finite_and_nonnegative() {
+        use ferroml_core::clustering::{ClusteringModel, KMeans};
+        let x = Array2::from_shape_fn((30, 3), |(i, j)| ((i * 3 + j) as f64) * 0.1);
+        let mut km = KMeans::new(3).random_state(42);
+        km.fit(&x).unwrap();
+        let inertia = km.inertia().expect("inertia should be available after fit");
+        assert!(
+            inertia.is_finite(),
+            "inertia should be finite, got {}",
+            inertia
+        );
+        assert!(
+            inertia >= 0.0,
+            "inertia should be non-negative, got {}",
+            inertia
+        );
+    }
+
+    #[test]
+    fn test_gradient_boosting_regressor_converges() {
+        use ferroml_core::models::{GradientBoostingRegressor, Model};
+        let (x, y) = make_regression_data();
+        let mut model = GradientBoostingRegressor::new()
+            .with_n_estimators(50)
+            .with_learning_rate(0.1)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+        // Training history should show non-increasing loss (at least first > last)
+        if let Some(history) = model.training_history() {
+            let losses = &history.train_loss;
+            assert!(!losses.is_empty(), "training history should have entries");
+            assert!(
+                losses.last().unwrap() <= losses.first().unwrap(),
+                "final train loss ({}) should be <= initial train loss ({})",
+                losses.last().unwrap(),
+                losses.first().unwrap()
+            );
+            // All losses should be finite
+            for (i, loss) in losses.iter().enumerate() {
+                assert!(
+                    loss.is_finite(),
+                    "loss at step {} should be finite, got {}",
+                    i,
+                    loss
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_gradient_boosting_classifier_converges() {
+        use ferroml_core::models::{GradientBoostingClassifier, Model};
+        let (x, y) = make_classification_data();
+        let mut model = GradientBoostingClassifier::new()
+            .with_n_estimators(50)
+            .with_learning_rate(0.1)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+        if let Some(history) = model.training_history() {
+            let losses = &history.train_loss;
+            assert!(!losses.is_empty(), "training history should have entries");
+            assert!(
+                losses.last().unwrap() <= losses.first().unwrap(),
+                "final train loss ({}) should be <= initial train loss ({})",
+                losses.last().unwrap(),
+                losses.first().unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn test_logistic_regression_converges() {
+        use ferroml_core::models::{LogisticRegression, Model};
+        let (x, y) = make_classification_data();
+        let mut model = LogisticRegression::new();
+        // Should fit without convergence error
+        model.fit(&x, &y).unwrap();
+        assert!(model.is_fitted());
+        // Predictions should be valid class labels
+        let preds = model.predict(&x).unwrap();
+        for &p in preds.iter() {
+            assert!(
+                p == 0.0 || p == 1.0,
+                "prediction {} is not a valid class label",
+                p
+            );
+        }
+    }
+
+    // =========================================================================
+    // 3. PCA properties
+    // =========================================================================
+
+    #[test]
+    fn test_pca_components_orthogonal() {
+        use ferroml_core::decomposition::PCA;
+        use ferroml_core::preprocessing::Transformer;
+        let x = Array2::from_shape_fn((30, 5), |(i, j)| ((i * 7 + j * 13) as f64).sin() * 10.0);
+        let mut pca = PCA::new().with_n_components(3);
+        pca.fit(&x).unwrap();
+        let components = pca.components().expect("components should be available");
+        // components is (n_components x n_features), each row is a component vector
+        let n_components = components.nrows();
+        for i in 0..n_components {
+            for j in (i + 1)..n_components {
+                let dot: f64 = components
+                    .row(i)
+                    .iter()
+                    .zip(components.row(j).iter())
+                    .map(|(a, b)| a * b)
+                    .sum();
+                assert!(
+                    dot.abs() < 1e-10,
+                    "components {} and {} should be orthogonal, dot product = {}",
+                    i,
+                    j,
+                    dot
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_pca_explained_variance_ratio_sorted_descending() {
+        use ferroml_core::decomposition::PCA;
+        use ferroml_core::preprocessing::Transformer;
+        let x = Array2::from_shape_fn((30, 5), |(i, j)| ((i * 7 + j * 13) as f64).sin() * 10.0);
+        let mut pca = PCA::new().with_n_components(4);
+        pca.fit(&x).unwrap();
+        let ratios = pca
+            .explained_variance_ratio()
+            .expect("explained_variance_ratio should be available");
+        for i in 0..(ratios.len() - 1) {
+            assert!(
+                ratios[i] >= ratios[i + 1] - 1e-12,
+                "explained variance ratio not sorted descending: ratios[{}]={} < ratios[{}]={}",
+                i,
+                ratios[i],
+                i + 1,
+                ratios[i + 1]
+            );
+        }
+    }
+
+    #[test]
+    fn test_pca_explained_variance_ratio_sums_le_one() {
+        use ferroml_core::decomposition::PCA;
+        use ferroml_core::preprocessing::Transformer;
+        let x = Array2::from_shape_fn((30, 5), |(i, j)| ((i * 7 + j * 13) as f64).sin() * 10.0);
+        let mut pca = PCA::new().with_n_components(5);
+        pca.fit(&x).unwrap();
+        let ratios = pca
+            .explained_variance_ratio()
+            .expect("explained_variance_ratio should be available");
+        let sum: f64 = ratios.iter().sum();
+        assert!(
+            sum <= 1.0 + 1e-10,
+            "explained variance ratios sum to {}, expected <= 1.0",
+            sum
+        );
+        // Each ratio should be non-negative
+        for (i, &r) in ratios.iter().enumerate() {
+            assert!(r >= -1e-12, "ratio[{}] = {} is negative", i, r);
+        }
+    }
+
+    #[test]
+    fn test_pca_components_unit_norm() {
+        use ferroml_core::decomposition::PCA;
+        use ferroml_core::preprocessing::Transformer;
+        let x = Array2::from_shape_fn((30, 5), |(i, j)| ((i * 7 + j * 13) as f64).sin() * 10.0);
+        let mut pca = PCA::new().with_n_components(3);
+        pca.fit(&x).unwrap();
+        let components = pca.components().expect("components should be available");
+        for i in 0..components.nrows() {
+            let norm: f64 = components.row(i).iter().map(|v| v * v).sum::<f64>().sqrt();
+            assert!(
+                (norm - 1.0).abs() < 1e-10,
+                "component {} has norm {}, expected ~1.0",
+                i,
+                norm
+            );
+        }
+    }
+
+    // =========================================================================
+    // 4. Tree feature importances
+    // =========================================================================
+
+    #[test]
+    fn test_decision_tree_feature_importances_nonneg_sum_one() {
+        use ferroml_core::models::{DecisionTreeClassifier, Model};
+        let (x, y) = make_classification_data();
+        let mut model = DecisionTreeClassifier::new();
+        model.fit(&x, &y).unwrap();
+        let importances = model
+            .feature_importance()
+            .expect("feature_importance should be available after fit");
+        assert_eq!(importances.len(), 3);
+        for (i, &imp) in importances.iter().enumerate() {
+            assert!(
+                imp >= -1e-12,
+                "feature_importance[{}] = {} is negative",
+                i,
+                imp
+            );
+        }
+        let sum: f64 = importances.iter().sum();
+        assert!(
+            (sum - 1.0).abs() < 1e-6,
+            "feature importances sum to {}, expected ~1.0",
+            sum
+        );
+    }
+
+    #[test]
+    fn test_random_forest_feature_importances_nonneg_sum_one() {
+        use ferroml_core::models::{Model, RandomForestClassifier};
+        let (x, y) = make_classification_data();
+        let mut model = RandomForestClassifier::new()
+            .with_n_estimators(20)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+        let importances = model
+            .feature_importance()
+            .expect("feature_importance should be available after fit");
+        assert_eq!(importances.len(), 3);
+        for (i, &imp) in importances.iter().enumerate() {
+            assert!(imp >= -1e-12, "importance[{}] = {} is negative", i, imp);
+        }
+        let sum: f64 = importances.iter().sum();
+        assert!(
+            (sum - 1.0).abs() < 1e-6,
+            "feature importances sum to {}, expected ~1.0",
+            sum
+        );
+    }
+
+    #[test]
+    fn test_gradient_boosting_feature_importances_nonneg_sum_one() {
+        use ferroml_core::models::{GradientBoostingClassifier, Model};
+        let (x, y) = make_classification_data();
+        let mut model = GradientBoostingClassifier::new()
+            .with_n_estimators(20)
+            .with_random_state(42);
+        model.fit(&x, &y).unwrap();
+        let importances = model
+            .feature_importance()
+            .expect("feature_importance should be available after fit");
+        assert_eq!(importances.len(), 3);
+        for (i, &imp) in importances.iter().enumerate() {
+            assert!(imp >= -1e-12, "importance[{}] = {} is negative", i, imp);
+        }
+        let sum: f64 = importances.iter().sum();
+        assert!(
+            (sum - 1.0).abs() < 1e-6,
+            "feature importances sum to {}, expected ~1.0",
+            sum
+        );
+    }
+
+    // =========================================================================
+    // 5. Anomaly detection scores
+    // =========================================================================
+
+    #[test]
+    fn test_isolation_forest_scores_finite_and_labels_valid() {
+        use ferroml_core::models::IsolationForest;
+        use ferroml_core::models::OutlierDetector;
+        let x = Array2::from_shape_fn((30, 3), |(i, j)| ((i * 3 + j) as f64) * 0.1);
+        let mut iforest = IsolationForest::new(100).with_random_state(42);
+        iforest.fit_unsupervised(&x).unwrap();
+
+        // decision_function scores should be finite
+        let scores = iforest.decision_function(&x).unwrap();
+        assert_eq!(scores.len(), 30);
+        for (i, &s) in scores.iter().enumerate() {
+            assert!(
+                s.is_finite(),
+                "decision_function[{}] = {} is not finite",
+                i,
+                s
+            );
+        }
+
+        // score_samples should be finite
+        let sample_scores = iforest.score_samples(&x).unwrap();
+        assert_eq!(sample_scores.len(), 30);
+        for (i, &s) in sample_scores.iter().enumerate() {
+            assert!(s.is_finite(), "score_samples[{}] = {} is not finite", i, s);
+        }
+
+        // predict_outliers returns -1 or 1
+        let preds = iforest.predict_outliers(&x).unwrap();
+        assert_eq!(preds.len(), 30);
+        for (i, &p) in preds.iter().enumerate() {
+            assert!(
+                p == -1 || p == 1,
+                "predict_outliers[{}] = {}, expected -1 or 1",
+                i,
+                p
+            );
+        }
+    }
+
+    #[test]
+    fn test_local_outlier_factor_scores_finite() {
+        use ferroml_core::models::LocalOutlierFactor;
+        use ferroml_core::models::OutlierDetector;
+        let x = Array2::from_shape_fn((30, 3), |(i, j)| ((i * 3 + j) as f64) * 0.1);
+        let mut lof = LocalOutlierFactor::new(5).with_novelty(true);
+        lof.fit_unsupervised(&x).unwrap();
+
+        // score_samples should be finite (requires novelty=true for new data)
+        let scores = lof.score_samples(&x).unwrap();
+        assert_eq!(scores.len(), 30);
+        for (i, &s) in scores.iter().enumerate() {
+            assert!(
+                s.is_finite(),
+                "LOF score_samples[{}] = {} is not finite",
+                i,
+                s
+            );
+        }
+
+        // decision_function should be finite
+        let df = lof.decision_function(&x).unwrap();
+        assert_eq!(df.len(), 30);
+        for (i, &d) in df.iter().enumerate() {
+            assert!(
+                d.is_finite(),
+                "LOF decision_function[{}] = {} is not finite",
+                i,
+                d
+            );
+        }
+
+        // predict_outliers returns -1 or 1
+        let preds = lof.predict_outliers(&x).unwrap();
+        assert_eq!(preds.len(), 30);
+        for (i, &p) in preds.iter().enumerate() {
+            assert!(
+                p == -1 || p == 1,
+                "LOF predict_outliers[{}] = {}, expected -1 or 1",
+                i,
+                p
+            );
+        }
+
+        // Also verify negative_outlier_factor is finite on non-novelty LOF
+        let mut lof_train = LocalOutlierFactor::new(5);
+        lof_train.fit_unsupervised(&x).unwrap();
+        let nof = lof_train
+            .negative_outlier_factor()
+            .expect("negative_outlier_factor should be available");
+        for (i, &n) in nof.iter().enumerate() {
+            assert!(
+                n.is_finite(),
+                "LOF negative_outlier_factor[{}] = {} is not finite",
+                i,
+                n
+            );
+        }
+    }
+
+    // =========================================================================
+    // 6. Ridge regularization property
+    // =========================================================================
+
+    #[test]
+    fn test_ridge_alpha_zero_approximates_ols() {
+        use ferroml_core::models::{LinearRegression, Model, RidgeRegression};
+        // Use well-conditioned data: features are orthogonal-ish
+        let x = Array2::from_shape_fn((30, 3), |(i, j)| match j {
+            0 => (i as f64) * 0.1,
+            1 => ((i as f64) * 0.3).sin(),
+            _ => ((i as f64) * 0.7).cos(),
+        });
+        let y = Array1::from_iter(
+            (0..30).map(|i| x[[i, 0]] * 2.0 + x[[i, 1]] * 0.5 + x[[i, 2]] * 1.0 + 0.1),
+        );
+
+        let mut ols = LinearRegression::new();
+        ols.fit(&x, &y).unwrap();
+        let ols_coef = ols.coefficients().unwrap().clone();
+
+        let mut ridge = RidgeRegression::new(1e-10); // near-zero alpha
+        ridge.fit(&x, &y).unwrap();
+        let ridge_coef = ridge.coefficients().unwrap().clone();
+
+        // Coefficients should be approximately equal
+        for i in 0..ols_coef.len() {
+            assert!(
+                (ols_coef[i] - ridge_coef[i]).abs() < 0.1,
+                "Ridge(alpha~0) coef[{}]={} differs from OLS coef[{}]={} by more than 0.1",
+                i,
+                ridge_coef[i],
+                i,
+                ols_coef[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_ridge_large_alpha_shrinks_coefficients() {
+        use ferroml_core::models::{Model, RidgeRegression};
+        let (x, y) = make_regression_data();
+
+        let mut ridge = RidgeRegression::new(1e10);
+        ridge.fit(&x, &y).unwrap();
+        let coefs = ridge.coefficients().unwrap();
+
+        // With very large regularization, all coefficients should be near zero
+        for (i, &c) in coefs.iter().enumerate() {
+            assert!(
+                c.abs() < 0.1,
+                "Ridge(alpha=1e10) coef[{}]={} should be near zero",
+                i,
+                c
+            );
+        }
+    }
+
+    // =========================================================================
+    // 7. SVM properties
+    // =========================================================================
+
+    #[test]
+    fn test_svc_predictions_are_valid_class_labels() {
+        use ferroml_core::models::{Model, SVC};
+        let (x, y) = make_classification_data();
+        let mut model = SVC::new();
+        model.fit(&x, &y).unwrap();
+        let preds = model.predict(&x).unwrap();
+        for (i, &p) in preds.iter().enumerate() {
+            assert!(
+                p == 0.0 || p == 1.0,
+                "SVC prediction[{}] = {}, expected 0.0 or 1.0",
+                i,
+                p
+            );
+        }
+    }
+
+    #[test]
+    fn test_svc_decision_function_finite() {
+        use ferroml_core::models::{Model, SVC};
+        let (x, y) = make_classification_data();
+        let mut model = SVC::new();
+        model.fit(&x, &y).unwrap();
+        let df = model.decision_function(&x).unwrap();
+        for ((i, j), &val) in df.indexed_iter() {
+            assert!(
+                val.is_finite(),
+                "SVC decision_function[{},{}] = {} is not finite",
+                i,
+                j,
+                val
+            );
+        }
+    }
+}

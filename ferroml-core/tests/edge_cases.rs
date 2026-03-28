@@ -394,7 +394,7 @@ mod edge_case_matrix {
                         let pred = model.predict(&x).expect("predict should work");
                         for &v in pred.iter() {
                             assert!(
-                                (v - 1.0).abs() < 1e-10,
+                                (v - 1.0_f64).abs() < 1e-10,
                                 "with single class=1.0, expected 1.0 got {v}"
                             );
                         }
@@ -3652,6 +3652,641 @@ mod stability_tests {
             .expect("Should have centers after fit");
         for &v in centers.iter() {
             assert!(v.is_finite(), "Center contains non-finite value: {}", v);
+        }
+    }
+}
+
+// =============================================================================
+// Layer 4: Adversarial Edge Case Tests
+// =============================================================================
+
+mod adversarial_edge_cases {
+    use ferroml_core::clustering::{ClusteringModel, KMeans};
+    use ferroml_core::decomposition::PCA;
+    use ferroml_core::models::{
+        DecisionTreeClassifier, DecisionTreeRegressor, ElasticNet, GaussianNB,
+        KNeighborsClassifier, KNeighborsRegressor, LassoRegression, LinearRegression,
+        LogisticRegression, Model, RandomForestClassifier, RandomForestRegressor, RidgeRegression,
+    };
+    use ferroml_core::preprocessing::scalers::{MinMaxScaler, StandardScaler};
+    use ferroml_core::preprocessing::Transformer;
+    use ndarray::{Array1, Array2};
+
+    // =========================================================================
+    // 1. Near-collinear features (condition number > 1e12)
+    // =========================================================================
+
+    fn gen_near_collinear(n: usize) -> (Array2<f64>, Array1<f64>, Array1<f64>) {
+        // Feature 2 = feature 1 + 1e-14 * tiny perturbation
+        let mut data = Vec::with_capacity(n * 2);
+        for i in 0..n {
+            let base = i as f64 + 1.0;
+            data.push(base);
+            data.push(base + 1e-14 * (i as f64 * 0.7 + 0.3));
+        }
+        let x = Array2::from_shape_vec((n, 2), data).unwrap();
+        let y_reg = Array1::from_iter((0..n).map(|i| i as f64 * 2.0 + 1.0));
+        let y_cls = Array1::from_iter((0..n).map(|i| if i < n / 2 { 0.0 } else { 1.0 }));
+        (x, y_reg, y_cls)
+    }
+
+    #[test]
+    fn test_near_collinear_linear_regression_no_panic() {
+        let (x, y, _) = gen_near_collinear(30);
+        let mut model = LinearRegression::new();
+        let result = model.fit(&x, &y);
+        // Ok or Err is fine, panic is not
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            if let Ok(p) = pred {
+                assert_eq!(p.len(), 30);
+            }
+        }
+    }
+
+    #[test]
+    fn test_near_collinear_ridge_no_panic() {
+        let (x, y, _) = gen_near_collinear(30);
+        let mut model = RidgeRegression::new(1.0);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            if let Ok(p) = pred {
+                for &v in p.iter() {
+                    assert!(v.is_finite(), "Ridge prediction should be finite, got {v}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_near_collinear_logistic_no_panic() {
+        let (x, _, y) = gen_near_collinear(30);
+        let mut model = LogisticRegression::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            if let Ok(p) = pred {
+                for &v in p.iter() {
+                    assert!(v == 0.0 || v == 1.0, "Expected class label, got {v}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_near_collinear_elasticnet_no_panic() {
+        let (x, y, _) = gen_near_collinear(30);
+        let mut model = ElasticNet::new(0.1, 0.5);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            if let Ok(p) = pred {
+                for &v in p.iter() {
+                    assert!(
+                        v.is_finite(),
+                        "ElasticNet prediction should be finite, got {v}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_near_collinear_lasso_no_panic() {
+        let (x, y, _) = gen_near_collinear(30);
+        let mut model = LassoRegression::new(0.1);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            if let Ok(p) = pred {
+                for &v in p.iter() {
+                    assert!(v.is_finite(), "Lasso prediction should be finite, got {v}");
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // 2. Single sample input (n=1)
+    // =========================================================================
+
+    #[test]
+    fn test_single_sample_linear_regression() {
+        let x = Array2::from_shape_vec((1, 2), vec![1.0, 2.0]).unwrap();
+        let y = Array1::from_vec(vec![3.0]);
+        let mut model = LinearRegression::new();
+        let result = model.fit(&x, &y);
+        // Either succeeds trivially or returns error, no panic
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            assert!(pred.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_single_sample_ridge() {
+        let x = Array2::from_shape_vec((1, 2), vec![1.0, 2.0]).unwrap();
+        let y = Array1::from_vec(vec![3.0]);
+        let mut model = RidgeRegression::new(1.0);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            assert!(pred.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_single_sample_decision_tree_regressor() {
+        let x = Array2::from_shape_vec((1, 2), vec![1.0, 2.0]).unwrap();
+        let y = Array1::from_vec(vec![3.0]);
+        let mut model = DecisionTreeRegressor::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            assert!(pred.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_single_sample_kneighbors_regressor() {
+        let x = Array2::from_shape_vec((1, 2), vec![1.0, 2.0]).unwrap();
+        let y = Array1::from_vec(vec![3.0]);
+        // k=1 since we only have 1 sample
+        let mut model = KNeighborsRegressor::new(1);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            assert!(pred.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_single_sample_random_forest_regressor() {
+        let x = Array2::from_shape_vec((1, 2), vec![1.0, 2.0]).unwrap();
+        let y = Array1::from_vec(vec![3.0]);
+        let mut model = RandomForestRegressor::new()
+            .with_n_estimators(10)
+            .with_random_state(42);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            assert!(pred.is_ok());
+        }
+    }
+
+    // =========================================================================
+    // 3. Constant features (zero variance)
+    // =========================================================================
+
+    #[test]
+    fn test_constant_features_linear_regression_no_nan() {
+        let x = Array2::from_elem((20, 3), 5.0);
+        let y = Array1::from_iter((0..20).map(|i| i as f64));
+        let mut model = LinearRegression::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    !v.is_nan(),
+                    "LinearRegression prediction should not be NaN with constant features"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_constant_features_logistic_regression_no_nan() {
+        let x = Array2::from_elem((20, 3), 5.0);
+        let y = Array1::from_iter((0..20).map(|i| if i < 10 { 0.0 } else { 1.0 }));
+        let mut model = LogisticRegression::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    !v.is_nan(),
+                    "LogisticRegression prediction should not be NaN with constant features"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_constant_features_decision_tree_classifier_no_nan() {
+        let x = Array2::from_elem((20, 3), 5.0);
+        let y = Array1::from_iter((0..20).map(|i| if i < 10 { 0.0 } else { 1.0 }));
+        let mut model = DecisionTreeClassifier::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    !v.is_nan(),
+                    "DecisionTreeClassifier prediction should not be NaN"
+                );
+                assert!(v == 0.0 || v == 1.0, "Expected class label, got {v}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_constant_features_standard_scaler() {
+        let x = Array2::from_elem((20, 3), 5.0);
+        let mut scaler = StandardScaler::new();
+        let result = scaler.fit(&x);
+        assert!(
+            result.is_ok(),
+            "StandardScaler should handle constant features"
+        );
+        let transformed = scaler.transform(&x).unwrap();
+        for &v in transformed.iter() {
+            assert!(
+                v.is_finite(),
+                "StandardScaler output should be finite with constant features, got {v}"
+            );
+        }
+    }
+
+    // =========================================================================
+    // 4. All-same labels (single class)
+    // =========================================================================
+
+    fn gen_single_class_data(n: usize, label: f64) -> (Array2<f64>, Array1<f64>) {
+        let x = Array2::from_shape_fn((n, 3), |(i, j)| (i * 3 + j) as f64 * 0.1);
+        let y = Array1::from_elem(n, label);
+        (x, y)
+    }
+
+    #[test]
+    fn test_single_class_logistic_regression() {
+        let (x, y) = gen_single_class_data(20, 1.0);
+        let mut model = LogisticRegression::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    (v - 1.0_f64).abs() < 1e-10,
+                    "With single class=1.0, should predict 1.0, got {v}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_single_class_decision_tree_classifier() {
+        let (x, y) = gen_single_class_data(20, 0.0);
+        let mut model = DecisionTreeClassifier::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    v.abs() < 1e-10,
+                    "With single class=0.0, should predict 0.0, got {v}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_single_class_random_forest_classifier() {
+        let (x, y) = gen_single_class_data(20, 1.0);
+        let mut model = RandomForestClassifier::new()
+            .with_n_estimators(10)
+            .with_random_state(42);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    (v - 1.0_f64).abs() < 1e-10,
+                    "With single class=1.0, should predict 1.0, got {v}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_single_class_gaussian_nb() {
+        let (x, y) = gen_single_class_data(20, 1.0);
+        let mut model = GaussianNB::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    (v - 1.0_f64).abs() < 1e-10,
+                    "With single class=1.0, GaussianNB should predict 1.0, got {v}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_single_class_kneighbors_classifier() {
+        let (x, y) = gen_single_class_data(20, 0.0);
+        let mut model = KNeighborsClassifier::new(3);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    v.abs() < 1e-10,
+                    "With single class=0.0, KNN should predict 0.0, got {v}"
+                );
+            }
+        }
+    }
+
+    // =========================================================================
+    // 5. Very large values (1e15)
+    // =========================================================================
+
+    #[test]
+    fn test_very_large_linear_regression() {
+        let n = 20;
+        let x = Array2::from_shape_fn((n, 3), |(i, j)| ((i * 3 + j) as f64 + 1.0) * 1e14);
+        let y = Array1::from_iter((0..n).map(|i| (i as f64 + 1.0) * 1e14));
+        let mut model = LinearRegression::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            if let Ok(pred) = model.predict(&x) {
+                for &v in pred.iter() {
+                    assert!(
+                        v.is_finite(),
+                        "LinearRegression should produce finite predictions with large values, got {v}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_very_large_ridge() {
+        let n = 20;
+        let x = Array2::from_shape_fn((n, 3), |(i, j)| ((i * 3 + j) as f64 + 1.0) * 1e14);
+        let y = Array1::from_iter((0..n).map(|i| (i as f64 + 1.0) * 1e14));
+        let mut model = RidgeRegression::new(1.0);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            if let Ok(pred) = model.predict(&x) {
+                for &v in pred.iter() {
+                    assert!(
+                        v.is_finite(),
+                        "Ridge should produce finite predictions with large values, got {v}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_very_large_standard_scaler() {
+        let n = 20;
+        let x = Array2::from_shape_fn((n, 3), |(i, j)| ((i * 3 + j) as f64 + 1.0) * 1e15);
+        let mut scaler = StandardScaler::new();
+        scaler.fit(&x).unwrap();
+        let transformed = scaler.transform(&x).unwrap();
+        for &v in transformed.iter() {
+            assert!(
+                v.is_finite(),
+                "StandardScaler output should be finite with large values, got {v}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_very_large_minmax_scaler() {
+        let n = 20;
+        let x = Array2::from_shape_fn((n, 3), |(i, j)| ((i * 3 + j) as f64 + 1.0) * 1e15);
+        let mut scaler = MinMaxScaler::new();
+        scaler.fit(&x).unwrap();
+        let transformed = scaler.transform(&x).unwrap();
+        for &v in transformed.iter() {
+            assert!(
+                v.is_finite(),
+                "MinMaxScaler output should be finite with large values, got {v}"
+            );
+            assert!(
+                (-1e-10..=1.0 + 1e-10).contains(&v),
+                "MinMaxScaler output should be in [0,1], got {v}"
+            );
+        }
+    }
+
+    // =========================================================================
+    // 6. Very small values (1e-15)
+    // =========================================================================
+
+    #[test]
+    fn test_very_small_linear_regression() {
+        let n = 20;
+        let x = Array2::from_shape_fn((n, 3), |(i, j)| ((i * 3 + j) as f64 + 1.0) * 1e-15);
+        let y = Array1::from_iter((0..n).map(|i| (i as f64 + 1.0) * 1e-15));
+        let mut model = LinearRegression::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            if let Ok(pred) = model.predict(&x) {
+                for &v in pred.iter() {
+                    assert!(
+                        v.is_finite(),
+                        "LinearRegression should produce finite predictions with tiny values, got {v}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_very_small_ridge() {
+        let n = 20;
+        let x = Array2::from_shape_fn((n, 3), |(i, j)| ((i * 3 + j) as f64 + 1.0) * 1e-15);
+        let y = Array1::from_iter((0..n).map(|i| (i as f64 + 1.0) * 1e-15));
+        let mut model = RidgeRegression::new(1.0);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            if let Ok(pred) = model.predict(&x) {
+                for &v in pred.iter() {
+                    assert!(
+                        v.is_finite(),
+                        "Ridge should produce finite predictions with tiny values, got {v}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_very_small_standard_scaler() {
+        let n = 20;
+        let x = Array2::from_shape_fn((n, 3), |(i, j)| ((i * 3 + j) as f64 + 1.0) * 1e-15);
+        let mut scaler = StandardScaler::new();
+        scaler.fit(&x).unwrap();
+        let transformed = scaler.transform(&x).unwrap();
+        for &v in transformed.iter() {
+            assert!(
+                v.is_finite(),
+                "StandardScaler output should be finite with tiny values, got {v}"
+            );
+        }
+    }
+
+    // =========================================================================
+    // 7. Rank-deficient matrices (p > n)
+    // =========================================================================
+
+    fn gen_rank_deficient() -> (Array2<f64>, Array1<f64>) {
+        // 5 samples, 20 features
+        let x = Array2::from_shape_fn((5, 20), |(i, j)| (i * 20 + j) as f64 * 0.01);
+        let y = Array1::from_iter((0..5).map(|i| i as f64 * 2.0));
+        (x, y)
+    }
+
+    #[test]
+    fn test_rank_deficient_linear_regression_no_panic() {
+        let (x, y) = gen_rank_deficient();
+        let mut model = LinearRegression::new();
+        let result = model.fit(&x, &y);
+        // Either succeeds or returns error, no panic
+        if let Ok(()) = result {
+            let pred = model.predict(&x);
+            assert!(pred.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_rank_deficient_ridge_no_panic() {
+        let (x, y) = gen_rank_deficient();
+        let mut model = RidgeRegression::new(1.0);
+        // Ridge with regularization should handle p > n gracefully
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    v.is_finite(),
+                    "Ridge on rank-deficient data should produce finite predictions, got {v}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_rank_deficient_elasticnet_no_panic() {
+        let (x, y) = gen_rank_deficient();
+        let mut model = ElasticNet::new(0.1, 0.5);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    v.is_finite(),
+                    "ElasticNet on rank-deficient data should produce finite predictions, got {v}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_rank_deficient_lasso_no_panic() {
+        let (x, y) = gen_rank_deficient();
+        let mut model = LassoRegression::new(0.1);
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            for &v in pred.iter() {
+                assert!(
+                    v.is_finite(),
+                    "Lasso on rank-deficient data should produce finite predictions, got {v}"
+                );
+            }
+        }
+    }
+
+    // =========================================================================
+    // 8. Single feature (p=1)
+    // =========================================================================
+
+    fn gen_single_feature_data() -> (Array2<f64>, Array1<f64>, Array1<f64>) {
+        let n = 30;
+        let x = Array2::from_shape_fn((n, 1), |(i, _)| i as f64);
+        let y_reg = Array1::from_iter((0..n).map(|i| i as f64 * 2.0 + 1.0));
+        let y_cls = Array1::from_iter((0..n).map(|i| if i < n / 2 { 0.0 } else { 1.0 }));
+        (x, y_reg, y_cls)
+    }
+
+    #[test]
+    fn test_single_feature_linear_regression() {
+        let (x, y, _) = gen_single_feature_data();
+        let mut model = LinearRegression::new();
+        model.fit(&x, &y).unwrap();
+        let pred = model.predict(&x).unwrap();
+        assert_eq!(pred.len(), 30);
+        for &v in pred.iter() {
+            assert!(v.is_finite(), "Prediction should be finite, got {v}");
+        }
+    }
+
+    #[test]
+    fn test_single_feature_logistic_regression() {
+        let (x, _, y) = gen_single_feature_data();
+        let mut model = LogisticRegression::new();
+        let result = model.fit(&x, &y);
+        if let Ok(()) = result {
+            let pred = model.predict(&x).unwrap();
+            assert_eq!(pred.len(), 30);
+            for &v in pred.iter() {
+                assert!(v == 0.0 || v == 1.0, "Expected class label, got {v}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_single_feature_decision_tree_classifier() {
+        let (x, _, y) = gen_single_feature_data();
+        let mut model = DecisionTreeClassifier::new();
+        model.fit(&x, &y).unwrap();
+        let pred = model.predict(&x).unwrap();
+        assert_eq!(pred.len(), 30);
+        for &v in pred.iter() {
+            assert!(v == 0.0 || v == 1.0, "Expected class label, got {v}");
+        }
+    }
+
+    #[test]
+    fn test_single_feature_decision_tree_regressor() {
+        let (x, y, _) = gen_single_feature_data();
+        let mut model = DecisionTreeRegressor::new();
+        model.fit(&x, &y).unwrap();
+        let pred = model.predict(&x).unwrap();
+        assert_eq!(pred.len(), 30);
+        for &v in pred.iter() {
+            assert!(v.is_finite(), "Prediction should be finite, got {v}");
+        }
+    }
+
+    #[test]
+    fn test_single_feature_kmeans() {
+        let (x, _, _) = gen_single_feature_data();
+        let mut model = KMeans::new(2).random_state(42);
+        model.fit(&x).unwrap();
+        let labels = model.labels().unwrap();
+        assert_eq!(labels.len(), 30);
+    }
+
+    #[test]
+    fn test_single_feature_pca() {
+        let (x, _, _) = gen_single_feature_data();
+        let mut pca = PCA::new().with_n_components(1);
+        pca.fit(&x).unwrap();
+        let transformed = pca.transform(&x).unwrap();
+        assert_eq!(transformed.nrows(), 30);
+        assert_eq!(transformed.ncols(), 1);
+        for &v in transformed.iter() {
+            assert!(v.is_finite(), "PCA output should be finite, got {v}");
         }
     }
 }
