@@ -362,6 +362,10 @@ impl Model for MultinomialNB {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.alpha < 0.0 {
+            return Err(FerroError::invalid_input("alpha must be non-negative"));
+        }
+
         // Validate non-negative values
         if x.iter().any(|&v| v < 0.0) {
             return Err(FerroError::invalid_input(

@@ -43,7 +43,7 @@ use crate::models::{
 };
 use crate::pipeline::PipelineModel;
 use crate::{FerroError, Result};
-use argmin::core::{CostFunction, Executor, Gradient, State};
+use argmin::core::{CostFunction, Executor, Gradient, State, TerminationReason};
 use argmin::solver::linesearch::MoreThuenteLineSearch;
 use argmin::solver::quasinewton::LBFGS;
 use ndarray::{s, Array1, Array2};
@@ -864,7 +864,8 @@ impl LogisticRegression {
             .ok_or_else(|| FerroError::numerical("L-BFGS produced no result"))?;
 
         let n_iter = result.state.get_iter() as usize;
-        let converged = result.state.get_iter() < self.max_iter as u64;
+        let converged =
+            result.state.get_termination_reason() != Some(&TerminationReason::MaxItersReached);
 
         let beta = Array1::from_vec(best_param.clone());
 
@@ -1313,6 +1314,22 @@ impl Gradient for LogisticCost {
 impl Model for LogisticRegression {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        // Parameter validation
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input("tol must be positive"));
+        }
+        if self.l2_penalty < 0.0 {
+            return Err(FerroError::invalid_input("l2_penalty must be non-negative"));
+        }
+        if self.confidence_level <= 0.0 || self.confidence_level >= 1.0 {
+            return Err(FerroError::invalid_input(
+                "confidence_level must be in (0, 1)",
+            ));
+        }
 
         // Validate binary labels
         for &yi in y {

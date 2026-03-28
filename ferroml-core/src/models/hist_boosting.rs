@@ -1954,6 +1954,19 @@ impl Model for HistGradientBoostingClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input_allow_nan(x, y)?;
 
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.learning_rate <= 0.0 {
+            return Err(FerroError::invalid_input("learning_rate must be positive"));
+        }
+        if self.max_depth == Some(0) {
+            return Err(FerroError::invalid_input("max_depth must be positive"));
+        }
+        if self.max_bins < 2 {
+            return Err(FerroError::invalid_input("max_bins must be >= 2"));
+        }
+
         let n_samples = x.nrows();
         let n_features = x.ncols();
         self.n_features = Some(n_features);
@@ -2663,6 +2676,19 @@ impl HistGradientBoostingRegressor {
 impl Model for HistGradientBoostingRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input_allow_nan(x, y)?;
+
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.learning_rate <= 0.0 {
+            return Err(FerroError::invalid_input("learning_rate must be positive"));
+        }
+        if self.max_depth == Some(0) {
+            return Err(FerroError::invalid_input("max_depth must be positive"));
+        }
+        if self.max_bins < 2 {
+            return Err(FerroError::invalid_input("max_bins must be >= 2"));
+        }
 
         let n_samples = x.nrows();
         let n_features = x.ncols();

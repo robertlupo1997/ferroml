@@ -25,7 +25,8 @@
 //! ```
 
 use crate::hpo::SearchSpace;
-use crate::preprocessing::{check_is_fitted, check_non_empty};
+use crate::models::validate_fit_input;
+use crate::preprocessing::check_is_fitted;
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
@@ -303,7 +304,7 @@ impl IsotonicRegression {
 
 impl super::Model for IsotonicRegression {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
-        check_non_empty(x)?;
+        validate_fit_input(x, y)?;
 
         let (n_samples, n_features) = x.dim();
 
@@ -312,25 +313,6 @@ impl super::Model for IsotonicRegression {
                 "IsotonicRegression requires exactly 1 feature, got {}",
                 n_features
             )));
-        }
-
-        if y.len() != n_samples {
-            return Err(FerroError::shape_mismatch(
-                format!("({},)", n_samples),
-                format!("({},)", y.len()),
-            ));
-        }
-
-        // Validate NaN/Inf in x and y
-        if x.iter().any(|v| !v.is_finite()) {
-            return Err(FerroError::invalid_input(
-                "X contains NaN or infinite values",
-            ));
-        }
-        if y.iter().any(|v| !v.is_finite()) {
-            return Err(FerroError::invalid_input(
-                "y contains NaN or infinite values",
-            ));
         }
 
         // Extract 1D x values

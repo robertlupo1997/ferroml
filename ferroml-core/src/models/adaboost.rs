@@ -172,6 +172,13 @@ impl Model for AdaBoostClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.n_estimators == 0 {
+            return Err(FerroError::invalid_input("n_estimators must be positive"));
+        }
+        if self.learning_rate <= 0.0 {
+            return Err(FerroError::invalid_input("learning_rate must be positive"));
+        }
+
         let n_samples = x.nrows();
         let n_features = x.ncols();
 
@@ -455,6 +462,13 @@ impl AdaBoostRegressor {
 impl Model for AdaBoostRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        if self.n_estimators == 0 {
+            return Err(FerroError::invalid_input("n_estimators must be positive"));
+        }
+        if self.learning_rate <= 0.0 {
+            return Err(FerroError::invalid_input("learning_rate must be positive"));
+        }
 
         let n_samples = x.nrows();
         let n_features = x.ncols();

@@ -962,9 +962,15 @@ impl Model for KNeighborsClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.n_neighbors == 0 {
+            return Err(FerroError::invalid_input("n_neighbors must be positive"));
+        }
+        if self.leaf_size == 0 {
+            return Err(FerroError::invalid_input("leaf_size must be positive"));
+        }
         if self.n_neighbors > x.nrows() {
             return Err(FerroError::invalid_input(format!(
-                "n_neighbors ({}) cannot be greater than n_samples ({})",
+                "n_neighbors ({}) must be <= number of samples ({})",
                 self.n_neighbors,
                 x.nrows()
             )));
@@ -1372,9 +1378,15 @@ impl Model for KNeighborsRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.n_neighbors == 0 {
+            return Err(FerroError::invalid_input("n_neighbors must be positive"));
+        }
+        if self.leaf_size == 0 {
+            return Err(FerroError::invalid_input("leaf_size must be positive"));
+        }
         if self.n_neighbors > x.nrows() {
             return Err(FerroError::invalid_input(format!(
-                "n_neighbors ({}) cannot be greater than n_samples ({})",
+                "n_neighbors ({}) must be <= number of samples ({})",
                 self.n_neighbors,
                 x.nrows()
             )));

@@ -416,6 +416,10 @@ impl Model for GaussianNB {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.var_smoothing <= 0.0 {
+            return Err(FerroError::invalid_input("var_smoothing must be positive"));
+        }
+
         // Find unique classes
         let classes = crate::models::get_unique_classes(y);
 

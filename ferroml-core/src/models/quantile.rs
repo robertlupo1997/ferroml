@@ -150,16 +150,11 @@ impl QuantileRegression {
     /// Create a new QuantileRegression model
     ///
     /// # Arguments
-    /// * `quantile` - The quantile to estimate, must be in (0, 1)
-    ///
-    /// # Panics
-    /// Panics if quantile is not in (0, 1)
+    /// * `quantile` - The quantile to estimate, must be in (0, 1).
+    ///   Invalid values are caught at `fit()` time with `FerroError::invalid_input`.
     pub fn new(quantile: f64) -> Self {
-        assert!(
-            quantile > 0.0 && quantile < 1.0,
-            "Quantile must be in (0, 1), got {}",
-            quantile
-        );
+        // Validation deferred to fit() to avoid panicking in the builder pattern.
+        // Out-of-range values will produce FerroError::invalid_input at fit time.
 
         Self {
             quantile,
@@ -534,6 +529,16 @@ fn lcg_next(state: u64) -> u64 {
 impl Model for QuantileRegression {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        if self.quantile <= 0.0 || self.quantile >= 1.0 {
+            return Err(FerroError::invalid_input("quantile must be in (0, 1)"));
+        }
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input("tol must be positive"));
+        }
 
         let n = x.nrows();
         let p_orig = x.ncols();
@@ -1215,9 +1220,18 @@ mod tests {
 
     #[test]
     fn test_error_invalid_quantile() {
-        // This should panic
-        let result = std::panic::catch_unwind(|| QuantileRegression::new(1.5));
-        assert!(result.is_err());
+        // Invalid quantile is caught at fit() time
+        let x = Array2::from_shape_vec((5, 1), vec![1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
+        let y = Array1::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+
+        let mut model = QuantileRegression::new(1.5);
+        assert!(model.fit(&x, &y).is_err());
+
+        let mut model = QuantileRegression::new(0.0);
+        assert!(model.fit(&x, &y).is_err());
+
+        let mut model = QuantileRegression::new(-0.1);
+        assert!(model.fit(&x, &y).is_err());
     }
 
     #[test]

@@ -215,6 +215,16 @@ impl Calibrator for SigmoidCalibrator {
         if n == 0 {
             return Err(FerroError::invalid_input("Empty input arrays"));
         }
+        if y_prob.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y_prob contains NaN or infinite values",
+            ));
+        }
+        if y_true.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y_true contains NaN or infinite values",
+            ));
+        }
 
         // Count positive and negative samples
         let n_pos = y_true.iter().filter(|&&y| y > 0.5).count();
@@ -482,6 +492,16 @@ impl Calibrator for IsotonicCalibrator {
         }
         if n == 0 {
             return Err(FerroError::invalid_input("Empty input arrays"));
+        }
+        if y_prob.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y_prob contains NaN or infinite values",
+            ));
+        }
+        if y_true.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y_true contains NaN or infinite values",
+            ));
         }
 
         // Sort by probability scores
@@ -809,6 +829,16 @@ impl MulticlassCalibrator for TemperatureScalingCalibrator {
         }
         if n_samples == 0 {
             return Err(FerroError::invalid_input("Empty input arrays"));
+        }
+        if y_prob.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y_prob contains NaN or infinite values",
+            ));
+        }
+        if y_true.iter().any(|v| !v.is_finite()) {
+            return Err(FerroError::invalid_input(
+                "y_true contains NaN or infinite values",
+            ));
         }
         if n_classes < 2 {
             return Err(FerroError::invalid_input(
@@ -1359,6 +1389,19 @@ pub fn calibration_curve(
     let n = y_true.len();
     if n == 0 {
         return Err(FerroError::invalid_input("Empty input arrays"));
+    }
+    if n_bins == 0 {
+        return Err(FerroError::invalid_input("n_bins must be > 0"));
+    }
+    if y_true.iter().any(|v| !v.is_finite()) {
+        return Err(FerroError::invalid_input(
+            "y_true contains NaN or infinite values",
+        ));
+    }
+    if y_prob.iter().any(|v| !v.is_finite()) {
+        return Err(FerroError::invalid_input(
+            "y_prob contains NaN or infinite values",
+        ));
     }
 
     let n_bins = n_bins.max(1);

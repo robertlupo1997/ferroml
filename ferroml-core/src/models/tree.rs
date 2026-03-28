@@ -1187,6 +1187,18 @@ impl Model for DecisionTreeClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.max_depth == Some(0) {
+            return Err(FerroError::invalid_input("max_depth must be positive"));
+        }
+        if self.min_samples_split < 2 {
+            return Err(FerroError::invalid_input("min_samples_split must be >= 2"));
+        }
+        if self.min_samples_leaf == 0 {
+            return Err(FerroError::invalid_input(
+                "min_samples_leaf must be positive",
+            ));
+        }
+
         let n_samples = x.nrows();
         let n_features = x.ncols();
 
@@ -2007,6 +2019,18 @@ impl DecisionTreeRegressor {
 impl Model for DecisionTreeRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        if self.max_depth == Some(0) {
+            return Err(FerroError::invalid_input("max_depth must be positive"));
+        }
+        if self.min_samples_split < 2 {
+            return Err(FerroError::invalid_input("min_samples_split must be >= 2"));
+        }
+        if self.min_samples_leaf == 0 {
+            return Err(FerroError::invalid_input(
+                "min_samples_leaf must be positive",
+            ));
+        }
 
         let n_samples = x.nrows();
         let n_features = x.ncols();

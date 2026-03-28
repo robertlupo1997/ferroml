@@ -465,6 +465,16 @@ impl Model for SGDClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.alpha < 0.0 {
+            return Err(FerroError::invalid_input("alpha must be non-negative"));
+        }
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol < 0.0 {
+            return Err(FerroError::invalid_input("tol must be non-negative"));
+        }
+
         if self.alpha <= 0.0 && self.learning_rate == LearningRateScheduleType::Optimal {
             return Err(FerroError::invalid_input(
                 "alpha must be > 0 when using optimal learning rate schedule",
@@ -643,6 +653,16 @@ impl IncrementalModel for SGDClassifier {
     ) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.alpha < 0.0 {
+            return Err(FerroError::invalid_input("alpha must be non-negative"));
+        }
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol < 0.0 {
+            return Err(FerroError::invalid_input("tol must be non-negative"));
+        }
+
         if self.alpha <= 0.0 && self.learning_rate == LearningRateScheduleType::Optimal {
             return Err(FerroError::invalid_input(
                 "alpha must be > 0 when using optimal learning rate schedule",
@@ -767,9 +787,10 @@ impl IncrementalModel for SGDClassifier {
                 // SAFETY: coef and intercept are set in the initialization block above
                 self.coef.as_mut().unwrap().row_mut(ci).assign(&coef);
                 self.intercept.as_mut().unwrap()[ci] = intercept;
-                // Use the last class's t for the global counter
+                // Accumulate t from every class so learning rate schedule progresses properly
+                t = class_t;
+                // Only save rng from last class (deterministic enough)
                 if ci == n_classes - 1 {
-                    t = class_t;
                     rng = class_rng;
                 }
             }
@@ -1002,6 +1023,16 @@ impl Model for SGDRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.alpha < 0.0 {
+            return Err(FerroError::invalid_input("alpha must be non-negative"));
+        }
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol < 0.0 {
+            return Err(FerroError::invalid_input("tol must be non-negative"));
+        }
+
         if self.alpha <= 0.0 && self.learning_rate == LearningRateScheduleType::Optimal {
             return Err(FerroError::invalid_input(
                 "alpha must be > 0 when using optimal learning rate schedule",
@@ -1166,6 +1197,16 @@ impl Model for SGDRegressor {
 impl IncrementalModel for SGDRegressor {
     fn partial_fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        if self.alpha < 0.0 {
+            return Err(FerroError::invalid_input("alpha must be non-negative"));
+        }
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol < 0.0 {
+            return Err(FerroError::invalid_input("tol must be non-negative"));
+        }
 
         if self.alpha <= 0.0 && self.learning_rate == LearningRateScheduleType::Optimal {
             return Err(FerroError::invalid_input(
@@ -1489,6 +1530,12 @@ impl Model for PassiveAggressiveClassifier {
                 "C must be > 0 for PassiveAggressive models",
             ));
         }
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol < 0.0 {
+            return Err(FerroError::invalid_input("tol must be non-negative"));
+        }
 
         let n_features = x.ncols();
         let classes = crate::models::get_unique_classes(y);
@@ -1614,6 +1661,12 @@ impl IncrementalModel for PassiveAggressiveClassifier {
             return Err(FerroError::invalid_input(
                 "C must be > 0 for PassiveAggressive models",
             ));
+        }
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol < 0.0 {
+            return Err(FerroError::invalid_input("tol must be non-negative"));
         }
 
         let n_features = x.ncols();

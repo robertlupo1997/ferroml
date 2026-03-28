@@ -601,6 +601,12 @@ impl Model for LassoRegression {
         if self.alpha < 0.0 {
             return Err(FerroError::invalid_input("alpha must be non-negative"));
         }
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input("tol must be positive"));
+        }
 
         let n = x.nrows();
         let p = x.ncols();
@@ -1038,6 +1044,12 @@ impl Model for ElasticNet {
             return Err(FerroError::invalid_input(
                 "l1_ratio must be between 0 and 1",
             ));
+        }
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input("tol must be positive"));
         }
 
         let n = x.nrows();
@@ -1546,6 +1558,15 @@ impl RidgeCV {
 impl Model for RidgeCV {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        if self.alphas.is_empty() {
+            return Err(FerroError::invalid_input("alphas must be non-empty"));
+        }
+        if self.alphas.iter().any(|&a| a < 0.0) {
+            return Err(FerroError::invalid_input(
+                "all alpha values must be non-negative",
+            ));
+        }
 
         let n = x.nrows();
         if n < self.cv {

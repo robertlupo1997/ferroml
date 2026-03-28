@@ -579,6 +579,9 @@ impl GaussianProcessRegressor {
 impl Model for GaussianProcessRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+        if self.alpha < 0.0 {
+            return Err(FerroError::invalid_input("alpha must be non-negative"));
+        }
         let n = x.nrows();
 
         // Optionally normalize y
@@ -821,6 +824,12 @@ impl GaussianProcessClassifier {
 impl Model for GaussianProcessClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+        if self.max_iter == 0 {
+            return Err(FerroError::invalid_input("max_iter must be positive"));
+        }
+        if self.tol < 0.0 {
+            return Err(FerroError::invalid_input("tol must be non-negative"));
+        }
         let n = x.nrows();
 
         // Extract classes and map to {0, 1}
@@ -942,7 +951,7 @@ impl Model for GaussianProcessClassifier {
     }
 
     fn is_fitted(&self) -> bool {
-        self.x_train_.is_some()
+        self.x_train_.is_some() && self.l_.is_some()
     }
 
     fn n_features(&self) -> Option<usize> {
@@ -1285,6 +1294,12 @@ impl SparseGPRegressor {
 impl Model for SparseGPRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+        if self.alpha < 0.0 {
+            return Err(FerroError::invalid_input("alpha must be non-negative"));
+        }
+        if self.n_inducing == 0 {
+            return Err(FerroError::invalid_input("n_inducing must be positive"));
+        }
         let n = x.nrows();
 
         let m = self.n_inducing.min(n);

@@ -626,6 +626,16 @@ impl Model for GradientBoostingRegressor {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
 
+        if self.n_estimators == 0 {
+            return Err(FerroError::invalid_input("n_estimators must be positive"));
+        }
+        if self.learning_rate_schedule.get_lr(0, self.n_estimators) <= 0.0 {
+            return Err(FerroError::invalid_input("learning_rate must be positive"));
+        }
+        if self.max_depth == Some(0) {
+            return Err(FerroError::invalid_input("max_depth must be positive"));
+        }
+
         let n_samples = x.nrows();
         let n_features = x.ncols();
         self.n_features = Some(n_features);
@@ -1394,6 +1404,16 @@ fn sample_subsample_indices(subsample: f64, n_samples: usize, rng: &mut StdRng) 
 impl Model for GradientBoostingClassifier {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
         validate_fit_input(x, y)?;
+
+        if self.n_estimators == 0 {
+            return Err(FerroError::invalid_input("n_estimators must be positive"));
+        }
+        if self.learning_rate_schedule.get_lr(0, self.n_estimators) <= 0.0 {
+            return Err(FerroError::invalid_input("learning_rate must be positive"));
+        }
+        if self.max_depth == Some(0) {
+            return Err(FerroError::invalid_input("max_depth must be positive"));
+        }
 
         let n_samples = x.nrows();
         let n_features = x.ncols();

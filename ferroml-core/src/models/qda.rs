@@ -31,7 +31,8 @@
 //! ```
 
 use crate::hpo::SearchSpace;
-use crate::preprocessing::{check_is_fitted, check_non_empty, check_shape};
+use crate::models::validate_fit_input;
+use crate::preprocessing::{check_is_fitted, check_shape};
 use crate::{FerroError, Result};
 use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
@@ -245,28 +246,17 @@ impl QuadraticDiscriminantAnalysis {
 
 impl super::Model for QuadraticDiscriminantAnalysis {
     fn fit(&mut self, x: &Array2<f64>, y: &Array1<f64>) -> Result<()> {
-        check_non_empty(x)?;
+        validate_fit_input(x, y)?;
+
+        // Parameter validation
+        if self.reg_param < 0.0 || self.reg_param > 1.0 {
+            return Err(FerroError::invalid_input("reg_param must be in [0, 1]"));
+        }
+        if self.tol <= 0.0 {
+            return Err(FerroError::invalid_input("tol must be positive"));
+        }
 
         let (n_samples, n_features) = x.dim();
-
-        if y.len() != n_samples {
-            return Err(FerroError::shape_mismatch(
-                format!("({},)", n_samples),
-                format!("({},)", y.len()),
-            ));
-        }
-
-        // Validate NaN/Inf
-        if x.iter().any(|v| !v.is_finite()) {
-            return Err(FerroError::invalid_input(
-                "X contains NaN or infinite values",
-            ));
-        }
-        if y.iter().any(|v| !v.is_finite()) {
-            return Err(FerroError::invalid_input(
-                "y contains NaN or infinite values",
-            ));
-        }
 
         // Find unique classes
         let mut classes: Vec<f64> = y.iter().copied().collect();
