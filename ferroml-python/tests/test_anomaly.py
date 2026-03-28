@@ -177,7 +177,7 @@ class TestLocalOutlierFactor:
         X = make_test_data()
         model = LocalOutlierFactor(n_neighbors=20, novelty=False)
         model.fit(X)
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             model.predict(np.array([[0.0, 0.0]]))
 
     def test_novelty_score_samples(self):

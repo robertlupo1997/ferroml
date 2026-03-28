@@ -220,7 +220,7 @@ class TestIsotonicRegression:
         iso = IsotonicRegression(out_of_bounds="raise")
         iso.fit(X, y)
         X_test = np.array([[1.0]])
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             iso.predict(X_test)
 
     def test_interpolation(self):
@@ -245,7 +245,7 @@ class TestIsotonicRegression:
         X = np.array([[1.0, 2.0], [3.0, 4.0]])
         y = np.array([1.0, 2.0])
         iso = IsotonicRegression()
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             iso.fit(X, y)
 
     def test_pickle_roundtrip(self):

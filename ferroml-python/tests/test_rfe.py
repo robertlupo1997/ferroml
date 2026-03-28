@@ -412,7 +412,7 @@ class TestRFEWithSVR:
     def test_fit_raises_no_feature_importances(self, regression_data):
         X, y = regression_data
         rfe = RecursiveFeatureElimination.with_svr(n_features_to_select=4)
-        with pytest.raises(RuntimeError, match="feature importances"):
+        with pytest.raises(ValueError, match="feature importances"):
             rfe.fit_transform(X, y)
 
     def test_custom_c_and_epsilon_still_raises(self, regression_data):
@@ -420,7 +420,7 @@ class TestRFEWithSVR:
         rfe = RecursiveFeatureElimination.with_svr(
             n_features_to_select=4, c=0.5, epsilon=0.05
         )
-        with pytest.raises(RuntimeError, match="feature importances"):
+        with pytest.raises(ValueError, match="feature importances"):
             rfe.fit_transform(X, y)
 
 

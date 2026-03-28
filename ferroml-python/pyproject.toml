@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "ferroml"
-version = "0.3.1"
+version = "1.0.0"
 description = "Statistically rigorous AutoML in Rust with Python bindings"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,7 +19,17 @@ keywords = [
     "statistics",
     "data-science",
     "rust",
-    "scikit-learn"
+    "scikit-learn",
+    "gradient-boosting",
+    "random-forest",
+    "svm",
+    "regression",
+    "classification",
+    "clustering",
+    "statistical-diagnostics",
+    "preprocessing",
+    "cross-validation",
+    "bayesian",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -34,6 +44,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -73,6 +84,7 @@ Homepage = "https://github.com/robertlupo1997/ferroml"
 Documentation = "https://github.com/robertlupo1997/ferroml#readme"
 Repository = "https://github.com/robertlupo1997/ferroml"
 Issues = "https://github.com/robertlupo1997/ferroml/issues"
+Changelog = "https://github.com/robertlupo1997/ferroml/blob/master/CHANGELOG.md"
 
 [tool.maturin]
 # Build configuration

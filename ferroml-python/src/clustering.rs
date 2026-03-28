@@ -1525,6 +1525,15 @@ impl PyHDBSCAN {
 ///     Random seed.
 /// init : str, optional (default="k-means++")
 ///     Initialization method: "k-means++" or "random".
+///
+/// Examples
+/// --------
+/// >>> from ferroml.clustering import MiniBatchKMeans
+/// >>> import numpy as np
+/// >>> X = np.random.default_rng(0).standard_normal((1000, 5))
+/// >>> model = MiniBatchKMeans(n_clusters=3, random_state=42)
+/// >>> model.fit(X)
+/// >>> labels = model.predict(X)
 #[pyclass(name = "MiniBatchKMeans", module = "ferroml.clustering")]
 pub struct PyMiniBatchKMeans {
     inner: MiniBatchKMeans,

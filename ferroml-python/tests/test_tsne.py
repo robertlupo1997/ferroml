@@ -157,13 +157,13 @@ class TestTSNEErrors:
     def test_perplexity_too_large(self):
         X = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
         tsne = TSNE(perplexity=10.0)
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             tsne.fit_transform(X)
 
     def test_too_few_samples(self):
         X = np.array([[1.0, 2.0]])
         tsne = TSNE()
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             tsne.fit_transform(X)
 
 

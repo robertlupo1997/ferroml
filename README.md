@@ -3,11 +3,11 @@
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/ferroml-core.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/ferroml.svg)](https://pypi.org/project/ferroml/)
-[![Tests](https://img.shields.io/badge/tests-5%2C650%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-6%2C500%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v0.3.1** — 55+ ML algorithms, 5,650+ tests passing (3,550+ Rust + 2,100+ Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels with 300+ correctness tests. See [Project Status](#project-status) for details.
+> **Status: v1.0.0** — 55+ ML algorithms, 6,500+ tests passing (4,364 Rust + 2,137 Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -25,10 +25,10 @@ FerroML is a high-performance machine learning library that prioritizes statisti
 
 ```toml
 [dependencies]
-ferroml-core = "0.3"
+ferroml-core = "1.0"
 ```
 
-### Python
+### Python (3.10-3.13)
 
 ```bash
 pip install ferroml
@@ -198,7 +198,7 @@ cargo run --example pipeline
 
 ```toml
 [dependencies]
-ferroml-core = { version = "0.3", features = ["simd", "sparse", "onnx"] }
+ferroml-core = { version = "1.0", features = ["simd", "sparse", "onnx"] }
 ```
 
 | Feature | Description |
@@ -219,21 +219,20 @@ ferroml-core = { version = "0.3", features = ["simd", "sparse", "onnx"] }
 
 ### Benchmarks vs scikit-learn
 
-All benchmarks produce matching predictions (100% correctness). Results after Plans Y-Z linear algebra overhaul:
+All benchmarks produce matching predictions (100% correctness). Results from cross-library benchmark (2026-03-27, 10K samples):
 
-| Model | N | vs sklearn | Status |
-|-------|--:|-----------|--------|
-| SVC RBF | 3K | **0.44x** | **2.3x FASTER** |
-| PCA | 10K, d=50 | 1.2x | ~Parity |
-| OLS | 50K, d=50 | 1.1x | ~Parity |
-| LinearSVC | 5K | 1.1x | ~Parity |
-| KMeans | 10K | 1.9x | Competitive |
-| Ridge | 50K, d=50 | 2.0x | Competitive |
-| RandomForest | 5K | **5x FASTER** | |
-| GaussianNB | 10K | **4.3x FASTER** | |
-| StandardScaler | 10K | **9x FASTER** | |
+| Model | vs sklearn | Status |
+|-------|-----------|--------|
+| KMeans | **0.26x** | **3.9x FASTER** |
+| StandardScaler | **0.29x** | **3.4x FASTER** |
+| GaussianNB | **0.37x** | **2.7x FASTER** |
+| DecisionTree | 1.1-1.3x | ~Parity |
+| SVC RBF | 1.54x | Competitive (improved from 7.7x) |
+| HistGBT | 2.0x | Competitive |
+| LogReg | 2.1x | Competitive |
+| KNN | 4.0x | Known limitation |
 
-FerroML wins on **predict universally** (zero Python overhead), on **tree/ensemble models** (Rayon parallel construction), and now achieves **parity or better on linear algebra** thanks to faer SVD and Cholesky solvers. Full results with methodology and analysis: [docs/benchmarks.md](docs/benchmarks.md)
+No model is more than 5x slower than sklearn. FerroML wins on **predict universally** (zero Python overhead), on **tree/ensemble models** (Rayon parallel construction), and achieves **parity or better on linear algebra** thanks to faer SVD and Cholesky solvers. Full results with methodology and analysis: [docs/benchmarks.md](docs/benchmarks.md)
 
 ### Architecture
 
@@ -256,15 +255,17 @@ at your option.
 
 ## Project Status
 
-### Current State (v0.3.1)
+### Current State (v1.0.0)
 
-FerroML is **v0.3.1**, hardened through 32 plans (1-6, A-Z) of correctness, performance, and feature work:
+FerroML is **v1.0.0**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 5,650+ passing (3,550+ Rust + 2,100+ Python), 0 failing, 26 ignored (slow AutoML system tests) |
-| **Correctness Tests** | 300+ (clustering: 102, neural: 49, preprocessing: 101, statistical: 35+, model verification: 116) |
-| **Cross-Library Validation** | 200+ tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa) |
+| **Tests** | 6,500+ passing (4,364 Rust + 2,137 Python), 0 failing, 26 ignored (slow AutoML system tests) |
+| **Correctness Tests** | 1,140 (553 edge_cases + 304 correctness + 88 adversarial + 103 integration + 36 regression + 56 vs_linfa) |
+| **Cross-Library Validation** | 489+ tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa) |
+| **Frankenstein Tests** | 37 Python + 8 Rust composition tests (pipeline, ensemble, serialization, thread safety) |
+| **5-Layer Verification** | Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein — all passing |
 | **Python Test Files** | 60+ end-to-end test files |
 | **Python Bindings** | ~99% coverage (55+ models, 22+ preprocessors, 6 decomposition, 37 explainability) |
 | **sklearn API** | `score()` on 56 models, `partial_fit` on 10, `decision_function` on 13 classifiers |
@@ -293,7 +294,7 @@ FerroML is **v0.3.1**, hardened through 32 plans (1-6, A-Z) of correctness, perf
 
 ### Accuracy Validation
 
-FerroML is validated against scikit-learn with 58 fixture-based comparisons and 252 correctness tests:
+FerroML is validated against scikit-learn with 58 fixture-based comparisons and 489+ cross-library correctness tests:
 
 | Category | Tests | Status |
 |----------|-------|--------|
@@ -346,7 +347,7 @@ Every new model requires **three** updates — miss one and Python silently brea
 ### Numerical Stability
 
 - **Tolerances vary by algorithm type** when comparing to sklearn: closed-form (1e-8), iterative (1e-4), tree-based (1e-6), ensemble (5% for RNG variance). Using the wrong tolerance gives false test failures.
-- **SVC with RBF kernels** is ~17x slower than sklearn on datasets >3K samples due to kernel cache implementation. Known issue, not a bug in your code.
+- **SVC with RBF kernels** is ~1.5x slower than sklearn (improved from 7.7x). Competitive for most workloads.
 - **IncrementalPCA** accumulates rounding errors in streaming mode — this is inherent to the algorithm, not a FerroML bug.
 
 ### ONNX Export
@@ -375,7 +376,7 @@ See individual model docstrings for model-specific limitations and recommendatio
 
 ### Benchmarks
 
-FerroML achieves competitive or better performance than scikit-learn across most algorithms. Highlights: PCA 3.2x faster (0.32x ratio), TruncatedSVD 9x faster (0.11x ratio), OLS 5.8x faster (0.17x ratio). All algorithms within defined performance targets. Full methodology and results: [docs/benchmarks.md](docs/benchmarks.md).
+FerroML achieves competitive or better performance than scikit-learn across most algorithms. No model is more than 5x slower. Highlights: KMeans 3.9x faster, StandardScaler 3.4x faster, GaussianNB 2.7x faster. Full methodology and results: [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Contributing
 
@@ -406,8 +407,4 @@ Contributions are welcome! Please read the contributing guidelines before submit
    pre-commit run --all-files
    ```
 
-3. **Skip hooks temporarily** (use sparingly):
-
-   ```bash
-   git commit --no-verify -m "WIP: work in progress"
-   ```
+3. **Troubleshoot hook failures**: If a hook fails, fix the underlying issue rather than skipping hooks.

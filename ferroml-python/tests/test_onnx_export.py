@@ -303,7 +303,7 @@ class TestOnnxExportErrors:
         from ferroml.linear import LinearRegression
         model = LinearRegression()
         model.fit(*regression_data)
-        with pytest.raises(RuntimeError):
+        with pytest.raises(OSError):
             model.export_onnx("/nonexistent/directory/model.onnx")
 
 

@@ -104,7 +104,7 @@ class TestSVC:
         X, y = make_binary_classification_data()
         model = SVC(probability=False)
         model.fit(X, y)
-        with pytest.raises(RuntimeError, match="[Pp]robability"):
+        with pytest.raises(ValueError, match="[Pp]robability"):
             model.predict_proba(X)
 
     def test_kernel_rbf(self):
