@@ -189,6 +189,68 @@ impl FerroError {
     pub fn cross_validation(msg: impl Into<String>) -> Self {
         Self::CrossValidation(msg.into())
     }
+
+    /// Returns a remediation hint for this error, if available.
+    ///
+    /// Hints are static strings (no allocation) that provide actionable guidance
+    /// for resolving the error. Context-sensitive hints are returned for
+    /// `InvalidInput` and `NumericalError` based on the error message content.
+    pub fn hint(&self) -> &str {
+        match self {
+            FerroError::ShapeMismatch { .. } => {
+                "Hint: Ensure X.shape[0] == y.shape[0]. Check for missing values or filtering steps that may have changed array lengths."
+            }
+            FerroError::NotFitted { .. } => {
+                "Hint: Call model.fit(X, y) before calling predict, transform, or other methods that require a fitted model."
+            }
+            FerroError::InvalidInput(msg) => {
+                if msg.contains("negative") || msg.contains("positive") {
+                    "Hint: Check parameter bounds. Many parameters require positive values (e.g., n_clusters, C, alpha)."
+                } else if msg.contains("NaN") || msg.contains("nan") {
+                    "Hint: Check input data for NaN values. Use np.nan_to_num() or imputation to handle missing data."
+                } else if msg.contains("empty") {
+                    "Hint: Ensure input arrays are non-empty. Check data loading and filtering steps."
+                } else {
+                    "Hint: Check the parameter documentation for valid ranges and types."
+                }
+            }
+            FerroError::ConvergenceFailure { .. } => {
+                "Hint: Try increasing max_iter, adjusting the learning rate, or scaling features with StandardScaler."
+            }
+            FerroError::NumericalError(msg) => {
+                if msg.contains("singular") || msg.contains("Singular") {
+                    "Hint: The matrix is singular (not invertible). Try adding regularization (use Ridge instead of LinearRegression) or removing collinear features."
+                } else if msg.contains("NaN") || msg.contains("overflow") {
+                    "Hint: Numerical instability detected. Try scaling features with StandardScaler or reducing the learning rate."
+                } else {
+                    "Hint: Check for extreme values in input data. Feature scaling or regularization may help."
+                }
+            }
+            FerroError::ConfigError(_) => {
+                "Hint: Check model documentation for valid parameter combinations and ranges."
+            }
+            FerroError::AssumptionViolation { .. } => {
+                "Hint: Consider using a model that does not assume this property, or transform your data to meet the assumption."
+            }
+            FerroError::SerializationError(_) => {
+                "Hint: Ensure the model was saved with a compatible version of FerroML. Some models (Pipeline, Voting, Stacking) do not yet support serialization."
+            }
+            FerroError::Timeout { .. } => {
+                "Hint: Reduce dataset size, decrease max_iter, or increase the time budget."
+            }
+            FerroError::ResourceExhausted { .. } => {
+                "Hint: Reduce dataset size or model complexity. Consider using incremental learning (partial_fit) for large datasets."
+            }
+            FerroError::CrossValidation(_) => {
+                "Hint: Check that the number of CV folds does not exceed the number of samples per class."
+            }
+            FerroError::InferenceError(_) => {
+                "Hint: Verify input features match the training data format (same number of features, same encoding)."
+            }
+            // NotImplemented, NotImplementedFor, IoError don't need hints
+            _ => "",
+        }
+    }
 }
 
 #[cfg(test)]
@@ -211,5 +273,118 @@ mod tests {
         let msg = format!("{}", err);
         assert!(msg.contains("(100, 10)"));
         assert!(msg.contains("(100, 5)"));
+    }
+
+    #[test]
+    fn test_shape_mismatch_hint() {
+        let err = FerroError::ShapeMismatch {
+            expected: "100 samples".to_string(),
+            actual: "50 samples".to_string(),
+        };
+        assert!(!err.hint().is_empty());
+        assert!(err.hint().starts_with("Hint:"));
+        assert!(err.hint().contains("shape"));
+    }
+
+    #[test]
+    fn test_not_fitted_hint() {
+        let err = FerroError::not_fitted("predict");
+        assert!(err.hint().starts_with("Hint:"));
+        assert!(err.hint().contains("fit"));
+    }
+
+    #[test]
+    fn test_convergence_failure_hint() {
+        let err = FerroError::convergence_failure(100, "loss did not decrease");
+        assert!(err.hint().starts_with("Hint:"));
+        assert!(err.hint().contains("max_iter"));
+    }
+
+    #[test]
+    fn test_invalid_input_hint_negative() {
+        let err = FerroError::invalid_input("alpha must be positive");
+        assert!(err.hint().contains("positive"));
+    }
+
+    #[test]
+    fn test_invalid_input_hint_nan() {
+        let err = FerroError::invalid_input("Input contains NaN");
+        assert!(err.hint().contains("NaN"));
+    }
+
+    #[test]
+    fn test_invalid_input_hint_empty() {
+        let err = FerroError::invalid_input("Input array is empty");
+        assert!(err.hint().contains("non-empty"));
+    }
+
+    #[test]
+    fn test_invalid_input_hint_generic() {
+        let err = FerroError::invalid_input("bad parameter");
+        assert!(err.hint().starts_with("Hint:"));
+    }
+
+    #[test]
+    fn test_numerical_error_hint_singular() {
+        let err = FerroError::numerical("singular matrix encountered");
+        assert!(err.hint().contains("singular"));
+        assert!(err.hint().contains("Ridge"));
+    }
+
+    #[test]
+    fn test_numerical_error_hint_nan() {
+        let err = FerroError::numerical("NaN in gradient computation");
+        assert!(err.hint().contains("scaling"));
+    }
+
+    #[test]
+    fn test_numerical_error_hint_generic() {
+        let err = FerroError::numerical("computation failed");
+        assert!(err.hint().starts_with("Hint:"));
+    }
+
+    #[test]
+    fn test_no_hint_for_not_implemented() {
+        let err = FerroError::NotImplemented("some feature".to_string());
+        assert!(err.hint().is_empty());
+    }
+
+    #[test]
+    fn test_no_hint_for_not_implemented_for() {
+        let err = FerroError::not_implemented_for("feature", "model");
+        assert!(err.hint().is_empty());
+    }
+
+    #[test]
+    fn test_all_hinted_variants_start_with_hint() {
+        let errors: Vec<FerroError> = vec![
+            FerroError::shape_mismatch("a", "b"),
+            FerroError::not_fitted("predict"),
+            FerroError::invalid_input("test"),
+            FerroError::convergence_failure(10, "reason"),
+            FerroError::numerical("error"),
+            FerroError::ConfigError("bad config".to_string()),
+            FerroError::assumption_violation("norm", "test", 0.01),
+            FerroError::SerializationError("err".to_string()),
+            FerroError::Timeout {
+                operation: "fit".to_string(),
+                elapsed_seconds: 10.0,
+                budget_seconds: 5,
+            },
+            FerroError::ResourceExhausted {
+                resource: "memory".to_string(),
+            },
+            FerroError::cross_validation("bad folds"),
+            FerroError::InferenceError("err".to_string()),
+        ];
+        for err in &errors {
+            let hint = err.hint();
+            assert!(
+                hint.starts_with("Hint:"),
+                "Expected hint for {:?}, got: '{}'",
+                err,
+                hint
+            );
+        }
     }
 }

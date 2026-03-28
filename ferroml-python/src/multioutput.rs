@@ -4,6 +4,7 @@
 //! enum to type-erase supported base estimators and dispatch at runtime.
 
 use crate::array_utils::{check_array_finite, to_owned_array_2d};
+use crate::model_card::PyModelCard;
 use ferroml_core::models::multioutput::{MultiOutputClassifier, MultiOutputRegressor};
 use ferroml_core::models::{
     DecisionTreeClassifier, DecisionTreeRegressor, KNeighborsRegressor, LinearRegression,
@@ -55,6 +56,17 @@ pub struct PyMultiOutputRegressor {
 
 #[pymethods]
 impl PyMultiOutputRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(ferroml_core::model_card::multi_output_regressor_card())
+    }
+
     #[new]
     #[pyo3(signature = (estimator="linear_regression"))]
     fn new(estimator: &str) -> PyResult<Self> {
@@ -218,6 +230,17 @@ pub struct PyMultiOutputClassifier {
 
 #[pymethods]
 impl PyMultiOutputClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(ferroml_core::model_card::multi_output_classifier_card())
+    }
+
     #[new]
     #[pyo3(signature = (estimator="logistic_regression"))]
     fn new(estimator: &str) -> PyResult<Self> {

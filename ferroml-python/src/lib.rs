@@ -52,6 +52,7 @@ mod gaussian_process;
 mod hpo;
 mod linear;
 mod metrics;
+pub(crate) mod model_card;
 mod model_selection;
 mod multioutput;
 mod naive_bayes;
@@ -64,6 +65,7 @@ mod pipeline;
 #[cfg(feature = "polars")]
 pub mod polars_utils;
 mod preprocessing;
+mod recommend;
 #[cfg(feature = "sparse")]
 pub mod sparse_utils;
 mod stats;
@@ -99,6 +101,11 @@ fn ferroml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     cv::register_cv_module(m)?;
     hpo::register_hpo_module(m)?;
     model_selection::register_model_selection_module(m)?;
+
+    // Top-level functions and classes
+    m.add_function(wrap_pyfunction!(recommend::recommend, m)?)?;
+    m.add_class::<recommend::PyRecommendation>()?;
+    m.add_class::<model_card::PyModelCard>()?;
 
     Ok(())
 }

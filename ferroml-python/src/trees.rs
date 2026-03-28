@@ -19,6 +19,7 @@ use crate::array_utils::{
     check_array1_finite, check_array_finite, to_owned_array_1d, to_owned_array_2d,
 };
 use crate::pickle::{getstate, setstate};
+use ferroml_core::model_card::HasModelCard;
 use ferroml_core::models::{
     boosting::{GradientBoostingClassifier, GradientBoostingRegressor, RegressionLoss},
     forest::{MaxFeatures, RandomForestClassifier, RandomForestRegressor},
@@ -32,6 +33,8 @@ use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+
+use crate::model_card::PyModelCard;
 
 // =============================================================================
 // DecisionTreeClassifier
@@ -85,6 +88,19 @@ impl PyDecisionTreeClassifier {
 
 #[pymethods]
 impl PyDecisionTreeClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::tree::DecisionTreeClassifier as HasModelCard>::model_card(),
+        )
+    }
+
     /// Create a new DecisionTreeClassifier.
     #[new]
     #[pyo3(signature = (criterion="gini", max_depth=None, min_samples_split=2, min_samples_leaf=1, ccp_alpha=0.0, random_state=None))]
@@ -389,6 +405,19 @@ impl PyDecisionTreeRegressor {
 
 #[pymethods]
 impl PyDecisionTreeRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::tree::DecisionTreeRegressor as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (criterion="mse", max_depth=None, min_samples_split=2, min_samples_leaf=1, ccp_alpha=0.0, random_state=None))]
     fn new(
@@ -653,6 +682,19 @@ impl PyRandomForestClassifier {
 
 #[pymethods]
 impl PyRandomForestClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::forest::RandomForestClassifier as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_estimators=100, criterion="gini", max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features="sqrt", bootstrap=true, oob_score=true, random_state=None))]
     fn new(
@@ -980,6 +1022,19 @@ impl PyRandomForestRegressor {
 
 #[pymethods]
 impl PyRandomForestRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::forest::RandomForestRegressor as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_estimators=100, max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features="sqrt", bootstrap=true, oob_score=true, random_state=None))]
     fn new(
@@ -1238,6 +1293,17 @@ impl PyGradientBoostingClassifier {
 
 #[pymethods]
 impl PyGradientBoostingClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::boosting::GradientBoostingClassifier as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (n_estimators=100, learning_rate=0.1, max_depth=3, min_samples_split=2, min_samples_leaf=1, subsample=1.0, random_state=None))]
     fn new(
@@ -1526,6 +1592,20 @@ impl PyGradientBoostingRegressor {
 
 #[pymethods]
 impl PyGradientBoostingRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::boosting::GradientBoostingRegressor as HasModelCard>::model_card(
+            ),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_estimators=100, learning_rate=0.1, loss="squared_error", max_depth=3, min_samples_split=2, min_samples_leaf=1, subsample=1.0, random_state=None))]
     fn new(
@@ -1772,6 +1852,17 @@ pub struct PyHistGradientBoostingClassifier {
 
 #[pymethods]
 impl PyHistGradientBoostingClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::hist_boosting::HistGradientBoostingClassifier as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (max_iter=100, learning_rate=0.1, max_depth=None, max_leaf_nodes=31, max_bins=255, min_samples_leaf=20, l2_regularization=0.0, random_state=None))]
     fn new(
@@ -2048,6 +2139,17 @@ pub struct PyHistGradientBoostingRegressor {
 
 #[pymethods]
 impl PyHistGradientBoostingRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::hist_boosting::HistGradientBoostingRegressor as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (max_iter=100, learning_rate=0.1, loss="squared_error", max_depth=None, max_leaf_nodes=31, max_bins=255, min_samples_leaf=20, l2_regularization=0.0, random_state=None))]
     fn new(

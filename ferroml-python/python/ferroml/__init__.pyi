@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import numpy as np
+from numpy.typing import NDArray
+from typing import Any
+
 from ferroml import linear as linear
 from ferroml import trees as trees
 from ferroml import neighbors as neighbors
@@ -26,8 +30,51 @@ from ferroml import model_selection as model_selection
 
 __version__: str
 
+class Recommendation:
+    @property
+    def algorithm(self) -> str: ...
+    @property
+    def reason(self) -> str: ...
+    @property
+    def estimated_fit_time(self) -> str: ...
+    @property
+    def params(self) -> dict[str, Any]: ...
+    @property
+    def score(self) -> float: ...
+
+def recommend(
+    x: NDArray[np.float64],
+    y: NDArray[np.float64],
+    task: str = "classification",
+) -> list[Recommendation]: ...
+
+class ModelCard:
+    @property
+    def name(self) -> str: ...
+    @property
+    def task(self) -> list[str]: ...
+    @property
+    def complexity(self) -> str: ...
+    @property
+    def interpretability(self) -> str: ...
+    @property
+    def supports_sparse(self) -> bool: ...
+    @property
+    def supports_incremental(self) -> bool: ...
+    @property
+    def supports_sample_weight(self) -> bool: ...
+    @property
+    def strengths(self) -> list[str]: ...
+    @property
+    def limitations(self) -> list[str]: ...
+    @property
+    def references(self) -> list[str]: ...
+
 __all__ = [
     "__version__",
+    "recommend",
+    "Recommendation",
+    "ModelCard",
     "linear",
     "trees",
     "neighbors",

@@ -21,10 +21,13 @@ use ferroml_core::decomposition::{
     FactorAnalysis, IncrementalPCA, LearningRate, TruncatedSVD, TsneInit, TsneMethod, TsneMetric,
     LDA, PCA, TSNE,
 };
+use ferroml_core::model_card::HasModelCard;
 use ferroml_core::preprocessing::Transformer;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+
+use crate::model_card::PyModelCard;
 
 // =============================================================================
 // PCA
@@ -66,6 +69,17 @@ pub struct PyPCA {
 
 #[pymethods]
 impl PyPCA {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::decomposition::PCA as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (n_components=None, whiten=false))]
     fn new(n_components: Option<usize>, whiten: bool) -> Self {
@@ -224,6 +238,19 @@ pub struct PyIncrementalPCA {
 
 #[pymethods]
 impl PyIncrementalPCA {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::decomposition::IncrementalPCA as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_components=None, whiten=false, batch_size=None))]
     fn new(n_components: Option<usize>, whiten: bool, batch_size: Option<usize>) -> Self {
@@ -364,6 +391,17 @@ pub struct PyTruncatedSVD {
 
 #[pymethods]
 impl PyTruncatedSVD {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::decomposition::TruncatedSVD as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (n_components=2, n_iter=5, random_state=None))]
     fn new(n_components: usize, n_iter: usize, random_state: Option<u64>) -> Self {
@@ -509,6 +547,17 @@ pub struct PyLDA {
 
 #[pymethods]
 impl PyLDA {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::decomposition::LDA as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (n_components=None, shrinkage=None, tol=1e-4))]
     fn new(n_components: Option<usize>, shrinkage: Option<f64>, tol: f64) -> Self {
@@ -627,6 +676,19 @@ pub struct PyFactorAnalysis {
 
 #[pymethods]
 impl PyFactorAnalysis {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::decomposition::FactorAnalysis as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_factors=None, rotation="none", tol=1e-3, max_iter=1000, random_state=None))]
     fn new(
@@ -782,6 +844,17 @@ pub struct PyTSNE {
 
 #[pymethods]
 impl PyTSNE {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::decomposition::TSNE as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (
         n_components=2,

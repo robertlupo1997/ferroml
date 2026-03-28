@@ -5,12 +5,15 @@
 //! - LocalOutlierFactor
 
 use crate::array_utils::{check_array_finite, to_owned_array_2d};
+use ferroml_core::model_card::HasModelCard;
 use ferroml_core::models::isolation_forest::{Contamination, IsolationForest, MaxSamples};
 use ferroml_core::models::knn::{DistanceMetric, KNNAlgorithm};
 use ferroml_core::models::lof::LocalOutlierFactor;
 use ferroml_core::models::OutlierDetector;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
+
+use crate::model_card::PyModelCard;
 
 // ---------------------------------------------------------------------------
 // IsolationForest
@@ -58,6 +61,19 @@ pub struct PyIsolationForest {
 
 #[pymethods]
 impl PyIsolationForest {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::isolation_forest::IsolationForest as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (
         n_estimators=100,
@@ -253,6 +269,19 @@ pub struct PyLocalOutlierFactor {
 
 #[pymethods]
 impl PyLocalOutlierFactor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::lof::LocalOutlierFactor as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (
         n_neighbors=20,

@@ -14,6 +14,7 @@ use crate::array_utils::{
     check_array1_finite, check_array_finite, to_owned_array_1d, to_owned_array_2d,
 };
 use crate::pickle::{getstate, setstate};
+use ferroml_core::model_card::HasModelCard;
 use ferroml_core::neural::{
     Activation, EarlyStopping, MLPClassifier, MLPRegressor, NeuralDiagnostics, NeuralModel, Solver,
 };
@@ -21,6 +22,8 @@ use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2}
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+
+use crate::model_card::PyModelCard;
 
 // =============================================================================
 // Helper functions
@@ -115,6 +118,17 @@ pub struct PyMLPClassifier {
 
 #[pymethods]
 impl PyMLPClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::neural::MLPClassifier as HasModelCard>::model_card())
+    }
+
     /// Create a new MLPClassifier.
     #[new]
     #[pyo3(signature = (
@@ -387,6 +401,17 @@ pub struct PyMLPRegressor {
 
 #[pymethods]
 impl PyMLPRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::neural::MLPRegressor as HasModelCard>::model_card())
+    }
+
     /// Create a new MLPRegressor.
     #[new]
     #[pyo3(signature = (

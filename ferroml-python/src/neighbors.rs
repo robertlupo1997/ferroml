@@ -18,6 +18,7 @@ use crate::array_utils::{
     to_owned_array_2d,
 };
 use crate::pickle::{getstate, setstate};
+use ferroml_core::model_card::HasModelCard;
 use ferroml_core::models::knn::{
     DistanceMetric, KNNAlgorithm, KNNWeights, KNeighborsClassifier, KNeighborsRegressor,
     NearestCentroid,
@@ -26,6 +27,8 @@ use ferroml_core::models::{Model, ProbabilisticModel};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+
+use crate::model_card::PyModelCard;
 
 fn parse_knn_weights(weights: &str) -> PyResult<KNNWeights> {
     match weights.to_lowercase().as_str() {
@@ -108,6 +111,19 @@ pub struct PyKNeighborsClassifier {
 
 #[pymethods]
 impl PyKNeighborsClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::knn::KNeighborsClassifier as HasModelCard>::model_card(),
+        )
+    }
+
     /// Create a new KNeighborsClassifier.
     #[new]
     #[pyo3(signature = (n_neighbors=5, weights="uniform", metric="euclidean", algorithm="auto", p=2.0, leaf_size=30))]
@@ -348,6 +364,19 @@ pub struct PyKNeighborsRegressor {
 
 #[pymethods]
 impl PyKNeighborsRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::knn::KNeighborsRegressor as HasModelCard>::model_card(),
+        )
+    }
+
     /// Create a new KNeighborsRegressor.
     #[new]
     #[pyo3(signature = (n_neighbors=5, weights="uniform", metric="euclidean", algorithm="auto", p=2.0, leaf_size=30))]
@@ -528,6 +557,17 @@ pub struct PyNearestCentroid {
 
 #[pymethods]
 impl PyNearestCentroid {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::knn::NearestCentroid as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (metric="euclidean", shrink_threshold=None))]
     fn new(metric: &str, shrink_threshold: Option<f64>) -> PyResult<Self> {

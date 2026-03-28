@@ -282,6 +282,8 @@ pub mod linalg;
 #[allow(clippy::unwrap_used)]
 pub mod metrics;
 #[allow(clippy::unwrap_used)]
+pub mod model_card;
+#[allow(clippy::unwrap_used)]
 pub mod models;
 #[allow(clippy::unwrap_used)]
 pub mod neural;
@@ -292,6 +294,8 @@ pub mod onnx;
 pub mod pipeline;
 #[allow(clippy::unwrap_used)]
 pub mod preprocessing;
+#[allow(clippy::unwrap_used)]
+pub mod recommend;
 #[allow(clippy::unwrap_used)]
 pub mod schema;
 #[allow(clippy::unwrap_used)]
@@ -319,6 +323,7 @@ pub use error::{ConvergenceStatus, FerroError, Result};
 pub use inference::{InferenceSession, SessionMetadata, Tensor, TensorI64, Value};
 #[cfg(feature = "onnx")]
 pub use onnx::{OnnxConfig, OnnxExportable};
+pub use recommend::{DatasetProfile, Recommendation};
 pub use schema::{
     FeatureSchema, FeatureSpec, FeatureType, IssueSeverity, SchemaValidated, ValidationIssue,
     ValidationMode, ValidationResult,

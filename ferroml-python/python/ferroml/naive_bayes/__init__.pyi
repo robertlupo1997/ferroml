@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from ferroml import ModelCard
 import numpy as np
 from numpy.typing import NDArray
 
@@ -11,6 +13,9 @@ __all__ = [
 
 class GaussianNB:
     def __init__(self, var_smoothing: float = 1e-9) -> None: ...
+    @staticmethod
+    def model_card() -> ModelCard: ...
+
     def fit(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> GaussianNB: ...
     def partial_fit(
         self, x: NDArray[np.float64], y: NDArray[np.float64], classes: NDArray[np.float64] | None = None
@@ -35,6 +40,9 @@ class GaussianNB:
 
 class MultinomialNB:
     def __init__(self, alpha: float = 1.0, fit_prior: bool = True) -> None: ...
+    @staticmethod
+    def model_card() -> ModelCard: ...
+
     def fit(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> MultinomialNB: ...
     def fit_sparse(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> MultinomialNB: ...
     def partial_fit(
@@ -61,6 +69,9 @@ class MultinomialNB:
 
 class BernoulliNB:
     def __init__(self, alpha: float = 1.0, binarize: float = 0.0, fit_prior: bool = True) -> None: ...
+    @staticmethod
+    def model_card() -> ModelCard: ...
+
     def fit(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> BernoulliNB: ...
     def fit_sparse(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> BernoulliNB: ...
     def partial_fit(
@@ -87,6 +98,9 @@ class BernoulliNB:
 
 class CategoricalNB:
     def __init__(self, alpha: float = 1.0, fit_prior: bool = True) -> None: ...
+    @staticmethod
+    def model_card() -> ModelCard: ...
+
     def fit(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> CategoricalNB: ...
     def partial_fit(
         self, x: NDArray[np.float64], y: NDArray[np.float64], classes: NDArray[np.float64] | None = None

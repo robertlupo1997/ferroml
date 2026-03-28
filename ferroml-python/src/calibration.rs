@@ -4,9 +4,12 @@
 //! - TemperatureScalingCalibrator (post-hoc multi-class probability calibration)
 
 use crate::array_utils::{py_array_to_f64_1d, to_owned_array_2d};
+use ferroml_core::model_card::HasModelCard;
 use ferroml_core::models::calibration::{MulticlassCalibrator, TemperatureScalingCalibrator};
 use numpy::{IntoPyArray, PyArray2, PyReadonlyArray2};
 use pyo3::prelude::*;
+
+use crate::model_card::PyModelCard;
 
 // =============================================================================
 // TemperatureScalingCalibrator
@@ -50,6 +53,17 @@ pub struct PyTemperatureScalingCalibrator {
 
 #[pymethods]
 impl PyTemperatureScalingCalibrator {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::calibration::TemperatureScalingCalibrator as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (max_iter=100, learning_rate=0.01))]
     fn new(max_iter: usize, learning_rate: f64) -> Self {

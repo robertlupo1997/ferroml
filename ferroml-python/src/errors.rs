@@ -41,15 +41,18 @@ use pyo3::prelude::*;
 /// ```
 #[inline]
 pub fn ferro_to_pyerr(e: FerroError) -> PyErr {
+    let hint = e.hint();
+    let message = if hint.is_empty() {
+        e.to_string()
+    } else {
+        format!("{}\n{}", e, hint)
+    };
+
     match &e {
         FerroError::InvalidInput(_)
         | FerroError::ShapeMismatch { .. }
-        | FerroError::ConfigError(_) => {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string())
-        }
-        FerroError::NotFitted { .. } => {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
-        }
+        | FerroError::ConfigError(_) => PyErr::new::<pyo3::exceptions::PyValueError, _>(message),
+        FerroError::NotFitted { .. } => PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(message),
         FerroError::NumericalError(_)
         | FerroError::ConvergenceFailure { .. }
         | FerroError::AssumptionViolation { .. }
@@ -57,15 +60,13 @@ pub fn ferro_to_pyerr(e: FerroError) -> PyErr {
         | FerroError::CrossValidation(_)
         | FerroError::InferenceError(_)
         | FerroError::ResourceExhausted { .. } => {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(message)
         }
         FerroError::NotImplemented(_) | FerroError::NotImplementedFor { .. } => {
-            PyErr::new::<pyo3::exceptions::PyNotImplementedError, _>(e.to_string())
+            PyErr::new::<pyo3::exceptions::PyNotImplementedError, _>(message)
         }
-        FerroError::IoError(_) => PyErr::new::<pyo3::exceptions::PyOSError, _>(e.to_string()),
-        FerroError::Timeout { .. } => {
-            PyErr::new::<pyo3::exceptions::PyTimeoutError, _>(e.to_string())
-        }
+        FerroError::IoError(_) => PyErr::new::<pyo3::exceptions::PyOSError, _>(message),
+        FerroError::Timeout { .. } => PyErr::new::<pyo3::exceptions::PyTimeoutError, _>(message),
     }
 }
 

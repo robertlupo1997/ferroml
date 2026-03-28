@@ -22,8 +22,11 @@ use pyo3::types::PyBytes;
 
 #[cfg(feature = "sparse")]
 use crate::sparse_utils::py_csr_to_ferro;
+use ferroml_core::model_card::HasModelCard;
 #[cfg(feature = "sparse")]
 use ferroml_core::models::traits::SparseModel;
+
+use crate::model_card::PyModelCard;
 
 // =============================================================================
 // LinearSVC
@@ -74,6 +77,17 @@ pub struct PyLinearSVC {
 
 #[pymethods]
 impl PyLinearSVC {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::svm::LinearSVC as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (c=1.0, loss="squared_hinge", max_iter=1000, tol=1e-4, class_weight=None))]
     fn new(
@@ -366,6 +380,17 @@ pub struct PyLinearSVR {
 
 #[pymethods]
 impl PyLinearSVR {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::svm::LinearSVR as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (c=1.0, epsilon=0.0, loss="epsilon_insensitive", max_iter=1000, tol=1e-4))]
     fn new(c: f64, epsilon: f64, loss: &str, max_iter: usize, tol: f64) -> PyResult<Self> {
@@ -791,6 +816,17 @@ pub struct PySVC {
 
 #[pymethods]
 impl PySVC {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::svm::SVC as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (kernel="rbf", c=1.0, gamma=0.0, degree=3, coef0=0.0, tol=1e-3, max_iter=1000, probability=false, multiclass="ovo", class_weight=None, random_state=None))]
     fn new(
@@ -1124,6 +1160,17 @@ pub struct PySVR {
 
 #[pymethods]
 impl PySVR {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::svm::SVR as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (kernel="rbf", c=1.0, epsilon=0.1, gamma=0.0, degree=3, coef0=0.0, tol=1e-3, max_iter=1000))]
     fn new(

@@ -26,6 +26,7 @@ use ferroml_core::ensemble::{
     BaggingClassifier, BaggingRegressor, MaxSamples, VotingClassifier, VotingMethod,
     VotingRegressor,
 };
+use ferroml_core::model_card::HasModelCard;
 use ferroml_core::models::traits::IncrementalModel;
 use ferroml_core::models::{
     AdaBoostClassifier, AdaBoostRegressor, BernoulliNB, DecisionTreeClassifier,
@@ -40,6 +41,8 @@ use ferroml_core::onnx::{OnnxConfig, OnnxExportable};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+
+use crate::model_card::PyModelCard;
 
 // =============================================================================
 // ExtraTreesClassifier
@@ -91,6 +94,19 @@ impl PyExtraTreesClassifier {
 
 #[pymethods]
 impl PyExtraTreesClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::extra_trees::ExtraTreesClassifier as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_estimators=100, max_depth=None, min_samples_split=2, min_samples_leaf=1, random_state=None))]
     fn new(
@@ -316,6 +332,19 @@ impl PyExtraTreesRegressor {
 
 #[pymethods]
 impl PyExtraTreesRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::extra_trees::ExtraTreesRegressor as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_estimators=100, max_depth=None, min_samples_split=2, min_samples_leaf=1, random_state=None))]
     fn new(
@@ -520,6 +549,19 @@ impl PyAdaBoostClassifier {
 
 #[pymethods]
 impl PyAdaBoostClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::adaboost::AdaBoostClassifier as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_estimators=50, learning_rate=1.0, max_depth=1, random_state=None))]
     fn new(
@@ -728,6 +770,19 @@ impl PyAdaBoostRegressor {
 
 #[pymethods]
 impl PyAdaBoostRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::adaboost::AdaBoostRegressor as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_estimators=50, learning_rate=1.0, loss="linear", max_depth=3, random_state=None))]
     fn new(
@@ -963,6 +1018,17 @@ impl PySGDClassifier {
 
 #[pymethods]
 impl PySGDClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::sgd::SGDClassifier as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (loss="hinge", penalty="l2", alpha=0.0001, max_iter=1000, tol=1e-3, random_state=None))]
     fn new(
@@ -1247,6 +1313,17 @@ impl PySGDRegressor {
 
 #[pymethods]
 impl PySGDRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::sgd::SGDRegressor as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (loss="squared_error", penalty="l2", alpha=0.0001, max_iter=1000, tol=1e-3, random_state=None))]
     fn new(
@@ -1516,6 +1593,19 @@ impl PyPassiveAggressiveClassifier {
 
 #[pymethods]
 impl PyPassiveAggressiveClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::sgd::PassiveAggressiveClassifier as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (c=1.0, max_iter=1000, tol=1e-3, random_state=None))]
     fn new(c: f64, max_iter: usize, tol: f64, random_state: Option<u64>) -> Self {
@@ -1764,6 +1854,17 @@ pub struct PyBaggingClassifier {
 
 #[pymethods]
 impl PyBaggingClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::ensemble::BaggingClassifier as HasModelCard>::model_card())
+    }
+
     /// Create a BaggingClassifier with a DecisionTreeClassifier base estimator.
     ///
     /// Parameters
@@ -2483,6 +2584,17 @@ pub struct PyBaggingRegressor {
 
 #[pymethods]
 impl PyBaggingRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::ensemble::BaggingRegressor as HasModelCard>::model_card())
+    }
+
     /// Create a BaggingRegressor with a DecisionTreeRegressor base estimator.
     ///
     /// Parameters
@@ -3375,6 +3487,17 @@ pub struct PyVotingClassifier {
 
 #[pymethods]
 impl PyVotingClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::ensemble::VotingClassifier as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (estimators, voting="hard", weights=None))]
     fn new(
@@ -3561,6 +3684,17 @@ pub struct PyVotingRegressor {
 
 #[pymethods]
 impl PyVotingRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::ensemble::VotingRegressor as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (estimators, weights=None))]
     fn new(estimators: Vec<(String, String)>, weights: Option<Vec<f64>>) -> PyResult<Self> {
@@ -3685,6 +3819,19 @@ pub struct PyStackingClassifier {
 
 #[pymethods]
 impl PyStackingClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::ensemble::stacking::StackingClassifier as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (
         estimators,
@@ -3890,6 +4037,19 @@ pub struct PyStackingRegressor {
 
 #[pymethods]
 impl PyStackingRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::ensemble::stacking::StackingRegressor as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (
         estimators,

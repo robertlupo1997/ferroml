@@ -9,6 +9,7 @@ use crate::array_utils::{
     check_array1_finite, check_array_finite, py_array_to_f64_1d, to_owned_array_1d,
     to_owned_array_2d,
 };
+use ferroml_core::model_card::HasModelCard;
 use ferroml_core::models::gaussian_process::{
     self, GaussianProcessClassifier, GaussianProcessRegressor, InducingPointMethod, Kernel,
     SVGPRegressor, SparseApproximation, SparseGPClassifier, SparseGPRegressor,
@@ -16,6 +17,8 @@ use ferroml_core::models::gaussian_process::{
 use ferroml_core::models::Model;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
+
+use crate::model_card::PyModelCard;
 
 // =============================================================================
 // Kernel wrappers
@@ -193,6 +196,17 @@ pub struct PyGaussianProcessRegressor {
 
 #[pymethods]
 impl PyGaussianProcessRegressor {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::gaussian_process::GaussianProcessRegressor as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (kernel=None, alpha=1e-10, normalize_y=false))]
     fn new(kernel: Option<&Bound<'_, PyAny>>, alpha: f64, normalize_y: bool) -> PyResult<Self> {
@@ -323,6 +337,17 @@ pub struct PyGaussianProcessClassifier {
 
 #[pymethods]
 impl PyGaussianProcessClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::gaussian_process::GaussianProcessClassifier as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (kernel=None, max_iter=50))]
     fn new(kernel: Option<&Bound<'_, PyAny>>, max_iter: usize) -> PyResult<Self> {

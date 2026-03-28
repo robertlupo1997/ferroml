@@ -45,8 +45,11 @@ use pyo3::types::{PyBytes, PyDict};
 use crate::pandas_utils::{extract_x_from_pandas, extract_xy_from_pandas};
 #[cfg(feature = "sparse")]
 use crate::sparse_utils::{extract_sparse_x, extract_sparse_xy, py_csr_to_ferro};
+use ferroml_core::model_card::HasModelCard;
 #[cfg(feature = "sparse")]
 use ferroml_core::models::traits::SparseModel;
+
+use crate::model_card::PyModelCard;
 
 // =============================================================================
 // LinearRegression
@@ -101,6 +104,17 @@ impl PyLinearRegression {
 
 #[pymethods]
 impl PyLinearRegression {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::LinearRegression as HasModelCard>::model_card())
+    }
+
     /// Create a new LinearRegression model.
     ///
     /// Parameters
@@ -745,6 +759,17 @@ impl PyLogisticRegression {
 
 #[pymethods]
 impl PyLogisticRegression {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::LogisticRegression as HasModelCard>::model_card())
+    }
+
     /// Create a new LogisticRegression model.
     ///
     /// Parameters
@@ -1311,6 +1336,17 @@ impl PyRidgeRegression {
 
 #[pymethods]
 impl PyRidgeRegression {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::RidgeRegression as HasModelCard>::model_card())
+    }
+
     /// Create a new RidgeRegression model.
     #[new]
     #[pyo3(signature = (alpha=1.0, fit_intercept=true))]
@@ -1646,6 +1682,17 @@ impl PyLassoRegression {
 
 #[pymethods]
 impl PyLassoRegression {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::LassoRegression as HasModelCard>::model_card())
+    }
+
     /// Create a new LassoRegression model.
     #[new]
     #[pyo3(signature = (alpha=1.0, fit_intercept=true, max_iter=1000, tol=1e-4))]
@@ -1982,6 +2029,17 @@ impl PyElasticNet {
 
 #[pymethods]
 impl PyElasticNet {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::ElasticNet as HasModelCard>::model_card())
+    }
+
     /// Create a new ElasticNet model.
     #[new]
     #[pyo3(signature = (alpha=1.0, l1_ratio=0.5, fit_intercept=true, max_iter=1000, tol=1e-4))]
@@ -2322,6 +2380,19 @@ pub struct PyRobustRegression {
 
 #[pymethods]
 impl PyRobustRegression {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::robust::RobustRegression as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (estimator="huber", max_iter=50, tol=1e-6))]
     fn new(estimator: &str, max_iter: usize, tol: f64) -> PyResult<Self> {
@@ -2537,6 +2608,19 @@ pub struct PyQuantileRegression {
 
 #[pymethods]
 impl PyQuantileRegression {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::quantile::QuantileRegression as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (quantile=0.5, max_iter=1000, tol=1e-6))]
     fn new(quantile: f64, max_iter: usize, tol: f64) -> PyResult<Self> {
@@ -2735,6 +2819,17 @@ pub struct PyPerceptron {
 
 #[pymethods]
 impl PyPerceptron {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::sgd::Perceptron as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (max_iter=1000, random_state=None))]
     fn new(max_iter: usize, random_state: Option<u64>) -> PyResult<Self> {
@@ -2887,6 +2982,17 @@ pub struct PyRidgeCV {
 
 #[pymethods]
 impl PyRidgeCV {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::regularized::RidgeCV as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (alphas=None, cv=5))]
     fn new(alphas: Option<Vec<f64>>, cv: usize) -> Self {
@@ -3002,6 +3108,17 @@ pub struct PyLassoCV {
 
 #[pymethods]
 impl PyLassoCV {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::models::regularized::LassoCV as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (n_alphas=100, cv=5))]
     fn new(n_alphas: usize, cv: usize) -> Self {
@@ -3123,6 +3240,19 @@ pub struct PyElasticNetCV {
 
 #[pymethods]
 impl PyElasticNetCV {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::regularized::ElasticNetCV as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_alphas=100, l1_ratios=None, cv=5))]
     fn new(n_alphas: usize, l1_ratios: Option<Vec<f64>>, cv: usize) -> Self {
@@ -3253,6 +3383,19 @@ pub struct PyRidgeClassifier {
 
 #[pymethods]
 impl PyRidgeClassifier {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::regularized::RidgeClassifier as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (alpha=1.0, fit_intercept=true))]
     fn new(alpha: f64, fit_intercept: bool) -> Self {
@@ -3459,6 +3602,19 @@ pub struct PyIsotonicRegression {
 
 #[pymethods]
 impl PyIsotonicRegression {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::isotonic::IsotonicRegression as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (increasing="true", y_min=None, y_max=None, out_of_bounds="nan"))]
     fn new(

@@ -66,6 +66,9 @@ Example
 from ferroml import ferroml as _native
 __version__ = _native.__version__
 
+# Top-level functions and classes
+from ferroml.ferroml import recommend, Recommendation, ModelCard
+
 # Re-export submodules for cleaner imports
 from ferroml import linear
 from ferroml import trees
@@ -93,6 +96,9 @@ from ferroml import model_selection
 
 __all__ = [
     "__version__",
+    "recommend",
+    "Recommendation",
+    "ModelCard",
     "linear",
     "trees",
     "neighbors",

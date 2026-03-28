@@ -20,9 +20,12 @@ use ferroml_core::clustering::{
     AgglomerativeClustering, ClusteringModel, ClusteringStatistics, CovarianceType,
     GaussianMixture, GmmInit, KMeans, KMeansAlgorithm, KMeansInit, MiniBatchKMeans, DBSCAN,
 };
+use ferroml_core::model_card::HasModelCard;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+
+use crate::model_card::PyModelCard;
 
 // =============================================================================
 // KMeans
@@ -77,6 +80,17 @@ pub struct PyKMeans {
 
 #[pymethods]
 impl PyKMeans {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::clustering::KMeans as HasModelCard>::model_card())
+    }
+
     /// Create a new KMeans model.
     #[new]
     #[pyo3(signature = (n_clusters=8, max_iter=300, tol=1e-4, random_state=None, n_init=10, algorithm="auto"))]
@@ -456,6 +470,17 @@ pub struct PyDBSCAN {
 
 #[pymethods]
 impl PyDBSCAN {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::clustering::DBSCAN as HasModelCard>::model_card())
+    }
+
     /// Create a new DBSCAN model.
     #[new]
     #[pyo3(signature = (eps=0.5, min_samples=5))]
@@ -733,6 +758,19 @@ pub struct PyAgglomerativeClustering {
 
 #[pymethods]
 impl PyAgglomerativeClustering {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::clustering::AgglomerativeClustering as HasModelCard>::model_card(),
+        )
+    }
+
     #[new]
     #[pyo3(signature = (n_clusters=2, linkage="ward"))]
     fn new(n_clusters: usize, linkage: &str) -> PyResult<Self> {
@@ -851,6 +889,17 @@ pub struct PyGaussianMixture {
 
 #[pymethods]
 impl PyGaussianMixture {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::clustering::GaussianMixture as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (
         n_components=1,
@@ -1386,6 +1435,17 @@ pub struct PyHDBSCAN {
 
 #[pymethods]
 impl PyHDBSCAN {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::clustering::HDBSCAN as HasModelCard>::model_card())
+    }
+
     /// Create a new HDBSCAN model.
     #[new]
     #[pyo3(signature = (min_cluster_size=5, min_samples=None, cluster_selection_epsilon=0.0, allow_single_cluster=false))]
@@ -1525,15 +1585,6 @@ impl PyHDBSCAN {
 ///     Random seed.
 /// init : str, optional (default="k-means++")
 ///     Initialization method: "k-means++" or "random".
-///
-/// Examples
-/// --------
-/// >>> from ferroml.clustering import MiniBatchKMeans
-/// >>> import numpy as np
-/// >>> X = np.random.default_rng(0).standard_normal((1000, 5))
-/// >>> model = MiniBatchKMeans(n_clusters=3, random_state=42)
-/// >>> model.fit(X)
-/// >>> labels = model.predict(X)
 #[pyclass(name = "MiniBatchKMeans", module = "ferroml.clustering")]
 pub struct PyMiniBatchKMeans {
     inner: MiniBatchKMeans,
@@ -1541,6 +1592,17 @@ pub struct PyMiniBatchKMeans {
 
 #[pymethods]
 impl PyMiniBatchKMeans {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(<ferroml_core::clustering::MiniBatchKMeans as HasModelCard>::model_card())
+    }
+
     #[new]
     #[pyo3(signature = (n_clusters=8, batch_size=1024, max_iter=100, n_init=3, tol=0.0, reassignment_ratio=0.01, random_state=None, init="k-means++"))]
     fn new(

@@ -19,8 +19,11 @@ use pyo3::types::PyBytes;
 
 #[cfg(feature = "sparse")]
 use crate::sparse_utils::py_csr_to_ferro;
+use ferroml_core::model_card::HasModelCard;
 #[cfg(feature = "sparse")]
 use ferroml_core::models::traits::SparseModel;
+
+use crate::model_card::PyModelCard;
 
 // ---------------------------------------------------------------------------
 // GaussianNB
@@ -62,6 +65,19 @@ pub struct PyGaussianNB {
 
 #[pymethods]
 impl PyGaussianNB {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::naive_bayes::GaussianNB as HasModelCard>::model_card(),
+        )
+    }
+
     /// Create a new Gaussian Naive Bayes classifier.
     #[new]
     #[pyo3(signature = (var_smoothing=1e-9))]
@@ -399,6 +415,19 @@ pub struct PyMultinomialNB {
 
 #[pymethods]
 impl PyMultinomialNB {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::naive_bayes::MultinomialNB as HasModelCard>::model_card(),
+        )
+    }
+
     /// Create a new Multinomial Naive Bayes classifier.
     #[new]
     #[pyo3(signature = (alpha=1.0, fit_prior=true))]
@@ -772,6 +801,19 @@ pub struct PyBernoulliNB {
 
 #[pymethods]
 impl PyBernoulliNB {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::naive_bayes::BernoulliNB as HasModelCard>::model_card(),
+        )
+    }
+
     /// Create a new Bernoulli Naive Bayes classifier.
     #[new]
     #[pyo3(signature = (alpha=1.0, binarize=0.0, fit_prior=true))]
@@ -1116,6 +1158,19 @@ pub struct PyCategoricalNB {
 
 #[pymethods]
 impl PyCategoricalNB {
+    /// Return structured metadata about this model.
+    ///
+    /// Returns
+    /// -------
+    /// ModelCard
+    ///     Metadata including task type, complexity, interpretability, and more.
+    #[staticmethod]
+    fn model_card() -> PyModelCard {
+        PyModelCard::new(
+            <ferroml_core::models::naive_bayes::CategoricalNB as HasModelCard>::model_card(),
+        )
+    }
+
     /// Create a new Categorical Naive Bayes classifier.
     #[new]
     #[pyo3(signature = (alpha=1.0, fit_prior=true))]
