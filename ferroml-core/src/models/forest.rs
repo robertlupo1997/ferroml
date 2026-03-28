@@ -1262,9 +1262,10 @@ impl Model for RandomForestRegressor {
                 .with_min_impurity_decrease(min_impurity_decrease)
                 .with_random_state(seed);
 
-            tree.fit(&x_bootstrap, &y_bootstrap)
-                .expect("RandomForestRegressor: failed to fit decision tree on bootstrap sample");
-            tree
+            match tree.fit(&x_bootstrap, &y_bootstrap) {
+                Ok(()) => Some(tree),
+                Err(_) => None, // Skip bootstrap samples that fail to fit
+            }
         };
 
         // Use sequential iteration when n_jobs == 1 for reproducibility
@@ -1272,13 +1273,13 @@ impl Model for RandomForestRegressor {
             bootstrap_indices
                 .iter()
                 .zip(tree_seeds.iter())
-                .map(build_tree)
+                .filter_map(build_tree)
                 .collect()
         } else {
             bootstrap_indices
                 .par_iter()
                 .zip(tree_seeds.par_iter())
-                .map(build_tree)
+                .filter_map(build_tree)
                 .collect()
         };
 

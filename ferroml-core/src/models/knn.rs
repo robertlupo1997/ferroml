@@ -1974,6 +1974,7 @@ impl crate::models::traits::SparseModel for NearestCentroid {
 
     fn predict_sparse(&self, x: &CsrMatrix) -> Result<Array1<f64>> {
         check_is_fitted(&self.centroids, "predict_sparse")?;
+        // SAFETY: n_features, classes, centroids are all set during fit(); check_is_fitted guards above
         let n_features = self.n_features.unwrap();
         if x.ncols() != n_features {
             return Err(FerroError::ShapeMismatch {

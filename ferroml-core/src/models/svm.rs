@@ -874,6 +874,7 @@ impl BinarySVC {
                 break;
             }
 
+            // SAFETY: best_j.is_none() is checked above and triggers continue or break
             let j = best_j.unwrap();
             let ej = errors[j];
 
@@ -1053,6 +1054,7 @@ impl BinarySVC {
 
         let mut k = Array2::zeros((n, n));
 
+        // SAFETY: x_ref is standard layout (converted above), so as_slice always succeeds
         for i in 0..n {
             let ri = x_ref.row(i);
             let xi = ri.as_slice().unwrap();
@@ -2684,8 +2686,9 @@ impl LinearSVC {
         // Build augmented design matrix using ndarray (avoid Vec<Vec<f64>> copy)
         let x_design: Array2<f64> = if self.fit_intercept {
             let ones = Array2::ones((n_samples, 1));
-            // SAFETY: x and ones have the same number of rows (both n_samples)
-            concatenate(Axis(1), &[x.view(), ones.view()]).unwrap()
+            concatenate(Axis(1), &[x.view(), ones.view()]).map_err(|e| {
+                FerroError::NumericalError(format!("Failed to concatenate design matrix: {e}"))
+            })?
         } else {
             x.to_owned()
         };

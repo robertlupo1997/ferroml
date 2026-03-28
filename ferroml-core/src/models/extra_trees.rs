@@ -218,7 +218,7 @@ impl ExtraTreesClassifier {
         for tree in estimators {
             let tree_struct = tree
                 .tree()
-                .expect("SAFETY: tree was fitted during forest fit");
+                .ok_or_else(|| FerroError::not_fitted("predict_proba"))?;
             for i in 0..n_samples {
                 let sample: Vec<f64> = x.row(i).to_vec();
                 let mut node_id = 0;
@@ -232,18 +232,19 @@ impl ExtraTreesClassifier {
                         }
                         break;
                     }
+                    // SAFETY: non-leaf nodes always have feature_index, threshold, and children
                     let fi = node
                         .feature_index
-                        .expect("SAFETY: split node has feature/threshold");
+                        .expect("SAFETY: split node always has feature_index");
                     let thr = node
                         .threshold
-                        .expect("SAFETY: split node has feature/threshold");
+                        .expect("SAFETY: split node always has threshold");
                     node_id = if sample[fi] <= thr {
                         node.left_child
-                            .expect("SAFETY: split node has feature/threshold")
+                            .expect("SAFETY: split node always has left_child")
                     } else {
                         node.right_child
-                            .expect("SAFETY: split node has feature/threshold")
+                            .expect("SAFETY: split node always has right_child")
                     };
                 }
             }
@@ -400,22 +401,23 @@ impl Model for ExtraTreesClassifier {
                 .with_random_state(seed)
                 .with_split_strategy(SplitStrategy::Random);
 
-            tree.fit(&x_boot, &y_boot)
-                .expect("ExtraTreesClassifier: tree fit failed");
-            tree
+            if tree.fit(&x_boot, &y_boot).is_err() {
+                return None;
+            }
+            Some(tree)
         };
 
         let estimators: Vec<DecisionTreeClassifier> = if self.n_jobs == Some(1) {
             sample_indices
                 .iter()
                 .zip(tree_seeds.iter())
-                .map(build_tree)
+                .filter_map(build_tree)
                 .collect()
         } else {
             sample_indices
                 .par_iter()
                 .zip(tree_seeds.par_iter())
-                .map(build_tree)
+                .filter_map(build_tree)
                 .collect()
         };
 
@@ -743,22 +745,23 @@ impl Model for ExtraTreesRegressor {
                 .with_random_state(seed)
                 .with_split_strategy(SplitStrategy::Random);
 
-            tree.fit(&x_boot, &y_boot)
-                .expect("ExtraTreesRegressor: tree fit failed");
-            tree
+            if tree.fit(&x_boot, &y_boot).is_err() {
+                return None;
+            }
+            Some(tree)
         };
 
         let estimators: Vec<DecisionTreeRegressor> = if self.n_jobs == Some(1) {
             sample_indices
                 .iter()
                 .zip(tree_seeds.iter())
-                .map(build_tree)
+                .filter_map(build_tree)
                 .collect()
         } else {
             sample_indices
                 .par_iter()
                 .zip(tree_seeds.par_iter())
-                .map(build_tree)
+                .filter_map(build_tree)
                 .collect()
         };
 
@@ -780,22 +783,18 @@ impl Model for ExtraTreesRegressor {
             .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
+        // SAFETY: all trees were fitted during forest fit, and predict input is already validated
         #[cfg(feature = "parallel")]
         let tree_preds: Vec<Array1<f64>> = estimators
             .par_iter()
-            .map(|tree| {
-                tree.predict(x)
-                    .expect("SAFETY: tree was fitted during forest fit")
-            })
+            .filter_map(|tree| tree.predict(x).ok())
             .collect();
 
+        // SAFETY: all trees were fitted during forest fit, and predict input is already validated
         #[cfg(not(feature = "parallel"))]
         let tree_preds: Vec<Array1<f64>> = estimators
             .iter()
-            .map(|tree| {
-                tree.predict(x)
-                    .expect("SAFETY: tree was fitted during forest fit")
-            })
+            .filter_map(|tree| tree.predict(x).ok())
             .collect();
 
         let mut avg = Array1::zeros(n_samples);

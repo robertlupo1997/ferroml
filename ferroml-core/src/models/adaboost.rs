@@ -143,6 +143,7 @@ impl AdaBoostClassifier {
     /// Returns an Array2 of shape (n_samples, n_classes).
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.estimators, "decision_function")?;
+        // SAFETY: n_features/estimators/weights/classes are all set together in fit()
         let n_features = self.n_features.unwrap();
         validate_predict_input(x, n_features)?;
 
@@ -254,6 +255,7 @@ impl Model for AdaBoostClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.estimators, "predict")?;
+        // SAFETY: n_features/estimators/weights/classes are all set together in fit()
         let n_features = self.n_features.unwrap();
         validate_predict_input(x, n_features)?;
 
@@ -286,7 +288,7 @@ impl Model for AdaBoostClassifier {
                     a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
                 })
                 .map(|(idx, _)| idx)
-                .unwrap_or(0);
+                .unwrap_or(0); // SAFETY: unwrap_or handles empty iterator gracefully
             predictions[i] = classes[max_idx];
         }
 
@@ -546,6 +548,7 @@ impl Model for AdaBoostRegressor {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.estimators, "predict")?;
+        // SAFETY: n_features/estimators/weights are all set together in fit()
         let n_features = self.n_features.unwrap();
         validate_predict_input(x, n_features)?;
 
@@ -578,6 +581,7 @@ impl Model for AdaBoostRegressor {
                 .zip(weights.iter())
                 .map(|(p, &w)| (p[i], w))
                 .collect();
+            // SAFETY: partial_cmp on f64 only returns None for NaN; unwrap_or handles gracefully
             pred_weight.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
             let half = total_weight / 2.0;

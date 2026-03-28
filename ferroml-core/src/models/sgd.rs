@@ -236,9 +236,11 @@ impl SGDClassifier {
     /// Compute decision function.
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.coef, "decision_function")?;
+        // SAFETY: n_features is always set when coef is set (during fit)
         let n_features = self.n_features.unwrap();
         validate_predict_input(x, n_features)?;
 
+        // SAFETY: coef and intercept are always set together during fit; guarded by check_is_fitted above
         let coef = self.coef.as_ref().unwrap();
         let intercept = self.intercept.as_ref().unwrap();
 
@@ -575,6 +577,7 @@ impl Model for SGDClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let decision = self.decision_function(x)?;
+        // SAFETY: classes is always set during fit; decision_function calls check_is_fitted
         let classes = self.classes.as_ref().unwrap();
 
         if classes.len() == 2 {
@@ -674,6 +677,7 @@ impl IncrementalModel for SGDClassifier {
         }
 
         // Validate feature count matches
+        // SAFETY: n_features is set in the initialization block above (or was set in a prior call)
         if n_features != self.n_features.unwrap() {
             return Err(FerroError::shape_mismatch(
                 format!("{} features", self.n_features.unwrap()),
@@ -681,6 +685,7 @@ impl IncrementalModel for SGDClassifier {
             ));
         }
 
+        // SAFETY: classes is set in the initialization block above (or was set in a prior call)
         let classes = self.classes.clone().unwrap();
         let n_classes = classes.len();
         let n_samples = x.nrows();
@@ -699,6 +704,7 @@ impl IncrementalModel for SGDClassifier {
                 })
                 .collect();
 
+            // SAFETY: coef and intercept are set in the initialization block above
             let mut coef = self.coef.as_ref().unwrap().row(0).to_owned();
             let mut intercept = self.intercept.as_ref().unwrap()[0];
             let mut t = self.t;
@@ -720,6 +726,7 @@ impl IncrementalModel for SGDClassifier {
                 |c_val| self.apply_penalty(c_val),
             );
 
+            // SAFETY: coef and intercept are set in the initialization block above
             self.coef.as_mut().unwrap().row_mut(0).assign(&coef);
             self.intercept.as_mut().unwrap()[0] = intercept;
             self.t = t;
@@ -735,6 +742,7 @@ impl IncrementalModel for SGDClassifier {
                     .map(|&v| if (v - c).abs() < 1e-10 { 1.0 } else { -1.0 })
                     .collect();
 
+                // SAFETY: coef and intercept are set in the initialization block above
                 let mut coef = self.coef.as_ref().unwrap().row(ci).to_owned();
                 let mut intercept = self.intercept.as_ref().unwrap()[ci];
                 let mut class_t = t;
@@ -756,6 +764,7 @@ impl IncrementalModel for SGDClassifier {
                     |c_val| self.apply_penalty(c_val),
                 );
 
+                // SAFETY: coef and intercept are set in the initialization block above
                 self.coef.as_mut().unwrap().row_mut(ci).assign(&coef);
                 self.intercept.as_mut().unwrap()[ci] = intercept;
                 // Use the last class's t for the global counter
@@ -769,6 +778,7 @@ impl IncrementalModel for SGDClassifier {
             self.rng_state = rng;
         }
 
+        // SAFETY: n_iter is set in the initialization block above
         *self.n_iter.as_mut().unwrap() += 1;
         Ok(())
     }
@@ -1114,9 +1124,11 @@ impl Model for SGDRegressor {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.coef, "predict")?;
+        // SAFETY: n_features is always set when coef is set (during fit)
         let n_features = self.n_features.unwrap();
         validate_predict_input(x, n_features)?;
 
+        // SAFETY: coef is guarded by check_is_fitted above
         let coef = self.coef.as_ref().unwrap();
         let intercept = self.intercept.unwrap_or(0.0);
         Ok(x.dot(coef) + intercept)
@@ -1175,6 +1187,7 @@ impl IncrementalModel for SGDRegressor {
         }
 
         // Validate feature count matches
+        // SAFETY: n_features is set in the initialization block above (or was set in a prior call)
         if n_features != self.n_features.unwrap() {
             return Err(FerroError::shape_mismatch(
                 format!("{} features", self.n_features.unwrap()),
@@ -1182,6 +1195,7 @@ impl IncrementalModel for SGDRegressor {
             ));
         }
 
+        // SAFETY: coef, intercept, and n_iter are set in the initialization block above
         let mut coef = self.coef.take().unwrap();
         let mut intercept = self.intercept.unwrap();
         let mut t = self.t;
@@ -1202,6 +1216,7 @@ impl IncrementalModel for SGDRegressor {
         self.intercept = Some(intercept);
         self.t = t;
         self.rng_state = rng;
+        // SAFETY: n_iter is set in the initialization block above
         *self.n_iter.as_mut().unwrap() += 1;
         Ok(())
     }
@@ -1376,9 +1391,11 @@ impl PassiveAggressiveClassifier {
     /// Compute the decision function (raw scores before thresholding).
     pub fn decision_function(&self, x: &Array2<f64>) -> Result<Array2<f64>> {
         check_is_fitted(&self.coef, "decision_function")?;
+        // SAFETY: n_features is always set when coef is set (during fit)
         let n_features = self.n_features.unwrap();
         validate_predict_input(x, n_features)?;
 
+        // SAFETY: coef and intercept are always set together during fit; guarded by check_is_fitted above
         let coef = self.coef.as_ref().unwrap();
         let intercept = self.intercept.as_ref().unwrap();
 
@@ -1528,9 +1545,11 @@ impl Model for PassiveAggressiveClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         check_is_fitted(&self.coef, "predict")?;
+        // SAFETY: n_features is always set when coef is set (during fit)
         let n_features = self.n_features.unwrap();
         validate_predict_input(x, n_features)?;
 
+        // SAFETY: coef, intercept, and classes are always set together during fit; guarded by check_is_fitted above
         let coef = self.coef.as_ref().unwrap();
         let intercept = self.intercept.as_ref().unwrap();
         let classes = self.classes.as_ref().unwrap();
@@ -1621,6 +1640,7 @@ impl IncrementalModel for PassiveAggressiveClassifier {
         }
 
         // Validate feature count matches
+        // SAFETY: n_features is set in the initialization block above (or was set in a prior call)
         if n_features != self.n_features.unwrap() {
             return Err(FerroError::shape_mismatch(
                 format!("{} features", self.n_features.unwrap()),
@@ -1628,6 +1648,7 @@ impl IncrementalModel for PassiveAggressiveClassifier {
             ));
         }
 
+        // SAFETY: classes, coef, and intercept are set in the initialization block above
         let classes = self.classes.as_ref().unwrap().clone();
         let n_classes = classes.len();
         let mut coef = self.coef.take().unwrap();
