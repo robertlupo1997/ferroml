@@ -10,12 +10,12 @@
 ## Executive Summary
 
 - **40 algorithms audited** across 6 families
-- **36 PASS** — ship in v1.0 as-is
-- **3 FIX** — ship after targeted fixes (LogisticRegression, DecisionTree, AdaBoost)
+- **39 PASS** — ship in v1.0 as-is (includes 3 fixed in Phase 2 Session 2)
+- **0 FIX** — all P0/P1 bugs resolved
 - **0 REMOVE** — no algorithm needs to be cut
 - **GPU: EXPERIMENTAL** — ship with warning label
 - **Sparse: STABLE** — ship as-is
-- **12 bugs found** (3 P0/P1, 5 P2, 4 P3)
+- **12 bugs found** (3 P0/P1, 5 P2, 4 P3) — P0/P1 all fixed
 
 ---
 
@@ -33,12 +33,12 @@
 | LassoCV | PASS | PASS | PASS | PASS | **PASS** |
 | ElasticNetCV | PASS | PASS | PASS | PASS | **PASS** |
 | RidgeClassifier | PASS | PASS | PASS | PASS | **PASS** |
-| LogisticRegression | PASS | PASS | PASS | PASS | **FIX** |
+| LogisticRegression | PASS | PASS | PASS | PASS | **PASS** | *(Fixed: IRLS weight clamping no longer corrupts ClassWeight::Balanced)*
 
 \* LinearRegression uses Cholesky normal equations for n > 2p (less stable than QR/SVD for ill-conditioned X'X, but has rank-deficiency guard at 1e-14).
 
 **LogisticRegression bugs:**
-1. **P1: IRLS weight clamping** (`logistic.rs:638`) — `(var * sample_weights[i]).clamp(1e-10, 0.25)` caps at 0.25, which is the max Bernoulli variance for unit weights. When `sample_weights[i] > 1` (e.g., ClassWeight::Balanced), legitimate values are suppressed, corrupting the Newton step for class-weighted problems.
+1. **~~P1: IRLS weight clamping~~ FIXED** (`logistic.rs:638`) — Was `(var * sample_weights[i]).clamp(1e-10, 0.25)`. Fixed to `var * sample_weights[i]` (var already clamped on prior line). Regression test: `test_irls_class_weight_balanced_imbalanced_data`.
 2. **P2: `z_inv_normal` sign error** (`regularized.rs:2364`) — Original `p` overwritten before sign determination. `z_inv_normal(0.025)` returns positive instead of -1.96. Affects Ridge/Lasso/ElasticNet confidence intervals in `regularized.rs` (not `linear.rs` which has the correct version).
 3. **P3: L-BFGS convergence detection** (`logistic.rs:867`) — Uses iteration count comparison instead of inspecting argmin's termination reason.
 
@@ -59,19 +59,19 @@
 
 | Algorithm | Textbook Match | Invariants | Edge Cases | Numerical Stability | Verdict |
 |---|---|---|---|---|---|
-| DecisionTree | FAIL | PASS | PASS | PASS | **FIX** |
+| DecisionTree | PASS | PASS | PASS | PASS | **PASS** | *(Fixed: Entropy criterion now implemented with weighted_entropy dispatch)*
 | RandomForest | PASS | PASS | PASS | PASS | **PASS** |
 | GradientBoosting | PASS | PASS | PASS | PASS | **PASS** |
 | HistGradientBoosting | PASS | PASS | PASS | PASS | **PASS** |
 | ExtraTrees | PASS | PASS | PASS | PASS | **PASS** |
-| AdaBoost | PASS | PASS | PASS | PASS | **FIX** |
+| AdaBoost | PASS | PASS | PASS | PASS | **PASS** | *(Fixed: regressor weight formula uses ln(1/beta), docstring corrected to SAMME)*
 
 **DecisionTree bugs:**
-1. **P0: Entropy criterion not implemented for classification** — `DecisionTreeClassifier` accepts `SplitCriterion::Entropy` but always uses Gini. No `weighted_entropy` function exists. This is a **silent lie** — the parameter is accepted but ignored. Affects DecisionTree, RandomForest, and ExtraTrees classifiers.
+1. **~~P0: Entropy criterion not implemented~~ FIXED** — Added `weighted_entropy()` function and `match self.criterion` dispatch in `build_tree_weighted`, `find_best_split_weighted`, `find_random_split_weighted`. Regression test: `test_entropy_criterion_differs_from_gini`.
 
 **AdaBoost bugs:**
-2. **P1: Regressor weight formula uses `.abs()` instead of negation** (`adaboost.rs:524`) — `alpha = lr * beta.ln().abs()` should be `lr * (-beta.ln())` or `lr * (1.0/beta).ln()`. Works by accident when beta < 1 (good estimator) but is mathematically wrong.
-3. **P1: Docstring says "SAMME.R" but implements SAMME** — Uses hard class predictions, not probability estimates. Misleading documentation.
+2. **~~P1: Regressor weight formula~~ FIXED** (`adaboost.rs:524`) — Changed `beta.ln().abs()` to `(1.0_f64 / beta).ln()`. Regression test: `test_adaboost_regressor_weight_formula_bug3`.
+3. **~~P1: Docstring said "SAMME.R"~~ FIXED** — Corrected to "SAMME (discrete)" in module and struct docs.
 
 **Other concerns:**
 - ExtraTrees uses `expect()` in parallel tree building (line 404, 747) — panics if a tree fit fails, unlike RandomForest which uses `filter_map`. P2.
@@ -209,15 +209,15 @@ MLP uses He/Xavier init, inverted dropout, Adam/SGD, softmax with max-subtractio
 
 | # | Algorithm | File:Line | Description |
 |---|---|---|---|
-| 1 | DecisionTree | tree.rs | Entropy criterion silently ignored in classification — always uses Gini |
+| 1 | DecisionTree | tree.rs | ~~Entropy criterion silently ignored~~ **FIXED** — weighted_entropy + criterion dispatch added |
 
-### P1 — Should fix before v1.0
+### P1 — ~~Should fix before v1.0~~ ALL FIXED
 
 | # | Algorithm | File:Line | Description |
 |---|---|---|---|
-| 2 | LogisticRegression | logistic.rs:638 | IRLS weight clamping at 0.25 breaks ClassWeight::Balanced |
-| 3 | AdaBoost Regressor | adaboost.rs:524 | Weight formula uses `.abs()` instead of negation |
-| 4 | AdaBoost | adaboost.rs:7 | Docstring claims SAMME.R but implements SAMME |
+| 2 | LogisticRegression | logistic.rs:638 | ~~IRLS weight clamping~~ **FIXED** — clamp var alone, multiply by sample_weight after |
+| 3 | AdaBoost Regressor | adaboost.rs:524 | ~~Weight formula uses `.abs()`~~ **FIXED** — uses `(1.0/beta).ln()` |
+| 4 | AdaBoost | adaboost.rs:7 | ~~Docstring claims SAMME.R~~ **FIXED** — corrected to SAMME |
 
 ### P2 — Should fix, non-blocking
 
@@ -277,8 +277,8 @@ MLP uses He/Xavier init, inverted dropout, Adam/SGD, softmax with max-subtractio
 ## Recommendations for Phase 2-3
 
 ### Phase 2 (Robustness) Priority Order
-1. Fix P0: Implement Entropy criterion for classification trees
-2. Fix P1: LogisticRegression IRLS weight clamp, AdaBoost weight formula + docstring
+1. ~~Fix P0: Implement Entropy criterion for classification trees~~ **DONE** (Phase 2 Session 2)
+2. ~~Fix P1: LogisticRegression IRLS weight clamp, AdaBoost weight formula + docstring~~ **DONE** (Phase 2 Session 2)
 3. Eliminate unwrap() in tree.rs, hist_boosting.rs, boosting.rs (the 230+ unwrap target)
 4. Fix P2: z_inv_normal sign error, SGDClassifier NaN check, ExtraTrees expect(), GP jitter
 

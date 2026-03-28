@@ -4,7 +4,7 @@
 //!
 //! ## Classifiers
 //!
-//! - [`AdaBoostClassifier`] - SAMME.R (real-valued) boosting with decision stumps
+//! - [`AdaBoostClassifier`] - SAMME (discrete) boosting with decision stumps
 //!
 //! ## Regressors
 //!
@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 // AdaBoost Classifier
 // =============================================================================
 
-/// AdaBoost classifier using SAMME.R algorithm.
+/// AdaBoost classifier using SAMME algorithm.
 ///
 /// Fits an ensemble of weighted decision stumps, where each subsequent
 /// estimator focuses on the samples that previous estimators got wrong.
@@ -521,7 +521,7 @@ impl Model for AdaBoostRegressor {
 
             // Estimator weight (beta)
             let beta = avg_loss / (1.0 - avg_loss);
-            let alpha = self.learning_rate * beta.ln().abs();
+            let alpha = self.learning_rate * (1.0_f64 / beta).ln();
 
             // Update sample weights
             for i in 0..n_samples {
@@ -835,5 +835,45 @@ mod tests {
 
         let importance = reg.feature_importance().unwrap();
         assert_eq!(importance.len(), 2);
+    }
+
+    #[test]
+    fn test_adaboost_regressor_weight_formula_bug3() {
+        // Regression test for Bug 3: estimator weights must be positive when beta < 1
+        // (good estimators). The old formula used beta.ln().abs() which was mathematically
+        // wrong; the correct AdaBoost.R2 formula is ln(1/beta) = -ln(beta).
+        let x = Array2::from_shape_vec((20, 1), (1..=20).map(|i| i as f64).collect::<Vec<_>>())
+            .unwrap();
+        let y = Array1::from_vec((1..=20).map(|i| 2.0 * i as f64 + 1.0).collect::<Vec<_>>());
+
+        let mut reg = AdaBoostRegressor::new(10).with_max_depth(3);
+        reg.fit(&x, &y).unwrap();
+
+        // All estimator weights should be positive (beta < 1 for good estimators)
+        let weights = reg.estimator_weights.as_ref().unwrap();
+        for (i, &w) in weights.iter().enumerate() {
+            assert!(
+                w >= 0.0,
+                "Estimator weight {} is negative: {}. Weights must be non-negative.",
+                i,
+                w
+            );
+        }
+
+        // Model should predict reasonably well (R² > 0)
+        let preds = reg.predict(&x).unwrap();
+        let y_mean = y.mean().unwrap();
+        let ss_tot: f64 = y.iter().map(|&yi| (yi - y_mean).powi(2)).sum();
+        let ss_res: f64 = preds
+            .iter()
+            .zip(y.iter())
+            .map(|(&pi, &yi)| (pi - yi).powi(2))
+            .sum();
+        let r2 = 1.0 - ss_res / ss_tot;
+        assert!(
+            r2 > 0.0,
+            "R² should be positive for a reasonable fit, got {}",
+            r2
+        );
     }
 }

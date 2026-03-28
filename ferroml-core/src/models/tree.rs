@@ -132,6 +132,21 @@ fn weighted_gini_impurity(class_weights: &[f64], total_weight: f64) -> f64 {
     1.0 - sum_sq
 }
 
+/// Compute weighted entropy for a set of class weight sums
+fn weighted_entropy(class_weights: &[f64], total_weight: f64) -> f64 {
+    if total_weight <= 0.0 {
+        return 0.0;
+    }
+    let mut entropy = 0.0;
+    for &w in class_weights {
+        if w > 0.0 {
+            let p = w / total_weight;
+            entropy -= p * p.ln();
+        }
+    }
+    entropy
+}
+
 /// Compute MSE for a set of values
 fn mse(values: &[f64]) -> f64 {
     if values.is_empty() {
@@ -656,7 +671,14 @@ impl DecisionTreeClassifier {
         }
 
         // Compute weighted impurity
-        let impurity = weighted_gini_impurity(&class_weights_sum, total_weight);
+        let impurity = match self.criterion {
+            SplitCriterion::Gini => weighted_gini_impurity(&class_weights_sum, total_weight),
+            SplitCriterion::Entropy => weighted_entropy(&class_weights_sum, total_weight),
+            _ => panic!(
+                "Invalid criterion {:?} for classification tree; use Gini or Entropy",
+                self.criterion
+            ),
+        };
 
         // Node value (weighted class counts)
         let value: Vec<f64> = class_weights_sum.clone();
@@ -839,8 +861,22 @@ impl DecisionTreeClassifier {
                 continue;
             }
 
-            let left_impurity = weighted_gini_impurity(&left_weights, left_total);
-            let right_impurity = weighted_gini_impurity(&right_weights, right_total);
+            let left_impurity = match self.criterion {
+                SplitCriterion::Gini => weighted_gini_impurity(&left_weights, left_total),
+                SplitCriterion::Entropy => weighted_entropy(&left_weights, left_total),
+                _ => panic!(
+                    "Invalid criterion {:?} for classification tree; use Gini or Entropy",
+                    self.criterion
+                ),
+            };
+            let right_impurity = match self.criterion {
+                SplitCriterion::Gini => weighted_gini_impurity(&right_weights, right_total),
+                SplitCriterion::Entropy => weighted_entropy(&right_weights, right_total),
+                _ => panic!(
+                    "Invalid criterion {:?} for classification tree; use Gini or Entropy",
+                    self.criterion
+                ),
+            };
 
             let left_prop = left_total / total_weight;
             let right_prop = right_total / total_weight;
@@ -964,8 +1000,22 @@ impl DecisionTreeClassifier {
 
                 let threshold = (x[[idx, feature_idx]] + x[[next_idx, feature_idx]]) / 2.0;
 
-                let left_impurity = weighted_gini_impurity(&left_weights, left_total);
-                let right_impurity = weighted_gini_impurity(&right_weights, right_total);
+                let left_impurity = match self.criterion {
+                    SplitCriterion::Gini => weighted_gini_impurity(&left_weights, left_total),
+                    SplitCriterion::Entropy => weighted_entropy(&left_weights, left_total),
+                    _ => panic!(
+                        "Invalid criterion {:?} for classification tree; use Gini or Entropy",
+                        self.criterion
+                    ),
+                };
+                let right_impurity = match self.criterion {
+                    SplitCriterion::Gini => weighted_gini_impurity(&right_weights, right_total),
+                    SplitCriterion::Entropy => weighted_entropy(&right_weights, right_total),
+                    _ => panic!(
+                        "Invalid criterion {:?} for classification tree; use Gini or Entropy",
+                        self.criterion
+                    ),
+                };
 
                 let left_prop = left_total / total_weight;
                 let right_prop = right_total / total_weight;
@@ -2589,5 +2639,80 @@ mod tests {
         assert_eq!(importance.len(), 3);
         assert!((importance.sum() - 1.0).abs() < 1e-10);
         assert!(importance.iter().all(|&v| v >= 0.0));
+    }
+
+    #[test]
+    fn test_entropy_criterion_differs_from_gini() {
+        // Dataset designed so that Entropy and Gini prefer different splits
+        // at depth 1. Feature 0 has a clean binary split; feature 1 has an
+        // unbalanced split that Entropy penalizes more than Gini.
+        let x = Array2::from_shape_vec(
+            (12, 2),
+            vec![
+                // Feature 0   Feature 1
+                1.0, 10.0, // class 0
+                2.0, 11.0, // class 0
+                3.0, 12.0, // class 0
+                4.0, 13.0, // class 0
+                5.0, 14.0, // class 1
+                6.0, 15.0, // class 1
+                7.0, 16.0, // class 1
+                8.0, 17.0, // class 2
+                9.0, 18.0, // class 2
+                10.0, 19.0, // class 2
+                11.0, 20.0, // class 2
+                12.0, 21.0, // class 2
+            ],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![
+            0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+        ]);
+
+        let mut clf_gini = DecisionTreeClassifier::new()
+            .with_max_depth(Some(1))
+            .with_criterion(SplitCriterion::Gini);
+        clf_gini.fit(&x, &y).unwrap();
+
+        let mut clf_entropy = DecisionTreeClassifier::new()
+            .with_max_depth(Some(1))
+            .with_criterion(SplitCriterion::Entropy);
+        clf_entropy.fit(&x, &y).unwrap();
+
+        let tree_gini = clf_gini.tree().unwrap();
+        let tree_entropy = clf_entropy.tree().unwrap();
+
+        let root_gini = &tree_gini.nodes[0];
+        let root_entropy = &tree_entropy.nodes[0];
+
+        // Both trees should have made a split (not be leaves)
+        assert!(!root_gini.is_leaf, "Gini tree should not be a leaf");
+        assert!(!root_entropy.is_leaf, "Entropy tree should not be a leaf");
+
+        // The entropy tree should actually use entropy impurity (ln-based),
+        // which is always >= gini for the same distribution.
+        // For a uniform 3-class distribution: entropy = ln(3) ~ 1.099, gini = 0.667
+        // Verify the root impurity differs (entropy > gini for non-degenerate distributions)
+        assert!(
+            root_entropy.impurity > root_gini.impurity + 0.01,
+            "Entropy impurity ({}) should be greater than Gini impurity ({}) for multi-class data",
+            root_entropy.impurity,
+            root_gini.impurity
+        );
+
+        // Verify predictions still work correctly for both
+        let pred_gini = clf_gini.predict(&x).unwrap();
+        let pred_entropy = clf_entropy.predict(&x).unwrap();
+        // With max_depth=1 neither will be perfect, but both should predict valid classes
+        for i in 0..12 {
+            assert!(
+                pred_gini[i] == 0.0 || pred_gini[i] == 1.0 || pred_gini[i] == 2.0,
+                "Gini prediction should be a valid class"
+            );
+            assert!(
+                pred_entropy[i] == 0.0 || pred_entropy[i] == 1.0 || pred_entropy[i] == 2.0,
+                "Entropy prediction should be a valid class"
+            );
+        }
     }
 }

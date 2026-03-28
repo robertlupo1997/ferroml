@@ -635,7 +635,7 @@ impl LogisticRegression {
             // Compute weights, working response, and scaled_x in one pass over rows
             for i in 0..n {
                 let var = (mu[i] * (1.0 - mu[i])).clamp(1e-10, 0.25);
-                w_clamped[i] = (var * sample_weights[i]).clamp(1e-10, 0.25);
+                w_clamped[i] = var * sample_weights[i];
                 let w_sqrt = w_clamped[i].sqrt();
                 w_sqrt_buf[i] = w_sqrt;
                 // Working response z_i = eta_i + (y_i - mu_i) / var
@@ -2780,6 +2780,59 @@ mod tests {
         for &p in preds.iter() {
             assert!(p == 0.0 || p == 1.0, "predictions should be class labels");
         }
+    }
+
+    #[test]
+    fn test_irls_class_weight_balanced_imbalanced_data() {
+        // Regression test for Bug 2: IRLS weight clamping corrupted Newton step
+        // when sample_weights > 1 (from ClassWeight::Balanced with imbalanced data).
+        // The old code clamped (var * sample_weight) to 0.25, which is only correct
+        // for unit weights. The fix clamps var first, then multiplies by sample_weight.
+
+        // Create imbalanced data: 90 class-0, 10 class-1
+        let n = 100;
+        let mut x = Array2::zeros((n, 2));
+        let mut y = Array1::zeros(n);
+
+        // Class 0: centered around (-1, -1)
+        for i in 0..90 {
+            x[[i, 0]] = -1.0 + (i as f64 * 0.01);
+            x[[i, 1]] = -1.0 + ((i * 3) as f64 % 90.0) * 0.01;
+            y[i] = 0.0;
+        }
+        // Class 1: centered around (1, 1)
+        for i in 90..100 {
+            x[[i, 0]] = 1.0 + ((i - 90) as f64 * 0.01);
+            x[[i, 1]] = 1.0 + ((i - 90) as f64 * 0.02);
+            y[i] = 1.0;
+        }
+
+        let mut model = LogisticRegression::default()
+            .with_solver(LogisticSolver::Irls)
+            .with_class_weight(ClassWeight::Balanced);
+
+        let result = model.fit(&x, &y);
+        assert!(
+            result.is_ok(),
+            "IRLS with ClassWeight::Balanced should converge: {:?}",
+            result.err()
+        );
+
+        // Check predictions on minority class samples
+        let preds = model.predict(&x).unwrap();
+        let mut minority_correct = 0;
+        for i in 90..100 {
+            if preds[i] == 1.0 {
+                minority_correct += 1;
+            }
+        }
+        // With the bug, minority class would be under-weighted and accuracy would be poor.
+        // With the fix, balanced weights should help the model classify minority correctly.
+        assert!(
+            minority_correct > 5,
+            "Minority class accuracy should be > 50% with balanced weights, got {}/10",
+            minority_correct
+        );
     }
 
     #[test]
