@@ -538,10 +538,12 @@ impl HistTree {
                 return node.value;
             }
 
+            // SAFETY: non-leaf nodes always have feature_idx set during tree building
             let feature_idx = node
                 .feature_idx
                 .expect("internal node must have feature_idx");
             let bin = binned_features[feature_idx];
+            // SAFETY: non-leaf nodes always have bin_threshold set during tree building
             let threshold = node
                 .bin_threshold
                 .expect("internal node must have bin_threshold");
@@ -554,6 +556,7 @@ impl HistTree {
                 bin <= threshold
             };
 
+            // SAFETY: non-leaf nodes always have left_child and right_child set during tree building
             node_idx = if go_left {
                 node.left_child.expect("internal node must have left_child")
             } else {
@@ -1796,6 +1799,7 @@ impl HistGradientBoostingClassifier {
             for (k, tree) in iteration_trees.iter().enumerate() {
                 for i in 0..n_samples {
                     let row = x_binned.row(i);
+                    // SAFETY: x_binned is created from Array2 which is standard layout (contiguous rows)
                     let row_slice = row.as_slice().expect("x_binned is standard layout");
                     raw_predictions[[i, k]] += self.learning_rate * tree.predict_single(row_slice);
                 }
@@ -1829,6 +1833,7 @@ impl HistGradientBoostingClassifier {
 
     /// Compute log loss for validation
     fn compute_log_loss(&self, y: &Array1<f64>, probas: &Array2<f64>) -> f64 {
+        // SAFETY: classes is always set during fit(), and this is only called from fit()
         super::compute_log_loss(
             y,
             probas,
@@ -1875,6 +1880,7 @@ impl HistGradientBoostingClassifier {
             for (k, tree) in iteration_trees.iter().enumerate() {
                 for i in 0..n_samples {
                     let row = x_binned.row(i);
+                    // SAFETY: x_binned is created from Array2 which is standard layout (contiguous rows)
                     let row_slice = row.as_slice().expect("x_binned is standard layout");
                     raw[[i, k]] += self.learning_rate * tree.predict_single(row_slice);
                 }
@@ -1914,6 +1920,7 @@ impl HistGradientBoostingClassifier {
     /// Compute feature importances from all trees
     fn compute_feature_importances(&mut self) {
         if let Some(ref trees) = self.trees {
+            // SAFETY: n_features is always set during fit(), before trees are populated
             let n_features = self.n_features.expect("model must be fitted");
             let mut importances = Array1::zeros(n_features);
 
@@ -2168,6 +2175,7 @@ impl Model for HistGradientBoostingClassifier {
                 {
                     for i in 0..xvb.nrows() {
                         let row = xvb.row(i);
+                        // SAFETY: x_val_binned is created from Array2 which is standard layout
                         let row_slice = row.as_slice().expect("x_val_binned is standard layout");
                         vrp[[i, k]] += self.learning_rate * tree.predict_single(row_slice);
                     }
@@ -2186,6 +2194,7 @@ impl Model for HistGradientBoostingClassifier {
                 let val_loss = self.compute_log_loss(yv, &val_probas);
                 val_loss_history.push(val_loss);
 
+                // SAFETY: early_stopping is always Some when y_val/val_raw_predictions are Some
                 let early_stopping = self
                     .early_stopping
                     .as_ref()
@@ -2215,7 +2224,10 @@ impl Model for HistGradientBoostingClassifier {
 
     fn predict(&self, x: &Array2<f64>) -> Result<Array1<f64>> {
         let probas = self.predict_proba(x)?;
-        let classes = self.classes.as_ref().expect("classes set during fit");
+        let classes = self
+            .classes
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("predict"))?;
         let n_samples = x.nrows();
 
         let mut predictions = Array1::zeros(n_samples);
@@ -2260,6 +2272,7 @@ impl Model for HistGradientBoostingClassifier {
 
 impl HistGradientBoostingClassifier {
     fn raw_to_proba(&self, raw: &Array2<f64>) -> Array2<f64> {
+        // SAFETY: n_classes is always set during fit(), and this is only called after fit()
         super::raw_to_proba(raw, self.n_classes.expect("model must be fitted"))
     }
 }
@@ -2611,6 +2624,7 @@ impl HistGradientBoostingRegressor {
         Ok(trees.iter().map(move |tree| {
             for i in 0..n_samples {
                 let row = x_binned.row(i);
+                // SAFETY: x_binned is created from Array2 which is standard layout (contiguous rows)
                 let row_slice = row.as_slice().expect("x_binned is standard layout");
                 predictions[i] += self.learning_rate * tree.predict_single(row_slice);
             }
@@ -2621,6 +2635,7 @@ impl HistGradientBoostingRegressor {
     /// Compute feature importances from all trees
     fn compute_feature_importances(&mut self) {
         if let Some(ref trees) = self.trees {
+            // SAFETY: n_features is always set during fit(), before trees are populated
             let n_features = self.n_features.expect("model must be fitted");
             let mut importances = Array1::zeros(n_features);
 
@@ -2792,6 +2807,7 @@ impl Model for HistGradientBoostingRegressor {
             if let (Some(ref xvb), Some(ref mut vp)) = (&x_val_binned, &mut val_predictions) {
                 for i in 0..xvb.nrows() {
                     let row = xvb.row(i);
+                    // SAFETY: x_val_binned is created from Array2 which is standard layout
                     let row_slice = row.as_slice().expect("x_val_binned is standard layout");
                     vp[i] += self.learning_rate * tree.predict_single(row_slice);
                 }
@@ -2808,6 +2824,7 @@ impl Model for HistGradientBoostingRegressor {
                 let val_loss = self.compute_loss(yv, vp);
                 val_loss_history.push(val_loss);
 
+                // SAFETY: early_stopping is always Some when y_val/val_predictions are Some
                 let early_stopping = self
                     .early_stopping
                     .as_ref()
@@ -2865,6 +2882,7 @@ impl Model for HistGradientBoostingRegressor {
         for tree in trees {
             for i in 0..n_samples {
                 let row = x_binned.row(i);
+                // SAFETY: x_binned is created from Array2 which is standard layout (contiguous rows)
                 let row_slice = row.as_slice().expect("x_binned is standard layout");
                 predictions[i] += self.learning_rate * tree.predict_single(row_slice);
             }
@@ -3162,6 +3180,7 @@ impl CategoricalFeatureHandler {
         match self.encoding {
             CategoricalEncoding::OrderedTargetEncoding if is_training => {
                 // Ordered target encoding during training
+                // SAFETY: callers always pass y and permutation when is_training=true
                 let y = y.expect("Target values required for ordered target encoding");
                 let perm = permutation.expect("Permutation required for ordered target encoding");
 

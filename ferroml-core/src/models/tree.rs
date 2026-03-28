@@ -287,6 +287,7 @@ impl TreeStructure {
                     node.n_samples, node.value, node.impurity
                 )
             } else {
+                // SAFETY: non-leaf nodes always have feature_index set during tree construction
                 let feature_idx = node
                     .feature_index
                     .expect("internal node must have feature_index");
@@ -296,6 +297,7 @@ impl TreeStructure {
                     .and_then(|names| names.get(feature_idx))
                     .cloned()
                     .unwrap_or_else(|| format!("X[{}]", feature_idx));
+                // SAFETY: non-leaf nodes always have threshold set during tree construction
                 format!(
                     "{} <= {:.4}\\nsamples = {}\\nimpurity = {:.4}",
                     feature_name,
@@ -347,6 +349,7 @@ impl TreeStructure {
             if node.is_leaf {
                 break;
             }
+            // SAFETY: non-leaf nodes always have feature_index/threshold/children set during tree construction
             let feature_idx = node
                 .feature_index
                 .expect("internal node must have feature_index");
@@ -374,6 +377,7 @@ fn compute_tree_feature_importances(tree: &TreeStructure) -> Array1<f64> {
 
     for node in &tree.nodes {
         if !node.is_leaf {
+            // SAFETY: non-leaf nodes always have feature_index set during tree construction
             let feature_idx = node
                 .feature_index
                 .expect("internal node must have feature_index");
@@ -593,8 +597,10 @@ impl DecisionTreeClassifier {
 
         for i in 0..n_samples {
             let sample: Vec<f64> = x.row(i).to_vec();
-            let leaf_id = self.find_leaf(&sample);
-            let leaf = tree.get_node(leaf_id).expect("leaf_id must be valid");
+            let leaf_id = self.find_leaf(&sample)?;
+            let leaf = tree.get_node(leaf_id).ok_or_else(|| {
+                FerroError::NumericalError(format!("invalid leaf node id {}", leaf_id))
+            })?;
 
             // Normalize value to probabilities
             let total: f64 = leaf.value.iter().sum();
@@ -620,27 +626,35 @@ impl DecisionTreeClassifier {
     }
 
     /// Find the leaf node for a sample
-    fn find_leaf(&self, x: &[f64]) -> usize {
-        let tree = self.tree.as_ref().expect("model must be fitted");
+    fn find_leaf(&self, x: &[f64]) -> Result<usize> {
+        let tree = self
+            .tree
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("find_leaf"))?;
         let mut node_id = 0;
 
         while let Some(node) = tree.get_node(node_id) {
             if node.is_leaf {
-                return node_id;
+                return Ok(node_id);
             }
-            let feature_idx = node
-                .feature_index
-                .expect("internal node must have feature_index");
-            let threshold = node.threshold.expect("internal node must have threshold");
+            let feature_idx = node.feature_index.ok_or_else(|| {
+                FerroError::NumericalError("internal node missing feature_index".into())
+            })?;
+            let threshold = node.threshold.ok_or_else(|| {
+                FerroError::NumericalError("internal node missing threshold".into())
+            })?;
             node_id = if x[feature_idx] <= threshold {
-                node.left_child.expect("internal node must have left_child")
+                node.left_child.ok_or_else(|| {
+                    FerroError::NumericalError("internal node missing left_child".into())
+                })?
             } else {
-                node.right_child
-                    .expect("internal node must have right_child")
+                node.right_child.ok_or_else(|| {
+                    FerroError::NumericalError("internal node missing right_child".into())
+                })?
             };
         }
 
-        node_id
+        Ok(node_id)
     }
 
     /// Build tree with sample weights for handling class imbalance
@@ -1070,6 +1084,7 @@ impl DecisionTreeClassifier {
         // R_alpha(T) = R(T) + alpha * |T| where |T| is number of leaves
         // We iteratively collapse internal nodes where the cost-complexity gain is minimal
 
+        // SAFETY: guarded by `self.tree.is_none()` early return above
         let tree = self
             .tree
             .as_mut()
@@ -1235,13 +1250,15 @@ impl Model for DecisionTreeClassifier {
 
         for i in 0..n_samples {
             let sample: Vec<f64> = x.row(i).to_vec();
-            let leaf_id = self.find_leaf(&sample);
+            let leaf_id = self.find_leaf(&sample)?;
             let leaf = self
                 .tree
                 .as_ref()
-                .expect("model must be fitted")
+                .ok_or_else(|| FerroError::not_fitted("predict"))?
                 .get_node(leaf_id)
-                .expect("leaf_id must be valid");
+                .ok_or_else(|| {
+                    FerroError::NumericalError(format!("invalid leaf node id {}", leaf_id))
+                })?;
 
             // Find class with maximum count
             let max_idx = leaf
@@ -1507,27 +1524,35 @@ impl DecisionTreeRegressor {
     }
 
     /// Find the leaf node for a sample
-    fn find_leaf(&self, x: &[f64]) -> usize {
-        let tree = self.tree.as_ref().expect("model must be fitted");
+    fn find_leaf(&self, x: &[f64]) -> Result<usize> {
+        let tree = self
+            .tree
+            .as_ref()
+            .ok_or_else(|| FerroError::not_fitted("find_leaf"))?;
         let mut node_id = 0;
 
         while let Some(node) = tree.get_node(node_id) {
             if node.is_leaf {
-                return node_id;
+                return Ok(node_id);
             }
-            let feature_idx = node
-                .feature_index
-                .expect("internal node must have feature_index");
-            let threshold = node.threshold.expect("internal node must have threshold");
+            let feature_idx = node.feature_index.ok_or_else(|| {
+                FerroError::NumericalError("internal node missing feature_index".into())
+            })?;
+            let threshold = node.threshold.ok_or_else(|| {
+                FerroError::NumericalError("internal node missing threshold".into())
+            })?;
             node_id = if x[feature_idx] <= threshold {
-                node.left_child.expect("internal node must have left_child")
+                node.left_child.ok_or_else(|| {
+                    FerroError::NumericalError("internal node missing left_child".into())
+                })?
             } else {
-                node.right_child
-                    .expect("internal node must have right_child")
+                node.right_child.ok_or_else(|| {
+                    FerroError::NumericalError("internal node missing right_child".into())
+                })?
             };
         }
 
-        node_id
+        Ok(node_id)
     }
 
     /// Build the tree recursively
@@ -1896,10 +1921,11 @@ impl DecisionTreeRegressor {
                 .nodes
                 .first()
                 .map(|n| n.weighted_n_samples)
-                .unwrap_or(1.0);
+                .unwrap_or(1.0); // SAFETY: fallback to 1.0 for empty tree is benign
 
             for node in &tree.nodes {
                 if !node.is_leaf {
+                    // SAFETY: non-leaf nodes always have feature_index set during tree construction
                     let feature_idx = node
                         .feature_index
                         .expect("internal node must have feature_index");
@@ -1926,6 +1952,7 @@ impl DecisionTreeRegressor {
             return;
         }
 
+        // SAFETY: guarded by `self.tree.is_none()` early return above
         let tree = self
             .tree
             .as_mut()
@@ -2026,13 +2053,15 @@ impl Model for DecisionTreeRegressor {
 
         for i in 0..n_samples {
             let sample: Vec<f64> = x.row(i).to_vec();
-            let leaf_id = self.find_leaf(&sample);
+            let leaf_id = self.find_leaf(&sample)?;
             let leaf = self
                 .tree
                 .as_ref()
-                .expect("model must be fitted")
+                .ok_or_else(|| FerroError::not_fitted("predict"))?
                 .get_node(leaf_id)
-                .expect("leaf_id must be valid");
+                .ok_or_else(|| {
+                    FerroError::NumericalError(format!("invalid leaf node id {}", leaf_id))
+                })?;
             predictions[i] = leaf.value[0]; // Mean value at leaf
         }
 

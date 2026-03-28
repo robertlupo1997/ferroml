@@ -749,8 +749,11 @@ impl Model for GradientBoostingRegressor {
                 let val_loss = self.loss.loss(yv, vp, self.alpha);
                 history.val_loss.push(val_loss);
 
-                // SAFETY: early_stopping is always Some when validation data is provided
-                let early_stopping = self.early_stopping.as_ref().unwrap();
+                let early_stopping = self.early_stopping.as_ref().ok_or_else(|| {
+                    FerroError::NumericalError(
+                        "early_stopping config missing during validation".into(),
+                    )
+                })?;
                 if val_loss < best_val_loss - early_stopping.min_delta {
                     best_val_loss = val_loss;
                     no_improvement_count = 0;
@@ -1612,8 +1615,11 @@ impl Model for GradientBoostingClassifier {
                 let val_loss = self.compute_log_loss(yv, &val_probas);
                 history.val_loss.push(val_loss);
 
-                // SAFETY: early_stopping is always Some when validation data is provided
-                let early_stopping = self.early_stopping.as_ref().unwrap();
+                let early_stopping = self.early_stopping.as_ref().ok_or_else(|| {
+                    FerroError::NumericalError(
+                        "early_stopping config missing during validation".into(),
+                    )
+                })?;
                 if val_loss < best_val_loss - early_stopping.min_delta {
                     best_val_loss = val_loss;
                     no_improvement_count = 0;
