@@ -548,8 +548,11 @@ impl TSNE {
     }
 
     /// Determine the effective method to use based on configuration and data size.
+    ///
+    /// Barnes-Hut only supports 2D embeddings (QuadTree). If n_components > 2,
+    /// we fall back to Exact (matching sklearn behavior).
     fn effective_method(&self, n_samples: usize) -> TsneMethod {
-        match self.method {
+        let method = match self.method {
             Some(m) => m,
             None => {
                 if n_samples > 1000 {
@@ -558,7 +561,14 @@ impl TSNE {
                     TsneMethod::Exact
                 }
             }
+        };
+
+        // Barnes-Hut uses a QuadTree hardcoded to 2D — fall back to Exact for higher dims
+        if method == TsneMethod::BarnesHut && self.n_components > 2 {
+            return TsneMethod::Exact;
         }
+
+        method
     }
 
     /// Compute sparse joint probabilities using VP-tree for k nearest neighbors.
@@ -1007,11 +1017,6 @@ impl Transformer for TSNE {
                 self.run_optimization(&p, y_init)?
             }
             TsneMethod::BarnesHut => {
-                if self.n_components != 2 {
-                    return Err(FerroError::invalid_input(
-                        "Barnes-Hut method only supports n_components=2. Use Exact for other dimensions.",
-                    ));
-                }
                 let sparse_p = self.compute_sparse_joint_probabilities(x);
                 self.run_optimization_barnes_hut(&sparse_p, y_init)?
             }
@@ -1768,8 +1773,8 @@ mod tests {
     }
 
     #[test]
-    fn test_barnes_hut_3d_errors() {
-        // Barnes-Hut only supports 2D
+    fn test_barnes_hut_3d_falls_back_to_exact() {
+        // Barnes-Hut only supports 2D — should fall back to exact for n_components > 2
         let (data, _) = make_clusters(20, 2, 5, 42);
         let mut tsne = TSNE::new()
             .with_method(TsneMethod::BarnesHut)
@@ -1779,7 +1784,13 @@ mod tests {
             .with_random_state(42);
 
         let result = tsne.fit_transform(&data);
-        assert!(result.is_err());
+        assert!(
+            result.is_ok(),
+            "Should fall back to exact for 3D, got: {:?}",
+            result.err()
+        );
+        let embedding = result.unwrap();
+        assert_eq!(embedding.ncols(), 3);
     }
 
     #[test]
@@ -1829,6 +1840,43 @@ mod tests {
         let embedding = result.unwrap();
         assert_eq!(embedding.dim(), (n, 2));
         // No NaN or Inf in the embedding
+        for &val in embedding.iter() {
+            assert!(
+                val.is_finite(),
+                "Embedding value must be finite, got {}",
+                val
+            );
+        }
+    }
+
+    #[test]
+    fn test_tsne_barnes_hut_3d_fallback_bug8() {
+        // Bug #8: Barnes-Hut is hardcoded to 2D (QuadTree). Requesting n_components=3
+        // with BarnesHut must silently fall back to Exact (matching sklearn behavior),
+        // NOT produce wrong results or panic.
+        let (data, _) = make_clusters(15, 3, 5, 42);
+        let mut tsne = TSNE::new()
+            .with_n_components(3)
+            .with_method(TsneMethod::BarnesHut)
+            .with_perplexity(5.0)
+            .with_max_iter(100)
+            .with_random_state(42);
+
+        // effective_method should have fallen back to Exact
+        assert_eq!(tsne.effective_method(15), TsneMethod::Exact);
+
+        // fit_transform should succeed and produce a 3D embedding
+        let result = tsne.fit_transform(&data);
+        assert!(
+            result.is_ok(),
+            "Barnes-Hut with n_components=3 should fall back to Exact, got: {:?}",
+            result.err()
+        );
+
+        let embedding = result.unwrap();
+        assert_eq!(embedding.dim(), (45, 3));
+
+        // No NaN or Inf
         for &val in embedding.iter() {
             assert!(
                 val.is_finite(),

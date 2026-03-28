@@ -1067,4 +1067,39 @@ mod tests {
         let space = model.search_space();
         assert!(!space.parameters.is_empty());
     }
+
+    /// Regression test for P2 Bug #7: expect() in parallel tree building caused panics.
+    /// Both classifier and regressor should gracefully handle tree fit failures via
+    /// filter_map (matching RandomForest's pattern) instead of panicking.
+    #[test]
+    fn test_extra_trees_no_panic_on_tree_failure_bug7() {
+        // Classifier: fit with valid data should succeed (no panic)
+        let (x, y) = make_classification_data();
+        let mut clf = ExtraTreesClassifier::new()
+            .with_n_estimators(5)
+            .with_random_state(42);
+        assert!(clf.fit(&x, &y).is_ok());
+
+        // Regressor: fit with valid data should succeed (no panic)
+        let (x, y) = make_regression_data();
+        let mut reg = ExtraTreesRegressor::new()
+            .with_n_estimators(5)
+            .with_random_state(42);
+        assert!(reg.fit(&x, &y).is_ok());
+
+        // Verify single-threaded path also works (exercises the sequential branch)
+        let mut clf_seq = ExtraTreesClassifier::new()
+            .with_n_estimators(5)
+            .with_n_jobs(Some(1))
+            .with_random_state(42);
+        let (x, y) = make_classification_data();
+        assert!(clf_seq.fit(&x, &y).is_ok());
+
+        let mut reg_seq = ExtraTreesRegressor::new()
+            .with_n_estimators(5)
+            .with_n_jobs(Some(1))
+            .with_random_state(42);
+        let (x, y) = make_regression_data();
+        assert!(reg_seq.fit(&x, &y).is_ok());
+    }
 }

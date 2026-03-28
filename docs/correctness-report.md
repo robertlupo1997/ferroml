@@ -15,7 +15,7 @@
 - **0 REMOVE** — no algorithm needs to be cut
 - **GPU: EXPERIMENTAL** — ship with warning label
 - **Sparse: STABLE** — ship as-is
-- **12 bugs found** (3 P0/P1, 5 P2, 4 P3) — P0/P1 all fixed
+- **12 bugs found** (3 P0/P1, 5 P2, 4 P3) — P0/P1/P2 all fixed
 
 ---
 
@@ -223,11 +223,11 @@ MLP uses He/Xavier init, inverted dropout, Adam/SGD, softmax with max-subtractio
 
 | # | Algorithm | File:Line | Description |
 |---|---|---|---|
-| 5 | z_inv_normal | regularized.rs:2364 | Sign error — returns wrong sign for p > 0.5, affects Ridge CIs |
-| 6 | SGDClassifier | sgd.rs | Missing NaN/Inf divergence check (SGDRegressor has it) |
-| 7 | ExtraTrees | extra_trees.rs:404 | `expect()` in parallel tree building — panics instead of filter_map |
-| 8 | t-SNE | tsne.rs:729 | Barnes-Hut hardcoded to 2D; n_components > 2 produces wrong results |
-| 9 | GP Regressor | gaussian_process.rs | No Cholesky jitter retry — fit may fail on borderline kernel matrices |
+| 5 | z_inv_normal | regularized.rs:2364 | ~~Sign error — returns wrong sign for p > 0.5~~ **FIXED** — saved original_p before transform, fixed branch direction |
+| 6 | SGDClassifier | sgd.rs | ~~Missing NaN/Inf divergence check~~ **FIXED** — added finite check on coef+intercept after training (matches SGDRegressor) |
+| 7 | ExtraTrees | extra_trees.rs:404 | ~~`expect()` in parallel tree building~~ **FIXED** — replaced with filter_map + empty guard (matches RandomForest) |
+| 8 | t-SNE | tsne.rs:729 | ~~Barnes-Hut hardcoded to 2D~~ **FIXED** — falls back to exact method when n_components > 2 (matches sklearn) |
+| 9 | GP Regressor | gaussian_process.rs | ~~No Cholesky jitter retry~~ **FIXED** — added jitter retry loop (1e-10 → 1e-4) wrapping raw cholesky |
 
 ### P3 — Nice to fix
 

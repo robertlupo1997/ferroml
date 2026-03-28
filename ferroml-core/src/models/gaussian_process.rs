@@ -335,7 +335,7 @@ fn stable_posterior_variance(prior: f64, reduction: f64) -> f64 {
 
 /// Cholesky decomposition: A = L @ L^T.
 /// Returns the lower-triangular factor L.
-fn cholesky(a: &Array2<f64>) -> Result<Array2<f64>> {
+fn cholesky_raw(a: &Array2<f64>) -> Result<Array2<f64>> {
     let n = a.nrows();
     let mut l = Array2::zeros((n, n));
 
@@ -363,6 +363,32 @@ fn cholesky(a: &Array2<f64>) -> Result<Array2<f64>> {
     }
 
     Ok(l)
+}
+
+/// Cholesky decomposition with jitter retry for near-singular matrices.
+/// Tries without jitter first, then retries with geometrically increasing
+/// diagonal jitter: 1e-10, 1e-8, 1e-6, 1e-4.
+fn cholesky(a: &Array2<f64>) -> Result<Array2<f64>> {
+    if let Ok(l) = cholesky_raw(a) {
+        return Ok(l);
+    }
+
+    let jitters = [1e-10, 1e-8, 1e-6, 1e-4];
+    let n = a.nrows();
+    for jitter in &jitters {
+        let mut a_jittered = a.clone();
+        for i in 0..n {
+            a_jittered[[i, i]] += jitter;
+        }
+        if let Ok(l) = cholesky_raw(&a_jittered) {
+            return Ok(l);
+        }
+    }
+
+    Err(FerroError::NumericalError(
+        "Cholesky decomposition failed after jitter retries: matrix is not positive definite"
+            .to_string(),
+    ))
 }
 
 /// Solve L @ x = b where L is lower-triangular (forward substitution).
@@ -2250,5 +2276,34 @@ impl Model for SVGPRegressor {
     fn score(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<f64> {
         let predictions = self.predict(x)?;
         crate::metrics::r2_score(y, &predictions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gp_cholesky_jitter_retry_bug9() {
+        // Regression test: GP Regressor should handle near-duplicate training
+        // points via Cholesky jitter retry instead of failing.
+        let x =
+            Array2::from_shape_vec((6, 1), vec![0.0, 1e-12, 1.0, 1.0 + 1e-12, 2.0, 2.0 + 1e-12])
+                .unwrap();
+        let y = Array1::from_vec(vec![0.0, 0.0, 1.0, 1.0, 2.0, 2.0]);
+
+        let kernel = RBF::new(1.0);
+        let mut gp = GaussianProcessRegressor::new(Box::new(kernel));
+        let result = gp.fit(&x, &y);
+        assert!(
+            result.is_ok(),
+            "GP should succeed with jitter retry on near-duplicate points, got: {:?}",
+            result.err()
+        );
+
+        let preds = gp.predict(&x).unwrap();
+        for p in preds.iter() {
+            assert!(p.is_finite(), "GP predictions should be finite, got {}", p);
+        }
     }
 }

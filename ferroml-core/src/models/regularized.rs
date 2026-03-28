@@ -2370,6 +2370,7 @@ fn z_inv_normal(p: f64) -> f64 {
         return f64::INFINITY;
     }
 
+    let original_p = p;
     let p = if p > 0.5 { 1.0 - p } else { p };
 
     let t = (-2.0 * p.ln()).sqrt();
@@ -2385,10 +2386,10 @@ fn z_inv_normal(p: f64) -> f64 {
         - (c2 * t).mul_add(t, c0 + c1 * t)
             / (d3 * t * t).mul_add(t, (d2 * t).mul_add(t, 1.0 + d1 * t));
 
-    if p > 0.5 {
-        -z
-    } else {
+    if original_p > 0.5 {
         z
+    } else {
+        -z
     }
 }
 
@@ -3186,5 +3187,36 @@ mod tests {
         // Check range: first should be near 1e-4, last near 1e4
         assert!(rcv.alphas[0] < 1e-3, "First alpha should be near 1e-4");
         assert!(rcv.alphas[49] > 1e3, "Last alpha should be near 1e4");
+    }
+
+    #[test]
+    fn test_z_inv_normal_sign_bug5() {
+        // Regression test: z_inv_normal had a sign error where original p was
+        // overwritten before sign determination, causing z_inv_normal(0.025)
+        // to return positive instead of negative.
+        let z_low = super::z_inv_normal(0.025);
+        let z_high = super::z_inv_normal(0.975);
+        let z_mid = super::z_inv_normal(0.5);
+
+        assert!(
+            (z_low - (-1.96)).abs() < 0.01,
+            "z_inv_normal(0.025) should be ≈ -1.96, got {}",
+            z_low
+        );
+        assert!(
+            (z_high - 1.96).abs() < 0.01,
+            "z_inv_normal(0.975) should be ≈ 1.96, got {}",
+            z_high
+        );
+        assert!(
+            z_mid.abs() < 0.01,
+            "z_inv_normal(0.5) should be ≈ 0.0, got {}",
+            z_mid
+        );
+        // Symmetry: z(p) = -z(1-p)
+        assert!(
+            (z_low + z_high).abs() < 0.001,
+            "z_inv_normal should be antisymmetric"
+        );
     }
 }

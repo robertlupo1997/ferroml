@@ -550,6 +550,22 @@ impl Model for SGDClassifier {
             self.n_iter = Some(max_iter);
         }
 
+        // Check for numerical overflow during training
+        if let Some(ref coef) = self.coef {
+            if coef.iter().any(|v| !v.is_finite()) {
+                return Err(FerroError::numerical(
+                    "SGD coefficients diverged (NaN/Inf) — try reducing learning_rate or scaling input data",
+                ));
+            }
+        }
+        if let Some(ref intercept) = self.intercept {
+            if intercept.iter().any(|v| !v.is_finite()) {
+                return Err(FerroError::numerical(
+                    "SGD coefficients diverged (NaN/Inf) — try reducing learning_rate or scaling input data",
+                ));
+            }
+        }
+
         self.classes = Some(classes);
         self.n_features = Some(n_features);
         self.t = 0;
@@ -2239,6 +2255,40 @@ mod tests {
             "score2={} should be >= score1={} - 0.1",
             score2,
             score1
+        );
+    }
+
+    #[test]
+    fn test_sgd_classifier_nan_divergence_bug6() {
+        // Regression test: SGDClassifier should return an error if coefficients diverge,
+        // rather than silently producing NaN predictions.
+        // Use extreme feature values with a large constant learning rate and log loss
+        // to guarantee coefficient overflow to Inf/NaN.
+        let x = Array2::from_shape_vec(
+            (4, 2),
+            vec![1e300, 1e300, -1e300, -1e300, 1e300, -1e300, -1e300, 1e300],
+        )
+        .unwrap();
+        let y = Array1::from_vec(vec![0.0, 1.0, 0.0, 1.0]);
+
+        let mut model = SGDClassifier::new()
+            .with_loss(SGDClassifierLoss::Log)
+            .with_eta0(1e100)
+            .with_alpha(0.0)
+            .with_max_iter(50)
+            .with_random_state(42);
+        model.learning_rate = LearningRateScheduleType::Constant;
+
+        let result = model.fit(&x, &y);
+        assert!(
+            result.is_err(),
+            "SGDClassifier should return an error when coefficients diverge to NaN/Inf"
+        );
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("diverged"),
+            "Error message should mention divergence, got: {}",
+            err_msg
         );
     }
 }
