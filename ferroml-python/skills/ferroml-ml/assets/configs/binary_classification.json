@@ -1,0 +1,40 @@
+{
+  "task": "binary_classification",
+  "preprocessing": {
+    "scaler": "StandardScaler",
+    "imputation": "median",
+    "handle_imbalance": "check_ratio"
+  },
+  "model_candidates": [
+    "LogisticRegression",
+    "RandomForestClassifier",
+    "GradientBoostingClassifier",
+    "HistGradientBoostingClassifier",
+    "GaussianNB"
+  ],
+  "evaluation": {
+    "primary_metric": "f1",
+    "secondary_metrics": ["accuracy", "precision", "recall", "balanced_accuracy"],
+    "cv_folds": 5,
+    "cv_strategy": "stratified",
+    "test_size": 0.2
+  },
+  "diagnostics": {
+    "confusion_matrix": true,
+    "calibration_check": true,
+    "threshold_optimization": true,
+    "class_balance_check": true
+  },
+  "thresholds": {
+    "imbalance_ratio": 5,
+    "good_f1": 0.7,
+    "great_f1": 0.85,
+    "overfit_gap": 0.05,
+    "default_threshold": 0.5
+  },
+  "imbalance_strategies": {
+    "mild": "stratified_cv_only",
+    "moderate": "class_weight_balanced",
+    "severe": "class_weight_balanced_plus_threshold_optimization"
+  }
+}

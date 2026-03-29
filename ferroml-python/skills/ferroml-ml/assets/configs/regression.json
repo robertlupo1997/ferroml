@@ -1,0 +1,34 @@
+{
+  "task": "regression",
+  "preprocessing": {
+    "scaler": "StandardScaler",
+    "imputation": "median",
+    "handle_outliers": "investigate"
+  },
+  "model_candidates": [
+    "LinearRegression",
+    "RidgeRegression",
+    "RandomForestRegressor",
+    "GradientBoostingRegressor",
+    "HistGradientBoostingRegressor"
+  ],
+  "evaluation": {
+    "primary_metric": "r2",
+    "secondary_metrics": ["rmse", "mae"],
+    "cv_folds": 5,
+    "test_size": 0.2
+  },
+  "diagnostics": {
+    "residual_analysis": true,
+    "durbin_watson": true,
+    "normality_test": true,
+    "vif_check": true,
+    "assumption_validation": true
+  },
+  "thresholds": {
+    "good_r2": 0.7,
+    "great_r2": 0.9,
+    "overfit_gap": 0.1,
+    "vif_limit": 10
+  }
+}
