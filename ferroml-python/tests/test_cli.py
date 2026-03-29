@@ -170,3 +170,38 @@ class TestEvaluate:
         assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
         assert "metrics" in data
+
+
+class TestRecommend:
+    def test_recommend_regression(self, tmp_path):
+        csv_path = _make_csv(str(tmp_path))
+        result = run_cli("recommend", "--data", csv_path, "--target", "target", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert "recommendations" in data
+        assert len(data["recommendations"]) > 0
+
+    def test_recommend_classification(self, tmp_path):
+        csv_path = _make_csv(str(tmp_path), task="classification")
+        result = run_cli("recommend", "--data", csv_path, "--target", "target",
+                         "--task", "classification", "--json")
+        assert result.returncode == 0, result.stderr
+
+
+class TestInfo:
+    def test_info_model(self):
+        result = run_cli("info", "LinearRegression", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert data["name"] == "LinearRegression"
+        assert "task" in data
+
+    def test_info_unknown_model(self):
+        result = run_cli("info", "NoSuchModel")
+        assert result.returncode != 0
+
+    def test_info_list_all(self):
+        result = run_cli("info", "--all", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert len(data) > 10
