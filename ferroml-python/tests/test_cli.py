@@ -237,3 +237,27 @@ class TestDiagnose:
         assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
         assert "diagnostics" in data
+
+
+class TestAutoML:
+    @pytest.mark.slow
+    def test_automl_regression(self, tmp_path):
+        csv_path = _make_csv(str(tmp_path))
+        result = run_cli("automl", "--data", csv_path, "--target", "target",
+                         "--task", "regression", "--time-budget", "10", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert "leaderboard" in data
+
+
+class TestExport:
+    def test_export_onnx(self, tmp_path):
+        csv_path = _make_csv(str(tmp_path))
+        model_path = str(tmp_path / "model.pkl")
+        run_cli("train", "--model", "LinearRegression", "--data", csv_path,
+                "--target", "target", "--output", model_path)
+        onnx_path = str(tmp_path / "model.onnx")
+        result = run_cli("export", "--model", model_path, "--output", onnx_path,
+                         "--n-features", "3")
+        assert result.returncode == 0, result.stderr
+        assert os.path.exists(onnx_path)

@@ -43,6 +43,11 @@ from ferroml.cli.diagnose import diagnose  # noqa: E402
 app.command(name="compare")(compare)
 app.command(name="diagnose")(diagnose)
 
+from ferroml.cli.automl_cmd import automl as automl_cmd  # noqa: E402
+from ferroml.cli.export import export  # noqa: E402
+app.command(name="automl")(automl_cmd)
+app.command(name="export")(export)
+
 
 # __main__ support: python -m ferroml.cli
 def cli_main():
