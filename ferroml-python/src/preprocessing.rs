@@ -1576,6 +1576,17 @@ pub struct PyPowerTransformer {
 
 #[pymethods]
 impl PyPowerTransformer {
+    /// Create a new PowerTransformer.
+    ///
+    /// Parameters
+    /// ----------
+    /// method : str, optional (default="yeo-johnson")
+    ///     Power transform method: "yeo-johnson" or "box-cox".
+    ///
+    /// Returns
+    /// -------
+    /// PowerTransformer
+    ///     A new transformer instance.
     #[new]
     #[pyo3(signature = (method="yeo-johnson"))]
     fn new(method: &str) -> PyResult<Self> {
@@ -1705,6 +1716,19 @@ pub struct PyQuantileTransformer {
 
 #[pymethods]
 impl PyQuantileTransformer {
+    /// Create a new QuantileTransformer.
+    ///
+    /// Parameters
+    /// ----------
+    /// output_distribution : str, optional (default="uniform")
+    ///     Target distribution: "uniform" or "normal".
+    /// n_quantiles : int, optional (default=1000)
+    ///     Number of quantiles to compute.
+    ///
+    /// Returns
+    /// -------
+    /// QuantileTransformer
+    ///     A new transformer instance.
     #[new]
     #[pyo3(signature = (output_distribution="uniform", n_quantiles=1000))]
     fn new(output_distribution: &str, n_quantiles: usize) -> PyResult<Self> {
@@ -1829,6 +1853,17 @@ pub struct PyPolynomialFeatures {
 
 #[pymethods]
 impl PyPolynomialFeatures {
+    /// Create a new PolynomialFeatures.
+    ///
+    /// Parameters
+    /// ----------
+    /// degree : int, optional (default=2)
+    ///     Maximum degree of polynomial features.
+    ///
+    /// Returns
+    /// -------
+    /// PolynomialFeatures
+    ///     A new transformer instance.
     #[new]
     #[pyo3(signature = (degree=2))]
     fn new(degree: usize) -> Self {
@@ -1927,6 +1962,21 @@ pub struct PyKBinsDiscretizer {
 
 #[pymethods]
 impl PyKBinsDiscretizer {
+    /// Create a new KBinsDiscretizer.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_bins : int, optional (default=5)
+    ///     Number of bins per feature.
+    /// strategy : str, optional (default="quantile")
+    ///     Binning strategy: "uniform", "quantile", or "kmeans".
+    /// encode : str, optional (default="ordinal")
+    ///     Output encoding: "ordinal" or "onehot".
+    ///
+    /// Returns
+    /// -------
+    /// KBinsDiscretizer
+    ///     A new transformer instance.
     #[new]
     #[pyo3(signature = (n_bins=5, strategy="quantile", encode="ordinal"))]
     fn new(n_bins: usize, strategy: &str, encode: &str) -> PyResult<Self> {
@@ -2051,6 +2101,17 @@ pub struct PyVarianceThreshold {
 
 #[pymethods]
 impl PyVarianceThreshold {
+    /// Create a new VarianceThreshold.
+    ///
+    /// Parameters
+    /// ----------
+    /// threshold : float, optional (default=0.0)
+    ///     Features with variance below this value are removed.
+    ///
+    /// Returns
+    /// -------
+    /// VarianceThreshold
+    ///     A new feature selector instance.
     #[new]
     #[pyo3(signature = (threshold=0.0))]
     fn new(threshold: f64) -> Self {
@@ -2152,6 +2213,19 @@ pub struct PySelectKBest {
 
 #[pymethods]
 impl PySelectKBest {
+    /// Create a new SelectKBest.
+    ///
+    /// Parameters
+    /// ----------
+    /// score_func : str, optional (default="f_classif")
+    ///     Scoring function: "f_classif", "f_regression", or "chi2".
+    /// k : int, optional (default=10)
+    ///     Number of top features to select.
+    ///
+    /// Returns
+    /// -------
+    /// SelectKBest
+    ///     A new feature selector instance.
     #[new]
     #[pyo3(signature = (score_func="f_classif", k=10))]
     fn new(score_func: &str, k: usize) -> PyResult<Self> {
@@ -2265,6 +2339,19 @@ pub struct PyKNNImputer {
 
 #[pymethods]
 impl PyKNNImputer {
+    /// Create a new KNNImputer.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_neighbors : int, optional (default=5)
+    ///     Number of nearest neighbors to use for imputation.
+    /// weights : str, optional (default="uniform")
+    ///     Weight function: "uniform" or "distance".
+    ///
+    /// Returns
+    /// -------
+    /// KNNImputer
+    ///     A new imputer instance.
     #[new]
     #[pyo3(signature = (n_neighbors=5, weights="uniform"))]
     fn new(n_neighbors: usize, weights: &str) -> PyResult<Self> {
@@ -2376,6 +2463,19 @@ pub struct PyTargetEncoder {
 
 #[pymethods]
 impl PyTargetEncoder {
+    /// Create a new TargetEncoder.
+    ///
+    /// Parameters
+    /// ----------
+    /// smooth : float, optional (default=1.0)
+    ///     Smoothing parameter to regularize toward the global mean.
+    /// cv : int, optional (default=5)
+    ///     Number of cross-validation folds.
+    ///
+    /// Returns
+    /// -------
+    /// TargetEncoder
+    ///     A new encoder instance.
     #[new]
     #[pyo3(signature = (smooth=1.0, cv=5))]
     fn new(smooth: f64, cv: usize) -> Self {
@@ -2461,6 +2561,21 @@ pub struct PySelectFromModel {
 
 #[pymethods]
 impl PySelectFromModel {
+    /// Create a new SelectFromModel.
+    ///
+    /// Parameters
+    /// ----------
+    /// importances : ndarray of shape (n_features,)
+    ///     Feature importances from a fitted model.
+    /// threshold : str or float, optional (default="mean")
+    ///     Threshold value: "mean", "median", or a float.
+    /// max_features : int or None, optional (default=None)
+    ///     Maximum number of features to select.
+    ///
+    /// Returns
+    /// -------
+    /// SelectFromModel
+    ///     A new feature selector instance.
     #[new]
     #[pyo3(signature = (importances, threshold="mean", max_features=None))]
     fn new(
@@ -2582,6 +2697,21 @@ pub struct PySMOTE {
 
 #[pymethods]
 impl PySMOTE {
+    /// Create a new SMOTE resampler.
+    ///
+    /// Parameters
+    /// ----------
+    /// k_neighbors : int, optional (default=5)
+    ///     Number of nearest neighbors for synthetic sample generation.
+    /// sampling_strategy : str, optional (default="auto")
+    ///     Strategy: "auto" balances all classes to majority, or a float ratio.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// SMOTE
+    ///     A new resampler instance.
     #[new]
     #[pyo3(signature = (k_neighbors=5, sampling_strategy="auto", random_state=None))]
     fn new(
@@ -2683,6 +2813,23 @@ pub struct PyADASYN {
 
 #[pymethods]
 impl PyADASYN {
+    /// Create a new ADASYN resampler.
+    ///
+    /// Parameters
+    /// ----------
+    /// k_neighbors : int, optional (default=5)
+    ///     Number of nearest neighbors for density estimation.
+    /// n_neighbors : int, optional (default=5)
+    ///     Number of nearest neighbors for synthetic sample generation.
+    /// sampling_strategy : str, optional (default="auto")
+    ///     Strategy: "auto" balances all classes to majority, or a float ratio.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// ADASYN
+    ///     A new resampler instance.
     #[new]
     #[pyo3(signature = (k_neighbors=5, n_neighbors=5, sampling_strategy="auto", random_state=None))]
     fn new(
@@ -2773,6 +2920,21 @@ pub struct PyRandomUnderSampler {
 
 #[pymethods]
 impl PyRandomUnderSampler {
+    /// Create a new RandomUnderSampler.
+    ///
+    /// Parameters
+    /// ----------
+    /// sampling_strategy : str, optional (default="auto")
+    ///     Strategy: "auto" balances all classes to the minority count.
+    /// replacement : bool, optional (default=False)
+    ///     Whether to sample with replacement.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// RandomUnderSampler
+    ///     A new resampler instance.
     #[new]
     #[pyo3(signature = (sampling_strategy="auto", replacement=false, random_state=None))]
     fn new(
@@ -2862,6 +3024,21 @@ pub struct PyRandomOverSampler {
 
 #[pymethods]
 impl PyRandomOverSampler {
+    /// Create a new RandomOverSampler.
+    ///
+    /// Parameters
+    /// ----------
+    /// sampling_strategy : str, optional (default="auto")
+    ///     Strategy: "auto" balances all classes to the majority count.
+    /// shrinkage : float or None, optional (default=None)
+    ///     If provided, adds slight noise to duplicated samples.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// RandomOverSampler
+    ///     A new resampler instance.
     #[new]
     #[pyo3(signature = (sampling_strategy="auto", shrinkage=None, random_state=None))]
     fn new(
@@ -4160,6 +4337,37 @@ pub struct PyTfidfVectorizer {
 
 #[pymethods]
 impl PyTfidfVectorizer {
+    /// Create a new TfidfVectorizer.
+    ///
+    /// Parameters
+    /// ----------
+    /// max_features : int or None, optional (default=None)
+    ///     Maximum number of features (vocabulary size).
+    /// min_df : int, optional (default=1)
+    ///     Minimum document frequency for a term to be included.
+    /// max_df : float, optional (default=1.0)
+    ///     Ignore terms appearing in more than this fraction of documents.
+    /// ngram_range : tuple (int, int), optional (default=(1, 1))
+    ///     Range of n-gram sizes.
+    /// binary : bool, optional (default=False)
+    ///     If True, all non-zero counts are set to 1 before TF-IDF.
+    /// lowercase : bool, optional (default=True)
+    ///     Convert text to lowercase before tokenizing.
+    /// stop_words : list of str or None, optional (default=None)
+    ///     Stop words to remove.
+    /// norm : str, optional (default="l2")
+    ///     Normalization: "l1", "l2", or "none".
+    /// use_idf : bool, optional (default=True)
+    ///     Enable IDF weighting.
+    /// smooth_idf : bool, optional (default=True)
+    ///     Smooth IDF weights.
+    /// sublinear_tf : bool, optional (default=False)
+    ///     Apply sublinear TF scaling (1 + log(tf)).
+    ///
+    /// Returns
+    /// -------
+    /// TfidfVectorizer
+    ///     A new vectorizer instance.
     #[new]
     #[pyo3(signature = (max_features=None, min_df=1, max_df=1.0, ngram_range=(1,1), binary=false, lowercase=true, stop_words=None, norm="l2", use_idf=true, smooth_idf=true, sublinear_tf=false))]
     fn new(
@@ -4385,6 +4593,17 @@ pub struct PyNormalizer {
 
 #[pymethods]
 impl PyNormalizer {
+    /// Create a new Normalizer.
+    ///
+    /// Parameters
+    /// ----------
+    /// norm : str, optional (default="l2")
+    ///     The norm to use: "l1", "l2", or "max".
+    ///
+    /// Returns
+    /// -------
+    /// Normalizer
+    ///     A new normalizer instance.
     #[new]
     #[pyo3(signature = (norm="l2"))]
     fn new(norm: &str) -> PyResult<Self> {

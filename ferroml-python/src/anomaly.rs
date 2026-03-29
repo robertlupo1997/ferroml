@@ -74,6 +74,27 @@ impl PyIsolationForest {
         )
     }
 
+    /// Create a new IsolationForest.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=100)
+    ///     Number of isolation trees.
+    /// max_samples : str or int or float, optional (default="auto")
+    ///     Samples per tree: "auto" = min(256, n_samples), int = fixed count, float = fraction.
+    /// contamination : str or float, optional (default="auto")
+    ///     "auto" sets offset=-0.5. Float in (0, 0.5] fits threshold on training data.
+    /// max_features : float, optional (default=1.0)
+    ///     Fraction of features per tree.
+    /// bootstrap : bool, optional (default=False)
+    ///     Sample with replacement.
+    /// random_state : int, optional
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// IsolationForest
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (
         n_estimators=100,
@@ -282,6 +303,25 @@ impl PyLocalOutlierFactor {
         )
     }
 
+    /// Create a new LocalOutlierFactor.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_neighbors : int, optional (default=20)
+    ///     Number of neighbors for density estimation.
+    /// contamination : str or float, optional (default="auto")
+    ///     "auto" sets offset=-1.5. Float in (0, 0.5] fits threshold.
+    /// metric : str, optional (default="euclidean")
+    ///     Distance metric: "euclidean", "manhattan", or "minkowski".
+    /// algorithm : str, optional (default="auto")
+    ///     KNN algorithm: "auto", "kd_tree", "ball_tree", or "brute".
+    /// novelty : bool, optional (default=False)
+    ///     If True, predict/score_samples work on new data. If False, use fit_predict.
+    ///
+    /// Returns
+    /// -------
+    /// LocalOutlierFactor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (
         n_neighbors=20,

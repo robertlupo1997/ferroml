@@ -568,6 +568,20 @@ impl PyNearestCentroid {
         PyModelCard::new(<ferroml_core::models::knn::NearestCentroid as HasModelCard>::model_card())
     }
 
+    /// Create a new NearestCentroid.
+    ///
+    /// Parameters
+    /// ----------
+    /// metric : str, optional (default="euclidean")
+    ///     Distance metric. Options: "euclidean", "manhattan", "minkowski".
+    /// shrink_threshold : float or None, optional (default=None)
+    ///     Threshold for shrinking centroids. If provided, feature values
+    ///     are shrunk towards the overall centroid.
+    ///
+    /// Returns
+    /// -------
+    /// NearestCentroid
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (metric="euclidean", shrink_threshold=None))]
     fn new(metric: &str, shrink_threshold: Option<f64>) -> PyResult<Self> {

@@ -67,6 +67,17 @@ impl PyMultiOutputRegressor {
         PyModelCard::new(ferroml_core::model_card::multi_output_regressor_card())
     }
 
+    /// Create a new MultiOutputRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// estimator : str, optional (default="linear_regression")
+    ///     Name of the base estimator: "linear_regression", "ridge", "decision_tree", "knn".
+    ///
+    /// Returns
+    /// -------
+    /// MultiOutputRegressor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (estimator="linear_regression"))]
     fn new(estimator: &str) -> PyResult<Self> {
@@ -241,6 +252,17 @@ impl PyMultiOutputClassifier {
         PyModelCard::new(ferroml_core::model_card::multi_output_classifier_card())
     }
 
+    /// Create a new MultiOutputClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// estimator : str, optional (default="logistic_regression")
+    ///     Name of the base estimator: "logistic_regression", "decision_tree".
+    ///
+    /// Returns
+    /// -------
+    /// MultiOutputClassifier
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (estimator="logistic_regression"))]
     fn new(estimator: &str) -> PyResult<Self> {

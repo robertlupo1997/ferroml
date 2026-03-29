@@ -1199,6 +1199,19 @@ pub struct PyTextPipeline {
 
 #[pymethods]
 impl PyTextPipeline {
+    /// Create a new TextPipeline.
+    ///
+    /// Parameters
+    /// ----------
+    /// steps : list of (str, object) tuples
+    ///     List of (name, transformer/model) tuples. The last element
+    ///     should be a model (with fit/predict). Earlier elements should
+    ///     be text transformers (with fit/transform that accept text).
+    ///
+    /// Returns
+    /// -------
+    /// TextPipeline
+    ///     A new TextPipeline instance.
     #[new]
     fn new(py: Python<'_>, steps: &Bound<'_, PyList>) -> PyResult<Self> {
         let mut pipeline_steps = Vec::new();

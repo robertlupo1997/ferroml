@@ -418,6 +418,27 @@ impl PyDecisionTreeRegressor {
         )
     }
 
+    /// Create a new DecisionTreeRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// criterion : str, optional (default="mse")
+    ///     The function to measure split quality ("mse" or "mae").
+    /// max_depth : int or None, optional (default=None)
+    ///     Maximum depth of the tree.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples required to split an internal node.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples required at a leaf node.
+    /// ccp_alpha : float, optional (default=0.0)
+    ///     Complexity parameter for minimal cost-complexity pruning.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// DecisionTreeRegressor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (criterion="mse", max_depth=None, min_samples_split=2, min_samples_leaf=1, ccp_alpha=0.0, random_state=None))]
     fn new(
@@ -695,6 +716,33 @@ impl PyRandomForestClassifier {
         )
     }
 
+    /// Create a new RandomForestClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=100)
+    ///     Number of trees in the forest.
+    /// criterion : str, optional (default="gini")
+    ///     Split criterion ("gini" or "entropy").
+    /// max_depth : int or None, optional (default=None)
+    ///     Maximum depth of trees.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples to split a node.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples at a leaf.
+    /// max_features : str or None, optional (default="sqrt")
+    ///     Features to consider at each split ("sqrt", "log2", or "none").
+    /// bootstrap : bool, optional (default=True)
+    ///     Whether to use bootstrap sampling.
+    /// oob_score : bool, optional (default=True)
+    ///     Whether to compute out-of-bag score.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// RandomForestClassifier
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_estimators=100, criterion="gini", max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features="sqrt", bootstrap=true, oob_score=true, random_state=None))]
     fn new(
@@ -1035,6 +1083,31 @@ impl PyRandomForestRegressor {
         )
     }
 
+    /// Create a new RandomForestRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=100)
+    ///     Number of trees in the forest.
+    /// max_depth : int or None, optional (default=None)
+    ///     Maximum depth of trees.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples to split a node.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples at a leaf.
+    /// max_features : str or None, optional (default="sqrt")
+    ///     Features to consider at each split ("sqrt", "log2", or "none").
+    /// bootstrap : bool, optional (default=True)
+    ///     Whether to use bootstrap sampling.
+    /// oob_score : bool, optional (default=True)
+    ///     Whether to compute out-of-bag score.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// RandomForestRegressor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_estimators=100, max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features="sqrt", bootstrap=true, oob_score=true, random_state=None))]
     fn new(
@@ -1304,6 +1377,29 @@ impl PyGradientBoostingClassifier {
         PyModelCard::new(<ferroml_core::models::boosting::GradientBoostingClassifier as HasModelCard>::model_card())
     }
 
+    /// Create a new GradientBoostingClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=100)
+    ///     Number of boosting stages.
+    /// learning_rate : float, optional (default=0.1)
+    ///     Learning rate shrinks the contribution of each tree.
+    /// max_depth : int, optional (default=3)
+    ///     Maximum depth of individual trees.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples to split a node.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples at a leaf.
+    /// subsample : float, optional (default=1.0)
+    ///     Fraction of samples used for fitting trees.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// GradientBoostingClassifier
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_estimators=100, learning_rate=0.1, max_depth=3, min_samples_split=2, min_samples_leaf=1, subsample=1.0, random_state=None))]
     fn new(
@@ -1606,6 +1702,31 @@ impl PyGradientBoostingRegressor {
         )
     }
 
+    /// Create a new GradientBoostingRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=100)
+    ///     Number of boosting stages.
+    /// learning_rate : float, optional (default=0.1)
+    ///     Learning rate shrinks the contribution of each tree.
+    /// loss : str, optional (default="squared_error")
+    ///     Loss function ("squared_error", "absolute_error", or "huber").
+    /// max_depth : int, optional (default=3)
+    ///     Maximum depth of individual trees.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples to split a node.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples at a leaf.
+    /// subsample : float, optional (default=1.0)
+    ///     Fraction of samples used for fitting trees.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// GradientBoostingRegressor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_estimators=100, learning_rate=0.1, loss="squared_error", max_depth=3, min_samples_split=2, min_samples_leaf=1, subsample=1.0, random_state=None))]
     fn new(
@@ -1863,6 +1984,31 @@ impl PyHistGradientBoostingClassifier {
         PyModelCard::new(<ferroml_core::models::hist_boosting::HistGradientBoostingClassifier as HasModelCard>::model_card())
     }
 
+    /// Create a new HistGradientBoostingClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// max_iter : int, optional (default=100)
+    ///     Number of boosting iterations.
+    /// learning_rate : float, optional (default=0.1)
+    ///     Learning rate.
+    /// max_depth : int or None, optional (default=None)
+    ///     Maximum depth. None for leaf-wise growth.
+    /// max_leaf_nodes : int, optional (default=31)
+    ///     Maximum number of leaves per tree.
+    /// max_bins : int, optional (default=255)
+    ///     Maximum number of bins for histogram.
+    /// min_samples_leaf : int, optional (default=20)
+    ///     Minimum samples at a leaf.
+    /// l2_regularization : float, optional (default=0.0)
+    ///     L2 regularization.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// HistGradientBoostingClassifier
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (max_iter=100, learning_rate=0.1, max_depth=None, max_leaf_nodes=31, max_bins=255, min_samples_leaf=20, l2_regularization=0.0, random_state=None))]
     fn new(
@@ -2150,6 +2296,33 @@ impl PyHistGradientBoostingRegressor {
         PyModelCard::new(<ferroml_core::models::hist_boosting::HistGradientBoostingRegressor as HasModelCard>::model_card())
     }
 
+    /// Create a new HistGradientBoostingRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// max_iter : int, optional (default=100)
+    ///     Number of boosting iterations.
+    /// learning_rate : float, optional (default=0.1)
+    ///     Learning rate.
+    /// loss : str, optional (default="squared_error")
+    ///     Loss function ("squared_error", "absolute_error", or "huber").
+    /// max_depth : int or None, optional (default=None)
+    ///     Maximum depth. None for leaf-wise growth.
+    /// max_leaf_nodes : int, optional (default=31)
+    ///     Maximum number of leaves per tree.
+    /// max_bins : int, optional (default=255)
+    ///     Maximum number of bins for histogram.
+    /// min_samples_leaf : int, optional (default=20)
+    ///     Minimum samples at a leaf.
+    /// l2_regularization : float, optional (default=0.0)
+    ///     L2 regularization.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// HistGradientBoostingRegressor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (max_iter=100, learning_rate=0.1, loss="squared_error", max_depth=None, max_leaf_nodes=31, max_bins=255, min_samples_leaf=20, l2_regularization=0.0, random_state=None))]
     fn new(

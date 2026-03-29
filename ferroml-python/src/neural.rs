@@ -130,6 +130,38 @@ impl PyMLPClassifier {
     }
 
     /// Create a new MLPClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// hidden_layer_sizes : tuple of int, optional (default=(100,))
+    ///     The number of neurons in each hidden layer.
+    /// activation : str, optional (default="relu")
+    ///     Activation function: "relu", "sigmoid", "tanh", "leaky_relu", "elu".
+    /// solver : str, optional (default="adam")
+    ///     Optimizer: "sgd" or "adam".
+    /// learning_rate_init : float, optional (default=0.001)
+    ///     Initial learning rate.
+    /// max_iter : int, optional (default=200)
+    ///     Maximum number of epochs.
+    /// tol : float, optional (default=1e-4)
+    ///     Tolerance for the optimization.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for weight initialization and shuffling.
+    /// alpha : float, optional (default=0.0001)
+    ///     L2 regularization strength.
+    /// batch_size : int, optional (default=200)
+    ///     Size of minibatches for SGD/Adam.
+    /// early_stopping : bool, optional (default=False)
+    ///     Whether to use early stopping based on validation score.
+    /// validation_fraction : float, optional (default=0.1)
+    ///     Fraction of training data for validation (if early_stopping=True).
+    /// n_iter_no_change : int, optional (default=10)
+    ///     Maximum epochs without improvement (if early_stopping=True).
+    ///
+    /// Returns
+    /// -------
+    /// MLPClassifier
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (
         hidden_layer_sizes=None,
@@ -413,6 +445,38 @@ impl PyMLPRegressor {
     }
 
     /// Create a new MLPRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// hidden_layer_sizes : tuple of int, optional (default=(100,))
+    ///     The number of neurons in each hidden layer.
+    /// activation : str, optional (default="relu")
+    ///     Activation function: "relu", "sigmoid", "tanh", "leaky_relu", "elu".
+    /// solver : str, optional (default="adam")
+    ///     Optimizer: "sgd" or "adam".
+    /// learning_rate_init : float, optional (default=0.001)
+    ///     Initial learning rate.
+    /// max_iter : int, optional (default=200)
+    ///     Maximum number of epochs.
+    /// tol : float, optional (default=1e-4)
+    ///     Tolerance for the optimization.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for weight initialization and shuffling.
+    /// alpha : float, optional (default=0.0001)
+    ///     L2 regularization strength.
+    /// batch_size : int, optional (default=200)
+    ///     Size of minibatches for SGD/Adam.
+    /// early_stopping : bool, optional (default=False)
+    ///     Whether to use early stopping based on validation score.
+    /// validation_fraction : float, optional (default=0.1)
+    ///     Fraction of training data for validation (if early_stopping=True).
+    /// n_iter_no_change : int, optional (default=10)
+    ///     Maximum epochs without improvement (if early_stopping=True).
+    ///
+    /// Returns
+    /// -------
+    /// MLPRegressor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (
         hidden_layer_sizes=None,

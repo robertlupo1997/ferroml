@@ -50,6 +50,21 @@ struct PyKFold {
 
 #[pymethods]
 impl PyKFold {
+    /// Create a new KFold cross-validation splitter.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_folds : int, optional (default=5)
+    ///     Number of folds. Valid range: [2, n_samples].
+    /// shuffle : bool, optional (default=False)
+    ///     Whether to shuffle the data before splitting.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility (only used when shuffle=True).
+    ///
+    /// Returns
+    /// -------
+    /// KFold
+    ///     A new KFold splitter instance.
     #[new]
     #[pyo3(signature = (n_folds=5, shuffle=false, random_state=None))]
     fn new(n_folds: usize, shuffle: bool, random_state: Option<u64>) -> Self {
@@ -95,6 +110,11 @@ impl PyKFold {
     }
 
     /// Number of folds.
+    ///
+    /// Returns
+    /// -------
+    /// n_splits : int
+    ///     Number of folds in this splitter.
     #[getter]
     fn get_n_splits(&self) -> usize {
         self.n_folds
@@ -144,6 +164,21 @@ struct PyStratifiedKFold {
 
 #[pymethods]
 impl PyStratifiedKFold {
+    /// Create a new StratifiedKFold cross-validation splitter.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_folds : int, optional (default=5)
+    ///     Number of folds. Valid range: [2, n_samples].
+    /// shuffle : bool, optional (default=False)
+    ///     Whether to shuffle before splitting.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility (only used when shuffle=True).
+    ///
+    /// Returns
+    /// -------
+    /// StratifiedKFold
+    ///     A new StratifiedKFold splitter instance.
     #[new]
     #[pyo3(signature = (n_folds=5, shuffle=false, random_state=None))]
     fn new(n_folds: usize, shuffle: bool, random_state: Option<u64>) -> Self {
@@ -194,6 +229,11 @@ impl PyStratifiedKFold {
     }
 
     /// Number of folds.
+    ///
+    /// Returns
+    /// -------
+    /// n_splits : int
+    ///     Number of folds in this splitter.
     #[getter]
     fn get_n_splits(&self) -> usize {
         self.n_folds
@@ -237,6 +277,17 @@ struct PyTimeSeriesSplit {
 
 #[pymethods]
 impl PyTimeSeriesSplit {
+    /// Create a new TimeSeriesSplit cross-validation splitter.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_splits : int, optional (default=5)
+    ///     Number of splits.
+    ///
+    /// Returns
+    /// -------
+    /// TimeSeriesSplit
+    ///     A new TimeSeriesSplit splitter instance.
     #[new]
     #[pyo3(signature = (n_splits=5))]
     fn new(n_splits: usize) -> Self {
@@ -276,6 +327,11 @@ impl PyTimeSeriesSplit {
     }
 
     /// Number of splits.
+    ///
+    /// Returns
+    /// -------
+    /// n_splits : int
+    ///     Number of splitting iterations.
     #[getter]
     fn get_n_splits(&self) -> usize {
         self.n_splits
@@ -310,6 +366,12 @@ struct PyLeaveOneOut;
 
 #[pymethods]
 impl PyLeaveOneOut {
+    /// Create a new LeaveOneOut cross-validation splitter.
+    ///
+    /// Returns
+    /// -------
+    /// LeaveOneOut
+    ///     A new LeaveOneOut splitter instance.
     #[new]
     fn new() -> Self {
         Self
@@ -394,6 +456,21 @@ struct PyRepeatedKFold {
 
 #[pymethods]
 impl PyRepeatedKFold {
+    /// Create a new RepeatedKFold cross-validation splitter.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_folds : int, optional (default=5)
+    ///     Number of folds. Valid range: [2, n_samples].
+    /// n_repeats : int, optional (default=10)
+    ///     Number of times to repeat the cross-validation.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// RepeatedKFold
+    ///     A new RepeatedKFold splitter instance.
     #[new]
     #[pyo3(signature = (n_folds=5, n_repeats=10, random_state=None))]
     fn new(n_folds: usize, n_repeats: usize, random_state: Option<u64>) -> Self {
@@ -404,6 +481,19 @@ impl PyRepeatedKFold {
         }
     }
 
+    /// Generate repeated K-Fold train/test index splits.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray
+    ///     Feature matrix (used only for n_samples).
+    /// y : numpy.ndarray or None, optional
+    ///     Target array (unused, accepted for API compatibility).
+    ///
+    /// Returns
+    /// -------
+    /// list of (numpy.ndarray, numpy.ndarray)
+    ///     List of (train_indices, test_indices) tuples.
     #[pyo3(signature = (x, y=None))]
     fn split<'py>(
         &self,
@@ -423,6 +513,12 @@ impl PyRepeatedKFold {
         folds_to_py_list(py, &folds)
     }
 
+    /// Total number of splitting iterations.
+    ///
+    /// Returns
+    /// -------
+    /// n_splits : int
+    ///     Number of total splits (n_folds * n_repeats).
     #[getter]
     fn get_n_splits(&self) -> usize {
         self.n_folds * self.n_repeats
@@ -476,6 +572,23 @@ struct PyShuffleSplit {
 
 #[pymethods]
 impl PyShuffleSplit {
+    /// Create a new ShuffleSplit cross-validation splitter.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_splits : int, optional (default=10)
+    ///     Number of re-shuffling and splitting iterations.
+    /// test_size : float, optional (default=0.1)
+    ///     Fraction of the dataset to include in the test split.
+    /// train_size : float or None, optional (default=None)
+    ///     Fraction for training. Default is complement of test_size.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// ShuffleSplit
+    ///     A new ShuffleSplit splitter instance.
     #[new]
     #[pyo3(signature = (n_splits=10, test_size=0.1, train_size=None, random_state=None))]
     fn new(
@@ -492,6 +605,19 @@ impl PyShuffleSplit {
         }
     }
 
+    /// Generate random train/test index splits.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray
+    ///     Feature matrix (used only for n_samples).
+    /// y : numpy.ndarray or None, optional
+    ///     Target array (unused, accepted for API compatibility).
+    ///
+    /// Returns
+    /// -------
+    /// list of (numpy.ndarray, numpy.ndarray)
+    ///     List of (train_indices, test_indices) tuples.
     #[pyo3(signature = (x, y=None))]
     fn split<'py>(
         &self,
@@ -514,6 +640,12 @@ impl PyShuffleSplit {
         folds_to_py_list(py, &folds)
     }
 
+    /// Number of splitting iterations.
+    ///
+    /// Returns
+    /// -------
+    /// n_splits : int
+    ///     Number of re-shuffling and splitting iterations.
     #[getter]
     fn get_n_splits(&self) -> usize {
         self.n_splits
@@ -558,6 +690,17 @@ struct PyGroupKFold {
 
 #[pymethods]
 impl PyGroupKFold {
+    /// Create a new GroupKFold cross-validation splitter.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_folds : int, optional (default=5)
+    ///     Number of folds. Must not exceed the number of unique groups.
+    ///
+    /// Returns
+    /// -------
+    /// GroupKFold
+    ///     A new GroupKFold splitter instance.
     #[new]
     #[pyo3(signature = (n_folds=5))]
     fn new(n_folds: usize) -> Self {
@@ -598,6 +741,12 @@ impl PyGroupKFold {
         folds_to_py_list(py, &folds)
     }
 
+    /// Number of folds.
+    ///
+    /// Returns
+    /// -------
+    /// n_splits : int
+    ///     Number of folds in this splitter.
     #[getter]
     fn get_n_splits(&self) -> usize {
         self.n_folds
@@ -639,12 +788,36 @@ struct PyLeavePOut {
 
 #[pymethods]
 impl PyLeavePOut {
+    /// Create a new LeavePOut cross-validation splitter.
+    ///
+    /// Parameters
+    /// ----------
+    /// p : int, optional (default=2)
+    ///     Size of the test sets. Valid range: [1, n_samples).
+    ///
+    /// Returns
+    /// -------
+    /// LeavePOut
+    ///     A new LeavePOut splitter instance.
     #[new]
     #[pyo3(signature = (p=2))]
     fn new(p: usize) -> Self {
         Self { p }
     }
 
+    /// Generate Leave-P-Out train/test index splits.
+    ///
+    /// Parameters
+    /// ----------
+    /// x : numpy.ndarray
+    ///     Feature matrix (used only for n_samples).
+    /// y : numpy.ndarray or None, optional
+    ///     Target array (unused, accepted for API compatibility).
+    ///
+    /// Returns
+    /// -------
+    /// list of (numpy.ndarray, numpy.ndarray)
+    ///     List of (train_indices, test_indices) tuples.
     #[pyo3(signature = (x, y=None))]
     fn split<'py>(
         &self,
@@ -661,6 +834,12 @@ impl PyLeavePOut {
         folds_to_py_list(py, &folds)
     }
 
+    /// Size of the test sets.
+    ///
+    /// Returns
+    /// -------
+    /// p : int
+    ///     Number of samples in each test set.
     #[getter]
     fn get_p(&self) -> usize {
         self.p

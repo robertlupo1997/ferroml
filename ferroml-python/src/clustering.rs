@@ -771,6 +771,19 @@ impl PyAgglomerativeClustering {
         )
     }
 
+    /// Create a new AgglomerativeClustering.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_clusters : int, optional (default=2)
+    ///     Number of clusters to find.
+    /// linkage : str, optional (default="ward")
+    ///     Linkage criterion: "ward", "complete", "average", "single".
+    ///
+    /// Returns
+    /// -------
+    /// AgglomerativeClustering
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_clusters=2, linkage="ward"))]
     fn new(n_clusters: usize, linkage: &str) -> PyResult<Self> {
@@ -900,6 +913,31 @@ impl PyGaussianMixture {
         PyModelCard::new(<ferroml_core::clustering::GaussianMixture as HasModelCard>::model_card())
     }
 
+    /// Create a new GaussianMixture.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_components : int, optional (default=1)
+    ///     Number of mixture components.
+    /// covariance_type : str, optional (default="full")
+    ///     Covariance type: "full", "tied", "diagonal", "spherical".
+    /// max_iter : int, optional (default=100)
+    ///     Maximum number of EM iterations.
+    /// tol : float, optional (default=1e-3)
+    ///     Convergence threshold.
+    /// n_init : int, optional (default=1)
+    ///     Number of initializations to perform.
+    /// init_params : str, optional (default="kmeans")
+    ///     Initialization method: "kmeans" or "random".
+    /// reg_covar : float, optional (default=1e-6)
+    ///     Regularization added to diagonal of covariance matrices.
+    /// random_state : int, optional
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// GaussianMixture
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (
         n_components=1,
@@ -1585,6 +1623,16 @@ impl PyHDBSCAN {
 ///     Random seed.
 /// init : str, optional (default="k-means++")
 ///     Initialization method: "k-means++" or "random".
+///
+/// Examples
+/// --------
+/// >>> from ferroml.clustering import MiniBatchKMeans
+/// >>> import numpy as np
+/// >>> X = np.random.randn(1000, 5)
+/// >>> mbk = MiniBatchKMeans(n_clusters=3, batch_size=100, random_state=42)
+/// >>> mbk.fit(X)
+/// >>> mbk.labels_.shape
+/// (1000,)
 #[pyclass(name = "MiniBatchKMeans", module = "ferroml.clustering")]
 pub struct PyMiniBatchKMeans {
     inner: MiniBatchKMeans,
@@ -1603,6 +1651,31 @@ impl PyMiniBatchKMeans {
         PyModelCard::new(<ferroml_core::clustering::MiniBatchKMeans as HasModelCard>::model_card())
     }
 
+    /// Create a new MiniBatchKMeans.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_clusters : int, optional (default=8)
+    ///     Number of clusters.
+    /// batch_size : int, optional (default=1024)
+    ///     Size of each mini-batch.
+    /// max_iter : int, optional (default=100)
+    ///     Maximum iterations.
+    /// n_init : int, optional (default=3)
+    ///     Number of initialization runs.
+    /// tol : float, optional (default=0.0)
+    ///     Convergence tolerance on EWA inertia.
+    /// reassignment_ratio : float, optional (default=0.01)
+    ///     Ratio for reassigning dead centers.
+    /// random_state : int, optional
+    ///     Random seed.
+    /// init : str, optional (default="k-means++")
+    ///     Initialization method: "k-means++" or "random".
+    ///
+    /// Returns
+    /// -------
+    /// MiniBatchKMeans
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_clusters=8, batch_size=1024, max_iter=100, n_init=3, tol=0.0, reassignment_ratio=0.01, random_state=None, init="k-means++"))]
     fn new(

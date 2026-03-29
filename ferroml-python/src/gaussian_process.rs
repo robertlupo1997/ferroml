@@ -44,6 +44,17 @@ pub struct PyRBF {
 
 #[pymethods]
 impl PyRBF {
+    /// Create a new RBF kernel.
+    ///
+    /// Parameters
+    /// ----------
+    /// length_scale : float, optional (default=1.0)
+    ///     Length scale of the kernel. Larger values produce smoother functions.
+    ///
+    /// Returns
+    /// -------
+    /// RBF
+    ///     A new kernel instance.
     #[new]
     #[pyo3(signature = (length_scale=1.0))]
     fn new(length_scale: f64) -> Self {
@@ -70,6 +81,19 @@ pub struct PyMatern {
 
 #[pymethods]
 impl PyMatern {
+    /// Create a new Matern kernel.
+    ///
+    /// Parameters
+    /// ----------
+    /// length_scale : float, optional (default=1.0)
+    ///     Length scale of the kernel.
+    /// nu : float, optional (default=1.5)
+    ///     Smoothness parameter. Must be 0.5, 1.5, or 2.5.
+    ///
+    /// Returns
+    /// -------
+    /// Matern
+    ///     A new kernel instance.
     #[new]
     #[pyo3(signature = (length_scale=1.0, nu=1.5))]
     fn new(length_scale: f64, nu: f64) -> PyResult<Self> {
@@ -96,6 +120,17 @@ pub struct PyConstantKernel {
 
 #[pymethods]
 impl PyConstantKernel {
+    /// Create a new ConstantKernel.
+    ///
+    /// Parameters
+    /// ----------
+    /// constant : float, optional (default=1.0)
+    ///     The constant value of the kernel.
+    ///
+    /// Returns
+    /// -------
+    /// ConstantKernel
+    ///     A new kernel instance.
     #[new]
     #[pyo3(signature = (constant=1.0))]
     fn new(constant: f64) -> Self {
@@ -117,6 +152,17 @@ pub struct PyWhiteKernel {
 
 #[pymethods]
 impl PyWhiteKernel {
+    /// Create a new WhiteKernel.
+    ///
+    /// Parameters
+    /// ----------
+    /// noise_level : float, optional (default=1.0)
+    ///     The noise level.
+    ///
+    /// Returns
+    /// -------
+    /// WhiteKernel
+    ///     A new kernel instance.
     #[new]
     #[pyo3(signature = (noise_level=1.0))]
     fn new(noise_level: f64) -> Self {
@@ -207,6 +253,21 @@ impl PyGaussianProcessRegressor {
         PyModelCard::new(<ferroml_core::models::gaussian_process::GaussianProcessRegressor as HasModelCard>::model_card())
     }
 
+    /// Create a new GaussianProcessRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// kernel : kernel object, optional (default=RBF(1.0))
+    ///     The kernel specifying the covariance function.
+    /// alpha : float, optional (default=1e-10)
+    ///     Noise / regularization added to the diagonal of the kernel matrix.
+    /// normalize_y : bool, optional (default=False)
+    ///     Whether to normalize the target values.
+    ///
+    /// Returns
+    /// -------
+    /// GaussianProcessRegressor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (kernel=None, alpha=1e-10, normalize_y=false))]
     fn new(kernel: Option<&Bound<'_, PyAny>>, alpha: f64, normalize_y: bool) -> PyResult<Self> {
@@ -348,6 +409,19 @@ impl PyGaussianProcessClassifier {
         PyModelCard::new(<ferroml_core::models::gaussian_process::GaussianProcessClassifier as HasModelCard>::model_card())
     }
 
+    /// Create a new GaussianProcessClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// kernel : kernel object, optional (default=RBF(1.0))
+    ///     The kernel specifying the covariance function.
+    /// max_iter : int, optional (default=50)
+    ///     Maximum number of Newton iterations for Laplace approximation.
+    ///
+    /// Returns
+    /// -------
+    /// GaussianProcessClassifier
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (kernel=None, max_iter=50))]
     fn new(kernel: Option<&Bound<'_, PyAny>>, max_iter: usize) -> PyResult<Self> {
@@ -533,6 +607,27 @@ pub struct PySparseGPRegressor {
 
 #[pymethods]
 impl PySparseGPRegressor {
+    /// Create a new SparseGPRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// kernel : kernel object, optional (default=RBF(1.0))
+    ///     The kernel specifying the covariance function.
+    /// alpha : float, optional (default=0.01)
+    ///     Noise / regularization added to the diagonal.
+    /// n_inducing : int, optional (default=100)
+    ///     Number of inducing points.
+    /// inducing_method : str, optional (default="kmeans")
+    ///     How to select inducing points: "random", "kmeans", "greedy_variance".
+    /// approximation : str, optional (default="fitc")
+    ///     Sparse approximation method: "fitc" or "vfe".
+    /// normalize_y : bool, optional (default=False)
+    ///     Whether to normalize the target values.
+    ///
+    /// Returns
+    /// -------
+    /// SparseGPRegressor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (kernel=None, alpha=0.01, n_inducing=100, inducing_method="kmeans", approximation="fitc", normalize_y=false))]
     fn new(
@@ -679,6 +774,23 @@ pub struct PySparseGPClassifier {
 
 #[pymethods]
 impl PySparseGPClassifier {
+    /// Create a new SparseGPClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// kernel : kernel object, optional (default=RBF(1.0))
+    ///     The kernel specifying the covariance function.
+    /// n_inducing : int, optional (default=100)
+    ///     Number of inducing points.
+    /// inducing_method : str, optional (default="kmeans")
+    ///     How to select inducing points: "random", "kmeans", "greedy_variance".
+    /// max_iter : int, optional (default=50)
+    ///     Maximum Newton iterations for Laplace approximation.
+    ///
+    /// Returns
+    /// -------
+    /// SparseGPClassifier
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (kernel=None, n_inducing=100, inducing_method="kmeans", max_iter=50))]
     fn new(
@@ -845,6 +957,31 @@ pub struct PySVGPRegressor {
 
 #[pymethods]
 impl PySVGPRegressor {
+    /// Create a new SVGPRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// kernel : kernel object, optional (default=RBF(1.0))
+    ///     The kernel specifying the covariance function.
+    /// noise_variance : float, optional (default=1.0)
+    ///     Observation noise variance.
+    /// n_inducing : int, optional (default=100)
+    ///     Number of inducing points.
+    /// inducing_method : str, optional (default="kmeans")
+    ///     How to select inducing points: "random", "kmeans", "greedy_variance".
+    /// n_epochs : int, optional (default=100)
+    ///     Number of training epochs.
+    /// batch_size : int, optional (default=256)
+    ///     Mini-batch size for stochastic optimization.
+    /// learning_rate : float, optional (default=0.01)
+    ///     Learning rate for variational parameter updates.
+    /// normalize_y : bool, optional (default=False)
+    ///     Whether to normalize the target values.
+    ///
+    /// Returns
+    /// -------
+    /// SVGPRegressor
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (kernel=None, noise_variance=1.0, n_inducing=100, inducing_method="kmeans", n_epochs=100, batch_size=256, learning_rate=0.01, normalize_y=false))]
     fn new(

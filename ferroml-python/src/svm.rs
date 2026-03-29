@@ -88,6 +88,25 @@ impl PyLinearSVC {
         PyModelCard::new(<ferroml_core::models::svm::LinearSVC as HasModelCard>::model_card())
     }
 
+    /// Create a new LinearSVC.
+    ///
+    /// Parameters
+    /// ----------
+    /// c : float, optional (default=1.0)
+    ///     Regularization parameter. Valid range: (0, inf).
+    /// loss : str, optional (default="squared_hinge")
+    ///     Loss function: "hinge" or "squared_hinge".
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of iterations.
+    /// tol : float, optional (default=1e-4)
+    ///     Tolerance for stopping criterion.
+    /// class_weight : str, dict, or None, optional (default=None)
+    ///     Class weight strategy: None (uniform), "balanced", or dict.
+    ///
+    /// Returns
+    /// -------
+    /// LinearSVC
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (c=1.0, loss="squared_hinge", max_iter=1000, tol=1e-4, class_weight=None))]
     fn new(
@@ -391,6 +410,26 @@ impl PyLinearSVR {
         PyModelCard::new(<ferroml_core::models::svm::LinearSVR as HasModelCard>::model_card())
     }
 
+    /// Create a new LinearSVR.
+    ///
+    /// Parameters
+    /// ----------
+    /// c : float, optional (default=1.0)
+    ///     Regularization parameter. Valid range: (0, inf).
+    /// epsilon : float, optional (default=0.0)
+    ///     Epsilon in the epsilon-SVR model. Specifies the epsilon-tube
+    ///     within which no penalty is associated in the training loss.
+    /// loss : str, optional (default="epsilon_insensitive")
+    ///     Loss function: "epsilon_insensitive" or "squared_epsilon_insensitive".
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of iterations.
+    /// tol : float, optional (default=1e-4)
+    ///     Tolerance for stopping criterion.
+    ///
+    /// Returns
+    /// -------
+    /// LinearSVR
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (c=1.0, epsilon=0.0, loss="epsilon_insensitive", max_iter=1000, tol=1e-4))]
     fn new(c: f64, epsilon: f64, loss: &str, max_iter: usize, tol: f64) -> PyResult<Self> {
@@ -827,6 +866,37 @@ impl PySVC {
         PyModelCard::new(<ferroml_core::models::svm::SVC as HasModelCard>::model_card())
     }
 
+    /// Create a new SVC.
+    ///
+    /// Parameters
+    /// ----------
+    /// kernel : str, optional (default="rbf")
+    ///     Kernel type: "linear", "rbf", "poly", "sigmoid".
+    /// c : float, optional (default=1.0)
+    ///     Regularization parameter. Valid range: (0, inf).
+    /// gamma : float, optional (default=0.0)
+    ///     Kernel coefficient. 0.0 means "auto" (1/n_features).
+    /// degree : int, optional (default=3)
+    ///     Degree for polynomial kernel. Only used when kernel="poly".
+    /// coef0 : float, optional (default=0.0)
+    ///     Independent term in polynomial/sigmoid kernels.
+    /// tol : float, optional (default=1e-3)
+    ///     Tolerance for stopping criterion.
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of SMO iterations.
+    /// probability : bool, optional (default=False)
+    ///     Whether to enable probability estimates via Platt scaling.
+    /// multiclass : str, optional (default="ovo")
+    ///     Multiclass strategy: "ovo" (one-vs-one) or "ovr" (one-vs-rest).
+    /// class_weight : str, dict, or None, optional (default=None)
+    ///     Class weight strategy: None (uniform), "balanced", or dict.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed (accepted for sklearn API compatibility; SVM is deterministic).
+    ///
+    /// Returns
+    /// -------
+    /// SVC
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (kernel="rbf", c=1.0, gamma=0.0, degree=3, coef0=0.0, tol=1e-3, max_iter=1000, probability=false, multiclass="ovo", class_weight=None, random_state=None))]
     fn new(
@@ -1171,6 +1241,31 @@ impl PySVR {
         PyModelCard::new(<ferroml_core::models::svm::SVR as HasModelCard>::model_card())
     }
 
+    /// Create a new SVR.
+    ///
+    /// Parameters
+    /// ----------
+    /// kernel : str, optional (default="rbf")
+    ///     Kernel type: "linear", "rbf", "poly", "sigmoid".
+    /// c : float, optional (default=1.0)
+    ///     Regularization parameter. Valid range: (0, inf).
+    /// epsilon : float, optional (default=0.1)
+    ///     Width of the epsilon-insensitive tube.
+    /// gamma : float, optional (default=0.0)
+    ///     Kernel coefficient. 0.0 means "auto" (1/n_features).
+    /// degree : int, optional (default=3)
+    ///     Degree for polynomial kernel. Only used when kernel="poly".
+    /// coef0 : float, optional (default=0.0)
+    ///     Independent term in polynomial/sigmoid kernels.
+    /// tol : float, optional (default=1e-3)
+    ///     Tolerance for stopping criterion.
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of SMO iterations.
+    ///
+    /// Returns
+    /// -------
+    /// SVR
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (kernel="rbf", c=1.0, epsilon=0.1, gamma=0.0, degree=3, coef0=0.0, tol=1e-3, max_iter=1000))]
     fn new(

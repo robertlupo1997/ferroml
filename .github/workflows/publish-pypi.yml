@@ -243,9 +243,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
-          # Uses trusted publishing (OIDC) - no token needed if configured
-          # Fallback: use PYPI_API_TOKEN secret
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          # Uses trusted publishing (OIDC) - no token needed
 
   # Publish to TestPyPI (safe first publish)
   publish-testpypi:
@@ -274,7 +272,7 @@ jobs:
         with:
           packages-dir: dist/
           repository-url: https://test.pypi.org/legacy/
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          # Uses trusted publishing (OIDC) - no token needed
 
   # Dry run - verify wheels can be built but don't publish
   dry-run-check:

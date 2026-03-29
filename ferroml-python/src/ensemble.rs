@@ -107,6 +107,25 @@ impl PyExtraTreesClassifier {
         )
     }
 
+    /// Create a new ExtraTreesClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=100)
+    ///     Number of trees in the ensemble.
+    /// max_depth : int or None, optional (default=None)
+    ///     Maximum depth of each tree. None means unlimited.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples to split an internal node.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples at a leaf node.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// ExtraTreesClassifier
+    ///     A new classifier instance.
     #[new]
     #[pyo3(signature = (n_estimators=100, max_depth=None, min_samples_split=2, min_samples_leaf=1, random_state=None))]
     fn new(
@@ -345,6 +364,25 @@ impl PyExtraTreesRegressor {
         )
     }
 
+    /// Create a new ExtraTreesRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=100)
+    ///     Number of trees in the ensemble.
+    /// max_depth : int or None, optional (default=None)
+    ///     Maximum depth of each tree. None means unlimited.
+    /// min_samples_split : int, optional (default=2)
+    ///     Minimum samples to split an internal node.
+    /// min_samples_leaf : int, optional (default=1)
+    ///     Minimum samples at a leaf node.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// ExtraTreesRegressor
+    ///     A new regressor instance.
     #[new]
     #[pyo3(signature = (n_estimators=100, max_depth=None, min_samples_split=2, min_samples_leaf=1, random_state=None))]
     fn new(
@@ -562,6 +600,23 @@ impl PyAdaBoostClassifier {
         )
     }
 
+    /// Create a new AdaBoostClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=50)
+    ///     Number of boosting rounds.
+    /// learning_rate : float, optional (default=1.0)
+    ///     Weight applied to each classifier at each round.
+    /// max_depth : int, optional (default=1)
+    ///     Maximum depth of each base estimator (decision stump by default).
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// AdaBoostClassifier
+    ///     A new classifier instance.
     #[new]
     #[pyo3(signature = (n_estimators=50, learning_rate=1.0, max_depth=1, random_state=None))]
     fn new(
@@ -783,6 +838,25 @@ impl PyAdaBoostRegressor {
         )
     }
 
+    /// Create a new AdaBoostRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_estimators : int, optional (default=50)
+    ///     Number of boosting rounds.
+    /// learning_rate : float, optional (default=1.0)
+    ///     Weight applied to each estimator.
+    /// loss : str, optional (default="linear")
+    ///     Loss function: "linear", "square", or "exponential".
+    /// max_depth : int, optional (default=3)
+    ///     Maximum depth of each base estimator.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// AdaBoostRegressor
+    ///     A new regressor instance.
     #[new]
     #[pyo3(signature = (n_estimators=50, learning_rate=1.0, loss="linear", max_depth=3, random_state=None))]
     fn new(
@@ -1029,6 +1103,27 @@ impl PySGDClassifier {
         PyModelCard::new(<ferroml_core::models::sgd::SGDClassifier as HasModelCard>::model_card())
     }
 
+    /// Create a new SGDClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// loss : str, optional (default="hinge")
+    ///     Loss function: "hinge", "log", or "modified_huber".
+    /// penalty : str, optional (default="l2")
+    ///     Regularization: "none", "l1", "l2", or "elasticnet".
+    /// alpha : float, optional (default=0.0001)
+    ///     Regularization strength.
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of epochs.
+    /// tol : float, optional (default=1e-3)
+    ///     Convergence tolerance.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// SGDClassifier
+    ///     A new classifier instance.
     #[new]
     #[pyo3(signature = (loss="hinge", penalty="l2", alpha=0.0001, max_iter=1000, tol=1e-3, random_state=None))]
     fn new(
@@ -1324,6 +1419,27 @@ impl PySGDRegressor {
         PyModelCard::new(<ferroml_core::models::sgd::SGDRegressor as HasModelCard>::model_card())
     }
 
+    /// Create a new SGDRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// loss : str, optional (default="squared_error")
+    ///     Loss function: "squared_error", "huber", or "epsilon_insensitive".
+    /// penalty : str, optional (default="l2")
+    ///     Regularization: "none", "l1", "l2", or "elasticnet".
+    /// alpha : float, optional (default=0.0001)
+    ///     Regularization strength.
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of epochs.
+    /// tol : float, optional (default=1e-3)
+    ///     Convergence tolerance.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// SGDRegressor
+    ///     A new regressor instance.
     #[new]
     #[pyo3(signature = (loss="squared_error", penalty="l2", alpha=0.0001, max_iter=1000, tol=1e-3, random_state=None))]
     fn new(
@@ -1606,6 +1722,23 @@ impl PyPassiveAggressiveClassifier {
         )
     }
 
+    /// Create a new PassiveAggressiveClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// c : float, optional (default=1.0)
+    ///     Regularization parameter (aggressiveness). Larger values allow larger updates.
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum epochs.
+    /// tol : float, optional (default=1e-3)
+    ///     Convergence tolerance.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// PassiveAggressiveClassifier
+    ///     A new classifier instance.
     #[new]
     #[pyo3(signature = (c=1.0, max_iter=1000, tol=1e-3, random_state=None))]
     fn new(c: f64, max_iter: usize, tol: f64, random_state: Option<u64>) -> Self {
@@ -3498,6 +3631,21 @@ impl PyVotingClassifier {
         PyModelCard::new(<ferroml_core::ensemble::VotingClassifier as HasModelCard>::model_card())
     }
 
+    /// Create a new VotingClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// estimators : list of (str, str)
+    ///     List of (name, estimator_type) pairs.
+    /// voting : str, optional (default="hard")
+    ///     Voting method: "hard" for majority vote, "soft" for probability averaging.
+    /// weights : list of float, optional
+    ///     Weights for each estimator. Must match number of estimators.
+    ///
+    /// Returns
+    /// -------
+    /// VotingClassifier
+    ///     A new voting classifier instance.
     #[new]
     #[pyo3(signature = (estimators, voting="hard", weights=None))]
     fn new(
@@ -3695,6 +3843,19 @@ impl PyVotingRegressor {
         PyModelCard::new(<ferroml_core::ensemble::VotingRegressor as HasModelCard>::model_card())
     }
 
+    /// Create a new VotingRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// estimators : list of (str, str)
+    ///     List of (name, estimator_type) pairs.
+    /// weights : list of float, optional
+    ///     Weights for each estimator. Must match number of estimators.
+    ///
+    /// Returns
+    /// -------
+    /// VotingRegressor
+    ///     A new voting regressor instance.
     #[new]
     #[pyo3(signature = (estimators, weights=None))]
     fn new(estimators: Vec<(String, String)>, weights: Option<Vec<f64>>) -> PyResult<Self> {
@@ -3832,6 +3993,25 @@ impl PyStackingClassifier {
         )
     }
 
+    /// Create a new StackingClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// estimators : list of (str, str)
+    ///     List of (name, estimator_type) pairs for base estimators.
+    /// final_estimator : str, optional (default="logistic_regression")
+    ///     Meta-learner type.
+    /// cv : int, optional (default=5)
+    ///     Number of cross-validation folds.
+    /// stack_method : str, optional (default="predict_proba")
+    ///     Method for generating meta-features: "predict" or "predict_proba".
+    /// passthrough : bool, optional (default=False)
+    ///     Include original features alongside meta-features.
+    ///
+    /// Returns
+    /// -------
+    /// StackingClassifier
+    ///     A new stacking classifier instance.
     #[new]
     #[pyo3(signature = (
         estimators,
@@ -4050,6 +4230,23 @@ impl PyStackingRegressor {
         )
     }
 
+    /// Create a new StackingRegressor.
+    ///
+    /// Parameters
+    /// ----------
+    /// estimators : list of (str, str)
+    ///     List of (name, estimator_type) pairs for base estimators.
+    /// final_estimator : str, optional (default="linear_regression")
+    ///     Meta-learner type.
+    /// cv : int, optional (default=5)
+    ///     Number of cross-validation folds.
+    /// passthrough : bool, optional (default=False)
+    ///     Include original features alongside meta-features.
+    ///
+    /// Returns
+    /// -------
+    /// StackingRegressor
+    ///     A new stacking regressor instance.
     #[new]
     #[pyo3(signature = (
         estimators,

@@ -162,6 +162,23 @@ pub struct PyGridSearchCV {
 
 #[pymethods]
 impl PyGridSearchCV {
+    /// Create a new GridSearchCV instance.
+    ///
+    /// Parameters
+    /// ----------
+    /// model : object
+    ///     A FerroML model with `.fit(X, y)` and `.predict(X)` methods.
+    /// param_grid : dict
+    ///     Dictionary mapping parameter names to lists of values to try.
+    /// cv : int, optional (default=5)
+    ///     Number of cross-validation folds.
+    /// scoring : str, optional (default="accuracy")
+    ///     Scoring metric: "accuracy", "neg_mean_squared_error", or "r2".
+    ///
+    /// Returns
+    /// -------
+    /// GridSearchCV
+    ///     A new GridSearchCV instance.
     #[new]
     #[pyo3(signature = (model, param_grid, cv=5, scoring="accuracy"))]
     fn new(model: PyObject, param_grid: PyObject, cv: usize, scoring: &str) -> Self {
@@ -328,6 +345,27 @@ pub struct PyRandomSearchCV {
 
 #[pymethods]
 impl PyRandomSearchCV {
+    /// Create a new RandomSearchCV instance.
+    ///
+    /// Parameters
+    /// ----------
+    /// model : object
+    ///     A FerroML model with `.fit(X, y)` and `.predict(X)` methods.
+    /// param_distributions : dict
+    ///     Dictionary mapping parameter names to lists of values to sample from.
+    /// n_iter : int, optional (default=10)
+    ///     Number of parameter settings to sample.
+    /// cv : int, optional (default=5)
+    ///     Number of cross-validation folds.
+    /// scoring : str, optional (default="accuracy")
+    ///     Scoring metric: "accuracy", "neg_mean_squared_error", or "r2".
+    /// seed : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// RandomSearchCV
+    ///     A new RandomSearchCV instance.
     #[new]
     #[pyo3(signature = (model, param_distributions, n_iter=10, cv=5, scoring="accuracy", seed=None))]
     fn new(
@@ -504,6 +542,19 @@ pub struct PyStudy {
 
 #[pymethods]
 impl PyStudy {
+    /// Create a new Study for hyperparameter optimization.
+    ///
+    /// Parameters
+    /// ----------
+    /// direction : str, optional (default="minimize")
+    ///     Direction of optimization: "minimize" or "maximize".
+    /// seed : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// Study
+    ///     A new Study instance.
     #[new]
     #[pyo3(signature = (direction="minimize", seed=None))]
     fn new(direction: &str, seed: Option<u64>) -> PyResult<Self> {

@@ -2393,6 +2393,21 @@ impl PyRobustRegression {
         )
     }
 
+    /// Create a new RobustRegression model.
+    ///
+    /// Parameters
+    /// ----------
+    /// estimator : str, optional (default="huber")
+    ///     M-estimator type: "huber", "bisquare"/"tukey", "hampel", or "andrews".
+    /// max_iter : int, optional (default=50)
+    ///     Maximum number of IRLS iterations.
+    /// tol : float, optional (default=1e-6)
+    ///     Convergence tolerance.
+    ///
+    /// Returns
+    /// -------
+    /// RobustRegression
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (estimator="huber", max_iter=50, tol=1e-6))]
     fn new(estimator: &str, max_iter: usize, tol: f64) -> PyResult<Self> {
@@ -2621,6 +2636,21 @@ impl PyQuantileRegression {
         )
     }
 
+    /// Create a new QuantileRegression model.
+    ///
+    /// Parameters
+    /// ----------
+    /// quantile : float, optional (default=0.5)
+    ///     The quantile to estimate (0 < quantile < 1). 0.5 gives the median.
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of iterations.
+    /// tol : float, optional (default=1e-6)
+    ///     Convergence tolerance.
+    ///
+    /// Returns
+    /// -------
+    /// QuantileRegression
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (quantile=0.5, max_iter=1000, tol=1e-6))]
     fn new(quantile: f64, max_iter: usize, tol: f64) -> PyResult<Self> {
@@ -2830,6 +2860,19 @@ impl PyPerceptron {
         PyModelCard::new(<ferroml_core::models::sgd::Perceptron as HasModelCard>::model_card())
     }
 
+    /// Create a new Perceptron classifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of passes over the training data.
+    /// random_state : int or None, optional (default=None)
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// Perceptron
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (max_iter=1000, random_state=None))]
     fn new(max_iter: usize, random_state: Option<u64>) -> PyResult<Self> {
@@ -2993,6 +3036,19 @@ impl PyRidgeCV {
         PyModelCard::new(<ferroml_core::models::regularized::RidgeCV as HasModelCard>::model_card())
     }
 
+    /// Create a new RidgeCV model.
+    ///
+    /// Parameters
+    /// ----------
+    /// alphas : list of float or None, optional (default=None)
+    ///     List of alpha values to try. If None, uses log-spaced defaults.
+    /// cv : int, optional (default=5)
+    ///     Number of cross-validation folds.
+    ///
+    /// Returns
+    /// -------
+    /// RidgeCV
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (alphas=None, cv=5))]
     fn new(alphas: Option<Vec<f64>>, cv: usize) -> Self {
@@ -3119,6 +3175,19 @@ impl PyLassoCV {
         PyModelCard::new(<ferroml_core::models::regularized::LassoCV as HasModelCard>::model_card())
     }
 
+    /// Create a new LassoCV model.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_alphas : int, optional (default=100)
+    ///     Number of alpha values to try (log-spaced).
+    /// cv : int, optional (default=5)
+    ///     Number of cross-validation folds.
+    ///
+    /// Returns
+    /// -------
+    /// LassoCV
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_alphas=100, cv=5))]
     fn new(n_alphas: usize, cv: usize) -> Self {
@@ -3253,6 +3322,22 @@ impl PyElasticNetCV {
         )
     }
 
+    /// Create a new ElasticNetCV model.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_alphas : int, optional (default=100)
+    ///     Number of alpha values to try (log-spaced).
+    /// l1_ratios : list of float or None, optional (default=None)
+    ///     List of l1_ratio values to try. If None, uses defaults
+    ///     [0.1, 0.5, 0.7, 0.9, 0.95, 0.99, 1.0].
+    /// cv : int, optional (default=5)
+    ///     Number of cross-validation folds.
+    ///
+    /// Returns
+    /// -------
+    /// ElasticNetCV
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_alphas=100, l1_ratios=None, cv=5))]
     fn new(n_alphas: usize, l1_ratios: Option<Vec<f64>>, cv: usize) -> Self {
@@ -3396,6 +3481,19 @@ impl PyRidgeClassifier {
         )
     }
 
+    /// Create a new RidgeClassifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// alpha : float, optional (default=1.0)
+    ///     Regularization strength. Must be > 0.
+    /// fit_intercept : bool, optional (default=True)
+    ///     Whether to calculate the intercept for this model.
+    ///
+    /// Returns
+    /// -------
+    /// RidgeClassifier
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (alpha=1.0, fit_intercept=true))]
     fn new(alpha: f64, fit_intercept: bool) -> Self {
@@ -3615,6 +3713,23 @@ impl PyIsotonicRegression {
         )
     }
 
+    /// Create a new IsotonicRegression model.
+    ///
+    /// Parameters
+    /// ----------
+    /// increasing : str, optional (default="true")
+    ///     Monotonicity direction: "true", "false", or "auto".
+    /// y_min : float or None, optional (default=None)
+    ///     Lower bound on predicted values. If None, no lower clipping.
+    /// y_max : float or None, optional (default=None)
+    ///     Upper bound on predicted values. If None, no upper clipping.
+    /// out_of_bounds : str, optional (default="nan")
+    ///     How to handle out-of-range predictions: "nan", "clip", or "raise".
+    ///
+    /// Returns
+    /// -------
+    /// IsotonicRegression
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (increasing="true", y_min=None, y_max=None, out_of_bounds="nan"))]
     fn new(

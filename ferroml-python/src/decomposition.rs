@@ -80,6 +80,19 @@ impl PyPCA {
         PyModelCard::new(<ferroml_core::decomposition::PCA as HasModelCard>::model_card())
     }
 
+    /// Create a new PCA.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_components : int, optional
+    ///     Number of components to keep. If not set, all components are kept.
+    /// whiten : bool, optional (default=False)
+    ///     When True, components are divided by singular values for uncorrelated outputs.
+    ///
+    /// Returns
+    /// -------
+    /// PCA
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_components=None, whiten=false))]
     fn new(n_components: Option<usize>, whiten: bool) -> Self {
@@ -251,6 +264,21 @@ impl PyIncrementalPCA {
         )
     }
 
+    /// Create a new IncrementalPCA.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_components : int, optional
+    ///     Number of components to keep. If not set, all components are kept.
+    /// whiten : bool, optional (default=False)
+    ///     When True, components are scaled to unit variance.
+    /// batch_size : int, optional
+    ///     Size of batches for partial_fit. If None, the entire dataset is used.
+    ///
+    /// Returns
+    /// -------
+    /// IncrementalPCA
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_components=None, whiten=false, batch_size=None))]
     fn new(n_components: Option<usize>, whiten: bool, batch_size: Option<usize>) -> Self {
@@ -402,6 +430,21 @@ impl PyTruncatedSVD {
         PyModelCard::new(<ferroml_core::decomposition::TruncatedSVD as HasModelCard>::model_card())
     }
 
+    /// Create a new TruncatedSVD.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_components : int, optional (default=2)
+    ///     Number of components to compute.
+    /// n_iter : int, optional (default=5)
+    ///     Number of iterations for randomized SVD solver.
+    /// random_state : int, optional
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// TruncatedSVD
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_components=2, n_iter=5, random_state=None))]
     fn new(n_components: usize, n_iter: usize, random_state: Option<u64>) -> Self {
@@ -558,6 +601,21 @@ impl PyLDA {
         PyModelCard::new(<ferroml_core::decomposition::LDA as HasModelCard>::model_card())
     }
 
+    /// Create a new LDA.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_components : int, optional
+    ///     Number of components. Maximum is min(n_classes - 1, n_features).
+    /// shrinkage : float, optional
+    ///     Shrinkage parameter for regularization (0.0 to 1.0).
+    /// tol : float, optional (default=1e-4)
+    ///     Convergence tolerance for eigenvalue truncation.
+    ///
+    /// Returns
+    /// -------
+    /// LDA
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_components=None, shrinkage=None, tol=1e-4))]
     fn new(n_components: Option<usize>, shrinkage: Option<f64>, tol: f64) -> Self {
@@ -689,6 +747,25 @@ impl PyFactorAnalysis {
         )
     }
 
+    /// Create a new FactorAnalysis.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_factors : int, optional
+    ///     Number of latent factors. If None, uses n_features.
+    /// rotation : str, optional (default="none")
+    ///     Rotation method: "none", "varimax", "quartimax", "promax".
+    /// tol : float, optional (default=1e-3)
+    ///     Convergence tolerance for the EM algorithm.
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of EM iterations.
+    /// random_state : int, optional
+    ///     Random seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// FactorAnalysis
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (n_factors=None, rotation="none", tol=1e-3, max_iter=1000, random_state=None))]
     fn new(
@@ -855,6 +932,37 @@ impl PyTSNE {
         PyModelCard::new(<ferroml_core::decomposition::TSNE as HasModelCard>::model_card())
     }
 
+    /// Create a new TSNE.
+    ///
+    /// Parameters
+    /// ----------
+    /// n_components : int, optional (default=2)
+    ///     Dimension of the embedded space.
+    /// perplexity : float, optional (default=30.0)
+    ///     Related to the number of nearest neighbors; larger values consider more neighbors.
+    /// learning_rate : float, optional
+    ///     Learning rate for optimization. If None, uses "auto" (n_samples / early_exaggeration / 4).
+    /// max_iter : int, optional (default=1000)
+    ///     Maximum number of optimization iterations.
+    /// early_exaggeration : float, optional (default=12.0)
+    ///     Factor by which P is multiplied in early iterations.
+    /// min_grad_norm : float, optional (default=1e-7)
+    ///     Minimum gradient norm for early stopping.
+    /// metric : str, optional (default="euclidean")
+    ///     Distance metric: "euclidean", "manhattan", or "cosine".
+    /// init : str, optional (default="pca")
+    ///     Initialization: "pca" or "random".
+    /// method : str, optional (default="auto")
+    ///     Algorithm: "exact", "barnes_hut", or "auto" to choose based on dataset size.
+    /// theta : float, optional (default=0.5)
+    ///     Barnes-Hut trade-off parameter (0.0 = exact, higher = faster).
+    /// random_state : int, optional
+    ///     Seed for reproducibility.
+    ///
+    /// Returns
+    /// -------
+    /// TSNE
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (
         n_components=2,
@@ -1087,6 +1195,23 @@ pub struct PyQDA {
 
 #[pymethods]
 impl PyQDA {
+    /// Create a new QuadraticDiscriminantAnalysis.
+    ///
+    /// Parameters
+    /// ----------
+    /// reg_param : float, optional (default=0.0)
+    ///     Regularization parameter for covariance estimation. Range: [0.0, 1.0].
+    /// priors : list of float, optional
+    ///     Class priors (must sum to 1). If None, estimated from data.
+    /// store_covariance : bool, optional (default=False)
+    ///     Whether to store full covariance matrices.
+    /// tol : float, optional (default=1e-4)
+    ///     Tolerance for eigenvalue truncation.
+    ///
+    /// Returns
+    /// -------
+    /// QuadraticDiscriminantAnalysis
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (reg_param=0.0, priors=None, store_covariance=false, tol=1e-4))]
     fn new(reg_param: f64, priors: Option<Vec<f64>>, store_covariance: bool, tol: f64) -> Self {

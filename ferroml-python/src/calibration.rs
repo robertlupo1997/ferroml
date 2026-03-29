@@ -64,6 +64,19 @@ impl PyTemperatureScalingCalibrator {
         PyModelCard::new(<ferroml_core::models::calibration::TemperatureScalingCalibrator as HasModelCard>::model_card())
     }
 
+    /// Create a new TemperatureScalingCalibrator.
+    ///
+    /// Parameters
+    /// ----------
+    /// max_iter : int, optional (default=100)
+    ///     Maximum number of optimization iterations.
+    /// learning_rate : float, optional (default=0.01)
+    ///     Learning rate for gradient descent optimization.
+    ///
+    /// Returns
+    /// -------
+    /// TemperatureScalingCalibrator
+    ///     A new model instance.
     #[new]
     #[pyo3(signature = (max_iter=100, learning_rate=0.01))]
     fn new(max_iter: usize, learning_rate: f64) -> Self {
