@@ -224,3 +224,16 @@ class TestCompare:
         assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
         assert len(data["leaderboard"]) == 2
+
+
+class TestDiagnose:
+    def test_diagnose_linear_regression(self, tmp_path):
+        csv_path = _make_csv(str(tmp_path))
+        model_path = str(tmp_path / "model.pkl")
+        run_cli("train", "--model", "LinearRegression", "--data", csv_path,
+                "--target", "target", "--output", model_path)
+        result = run_cli("diagnose", "--model", model_path, "--data", csv_path,
+                         "--target", "target", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert "diagnostics" in data

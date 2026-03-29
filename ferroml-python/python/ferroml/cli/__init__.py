@@ -39,7 +39,9 @@ app.command(name="recommend")(recommend)
 app.command(name="info")(info)
 
 from ferroml.cli.compare import compare  # noqa: E402
+from ferroml.cli.diagnose import diagnose  # noqa: E402
 app.command(name="compare")(compare)
+app.command(name="diagnose")(diagnose)
 
 
 # __main__ support: python -m ferroml.cli
