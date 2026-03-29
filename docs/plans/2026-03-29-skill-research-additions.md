@@ -84,3 +84,53 @@ Ongoing research findings for additions to the skill design. Each section timest
 - Trigger: "explain", "why did the model", "present results", "stakeholder"
 - Steps: explain_model → cost_sensitive_analysis → generate_report (with report_template.md)
 - Output: Non-technical summary with business impact numbers
+
+---
+
+## Research Iteration 2 — 2026-03-29 ~02:07 ET
+
+### New Scripts
+
+**1. `scripts/predict_with_confidence.py` — Prediction Intervals**
+- Point predictions + confidence/prediction intervals
+- Use bootstrap_ci for any model, GP native intervals for GaussianProcess
+- Output: "Predicted price: $350K (95% CI: $310K–$390K)"
+- *Why:* Stakeholders need uncertainty, not just point estimates. No other skill does this.
+
+**2. `scripts/counterfactual_explain.py` — "What Would Need to Change?"**
+- Given a prediction, find minimum feature changes to flip the outcome
+- "To get approved for the loan, income would need to increase from $45K to $52K OR debt ratio decrease from 0.4 to 0.3"
+- Useful for actionable insights in classification
+- *Why:* Emerging explainability technique (2024-2026), increasingly required by EU AI Act
+
+**3. `scripts/progressive_complexity.py` — Start Simple, Add Complexity Only When Justified**
+- Train baseline (Linear/Logistic) → compare with medium (RF) → compare with complex (GBT)
+- At each step: is the improvement statistically significant?
+- Stop when added complexity doesn't justify the accuracy gain
+- "Linear model gets R2=0.91, Random Forest gets 0.93 (p=0.34, not significant). Stick with the simpler model."
+- *Why:* Kaggle grandmaster technique — always establish baselines. Prevents unnecessary complexity.
+
+**4. `scripts/auto_ensemble.py` — Automated Diverse Ensemble Construction**
+- Select top N diverse models (low correlation between predictions)
+- Optimize blending weights via hill climbing on validation set
+- Compare ensemble vs best single model with significance test
+- *Why:* Last-mile improvement technique from competitive ML. FerroML has Voting/Stacking but no automated diversity-aware construction.
+
+### New References
+
+**5. `references/batch-vs-realtime-guide.md` — Inference Patterns**
+- When to use batch (nightly scoring of all customers) vs real-time (API per request)
+- Memory/latency tradeoffs per model type
+- ONNX optimization tips for real-time
+- Caching strategies for feature computation
+
+**6. `references/model-lifecycle-guide.md` — From Experiment to Retirement**
+- Experiment → validate → deploy → monitor → retrain → retire
+- Decision framework for when to retrain vs rebuild
+- Model governance checklist (who approved, what data, what metrics)
+- Audit trail requirements
+
+### New Asset
+
+**7. `assets/configs/multiclass.json`**
+- Same structure as binary but with: macro/weighted F1, one-vs-rest strategy notes, confusion matrix emphasis, no threshold optimization (multiclass doesn't use 0.5 cutoff the same way)
