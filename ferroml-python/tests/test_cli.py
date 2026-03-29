@@ -243,8 +243,11 @@ class TestAutoML:
     @pytest.mark.slow
     def test_automl_regression(self, tmp_path):
         csv_path = _make_csv(str(tmp_path))
-        result = run_cli("automl", "--data", csv_path, "--target", "target",
-                         "--task", "regression", "--time-budget", "10", "--json")
+        result = subprocess.run(
+            [sys.executable, "-m", "ferroml.cli", "automl", "--data", csv_path,
+             "--target", "target", "--task", "regression", "--time-budget", "5", "--json"],
+            capture_output=True, text=True, timeout=60,
+        )
         assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
         assert "leaderboard" in data
