@@ -1,0 +1,12 @@
+# FerroML
+
+> Statistically rigorous machine learning in Rust with Python bindings.
+
+FerroML is a machine learning library with 55+ models (regression, classification, clustering, anomaly detection, decomposition) that includes statistical diagnostics, confidence intervals, and assumption tests as first-class features. Written in Rust for performance, exposed via Python bindings (`import ferroml`). Includes AutoML, ONNX export, and a CLI for agent-driven workflows.
+
+## Docs
+
+- [README](https://github.com/robertlupo1997/ferroml#readme): Overview, installation, quickstart
+- [AGENTS.md](https://github.com/robertlupo1997/ferroml/blob/master/AGENTS.md): AI agent operations reference — CLI commands, Python API, model selection guide
+- [API Stubs](https://github.com/robertlupo1997/ferroml/tree/master/ferroml-python/python/ferroml): Type stubs (.pyi) for all 55+ models across 23 submodules
+- [Correctness Report](https://github.com/robertlupo1997/ferroml/blob/master/docs/correctness-report.md): 5-layer verification methodology and results
