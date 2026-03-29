@@ -75,8 +75,13 @@ pandas = [
 test = [
     "ferroml[dev,sklearn,pandas]",
 ]
+cli = [
+    "typer>=0.9",
+    "rich>=13.0",
+    "polars>=0.19",
+]
 all = [
-    "ferroml[polars,pandas,sklearn]",
+    "ferroml[polars,pandas,sklearn,cli]",
 ]
 
 [project.urls]
@@ -85,6 +90,9 @@ Documentation = "https://github.com/robertlupo1997/ferroml#readme"
 Repository = "https://github.com/robertlupo1997/ferroml"
 Issues = "https://github.com/robertlupo1997/ferroml/issues"
 Changelog = "https://github.com/robertlupo1997/ferroml/blob/master/CHANGELOG.md"
+
+[project.scripts]
+ferroml = "ferroml.cli:app"
 
 [tool.maturin]
 # Build configuration
