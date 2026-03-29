@@ -134,3 +134,39 @@ class TestPredict:
         result = run_cli("predict", "--model", model_path, "--data", csv_path, "--target", "target", "--output", out_csv)
         assert result.returncode == 0, result.stderr
         assert os.path.exists(out_csv)
+
+
+class TestEvaluate:
+    def _train_model(self, tmp_path, task="regression"):
+        csv_path = _make_csv(str(tmp_path), task=task)
+        model_path = str(tmp_path / "model.pkl")
+        model_name = "LinearRegression" if task == "regression" else "LogisticRegression"
+        run_cli("train", "--model", model_name, "--data", csv_path,
+                "--target", "target", "--output", model_path)
+        return csv_path, model_path
+
+    def test_evaluate_default_metrics(self, tmp_path):
+        csv_path, model_path = self._train_model(tmp_path)
+        result = run_cli("evaluate", "--model", model_path, "--data", csv_path,
+                         "--target", "target", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert "metrics" in data
+
+    def test_evaluate_specific_metrics(self, tmp_path):
+        csv_path, model_path = self._train_model(tmp_path)
+        result = run_cli("evaluate", "--model", model_path, "--data", csv_path,
+                         "--target", "target", "--metrics", "rmse,r2,mae", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert "rmse" in data["metrics"]
+        assert "r2" in data["metrics"]
+        assert "mae" in data["metrics"]
+
+    def test_evaluate_classifier(self, tmp_path):
+        csv_path, model_path = self._train_model(tmp_path, task="classification")
+        result = run_cli("evaluate", "--model", model_path, "--data", csv_path,
+                         "--target", "target", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert "metrics" in data

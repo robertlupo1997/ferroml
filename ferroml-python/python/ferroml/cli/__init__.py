@@ -31,6 +31,9 @@ from ferroml.cli.predict import predict  # noqa: E402
 app.command(name="train")(train)
 app.command(name="predict")(predict)
 
+from ferroml.cli.evaluate import evaluate  # noqa: E402
+app.command(name="evaluate")(evaluate)
+
 
 # __main__ support: python -m ferroml.cli
 def cli_main():
