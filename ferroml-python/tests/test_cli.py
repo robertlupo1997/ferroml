@@ -205,3 +205,22 @@ class TestInfo:
         assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
         assert len(data) > 10
+
+
+class TestCompare:
+    def test_compare_regressors(self, tmp_path):
+        csv_path = _make_csv(str(tmp_path))
+        result = run_cli("compare", "--models", "LinearRegression,RidgeRegression,LassoRegression",
+                         "--data", csv_path, "--target", "target", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert "leaderboard" in data
+        assert len(data["leaderboard"]) == 3
+
+    def test_compare_classifiers(self, tmp_path):
+        csv_path = _make_csv(str(tmp_path), task="classification")
+        result = run_cli("compare", "--models", "LogisticRegression,GaussianNB",
+                         "--data", csv_path, "--target", "target", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert len(data["leaderboard"]) == 2
