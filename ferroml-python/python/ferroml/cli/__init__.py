@@ -27,7 +27,9 @@ def main(
 
 # Register subcommands
 from ferroml.cli.train import train  # noqa: E402
+from ferroml.cli.predict import predict  # noqa: E402
 app.command(name="train")(train)
+app.command(name="predict")(predict)
 
 
 # __main__ support: python -m ferroml.cli

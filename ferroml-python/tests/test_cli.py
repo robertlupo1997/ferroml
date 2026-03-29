@@ -102,3 +102,35 @@ class TestTrain:
         assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
         assert data["model"] == "LogisticRegression"
+
+
+class TestPredict:
+    def _train_model(self, tmp_path):
+        """Helper: train a model and return (csv_path, model_path)."""
+        csv_path = _make_csv(str(tmp_path))
+        model_path = str(tmp_path / "model.pkl")
+        run_cli("train", "--model", "LinearRegression", "--data", csv_path,
+                "--target", "target", "--output", model_path)
+        return csv_path, model_path
+
+    def test_predict_to_stdout(self, tmp_path):
+        csv_path, model_path = self._train_model(tmp_path)
+        result = run_cli("predict", "--model", model_path, "--data", csv_path, "--target", "target")
+        assert result.returncode == 0, result.stderr
+        # Rich output goes to stderr, so check either stdout or stderr has content
+        assert len(result.stdout.strip()) > 0 or len(result.stderr.strip()) > 0
+
+    def test_predict_json(self, tmp_path):
+        csv_path, model_path = self._train_model(tmp_path)
+        result = run_cli("predict", "--model", model_path, "--data", csv_path, "--target", "target", "--json")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert "predictions" in data
+        assert len(data["predictions"]) == 50
+
+    def test_predict_to_file(self, tmp_path):
+        csv_path, model_path = self._train_model(tmp_path)
+        out_csv = str(tmp_path / "preds.csv")
+        result = run_cli("predict", "--model", model_path, "--data", csv_path, "--target", "target", "--output", out_csv)
+        assert result.returncode == 0, result.stderr
+        assert os.path.exists(out_csv)
