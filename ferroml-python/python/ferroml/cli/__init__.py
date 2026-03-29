@@ -25,6 +25,11 @@ def main(
     """FerroML: Statistically rigorous ML from the command line."""
 
 
+# Register subcommands
+from ferroml.cli.train import train  # noqa: E402
+app.command(name="train")(train)
+
+
 # __main__ support: python -m ferroml.cli
 def cli_main():
     app()
