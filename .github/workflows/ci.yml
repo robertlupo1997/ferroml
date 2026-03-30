@@ -320,6 +320,7 @@ jobs:
           name: benchmark-results
           path: target/criterion/
           retention-days: 30
+          if-no-files-found: warn
 
   # Benchmark baseline (runs on main branch pushes)
   benchmark-baseline:
@@ -365,6 +366,7 @@ jobs:
           name: benchmark-baseline
           path: target/criterion/
           retention-days: 90
+          if-no-files-found: warn
 
   # Performance regression detection
   performance-regression:
