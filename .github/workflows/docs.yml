@@ -58,7 +58,9 @@ jobs:
 
       - name: Build Python API documentation
         run: |
-          pip install pdoc maturin typer rich
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install pdoc maturin typer rich numpy
           maturin develop --release -m ferroml-python/Cargo.toml
           pdoc ferroml --output-dir target/doc/python/
 
