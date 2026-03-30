@@ -177,7 +177,7 @@ jobs:
           else
             source .venv/bin/activate
           fi
-          pip install maturin pytest pytest-cov numpy scikit-learn scipy polars xgboost lightgbm statsmodels pandas
+          pip install maturin pytest pytest-cov numpy scikit-learn scipy polars xgboost lightgbm statsmodels pandas typer rich
 
       - name: Build and install ferroml
         working-directory: ferroml-python
@@ -243,7 +243,7 @@ jobs:
             --timeout 600 \
             --skip-clean \
             --no-default-features \
-            --features "parallel,onnx,simd,faer-backend,sparse"
+            --features "parallel,onnx,simd,sparse"
 
       - name: Check coverage threshold
         run: |
@@ -567,8 +567,7 @@ jobs:
       - name: Check licenses and advisories
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check
-          arguments: licenses advisories bans sources
+          command: check licenses advisories bans sources
 
   # ============================================================
   # MSRV (Minimum Supported Rust Version) Testing
