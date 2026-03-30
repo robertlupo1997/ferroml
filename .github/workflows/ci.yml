@@ -177,7 +177,7 @@ jobs:
           else
             source .venv/bin/activate
           fi
-          pip install maturin pytest pytest-cov numpy
+          pip install maturin pytest pytest-cov numpy scikit-learn scipy polars xgboost lightgbm statsmodels
 
       - name: Build and install ferroml
         working-directory: ferroml-python
@@ -241,7 +241,8 @@ jobs:
             --out xml --out html \
             --output-dir coverage \
             --timeout 600 \
-            --skip-clean
+            --skip-clean \
+            --exclude-files "*/polars-*"
 
       - name: Check coverage threshold
         run: |

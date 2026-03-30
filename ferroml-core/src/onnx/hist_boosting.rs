@@ -580,17 +580,19 @@ mod tests {
         model.fit(&x, &y).unwrap();
 
         let config = OnnxConfig::new("hist_gbr_file_test");
-        let tmp_path = "/tmp/test_hist_gbr.onnx";
-        model.export_onnx(tmp_path, &config).unwrap();
+        let tmp_dir = std::env::temp_dir();
+        let tmp_path = tmp_dir.join("test_hist_gbr.onnx");
+        let tmp_path_str = tmp_path.to_str().unwrap();
+        model.export_onnx(tmp_path_str, &config).unwrap();
 
         // Verify file exists and can be read back
-        let bytes = std::fs::read(tmp_path).unwrap();
+        let bytes = std::fs::read(&tmp_path).unwrap();
         assert!(!bytes.is_empty());
         let proto = ModelProto::decode(bytes.as_slice()).unwrap();
         assert_eq!(proto.graph.unwrap().name, "hist_gbr_file_test");
 
         // Cleanup
-        let _ = std::fs::remove_file(tmp_path);
+        let _ = std::fs::remove_file(&tmp_path);
     }
 
     #[test]
