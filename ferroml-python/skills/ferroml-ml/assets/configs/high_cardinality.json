@@ -1,0 +1,10 @@
+{
+  "task": "high_cardinality_classification",
+  "preprocessing": {"scaler": "StandardScaler", "imputation": "median", "categorical_encoding": "auto"},
+  "model_candidates": ["HistGradientBoostingClassifier", "RandomForestClassifier", "GradientBoostingClassifier"],
+  "feature_engineering": {"frequency_encoding": true, "target_encoding": true, "hash_encoding": true},
+  "encoding_rules": {"low_cardinality": {"max_unique": 20, "strategy": "one_hot"}, "medium_cardinality": {"max_unique": 100, "strategy": "target_encoding"}, "high_cardinality": {"max_unique": 1000, "strategy": "target_encoding"}, "very_high_cardinality": {"min_unique": 1000, "strategy": "frequency_encoding"}},
+  "evaluation": {"primary_metric": "f1", "secondary_metrics": ["accuracy", "precision", "recall"], "cv_folds": 5, "cv_strategy": "stratified", "test_size": 0.2},
+  "diagnostics": {"cardinality_analysis": true, "encoding_impact": true, "confusion_matrix": true},
+  "thresholds": {"low_cardinality": 20, "medium_cardinality": 100, "high_cardinality": 1000, "overfit_gap": 0.05}
+}

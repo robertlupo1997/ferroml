@@ -1,0 +1,9 @@
+{
+  "task": "multiclass_classification",
+  "preprocessing": {"scaler": "StandardScaler", "imputation": "median", "handle_imbalance": "check_ratio"},
+  "model_candidates": ["LogisticRegression", "RandomForestClassifier", "GradientBoostingClassifier", "HistGradientBoostingClassifier", "ExtraTreesClassifier"],
+  "evaluation": {"primary_metric": "weighted_f1", "secondary_metrics": ["accuracy", "macro_f1", "balanced_accuracy"], "cv_folds": 5, "cv_strategy": "stratified", "test_size": 0.2},
+  "diagnostics": {"confusion_matrix": true, "per_class_metrics": true, "calibration_check": true, "class_balance_check": true},
+  "thresholds": {"imbalance_ratio": 5, "good_weighted_f1": 0.7, "great_weighted_f1": 0.85, "overfit_gap": 0.05},
+  "imbalance_strategies": {"mild": "stratified_cv_only", "moderate": "class_weight_balanced", "severe": "class_weight_balanced_plus_oversampling"}
+}

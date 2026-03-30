@@ -1,0 +1,11 @@
+{
+  "experiment_id": "{{id}}",
+  "timestamp": "{{iso_timestamp}}",
+  "dataset": {"name": "{{name}}", "rows": 0, "features": 0, "target": "{{target}}", "data_hash": "{{sha256}}"},
+  "preprocessing": {"scaler": null, "imputer": null, "encoder": null, "feature_engineering": []},
+  "model": {"algorithm": "{{name}}", "params": {}, "training_time_seconds": 0},
+  "evaluation": {"primary_metric": {"name": "", "train": 0, "test": 0}, "secondary_metrics": [], "cv_scores": [], "cv_mean": 0, "cv_std": 0},
+  "diagnostics": {},
+  "environment": {"ferroml_version": "", "python_version": "", "seed": 42},
+  "notes": ""
+}

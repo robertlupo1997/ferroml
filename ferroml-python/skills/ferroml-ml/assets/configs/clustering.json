@@ -1,0 +1,8 @@
+{
+  "task": "clustering",
+  "preprocessing": {"scaler": "StandardScaler", "imputation": "median"},
+  "model_candidates": ["KMeans", "MiniBatchKMeans", "DBSCAN", "HDBSCAN", "GaussianMixture", "AgglomerativeClustering"],
+  "evaluation": {"primary_metric": "silhouette_score", "secondary_metrics": ["calinski_harabasz_score", "davies_bouldin_score"], "requires_target": false, "train_test_split": false},
+  "diagnostics": {"hopkins_statistic": true, "elbow_analysis": true, "cluster_sizes": true},
+  "thresholds": {"good_silhouette": 0.5, "min_silhouette": 0.25, "max_k": 15}
+}

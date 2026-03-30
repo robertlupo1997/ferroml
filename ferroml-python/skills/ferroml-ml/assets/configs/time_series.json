@@ -1,0 +1,9 @@
+{
+  "task": "time_series",
+  "preprocessing": {"scaler": "StandardScaler", "imputation": "median", "shuffle": false, "split_strategy": "time_aware"},
+  "model_candidates": ["RidgeRegression", "RandomForestRegressor", "GradientBoostingRegressor", "HistGradientBoostingRegressor"],
+  "evaluation": {"primary_metric": "rmse", "secondary_metrics": ["mae", "r2"], "cv_folds": 5, "cv_strategy": "time_series_split", "test_size": 0.2},
+  "diagnostics": {"residual_autocorrelation": true, "durbin_watson": true, "stationarity_check": true},
+  "feature_engineering": {"lag_features": true, "rolling_statistics": true, "datetime_decomposition": true},
+  "thresholds": {"good_r2": 0.6, "great_r2": 0.85, "overfit_gap": 0.15}
+}

@@ -1,6 +1,6 @@
 # FerroML Skill Design — The Definitive ML Skill for Claude Code
 
-**Status:** Approved
+**Status:** COMPLETE (2026-03-29)
 **Location:** `ferroml-python/skills/ferroml-ml/`
 
 ## Purpose

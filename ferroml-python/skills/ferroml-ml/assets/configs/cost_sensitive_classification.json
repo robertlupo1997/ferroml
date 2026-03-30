@@ -1,0 +1,10 @@
+{
+  "task": "cost_sensitive_classification",
+  "preprocessing": {"scaler": "StandardScaler", "imputation": "median", "handle_imbalance": "check_ratio"},
+  "model_candidates": ["LogisticRegression", "RandomForestClassifier", "GradientBoostingClassifier", "HistGradientBoostingClassifier", "GaussianNB"],
+  "cost_matrix": {"tp": 0, "fp": 1, "fn": 10, "tn": 0},
+  "evaluation": {"primary_metric": "expected_cost", "primary_metric_direction": "minimize", "secondary_metrics": ["f1", "recall", "precision"], "cv_folds": 5, "cv_strategy": "stratified", "test_size": 0.2},
+  "threshold_optimization": "cost_minimizing",
+  "diagnostics": {"cost_curve": true, "threshold_analysis": true, "roi_vs_baseline": true, "confusion_matrix": true, "calibration_check": true},
+  "thresholds": {"imbalance_ratio": 5, "overfit_gap": 0.05, "default_threshold": 0.5}
+}

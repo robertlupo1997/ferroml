@@ -1,0 +1,8 @@
+{
+  "task": "anomaly_detection",
+  "preprocessing": {"scaler": "StandardScaler", "imputation": "median"},
+  "model_candidates": ["IsolationForest", "LocalOutlierFactor"],
+  "evaluation": {"contamination": "auto", "isolation_score_threshold": -0.5},
+  "diagnostics": {"score_distribution": true, "anomaly_count": true, "feature_contribution": true},
+  "thresholds": {"default_contamination": 0.05, "min_samples": 100}
+}
