@@ -231,7 +231,7 @@ jobs:
 
       - name: Install cargo-tarpaulin
         run: |
-          cargo install cargo-tarpaulin --locked
+          cargo install cargo-tarpaulin --locked --force
 
       - name: Free disk space
         run: |
