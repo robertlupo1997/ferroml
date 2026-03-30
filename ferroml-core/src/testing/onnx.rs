@@ -93,6 +93,7 @@ fn unique_temp_path() -> std::path::PathBuf {
         counter, thread_id, timestamp
     );
     std::env::temp_dir().join(filename)
+    // Note: callers should use tempfile::tempdir() for auto-cleanup in tests
 }
 
 // ============================================================================

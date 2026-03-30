@@ -691,8 +691,8 @@ mod tests {
         model.fit(&x, &y).unwrap();
 
         let config = OnnxConfig::new("file_test");
-        let temp_dir = std::env::temp_dir();
-        let file_path = temp_dir.join("test_model.onnx");
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test_model.onnx");
 
         // Export to file
         model.export_onnx(&file_path, &config).unwrap();
@@ -701,9 +701,7 @@ mod tests {
         let bytes = std::fs::read(&file_path).unwrap();
         let onnx_model = ModelProto::decode(&*bytes).unwrap();
         assert!(onnx_model.graph.is_some());
-
-        // Cleanup
-        std::fs::remove_file(&file_path).ok();
+        // temp_dir auto-cleans on drop
     }
 
     #[test]
