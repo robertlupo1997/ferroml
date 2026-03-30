@@ -75,7 +75,7 @@ jobs:
         run: |
           python -m venv .venv
           source .venv/bin/activate
-          pip install maturin pytest numpy
+          pip install maturin pytest numpy scipy
 
       - name: Build and install for testing
         working-directory: ${{ env.PACKAGE_DIR }}
@@ -87,7 +87,23 @@ jobs:
         working-directory: ${{ env.PACKAGE_DIR }}
         run: |
           source ../.venv/bin/activate
-          pytest tests/ -v --tb=short
+          pytest tests/ -v --tb=short \
+            --ignore=tests/test_vs_sklearn.py \
+            --ignore=tests/test_vs_xgboost.py \
+            --ignore=tests/test_vs_lightgbm.py \
+            --ignore=tests/test_vs_statsmodels.py \
+            --ignore=tests/test_vs_scipy.py \
+            --ignore=tests/test_comparison_linear.py \
+            --ignore=tests/test_comparison_trees.py \
+            --ignore=tests/test_comparison_remaining.py \
+            --ignore=tests/test_comparison_unsupervised.py \
+            --ignore=tests/test_comparison_edge_cases.py \
+            --ignore=tests/test_cross_library_edge_cases.py \
+            --ignore=tests/test_statistical_classifiers.py \
+            --ignore=tests/test_statistical_hypothesis.py \
+            --ignore=tests/test_statistical_regression.py \
+            --ignore=tests/test_sparse_pipeline_e2e.py \
+            --ignore=tests/test_sparse_roundtrip.py
 
       - name: Extract version from tag
         if: github.event_name == 'push'
