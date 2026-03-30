@@ -814,6 +814,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // Flaky under instrumentation (tarpaulin) and slow CI runners
     fn test_recommend_fast_execution() {
         // Recommendation should be very fast (no fitting)
         let (x, y) = make_data(10_000, 50);
