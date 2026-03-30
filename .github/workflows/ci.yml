@@ -551,32 +551,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
+      - name: Audit dependencies
+        uses: actions-rust-lang/audit@v1
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-audit-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-audit-
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked || true
-
-      - name: Run security audit
-        run: |
-          cargo audit \
-            --ignore RUSTSEC-2025-0141 \
-            --ignore RUSTSEC-2024-0384 \
-            --ignore RUSTSEC-2024-0436 \
-            --ignore RUSTSEC-2021-0153 \
-            --ignore RUSTSEC-2026-0049
+          ignore: RUSTSEC-2025-0141,RUSTSEC-2024-0384,RUSTSEC-2024-0436,RUSTSEC-2021-0153,RUSTSEC-2026-0049
 
   # License compliance check
   license-check:
@@ -586,35 +564,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
+      - name: Check licenses and advisories
+        uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-deny-
-
-      - name: Install cargo-deny
-        run: cargo install cargo-deny --locked || true
-
-      - name: Check licenses
-        run: cargo deny check licenses
-
-      - name: Check advisories
-        run: cargo deny check advisories
-
-      - name: Check bans
-        run: cargo deny check bans
-
-      - name: Check sources
-        run: cargo deny check sources
+          command: check
+          arguments: licenses advisories bans sources
 
   # ============================================================
   # MSRV (Minimum Supported Rust Version) Testing

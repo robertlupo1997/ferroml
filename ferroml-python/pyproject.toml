@@ -101,9 +101,6 @@ python-source = "python"
 module-name = "ferroml"
 bindings = "pyo3"
 
-# Wheel compatibility - uses abi3-py310 from pyo3 config
-compatibility = "linux"
-
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
