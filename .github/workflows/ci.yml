@@ -177,7 +177,7 @@ jobs:
           else
             source .venv/bin/activate
           fi
-          pip install maturin pytest pytest-cov numpy scikit-learn scipy polars xgboost lightgbm statsmodels
+          pip install maturin pytest pytest-cov numpy scikit-learn scipy polars xgboost lightgbm statsmodels pandas
 
       - name: Build and install ferroml
         working-directory: ferroml-python
