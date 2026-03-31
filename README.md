@@ -1,7 +1,7 @@
 # FerroML
 
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
-[![License](https://img.shields.io/crates/l/ferroml-core.svg)](LICENSE)
+[![License](https://img.shields.io/pypi/l/ferroml.svg)](https://pypi.org/project/ferroml/)
 [![PyPI](https://img.shields.io/pypi/v/ferroml.svg)](https://pypi.org/project/ferroml/)
 [![Tests](https://img.shields.io/badge/tests-6%2C500%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
