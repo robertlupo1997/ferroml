@@ -75,7 +75,7 @@ jobs:
         run: |
           python -m venv .venv
           source .venv/bin/activate
-          pip install maturin pytest numpy scipy
+          pip install maturin pytest numpy scipy typer rich
 
       - name: Build and install for testing
         working-directory: ${{ env.PACKAGE_DIR }}
