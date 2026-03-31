@@ -28,10 +28,12 @@ permissions:
 
 env:
   PACKAGE_DIR: ferroml-python
-  CARGO_TERM_COLOR: always
 
 jobs:
-  # Validate before building wheels
+  # Version check only — CI already runs clippy, tests, and pytest on every push.
+  # By the time a tag is pushed, code has passed 22 CI jobs. Re-running here is
+  # redundant and fragile (90 test files x dozens of deps = whack-a-mole).
+  # See: docs/plans/2026-03-31-publish-workflow-fix.md
   validate:
     name: Validate
     runs-on: ubuntu-latest
@@ -39,86 +41,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-pypi-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-pypi-
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Run clippy
-        run: cargo clippy -p ferroml-core -- -D warnings
-
-      - name: Run Rust tests
-        run: cargo test -p ferroml-core
-
-      - name: Create virtualenv and install dependencies
-        run: |
-          python -m venv .venv
-          source .venv/bin/activate
-          pip install maturin pytest numpy scipy typer rich
-
-      - name: Build and install for testing
-        working-directory: ${{ env.PACKAGE_DIR }}
-        run: |
-          source ../.venv/bin/activate
-          maturin develop --release
-
-      - name: Run Python tests
-        working-directory: ${{ env.PACKAGE_DIR }}
-        run: |
-          source ../.venv/bin/activate
-          pytest tests/ -v --tb=short \
-            --ignore-glob='tests/test_vs_*' \
-            --ignore-glob='tests/test_comparison_*' \
-            --ignore-glob='tests/test_statistical_*' \
-            --ignore-glob='tests/test_cross_library_*' \
-            --ignore-glob='tests/test_sparse_*' \
-            --ignore=tests/test_voting_stacking_correctness.py \
-            --ignore=tests/test_sklearn_compat.py \
-            --ignore=tests/test_performance_comparison.py \
-            --ignore=tests/test_text_pipeline.py \
-            --ignore=tests/test_tfidf_vectorizer.py \
-            --ignore=tests/test_metrics.py \
-            --ignore=tests/test_model_selection.py
-
       - name: Extract version from tag
         if: github.event_name == 'push'
         id: version
         run: |
           TAG=${GITHUB_REF#refs/tags/v}
           echo "version=$TAG" >> $GITHUB_OUTPUT
-          echo "Publishing version: $TAG"
 
-      - name: Verify version matches pyproject.toml
+      - name: Verify version matches pyproject.toml and Cargo.toml
         if: github.event_name == 'push'
         run: |
           PYPROJECT_VERSION=$(grep '^version' ${{ env.PACKAGE_DIR }}/pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           TAG_VERSION=${{ steps.version.outputs.version }}
           if [ "$PYPROJECT_VERSION" != "$TAG_VERSION" ]; then
-            echo "Error: Tag version ($TAG_VERSION) does not match pyproject.toml version ($PYPROJECT_VERSION)"
+            echo "::error::Tag ($TAG_VERSION) != pyproject.toml ($PYPROJECT_VERSION)"
             exit 1
           fi
-          echo "Version verified: $PYPROJECT_VERSION"
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag ($TAG_VERSION) != Cargo.toml ($CARGO_VERSION)"
+            exit 1
+          fi
+          echo "Version verified: $TAG_VERSION"
+
+      - name: Dry run skip
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "Workflow dispatch — skipping version check (no tag)"
 
   # Build Linux wheels (x86_64 and aarch64)
   build-linux:
@@ -317,13 +265,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Verify wheel installation
+      - name: Smoke test wheel
         run: |
-          # Install the Linux wheel for verification
           WHEEL=$(ls dist/*linux*x86_64*.whl 2>/dev/null | head -1)
           if [ -n "$WHEEL" ]; then
             pip install "$WHEEL"
-            python -c "import ferroml; print(f'FerroML imported successfully')"
+            python -c "import ferroml; print(f'FerroML {ferroml.__version__} imported successfully')"
+            python -c "from ferroml.linear import LinearRegression; print('LinearRegression OK')"
+            python -c "from ferroml.trees import RandomForestClassifier; print('RandomForestClassifier OK')"
+            python -c "from ferroml.preprocessing import StandardScaler; print('StandardScaler OK')"
             pip uninstall -y ferroml
           else
             echo "No compatible wheel found for verification"
