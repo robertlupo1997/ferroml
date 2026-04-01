@@ -25,9 +25,10 @@ class TestCLIEntryPoint:
         assert "ferroml" in result.stdout.lower()
 
     def test_version(self):
+        import ferroml
         result = run_cli("--version")
         assert result.returncode == 0
-        assert "ferroml" in result.stdout and any(v in result.stdout for v in ["1.0.", "1.1."])
+        assert ferroml.__version__ in result.stdout
 
     def test_no_args_shows_help(self):
         result = run_cli()
