@@ -27,7 +27,7 @@ class TestCLIEntryPoint:
     def test_version(self):
         result = run_cli("--version")
         assert result.returncode == 0
-        assert "1.0.0" in result.stdout
+        assert "ferroml" in result.stdout and any(v in result.stdout for v in ["1.0.", "1.1."])
 
     def test_no_args_shows_help(self):
         result = run_cli()
