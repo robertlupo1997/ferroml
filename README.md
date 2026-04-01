@@ -7,7 +7,7 @@
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v1.0.0** — 55+ ML algorithms, 6,500+ tests passing (4,364 Rust + 2,137 Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
+> **Status: v1.0.1** — 55+ ML algorithms, 6,500+ tests passing (4,364 Rust + 2,137 Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -113,6 +113,22 @@ X_tfidf = tfidf.fit_transform(X_counts)
 clf = MultinomialNB()
 clf.fit(X_tfidf, y)
 ```
+
+## Claude Code Plugin
+
+Use FerroML from natural language with the [FerroML Plugin for Claude Code](https://github.com/robertlupo1997/ferroml-plugin). Say "I have sales data, predict next month's revenue" and Claude handles data profiling, model selection, training, diagnostics, and reporting — all powered by FerroML under the hood.
+
+```bash
+# Install the plugin
+claude plugin add github:robertlupo1997/ferroml-plugin
+
+# Then just talk to Claude:
+> /ml sales_data.csv
+> /ml-compare customer_churn.csv
+> /ml-report boss
+```
+
+The plugin bundles 5 slash commands, an autonomous ML agent, and hooks that enforce diagnostic quality on every model. It calls FerroML's Python API directly — no MCP server or subprocess overhead. See the [plugin repo](https://github.com/robertlupo1997/ferroml-plugin) for full documentation.
 
 ## Architecture
 
