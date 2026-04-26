@@ -271,14 +271,8 @@ impl CrossValidator for TimeSeriesSplit {
 
             // Training set start depends on max_train_size
             let train_start = match self.max_train_size {
-                Some(max_size) => {
-                    if train_end > max_size {
-                        train_end - max_size
-                    } else {
-                        0
-                    }
-                }
-                None => 0, // Expanding window: always start from 0
+                Some(max_size) if train_end > max_size => train_end - max_size,
+                _ => 0, // Expanding window: always start from 0
             };
 
             // Validate we have at least 1 training sample

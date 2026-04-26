@@ -867,7 +867,7 @@ impl AlgorithmPortfolio {
     /// Get algorithms sorted by priority (highest first)
     pub fn sorted_by_priority(&self) -> Vec<&AlgorithmConfig> {
         let mut sorted: Vec<_> = self.algorithms.iter().collect();
-        sorted.sort_by(|a, b| b.priority.cmp(&a.priority));
+        sorted.sort_by_key(|a| std::cmp::Reverse(a.priority));
         sorted
     }
 

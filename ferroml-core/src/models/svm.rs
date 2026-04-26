@@ -189,11 +189,10 @@ impl KernelCache {
     fn with_byte_budget(kernel: Kernel, x: &Array2<f64>, budget_bytes: usize) -> Self {
         let n_samples = x.nrows();
         let bytes_per_row = n_samples * std::mem::size_of::<f64>();
-        let capacity_rows = if bytes_per_row > 0 {
-            (budget_bytes / bytes_per_row).max(2)
-        } else {
-            n_samples
-        };
+        let capacity_rows = budget_bytes
+            .checked_div(bytes_per_row)
+            .map(|d| d.max(2))
+            .unwrap_or(n_samples);
         Self::new(kernel, x, capacity_rows)
     }
 

@@ -613,7 +613,7 @@ impl HyperbandScheduler {
         let min_r = config.min_resource;
 
         // s_max = floor(log_eta(max_r / min_r))
-        let s_max = ((max_r as f64 / min_r as f64).log(eta).floor() as usize).max(0);
+        let s_max = (max_r as f64 / min_r as f64).log(eta).floor() as usize;
 
         let mut brackets = Vec::with_capacity(s_max + 1);
 
