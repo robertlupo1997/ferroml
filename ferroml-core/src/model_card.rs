@@ -1741,6 +1741,62 @@ impl HasModelCard for crate::models::sgd::PassiveAggressiveClassifier {
     }
 }
 
+use crate::automl::portfolio::AlgorithmType;
+
+/// Static model card for an AutoML portfolio algorithm.
+///
+/// Exhaustive by construction: adding an `AlgorithmType` variant without a
+/// card is a compile error.
+#[must_use]
+pub fn model_card_for_algorithm(algorithm: &AlgorithmType) -> ModelCard {
+    match algorithm {
+        AlgorithmType::LogisticRegression => crate::models::LogisticRegression::model_card(),
+        AlgorithmType::GaussianNB => crate::models::naive_bayes::GaussianNB::model_card(),
+        AlgorithmType::MultinomialNB => crate::models::naive_bayes::MultinomialNB::model_card(),
+        AlgorithmType::CategoricalNB => crate::models::naive_bayes::CategoricalNB::model_card(),
+        AlgorithmType::KNeighborsClassifier => {
+            crate::models::knn::KNeighborsClassifier::model_card()
+        }
+        AlgorithmType::SVC => crate::models::svm::SVC::model_card(),
+        AlgorithmType::LinearSVC => crate::models::svm::LinearSVC::model_card(),
+        AlgorithmType::DecisionTreeClassifier => {
+            crate::models::tree::DecisionTreeClassifier::model_card()
+        }
+        AlgorithmType::RandomForestClassifier => {
+            crate::models::forest::RandomForestClassifier::model_card()
+        }
+        AlgorithmType::GradientBoostingClassifier => {
+            crate::models::boosting::GradientBoostingClassifier::model_card()
+        }
+        AlgorithmType::HistGradientBoostingClassifier => {
+            crate::models::hist_boosting::HistGradientBoostingClassifier::model_card()
+        }
+        AlgorithmType::LinearRegression => crate::models::LinearRegression::model_card(),
+        AlgorithmType::Ridge => crate::models::RidgeRegression::model_card(),
+        AlgorithmType::Lasso => crate::models::LassoRegression::model_card(),
+        AlgorithmType::ElasticNet => crate::models::ElasticNet::model_card(),
+        AlgorithmType::QuantileRegression => {
+            crate::models::quantile::QuantileRegression::model_card()
+        }
+        AlgorithmType::RobustRegression => crate::models::robust::RobustRegression::model_card(),
+        AlgorithmType::KNeighborsRegressor => crate::models::knn::KNeighborsRegressor::model_card(),
+        AlgorithmType::SVR => crate::models::svm::SVR::model_card(),
+        AlgorithmType::LinearSVR => crate::models::svm::LinearSVR::model_card(),
+        AlgorithmType::DecisionTreeRegressor => {
+            crate::models::tree::DecisionTreeRegressor::model_card()
+        }
+        AlgorithmType::RandomForestRegressor => {
+            crate::models::forest::RandomForestRegressor::model_card()
+        }
+        AlgorithmType::GradientBoostingRegressor => {
+            crate::models::boosting::GradientBoostingRegressor::model_card()
+        }
+        AlgorithmType::HistGradientBoostingRegressor => {
+            crate::models::hist_boosting::HistGradientBoostingRegressor::model_card()
+        }
+    }
+}
+
 // =============================================================================
 // Tests
 // =============================================================================
@@ -1901,6 +1957,32 @@ mod tests {
                     card.name
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod automl_card_tests {
+    use super::*;
+    use crate::automl::portfolio::AlgorithmType;
+
+    #[test]
+    fn test_model_card_for_algorithm_returns_populated_cards() {
+        for alg in [
+            AlgorithmType::LogisticRegression,
+            AlgorithmType::GaussianNB,
+            AlgorithmType::RandomForestClassifier,
+            AlgorithmType::SVC,
+            AlgorithmType::LinearRegression,
+            AlgorithmType::HistGradientBoostingRegressor,
+        ] {
+            let card = model_card_for_algorithm(&alg);
+            assert!(!card.name.is_empty(), "{alg:?} card has empty name");
+            assert!(!card.strengths.is_empty(), "{alg:?} card has no strengths");
+            assert!(
+                !card.references.is_empty(),
+                "{alg:?} card has no references"
+            );
         }
     }
 }
