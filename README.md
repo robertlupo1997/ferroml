@@ -198,6 +198,58 @@ FerroML distinguishes itself through rigorous statistical methodology:
 - **Assumption Testing** — Normality, homoscedasticity, independence checks
 - **Effect Size Reporting** — Cohen's d, confidence intervals for differences
 
+## Intelligent Model Selection
+
+Most AutoML returns the leaderboard top-1 and calls it a day. FerroML computes
+corrected resampled t-tests (Nadeau-Bengio) between top models, applies
+multiple-testing correction, and then selects **the simplest model that is not
+statistically distinguishable from the best** — and shows you the evidence:
+
+```python
+from ferroml.automl import AutoML, AutoMLConfig
+
+config = AutoMLConfig(task="classification", metric="accuracy",
+                      time_budget_seconds=15, statistical_tests=True, seed=42)
+result = AutoML(config).fit(X, y)
+
+entry, rationale = result.statistically_best_model()
+print(rationale.explanation)
+
+print(result.benchmark_report())                  # honest Markdown benchmark report
+report = result.benchmark_report(format="json")   # machine-readable, schema_version 1
+card = result.model_card()                        # Markdown model card for the selected model
+```
+
+Real (excerpted) output from the run above — 420 trials on a 250 × 8 synthetic
+classification dataset:
+
+```text
+Multiple Linear SVC configurations are statistically indistinguishable at the
+top of the leaderboard (corrected p = 1.0000 vs the top-ranked one); the
+fastest-training configuration was selected.
+
+# AutoML Benchmark Report
+
+- **Task:** Classification · **Metric:** accuracy (higher is better) · **CV folds:** 5
+- **Dataset:** 250 samples × 8 features
+
+| Rank | Model      | CV mean | Std    | 95% CI           | Train time (s) |
+|------|------------|---------|--------|------------------|----------------|
+| 1    | Linear SVC | 0.7720  | 0.0390 | [0.7236, 0.8204] | 0.01           |
+| 2    | Linear SVC | 0.7720  | 0.0390 | [0.7236, 0.8204] | 0.01           |
+…and 410 more trials not shown (the JSON report contains the full leaderboard).
+
+**Conclusion:** no statistically significant difference was found between the
+top-ranked model and 9 competitor(s); these models are statistically
+indistinguishable on this dataset.
+```
+
+The report says "statistically indistinguishable" out loud when that is the
+truth — absence of significance is a result, not an embarrassment. When a
+simpler model class is within statistical reach of a more complex top scorer,
+the simpler model wins the selection; when the evidence says the complex model
+really is better, no downgrade happens.
+
 ## Examples
 
 Run the included examples:

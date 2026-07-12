@@ -64,11 +64,16 @@ publish**). ~150 lines of core Rust plus bindings and tests.
    P2 Ornith writeup. ~1 session, mostly writing.
 2. **MCP server** (`ferroml-mcp/`, FastMCP wrapping the CLI operations): on-narrative
    (Trey wired NetSuite→Claude MCP at work), ~1–2 sessions. Only if August has slack.
-3. **Hygiene track** (background, ideal Codex/Ornith fodder, no deadline):
+3. **v1.2 UX candidate** (observed in real P3 runs, 2026-07-12): short-budget AutoML
+   leaderboards are dominated by duplicate trials of one algorithm, so the top-10 table
+   repeats one row and the pairwise matrix compares an algorithm against itself. A
+   "by unique algorithm" leaderboard view (best trial per algorithm) would fix the
+   presentation without hiding trial counts. Out of P3 scope — do not build before Aug 29.
+4. **Hygiene track** (background, ideal Codex/Ornith fodder, no deadline):
    `clippy::unwrap_used` triage in `automl`/`cv`/`neural`/`hpo`/`metrics`; review the 5
    suppressed RustSec advisories; revisit the `ort` v2 RC pin when it goes stable;
    gitignore the local cruft (`graphify-out/`, `*.abi3.so`, `memory_profile_results.json`).
-4. **Explicitly dropped** (no career ROI before Sep 1, revisit only on real user demand):
+5. **Explicitly dropped** (no career ROI before Sep 1, revisit only on real user demand):
    mkdocs documentation site, Hacker News launch, Kaggle notebook, conda-forge, JMLR
    paper, sklearn migration guide, meta-learning selection v2 (`recommend.rs` upgrade).
 
