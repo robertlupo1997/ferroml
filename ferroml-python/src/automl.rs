@@ -14,7 +14,6 @@
 //! a copy is made. See `crate::array_utils` for detailed documentation.
 
 use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
-#[allow(unused_imports)] // Consumed by the Task 7 bindings in the next commit.
 use ferroml_core::{
     automl::{self, AlgorithmType, EnsembleResult, ParamValue, ReportFormat, SelectionRationale},
     model_card::ModelCardGenerator,
@@ -716,6 +715,26 @@ impl PyAutoMLResult {
             }
             list
         })
+    }
+
+    /// Render an honest benchmark report ("markdown" or "json").
+    #[pyo3(signature = (format = "markdown"))]
+    fn benchmark_report(&self, format: &str) -> PyResult<String> {
+        let fmt = match format {
+            "markdown" => ReportFormat::Markdown,
+            "json" => ReportFormat::Json,
+            other => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "format must be 'markdown' or 'json', got '{other}'"
+                )))
+            }
+        };
+        Ok(self.inner.render_benchmark_report(fmt))
+    }
+
+    /// Markdown model card for the statistically selected model.
+    fn model_card(&self) -> PyResult<String> {
+        ModelCardGenerator::from_automl_result(&self.inner).map_err(crate::errors::ferro_to_pyerr)
     }
 
     /// Get models that are statistically competitive with the best.
