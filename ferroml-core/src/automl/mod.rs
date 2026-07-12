@@ -61,7 +61,7 @@ pub mod warmstart;
 
 pub use fit::{
     AggregatedFeatureImportance, AutoMLResult, LeaderboardEntry, ModelComparisonResults,
-    ModelFeatureImportance, ModelStatistics, PairwiseComparison,
+    ModelFeatureImportance, ModelStatistics, PairwiseComparison, SelectionRationale,
 };
 
 pub use portfolio::{

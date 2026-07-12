@@ -47,8 +47,9 @@
 //! ```
 
 use crate::automl::{
-    AlgorithmConfig, AlgorithmPortfolio, AlgorithmType, DataCharacteristics, EnsembleBuilder,
-    EnsembleConfig, EnsembleResult, ParamValue, TimeBudgetAllocator, TimeBudgetConfig, TrialResult,
+    AlgorithmComplexity, AlgorithmConfig, AlgorithmPortfolio, AlgorithmType, DataCharacteristics,
+    EnsembleBuilder, EnsembleConfig, EnsembleResult, ParamValue, TimeBudgetAllocator,
+    TimeBudgetConfig, TrialResult,
 };
 use crate::cv::{CVFold, CrossValidator, StratifiedKFold};
 use crate::metrics::regression::mape;
@@ -228,6 +229,84 @@ impl AutoMLResult {
             .iter()
             .filter(|e| competitive_ids.contains(&e.trial_id))
             .collect()
+    }
+
+    /// Select the simplest model that is not statistically distinguishable
+    /// from the leaderboard top-1, together with the evidence for that choice.
+    ///
+    /// Selection rule: among [`Self::competitive_models`] (the top-1 plus every
+    /// model whose corrected pairwise test vs the top-1 is non-significant),
+    /// pick the lowest [`AlgorithmComplexity`]; break ties by shorter training
+    /// time. Falls back to the top-1 when no comparisons were computed.
+    #[must_use]
+    pub fn statistically_best_model(&self) -> Option<(&LeaderboardEntry, SelectionRationale)> {
+        let top = self.best_model()?;
+        let competitive = self.competitive_models();
+        let selected = competitive.iter().copied().min_by(|a, b| {
+            a.algorithm
+                .complexity()
+                .cmp(&b.algorithm.complexity())
+                .then(
+                    a.training_time_seconds
+                        .partial_cmp(&b.training_time_seconds)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                )
+        })?;
+
+        let p_value_vs_top = if selected.trial_id == top.trial_id {
+            None
+        } else {
+            self.model_comparisons.as_ref().and_then(|c| {
+                c.pairwise_comparisons
+                    .iter()
+                    .find(|p| {
+                        (p.trial_id_1 == top.trial_id && p.trial_id_2 == selected.trial_id)
+                            || (p.trial_id_2 == top.trial_id && p.trial_id_1 == selected.trial_id)
+                    })
+                    .map(|p| p.p_value_corrected)
+            })
+        };
+
+        let correction_method = self
+            .model_comparisons
+            .as_ref()
+            .map_or_else(|| "none".to_string(), |c| c.correction_method.clone());
+
+        let explanation = if selected.trial_id == top.trial_id {
+            format!(
+                "{} is the top-ranked model and no simpler statistically \
+                 competitive alternative exists.",
+                selected.algorithm.name()
+            )
+        } else {
+            let p_text = p_value_vs_top.map_or_else(|| "n/a".to_string(), |p| format!("{p:.4}"));
+            format!(
+                "{} was selected over top-ranked {} because it is not statistically \
+                 distinguishable from it (corrected p = {p_text}) and is a simpler \
+                 model class.",
+                selected.algorithm.name(),
+                top.algorithm.name(),
+            )
+        };
+
+        let rationale = SelectionRationale {
+            selected_trial_id: selected.trial_id,
+            selected_algorithm: selected.algorithm.name().to_string(),
+            selected_score: selected.cv_score,
+            selected_std: selected.cv_std,
+            selected_ci: (selected.ci_lower, selected.ci_upper),
+            selected_complexity: selected.algorithm.complexity(),
+            top_trial_id: top.trial_id,
+            top_algorithm: top.algorithm.name().to_string(),
+            top_score: top.cv_score,
+            top_std: top.cv_std,
+            top_complexity: top.algorithm.complexity(),
+            p_value_vs_top,
+            n_competitive: competitive.len(),
+            correction_method,
+            explanation,
+        };
+        Some((selected, rationale))
     }
 
     /// Check if a specific model is significantly different from another
@@ -412,6 +491,45 @@ pub struct ModelStatistics {
     pub n_folds: usize,
     /// Per-fold scores
     pub fold_scores: Vec<f64>,
+}
+
+/// Evidence for why `statistically_best_model()` chose a model.
+///
+/// The rationale is the product: "the simplest model not statistically
+/// distinguishable from the best" plus the numbers that prove it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SelectionRationale {
+    /// Trial ID of the selected model
+    pub selected_trial_id: usize,
+    /// Algorithm name of the selected model
+    pub selected_algorithm: String,
+    /// CV score (mean) of the selected model
+    pub selected_score: f64,
+    /// CV score standard deviation of the selected model
+    pub selected_std: f64,
+    /// 95% CI of the selected model's CV score
+    pub selected_ci: (f64, f64),
+    /// Complexity class of the selected model
+    pub selected_complexity: AlgorithmComplexity,
+    /// Trial ID of the leaderboard top-1
+    pub top_trial_id: usize,
+    /// Algorithm name of the leaderboard top-1
+    pub top_algorithm: String,
+    /// CV score (mean) of the top-1
+    pub top_score: f64,
+    /// CV score standard deviation of the top-1
+    pub top_std: f64,
+    /// Complexity class of the top-1
+    pub top_complexity: AlgorithmComplexity,
+    /// Corrected p-value of the pairwise test vs the top-1
+    /// (`None` when selected == top-1, or no comparison exists)
+    pub p_value_vs_top: Option<f64>,
+    /// Number of models statistically competitive with the top-1
+    pub n_competitive: usize,
+    /// Multiple-testing correction method used ("none" when unavailable)
+    pub correction_method: String,
+    /// One-sentence human-readable explanation
+    pub explanation: String,
 }
 
 /// Aggregated feature importance across all successful models
@@ -1556,6 +1674,205 @@ mod tests {
     use super::*;
     use crate::AutoMLConfig;
     use ndarray::array;
+
+    fn lb_entry(
+        rank: usize,
+        trial_id: usize,
+        algorithm: AlgorithmType,
+        cv_score: f64,
+        training_time_seconds: f64,
+    ) -> LeaderboardEntry {
+        LeaderboardEntry {
+            rank,
+            trial_id,
+            algorithm,
+            cv_score,
+            cv_std: 0.01,
+            ci_lower: cv_score - 0.02,
+            ci_upper: cv_score + 0.02,
+            training_time_seconds,
+            params: HashMap::new(),
+        }
+    }
+
+    fn pairwise_vs_best(
+        best_id: usize,
+        other_id: usize,
+        best_name: &str,
+        other_name: &str,
+        p_corrected: f64,
+        significant_corrected: bool,
+    ) -> PairwiseComparison {
+        PairwiseComparison {
+            trial_id_1: best_id, // models_competitive_with_best() keys on trial_id_1
+            trial_id_2: other_id,
+            model1_name: best_name.to_string(),
+            model2_name: other_name.to_string(),
+            test_name: "Corrected Resampled t-test".to_string(),
+            mean_difference: 0.01,
+            std_error: 0.01,
+            statistic: 1.0,
+            p_value: p_corrected / 2.0,
+            p_value_corrected: p_corrected,
+            ci_lower: -0.01,
+            ci_upper: 0.03,
+            significant: significant_corrected,
+            significant_corrected,
+        }
+    }
+
+    fn synthetic_result(
+        leaderboard: Vec<LeaderboardEntry>,
+        model_comparisons: Option<ModelComparisonResults>,
+    ) -> AutoMLResult {
+        let n = leaderboard.len();
+        AutoMLResult {
+            trials: vec![],
+            leaderboard,
+            ensemble: None,
+            total_time_seconds: 1.0,
+            n_successful_trials: n,
+            n_failed_trials: 0,
+            task: Task::Classification,
+            metric_name: "accuracy".to_string(),
+            maximize: true,
+            data_characteristics: DataCharacteristics {
+                n_samples: 100,
+                n_features: 2,
+                n_classes: 2,
+                has_missing_values: false,
+                has_categorical: false,
+                feature_variance_ratio: 1.0,
+                class_imbalance_ratio: 1.0,
+                is_regression: false,
+            },
+            cv_folds: 5,
+            best_model_stats: None,
+            aggregated_importance: None,
+            model_comparisons,
+        }
+    }
+
+    fn comparisons(pairs: Vec<PairwiseComparison>) -> ModelComparisonResults {
+        let n_worse = pairs.iter().filter(|p| p.significant_corrected).count();
+        ModelComparisonResults {
+            best_is_significantly_better: pairs.iter().all(|p| p.significant_corrected),
+            n_significantly_worse: n_worse,
+            corrected_alpha: 0.05,
+            correction_method: "Holm-Bonferroni".to_string(),
+            pairwise_comparisons: pairs,
+        }
+    }
+
+    #[test]
+    fn test_selects_simpler_noninferior_model() {
+        // SVC tops the leaderboard, LogisticRegression (Low complexity) is
+        // statistically indistinguishable -> selection must prefer the simpler model.
+        let result = synthetic_result(
+            vec![
+                lb_entry(1, 0, AlgorithmType::SVC, 0.95, 10.0),
+                lb_entry(2, 1, AlgorithmType::LogisticRegression, 0.94, 0.5),
+            ],
+            Some(comparisons(vec![pairwise_vs_best(
+                0,
+                1,
+                "SVC",
+                "LogisticRegression",
+                0.40,
+                false,
+            )])),
+        );
+        let (selected, rationale) = result.statistically_best_model().unwrap();
+        assert_eq!(
+            selected.trial_id, 1,
+            "must pick the simpler non-inferior model"
+        );
+        assert_eq!(rationale.selected_algorithm, "Logistic Regression"); // name(), human-readable
+        assert_eq!(rationale.top_algorithm, "Support Vector Classifier");
+        assert_eq!(rationale.p_value_vs_top, Some(0.40));
+        assert!(rationale
+            .explanation
+            .contains("not statistically distinguishable"));
+    }
+
+    #[test]
+    fn test_keeps_top_when_simpler_is_significantly_worse() {
+        let result = synthetic_result(
+            vec![
+                lb_entry(1, 0, AlgorithmType::SVC, 0.95, 10.0),
+                lb_entry(2, 1, AlgorithmType::LogisticRegression, 0.80, 0.5),
+            ],
+            Some(comparisons(vec![pairwise_vs_best(
+                0,
+                1,
+                "SVC",
+                "LogisticRegression",
+                0.001,
+                true,
+            )])),
+        );
+        let (selected, rationale) = result.statistically_best_model().unwrap();
+        assert_eq!(
+            selected.trial_id, 0,
+            "significantly-worse model must NOT be chosen"
+        );
+        assert!(rationale.p_value_vs_top.is_none()); // selected == top: no test vs itself
+    }
+
+    #[test]
+    fn test_single_model_degenerate_case() {
+        let result = synthetic_result(
+            vec![lb_entry(1, 0, AlgorithmType::LogisticRegression, 0.9, 0.5)],
+            None,
+        );
+        let (selected, rationale) = result.statistically_best_model().unwrap();
+        assert_eq!(selected.trial_id, 0);
+        assert_eq!(rationale.correction_method, "none");
+        assert!(result.statistically_best_model().is_some());
+
+        let empty = synthetic_result(vec![], None);
+        assert!(empty.statistically_best_model().is_none());
+    }
+
+    #[test]
+    fn test_no_comparisons_falls_back_to_top() {
+        // Two models but statistical tests were disabled -> only top is competitive.
+        let result = synthetic_result(
+            vec![
+                lb_entry(1, 0, AlgorithmType::SVC, 0.95, 10.0),
+                lb_entry(2, 1, AlgorithmType::LogisticRegression, 0.94, 0.5),
+            ],
+            None,
+        );
+        let (selected, _) = result.statistically_best_model().unwrap();
+        assert_eq!(
+            selected.trial_id, 0,
+            "without evidence, do not downgrade from top-1"
+        );
+    }
+
+    #[test]
+    fn test_selection_invariant_to_leaderboard_permutation() {
+        // Selection is keyed on trial IDs + (complexity, time), so permuting the
+        // leaderboard vec must not change WHICH model is selected.
+        let pairs = vec![
+            pairwise_vs_best(0, 1, "SVC", "LogisticRegression", 0.40, false),
+            pairwise_vs_best(0, 2, "SVC", "GaussianNB", 0.60, false),
+        ];
+        let entries = vec![
+            lb_entry(1, 0, AlgorithmType::SVC, 0.95, 10.0),
+            lb_entry(2, 1, AlgorithmType::LogisticRegression, 0.94, 0.5),
+            lb_entry(3, 2, AlgorithmType::GaussianNB, 0.93, 0.2),
+        ];
+        let forward = synthetic_result(entries.clone(), Some(comparisons(pairs.clone())));
+        let mut reversed_entries = entries;
+        reversed_entries.reverse();
+        let reversed = synthetic_result(reversed_entries, Some(comparisons(pairs)));
+
+        let (a, _) = forward.statistically_best_model().unwrap();
+        let (b, _) = reversed.statistically_best_model().unwrap();
+        assert_eq!(a.trial_id, b.trial_id);
+    }
 
     fn create_classification_data() -> (Array2<f64>, Array1<f64>) {
         // Simple linearly separable data
