@@ -57,6 +57,7 @@ AutoMLConfig = _native.automl.AutoMLConfig
 AutoML = _native.automl.AutoML
 AutoMLResult = _native.automl.AutoMLResult
 LeaderboardEntry = _native.automl.LeaderboardEntry
+SelectionRationale = _native.automl.SelectionRationale
 EnsembleResult = _native.automl.EnsembleResult
 EnsembleMember = _native.automl.EnsembleMember
 
@@ -65,6 +66,7 @@ __all__ = [
     "AutoML",
     "AutoMLResult",
     "LeaderboardEntry",
+    "SelectionRationale",
     "EnsembleResult",
     "EnsembleMember",
 ]

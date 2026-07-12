@@ -322,3 +322,51 @@ class TestErrorHandling:
         y = np.random.randn(50)
         with pytest.raises(Exception):
             AutoML(_clf_config()).fit(X, y)
+
+
+@pytest.mark.slow
+class TestIntelligentSelection:
+    """P3: statistically-grounded selection, honest reporting, model cards."""
+
+    def _fit(self):
+        X, y = make_classification_data()
+        config = _clf_config()
+        automl = AutoML(config)
+        result = automl.fit(X, y)
+        assert result.is_successful()
+        return result
+
+    def test_statistically_best_model_returns_entry_and_rationale(self):
+        result = self._fit()
+        selection = result.statistically_best_model()
+        assert selection is not None
+        entry, rationale = selection
+        assert rationale.explanation
+        assert rationale.selected_algorithm
+        assert rationale.n_competitive >= 1
+        assert rationale.correction_method
+        assert 0.0 <= rationale.selected_score <= 1.0
+        assert entry.cv_score == pytest.approx(rationale.selected_score)
+
+    def test_benchmark_report_markdown_and_json(self):
+        result = self._fit()
+        md = result.benchmark_report()
+        assert "# AutoML Benchmark Report" in md
+        assert "## Leaderboard" in md
+
+        import json
+
+        report = json.loads(result.benchmark_report(format="json"))
+        assert report["schema_version"] == 1
+        assert len(report["leaderboard"]) >= 1
+        assert report["selection"] is not None
+
+        with pytest.raises(ValueError):
+            result.benchmark_report(format="xml")
+
+    def test_model_card_renders_markdown(self):
+        result = self._fit()
+        card = result.model_card()
+        assert card.startswith("# Model Card:")
+        assert "## Why this model" in card
+        assert "## Performance (this run)" in card
