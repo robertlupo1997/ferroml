@@ -309,6 +309,153 @@ impl AutoMLResult {
         Some((selected, rationale))
     }
 
+    /// Render an honest benchmark report of this AutoML run.
+    ///
+    /// The report states plainly when models are statistically
+    /// indistinguishable — absence of significance is reported as a result,
+    /// not hidden.
+    #[must_use]
+    pub fn render_benchmark_report(&self, format: ReportFormat) -> String {
+        match format {
+            ReportFormat::Markdown => self.benchmark_report_markdown(),
+            ReportFormat::Json => self.benchmark_report_json(),
+        }
+    }
+
+    fn benchmark_report_markdown(&self) -> String {
+        let mut md = String::new();
+        md.push_str("# AutoML Benchmark Report\n\n");
+        md.push_str(&format!(
+            "- **Task:** {:?} · **Metric:** {} ({}) · **CV folds:** {}\n",
+            self.task,
+            self.metric_name,
+            if self.maximize {
+                "higher is better"
+            } else {
+                "lower is better"
+            },
+            self.cv_folds
+        ));
+        md.push_str(&format!(
+            "- **Dataset:** {} samples × {} features\n",
+            self.data_characteristics.n_samples, self.data_characteristics.n_features
+        ));
+        md.push_str(&format!(
+            "- **Trials:** {} succeeded, {} failed · **Total time:** {:.1}s\n\n",
+            self.n_successful_trials, self.n_failed_trials, self.total_time_seconds
+        ));
+
+        md.push_str("## Leaderboard\n\n");
+        md.push_str("| Rank | Model | CV mean | Std | 95% CI | Train time (s) |\n");
+        md.push_str("|---|---|---|---|---|---|\n");
+        for e in &self.leaderboard {
+            md.push_str(&format!(
+                "| {} | {} | {:.4} | {:.4} | [{:.4}, {:.4}] | {:.2} |\n",
+                e.rank,
+                e.algorithm.name(),
+                e.cv_score,
+                e.cv_std,
+                e.ci_lower,
+                e.ci_upper,
+                e.training_time_seconds
+            ));
+        }
+        md.push('\n');
+
+        md.push_str("## Pairwise significance\n\n");
+        match &self.model_comparisons {
+            None => md.push_str(
+                "No statistical comparisons were computed for this run \
+                 (statistical tests disabled or fewer than two successful models).\n\n",
+            ),
+            Some(c) => {
+                md.push_str(&format!(
+                    "Corrected resampled t-tests with {} correction (corrected α = {:.4}).\n\n",
+                    c.correction_method, c.corrected_alpha
+                ));
+                md.push_str("| Model A | Model B | Δ mean | p (corrected) | Significant? |\n");
+                md.push_str("|---|---|---|---|---|\n");
+                for p in &c.pairwise_comparisons {
+                    md.push_str(&format!(
+                        "| {} | {} | {:+.4} | {:.4} | {} |\n",
+                        p.model1_name,
+                        p.model2_name,
+                        p.mean_difference,
+                        p.p_value_corrected,
+                        if p.significant_corrected { "yes" } else { "no" }
+                    ));
+                }
+                md.push('\n');
+                let n_indistinguishable = c
+                    .pairwise_comparisons
+                    .iter()
+                    .filter(|p| !p.significant_corrected)
+                    .count();
+                if n_indistinguishable > 0 {
+                    md.push_str(&format!(
+                        "**Conclusion:** no statistically significant difference was found \
+                         between the top-ranked model and {n_indistinguishable} \
+                         competitor(s); these models are statistically indistinguishable \
+                         on this dataset.\n\n"
+                    ));
+                } else {
+                    md.push_str(
+                        "**Conclusion:** the top-ranked model is statistically \
+                         distinguishable from every competitor after correction.\n\n",
+                    );
+                }
+            }
+        }
+
+        md.push_str("## Selection\n\n");
+        match self.statistically_best_model() {
+            Some((_, rationale)) => {
+                md.push_str(&rationale.explanation);
+                md.push('\n');
+            }
+            None => md.push_str("No successful models — nothing to select.\n"),
+        }
+        md
+    }
+
+    fn benchmark_report_json(&self) -> String {
+        let selection = self
+            .statistically_best_model()
+            .map(|(_, r)| serde_json::to_value(&r).unwrap_or(serde_json::Value::Null));
+        let report = serde_json::json!({
+            "schema_version": 1,
+            "task": format!("{:?}", self.task),
+            "metric": { "name": self.metric_name, "maximize": self.maximize },
+            "cv_folds": self.cv_folds,
+            "dataset": {
+                "n_samples": self.data_characteristics.n_samples,
+                "n_features": self.data_characteristics.n_features,
+            },
+            "total_time_seconds": self.total_time_seconds,
+            "leaderboard": self.leaderboard.iter().map(|e| serde_json::json!({
+                "rank": e.rank,
+                "model": e.algorithm.name(),
+                "cv_mean": e.cv_score,
+                "cv_std": e.cv_std,
+                "ci_95": [e.ci_lower, e.ci_upper],
+                "training_time_seconds": e.training_time_seconds,
+            })).collect::<Vec<_>>(),
+            "comparisons": self.model_comparisons.as_ref().map(|c| serde_json::json!({
+                "correction_method": c.correction_method,
+                "corrected_alpha": c.corrected_alpha,
+                "pairwise": c.pairwise_comparisons.iter().map(|p| serde_json::json!({
+                    "model_a": p.model1_name,
+                    "model_b": p.model2_name,
+                    "mean_difference": p.mean_difference,
+                    "p_value_corrected": p.p_value_corrected,
+                    "significant_corrected": p.significant_corrected,
+                })).collect::<Vec<_>>(),
+            })),
+            "selection": selection,
+        });
+        serde_json::to_string_pretty(&report).unwrap_or_else(|_| "{}".to_string())
+    }
+
     /// Check if a specific model is significantly different from another
     #[must_use]
     pub fn models_significantly_different(&self, trial_id_1: usize, trial_id_2: usize) -> bool {
@@ -530,6 +677,15 @@ pub struct SelectionRationale {
     pub correction_method: String,
     /// One-sentence human-readable explanation
     pub explanation: String,
+}
+
+/// Output format for [`AutoMLResult::render_benchmark_report`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReportFormat {
+    /// Human-readable Markdown
+    Markdown,
+    /// Machine-readable JSON (schema_version 1)
+    Json,
 }
 
 /// Aggregated feature importance across all successful models
@@ -2416,5 +2572,126 @@ mod tests {
         for &pred in predictions.iter() {
             assert!(pred.is_finite());
         }
+    }
+
+    #[test]
+    fn test_benchmark_report_markdown_sections() {
+        let result = synthetic_result(
+            vec![
+                lb_entry(1, 0, AlgorithmType::SVC, 0.95, 10.0),
+                lb_entry(2, 1, AlgorithmType::LogisticRegression, 0.94, 0.5),
+            ],
+            Some(comparisons(vec![pairwise_vs_best(
+                0,
+                1,
+                "SVC",
+                "LogisticRegression",
+                0.40,
+                false,
+            )])),
+        );
+        let md = result.render_benchmark_report(ReportFormat::Markdown);
+        assert!(md.contains("# AutoML Benchmark Report"));
+        assert!(md.contains("## Leaderboard"));
+        assert!(md.contains("## Pairwise significance"));
+        assert!(md.contains("## Selection"));
+        assert!(md.contains("SVC"));
+        assert!(md.contains("LogisticRegression"));
+        assert!(md.contains("Holm-Bonferroni"));
+    }
+
+    #[test]
+    fn test_benchmark_report_states_indistinguishable_honestly() {
+        let result = synthetic_result(
+            vec![
+                lb_entry(1, 0, AlgorithmType::SVC, 0.95, 10.0),
+                lb_entry(2, 1, AlgorithmType::LogisticRegression, 0.94, 0.5),
+            ],
+            Some(comparisons(vec![pairwise_vs_best(
+                0,
+                1,
+                "SVC",
+                "LogisticRegression",
+                0.40,
+                false,
+            )])),
+        );
+        let md = result.render_benchmark_report(ReportFormat::Markdown);
+        assert!(
+            md.contains("statistically indistinguishable"),
+            "the report must say plainly when models cannot be told apart"
+        );
+    }
+
+    #[test]
+    fn test_benchmark_report_states_significance() {
+        let result = synthetic_result(
+            vec![
+                lb_entry(1, 0, AlgorithmType::SVC, 0.95, 10.0),
+                lb_entry(2, 1, AlgorithmType::LogisticRegression, 0.80, 0.5),
+            ],
+            Some(comparisons(vec![pairwise_vs_best(
+                0,
+                1,
+                "SVC",
+                "LogisticRegression",
+                0.001,
+                true,
+            )])),
+        );
+        let md = result.render_benchmark_report(ReportFormat::Markdown);
+        assert!(md.contains("statistically distinguishable"));
+    }
+
+    #[test]
+    fn test_benchmark_report_no_comparisons() {
+        let result = synthetic_result(
+            vec![lb_entry(1, 0, AlgorithmType::LogisticRegression, 0.9, 0.5)],
+            None,
+        );
+        let md = result.render_benchmark_report(ReportFormat::Markdown);
+        assert!(md.contains("No statistical comparisons were computed"));
+    }
+
+    #[test]
+    fn test_benchmark_report_json_schema_stable() {
+        let result = synthetic_result(
+            vec![
+                lb_entry(1, 0, AlgorithmType::SVC, 0.95, 10.0),
+                lb_entry(2, 1, AlgorithmType::LogisticRegression, 0.94, 0.5),
+            ],
+            Some(comparisons(vec![pairwise_vs_best(
+                0,
+                1,
+                "SVC",
+                "LogisticRegression",
+                0.40,
+                false,
+            )])),
+        );
+        let json = result.render_benchmark_report(ReportFormat::Json);
+        let v: serde_json::Value = serde_json::from_str(&json).expect("report must be valid JSON");
+        assert_eq!(v["schema_version"], 1);
+        assert_eq!(v["leaderboard"].as_array().unwrap().len(), 2);
+        assert_eq!(v["leaderboard"][0]["model"], "Support Vector Classifier"); // name(), human-readable
+        assert_eq!(v["metric"]["name"], "accuracy");
+        assert_eq!(v["comparisons"]["correction_method"], "Holm-Bonferroni");
+        assert_eq!(v["selection"]["selected_algorithm"], "Logistic Regression"); // name(), human-readable
+                                                                                 // schema stability: exactly these top-level keys
+        let keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(
+            keys,
+            vec![
+                "comparisons",
+                "cv_folds",
+                "dataset",
+                "leaderboard",
+                "metric",
+                "schema_version",
+                "selection",
+                "task",
+                "total_time_seconds",
+            ]
+        );
     }
 }
