@@ -24,6 +24,15 @@ ignore = [
     "RUSTSEC-2021-0153",
     # Transitive dependency via polars-arrow, no fix available yet
     "RUSTSEC-2026-0049",
+    # pyo3 0.24 OOB read in PyList/PyTuple iter nth/nth_back + missing Sync bound
+    # on new_closure; fix requires pyo3 >=0.29 — tracked as the top hygiene item
+    # (north-star §3.2), migration too large to gate the v1.1.0 release
+    "RUSTSEC-2026-0176",
+    "RUSTSEC-2026-0177",
+    # quick-xml <0.41 quadratic attr check + NsReader allocation DoS; transitive
+    # via polars, parent pins <0.41 — no compatible fix available yet
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
 ]
 
 # ============================================================

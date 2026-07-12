@@ -70,9 +70,12 @@ publish**). ~150 lines of core Rust plus bindings and tests.
    "by unique algorithm" leaderboard view (best trial per algorithm) would fix the
    presentation without hiding trial counts. Out of P3 scope — do not build before Aug 29.
 4. **Hygiene track** (background, ideal Codex/Ornith fodder, no deadline):
-   `clippy::unwrap_used` triage in `automl`/`cv`/`neural`/`hpo`/`metrics`; review the 5
-   suppressed RustSec advisories; revisit the `ort` v2 RC pin when it goes stable;
-   gitignore the local cruft (`graphify-out/`, `*.abi3.so`, `memory_profile_results.json`).
+   **pyo3 0.24→0.29 migration is the top item** — RUSTSEC-2026-0176/0177 are suppressed
+   in deny.toml + ci.yml until it lands (added 2026-07-12; quick-xml 0194/0195 wait on
+   polars); `clippy::unwrap_used` triage in `automl`/`cv`/`neural`/`hpo`/`metrics`;
+   review the other suppressed RustSec advisories; revisit the `ort` v2 RC pin when it
+   goes stable; recreate `.venv` (stale shebangs from the repo move); gitignore the
+   local cruft (`graphify-out/`, `*.abi3.so`, `memory_profile_results.json`).
 5. **Explicitly dropped** (no career ROI before Sep 1, revisit only on real user demand):
    mkdocs documentation site, Hacker News launch, Kaggle notebook, conda-forge, JMLR
    paper, sklearn migration guide, meta-learning selection v2 (`recommend.rs` upgrade).
