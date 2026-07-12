@@ -280,7 +280,14 @@ impl AutoMLResult {
             )
         } else {
             let p_text = p_value_vs_top.map_or_else(|| "n/a".to_string(), |p| format!("{p:.4}"));
-            if selected.algorithm.complexity() == top.algorithm.complexity() {
+            if selected.algorithm == top.algorithm {
+                format!(
+                    "Multiple {} configurations are statistically indistinguishable at \
+                     the top of the leaderboard (corrected p = {p_text} vs the top-ranked \
+                     one); the fastest-training configuration was selected.",
+                    selected.algorithm.name(),
+                )
+            } else if selected.algorithm.complexity() == top.algorithm.complexity() {
                 format!(
                     "{} was selected over top-ranked {} because it is not statistically \
                      distinguishable from it (corrected p = {p_text}) and trains faster \
@@ -2027,9 +2034,9 @@ mod tests {
     }
 
     #[test]
-    fn test_explanation_for_equal_complexity_tiebreak() {
-        // Two trials of the SAME algorithm: equal complexity, tie broken by
-        // training time. The explanation must NOT claim "simpler model class".
+    fn test_explanation_for_same_algorithm_duplicate_trials() {
+        // Two trials of the SAME algorithm: the explanation must talk about
+        // configurations, never "X was selected over top-ranked X".
         let result = synthetic_result(
             vec![
                 lb_entry(1, 0, AlgorithmType::LogisticRegression, 0.95, 5.0),
@@ -2040,6 +2047,33 @@ mod tests {
                 1,
                 "LogisticRegression",
                 "LogisticRegression",
+                0.40,
+                false,
+            )])),
+        );
+        let (selected, rationale) = result.statistically_best_model().unwrap();
+        assert_eq!(selected.trial_id, 1, "tie-break must pick the faster trial");
+        assert!(rationale.explanation.contains("configurations"));
+        assert!(rationale.explanation.contains("fastest-training"));
+        assert!(!rationale
+            .explanation
+            .contains("was selected over top-ranked"));
+    }
+
+    #[test]
+    fn test_explanation_for_equal_complexity_tiebreak() {
+        // Different algorithms with EQUAL complexity (both Low): tie broken by
+        // training time. The explanation must NOT claim "simpler model class".
+        let result = synthetic_result(
+            vec![
+                lb_entry(1, 0, AlgorithmType::LogisticRegression, 0.95, 5.0),
+                lb_entry(2, 1, AlgorithmType::GaussianNB, 0.94, 0.5),
+            ],
+            Some(comparisons(vec![pairwise_vs_best(
+                0,
+                1,
+                "LogisticRegression",
+                "GaussianNB",
                 0.40,
                 false,
             )])),
