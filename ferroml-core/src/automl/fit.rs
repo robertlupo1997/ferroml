@@ -280,13 +280,25 @@ impl AutoMLResult {
             )
         } else {
             let p_text = p_value_vs_top.map_or_else(|| "n/a".to_string(), |p| format!("{p:.4}"));
-            format!(
-                "{} was selected over top-ranked {} because it is not statistically \
-                 distinguishable from it (corrected p = {p_text}) and is a simpler \
-                 model class.",
-                selected.algorithm.name(),
-                top.algorithm.name(),
-            )
+            if selected.algorithm.complexity() == top.algorithm.complexity() {
+                format!(
+                    "{} was selected over top-ranked {} because it is not statistically \
+                     distinguishable from it (corrected p = {p_text}) and trains faster \
+                     ({:.2}s vs {:.2}s).",
+                    selected.algorithm.name(),
+                    top.algorithm.name(),
+                    selected.training_time_seconds,
+                    top.training_time_seconds,
+                )
+            } else {
+                format!(
+                    "{} was selected over top-ranked {} because it is not statistically \
+                     distinguishable from it (corrected p = {p_text}) and is a simpler \
+                     model class.",
+                    selected.algorithm.name(),
+                    top.algorithm.name(),
+                )
+            }
         };
 
         let rationale = SelectionRationale {
@@ -348,7 +360,8 @@ impl AutoMLResult {
         md.push_str("## Leaderboard\n\n");
         md.push_str("| Rank | Model | CV mean | Std | 95% CI | Train time (s) |\n");
         md.push_str("|---|---|---|---|---|---|\n");
-        for e in &self.leaderboard {
+        const LEADERBOARD_DISPLAY_CAP: usize = 10;
+        for e in self.leaderboard.iter().take(LEADERBOARD_DISPLAY_CAP) {
             md.push_str(&format!(
                 "| {} | {} | {:.4} | {:.4} | [{:.4}, {:.4}] | {:.2} |\n",
                 e.rank,
@@ -358,6 +371,12 @@ impl AutoMLResult {
                 e.ci_lower,
                 e.ci_upper,
                 e.training_time_seconds
+            ));
+        }
+        if self.leaderboard.len() > LEADERBOARD_DISPLAY_CAP {
+            md.push_str(&format!(
+                "\n_…and {} more trials not shown (the JSON report contains the full leaderboard)._\n",
+                self.leaderboard.len() - LEADERBOARD_DISPLAY_CAP
             ));
         }
         md.push('\n');
@@ -2004,6 +2023,56 @@ mod tests {
         assert_eq!(
             selected.trial_id, 0,
             "without evidence, do not downgrade from top-1"
+        );
+    }
+
+    #[test]
+    fn test_explanation_for_equal_complexity_tiebreak() {
+        // Two trials of the SAME algorithm: equal complexity, tie broken by
+        // training time. The explanation must NOT claim "simpler model class".
+        let result = synthetic_result(
+            vec![
+                lb_entry(1, 0, AlgorithmType::LogisticRegression, 0.95, 5.0),
+                lb_entry(2, 1, AlgorithmType::LogisticRegression, 0.94, 0.5),
+            ],
+            Some(comparisons(vec![pairwise_vs_best(
+                0,
+                1,
+                "LogisticRegression",
+                "LogisticRegression",
+                0.40,
+                false,
+            )])),
+        );
+        let (selected, rationale) = result.statistically_best_model().unwrap();
+        assert_eq!(selected.trial_id, 1, "tie-break must pick the faster trial");
+        assert!(rationale.explanation.contains("trains faster"));
+        assert!(!rationale.explanation.contains("simpler model class"));
+    }
+
+    #[test]
+    fn test_benchmark_report_caps_leaderboard_at_ten() {
+        let entries: Vec<LeaderboardEntry> = (0..25)
+            .map(|i| {
+                lb_entry(
+                    i + 1,
+                    i,
+                    AlgorithmType::LogisticRegression,
+                    0.9,
+                    0.1 * i as f64,
+                )
+            })
+            .collect();
+        let result = synthetic_result(entries, None);
+        let md = result.render_benchmark_report(ReportFormat::Markdown);
+        let rows = md
+            .lines()
+            .filter(|l| l.starts_with("| ") && l.contains("Logistic Regression"))
+            .count();
+        assert_eq!(rows, 10, "leaderboard table must cap at 10 rows");
+        assert!(
+            md.contains("15 more trials"),
+            "cap must be stated, not silent"
         );
     }
 
