@@ -4,6 +4,26 @@ All notable changes to FerroML are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] — 2026-07-12
+
+### Added — Intelligent AutoML selection (P3)
+- `AutoMLResult::statistically_best_model()` — selects the simplest model that is
+  not statistically distinguishable from the leaderboard top-1 (corrected pairwise
+  tests, complexity class, training-time tie-break) and returns a `SelectionRationale`
+  with the evidence: scores ± std, 95% CI, corrected p-value vs top-1, complexity
+  classes, correction method, and a human-readable explanation
+- `AutoMLResult::render_benchmark_report(ReportFormat)` — honest benchmark report as
+  Markdown or JSON (`schema_version: 1`): leaderboard (top-10 in Markdown, stated cap),
+  pairwise significance matrix, and explicit "statistically indistinguishable"
+  conclusions when that is the truth
+- `ModelCardGenerator::from_automl_result()` + `model_card_for_algorithm()` — Markdown
+  model card for the selected model merging static algorithm metadata with run evidence
+  (CV protocol, score ± std, CI, training time, selection rationale)
+- `AlgorithmType::complexity()` lookup and ordered `AlgorithmComplexity` (`Low < Medium < High`)
+- Python bindings: `result.statistically_best_model()`, `result.benchmark_report(format=...)`,
+  `result.model_card()`, and `ferroml.automl.SelectionRationale`
+- README "Intelligent Model Selection" section with real run output
+
 ## [Unreleased] — 2026-03-18
 
 ### Performance — Plan Y: SVC + HistGBT + SAG/SAGA

@@ -560,7 +560,7 @@ fn test_benchmark_report_json_schema_stable() {
     assert_eq!(v["leaderboard"][0]["model"], "Support Vector Classifier"); // name(), human-readable
     assert_eq!(v["metric"]["name"], "accuracy");
     assert_eq!(v["comparisons"]["correction_method"], "Holm-Bonferroni");
-    assert_eq!(v["selection"]["selected_algorithm"], "LogisticRegression");
+    assert_eq!(v["selection"]["selected_algorithm"], "Logistic Regression"); // name(), human-readable
     // schema stability: exactly these top-level keys
     let keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
     assert_eq!(
@@ -763,7 +763,7 @@ git commit -m "feat(automl): render_benchmark_report() — honest Markdown/JSON 
 **Interfaces:**
 - Produces: `pub fn model_card_for_algorithm(algorithm: &AlgorithmType) -> ModelCard`. Task 5 consumes it.
 
-- [ ] **Step 1: Write the failing test** — model_card.rs has no `mod tests` for this yet; append one at the bottom (source-file unit tests are the repo convention; do NOT create a new file in `ferroml-core/tests/`):
+- [ ] **Step 1: Write the failing test** — model_card.rs already has a `mod tests` at its bottom (~line 1750+); append a SEPARATE `#[cfg(test)] mod automl_card_tests` module after it, at the very end of the file (keeps P3 tests grouped; do NOT create a new file in `ferroml-core/tests/`):
 
 ```rust
 #[cfg(test)]
@@ -954,7 +954,7 @@ fn card_test_result() -> AutoMLResult {
         total_time_seconds: 12.0,
         n_successful_trials: 2,
         n_failed_trials: 0,
-        task: crate::automl::config::Task::Classification, // match fit.rs's Task path
+        task: crate::Task::Classification, // Task re-exports at crate root (lib.rs:321 area); crate::automl::config does NOT exist
         metric_name: "accuracy".to_string(),
         maximize: true,
         data_characteristics: DataCharacteristics {
