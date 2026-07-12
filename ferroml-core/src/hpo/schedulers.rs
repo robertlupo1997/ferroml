@@ -1319,11 +1319,8 @@ impl BOHBSampler {
         let mut encoded = Vec::with_capacity(self.param_info.len());
 
         for info in &self.param_info {
-            if let Some(value) = trial.params.get(&info.name) {
-                encoded.push(self.encode_param(value, info));
-            } else {
-                return None;
-            }
+            let value = trial.params.get(&info.name)?;
+            encoded.push(self.encode_param(value, info));
         }
 
         Some(encoded)
