@@ -606,10 +606,16 @@ impl AlgorithmType {
             Self::HistGradientBoostingRegressor => "Histogram Gradient Boosting Regressor",
         }
     }
+
+    /// Complexity class of this algorithm, as used for time-budget allocation.
+    #[must_use]
+    pub fn complexity(&self) -> AlgorithmComplexity {
+        AlgorithmConfig::default_config(self).2
+    }
 }
 
 /// Algorithm complexity classification for time budget allocation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum AlgorithmComplexity {
     /// O(n) or O(n log n) - linear models, trees
     Low,
@@ -983,6 +989,24 @@ impl AlgorithmPortfolio {
 mod tests {
     use super::*;
     use ndarray::{Array1, Array2};
+
+    #[test]
+    fn test_complexity_is_ordered() {
+        assert!(AlgorithmComplexity::Low < AlgorithmComplexity::Medium);
+        assert!(AlgorithmComplexity::Medium < AlgorithmComplexity::High);
+    }
+
+    #[test]
+    fn test_algorithm_type_complexity_lookup() {
+        // LogisticRegression is Low per default_config (portfolio.rs:75-85)
+        assert_eq!(
+            AlgorithmType::LogisticRegression.complexity(),
+            AlgorithmComplexity::Low
+        );
+        // The lookup must agree with default_config for every algorithm
+        let alg = AlgorithmType::RandomForestClassifier;
+        assert_eq!(alg.complexity(), AlgorithmConfig::default_config(&alg).2);
+    }
 
     #[test]
     fn test_algorithm_config_creation() {
