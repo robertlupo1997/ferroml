@@ -14,8 +14,10 @@
 //! a copy is made. See `crate::array_utils` for detailed documentation.
 
 use crate::array_utils::{to_owned_array_1d, to_owned_array_2d};
+#[allow(unused_imports)] // Consumed by the Task 7 bindings in the next commit.
 use ferroml_core::{
-    automl::{self, AlgorithmType, EnsembleResult, ParamValue},
+    automl::{self, AlgorithmType, EnsembleResult, ParamValue, ReportFormat, SelectionRationale},
+    model_card::ModelCardGenerator,
     AlgorithmSelection, AutoML, AutoMLConfig, AutoMLResult, LeaderboardEntry, Metric,
     MultipleTesting, Task,
 };
@@ -637,6 +639,21 @@ impl PyAutoMLResult {
             .map(|e| PyLeaderboardEntry { inner: e.clone() })
     }
 
+    /// Select the simplest model not statistically distinguishable from the
+    /// best, with the evidence for that choice.
+    fn statistically_best_model(&self) -> Option<(PyLeaderboardEntry, PySelectionRationale)> {
+        self.inner
+            .statistically_best_model()
+            .map(|(entry, rationale)| {
+                (
+                    PyLeaderboardEntry {
+                        inner: entry.clone(),
+                    },
+                    PySelectionRationale { inner: rationale },
+                )
+            })
+    }
+
     /// Get the ensemble score (if ensemble was built).
     ///
     /// Returns
@@ -893,6 +910,63 @@ impl PyAutoMLResult {
     }
 }
 
+/// Evidence for why AutoML selected a model.
+#[pyclass(name = "SelectionRationale", module = "ferroml.automl")]
+pub struct PySelectionRationale {
+    inner: SelectionRationale,
+}
+
+#[pymethods]
+impl PySelectionRationale {
+    #[getter]
+    fn selected_algorithm(&self) -> &str {
+        &self.inner.selected_algorithm
+    }
+    #[getter]
+    fn selected_score(&self) -> f64 {
+        self.inner.selected_score
+    }
+    #[getter]
+    fn selected_std(&self) -> f64 {
+        self.inner.selected_std
+    }
+    #[getter]
+    fn selected_ci(&self) -> (f64, f64) {
+        self.inner.selected_ci
+    }
+    #[getter]
+    fn selected_complexity(&self) -> String {
+        format!("{:?}", self.inner.selected_complexity)
+    }
+    #[getter]
+    fn top_algorithm(&self) -> &str {
+        &self.inner.top_algorithm
+    }
+    #[getter]
+    fn top_score(&self) -> f64 {
+        self.inner.top_score
+    }
+    #[getter]
+    fn p_value_vs_top(&self) -> Option<f64> {
+        self.inner.p_value_vs_top
+    }
+    #[getter]
+    fn n_competitive(&self) -> usize {
+        self.inner.n_competitive
+    }
+    #[getter]
+    fn correction_method(&self) -> &str {
+        &self.inner.correction_method
+    }
+    #[getter]
+    fn explanation(&self) -> &str {
+        &self.inner.explanation
+    }
+    fn __repr__(&self) -> String {
+        format!("SelectionRationale({})", self.inner.explanation)
+    }
+}
+
 // =============================================================================
 // PyAutoML
 // =============================================================================
@@ -1038,6 +1112,7 @@ pub fn register_automl_module(parent_module: &Bound<'_, PyModule>) -> PyResult<(
     automl_module.add_class::<PyAutoML>()?;
     automl_module.add_class::<PyAutoMLResult>()?;
     automl_module.add_class::<PyLeaderboardEntry>()?;
+    automl_module.add_class::<PySelectionRationale>()?;
     automl_module.add_class::<PyEnsembleResult>()?;
     automl_module.add_class::<PyEnsembleMember>()?;
 
