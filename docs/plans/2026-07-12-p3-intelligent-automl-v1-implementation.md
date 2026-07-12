@@ -28,7 +28,9 @@
 - `PairwiseComparison` (fit.rs:652–682): `trial_id_1/2`, `model1_name/model2_name: String`, `mean_difference`, `p_value`, `p_value_corrected`, `ci_lower/ci_upper`, `significant`, `significant_corrected`.
 - `competitive_models()` (fit.rs:214–231) returns `Vec<&LeaderboardEntry>`: the top model plus every model whose corrected pairwise test vs top is non-significant; falls back to just the top when `model_comparisons` is `None`. `models_competitive_with_best()` (fit.rs:584) keys everything on `pairwise_comparisons[0].trial_id_1` as "best" — fixtures MUST put the best model as `trial_id_1` in every pair.
 - `AlgorithmComplexity` (portfolio.rs:612–620): `Low | Medium | High`, derives `Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize` — **no ordering derives yet** (Task 1 adds them). Per-algorithm complexity comes from `AlgorithmConfig::default_config(&algorithm)` returning `(SearchSpace, Vec<PreprocessingRequirement>, AlgorithmComplexity, bool)`.
-- `AlgorithmType` (portfolio.rs:488+) has `pub fn name(&self) -> &'static str` (portfolio.rs:581). `LogisticRegression` is complexity `Low` (portfolio.rs:75–85, verified).
+- `AlgorithmType` (portfolio.rs:488+) has `pub fn name(&self) -> &'static str` (portfolio.rs:581) returning **human-readable names** — `"Logistic Regression"`, `"Support Vector Classifier"` — NOT variant names. Every string assertion on rationale/report output must use these. `LogisticRegression` is complexity `Low` (portfolio.rs:75–85, verified). The enum has exactly 24 variants (ends at `HistGradientBoostingRegressor`, portfolio.rs:553 — verified 2026-07-12, Task 4's match list is complete).
+- `crate::automl::mod.rs` re-export lists: `pub use fit::{...}` (line 62) must gain `SelectionRationale` (Task 2) and, if bindings import it from `crate::automl`, `ReportFormat` (Task 3). `AlgorithmComplexity` is already re-exported at `crate::automl` (line 67).
+- **Pre-flight (2026-07-12):** Tasks 1–2 code below was executed verbatim in a scratch worktree: 7/7 new tests pass, full `automl::` filter 197 passed / 0 failed.
 - `ModelCard` (model_card.rs:9–33): `name`, `task: Vec<String>`, `complexity: String`, `interpretability: String`, `supports_*: bool`, `strengths/limitations/references: Vec<String>`. `HasModelCard` (model_card.rs:36–39) is static: `fn model_card() -> ModelCard`. `ModelCardGenerator` does NOT exist yet. Every AutoML portfolio algorithm has a `HasModelCard` impl in model_card.rs (lines 45–1719).
 - `serde_json` is already a ferroml-core dependency (Cargo.toml:52).
 - Error idiom: `FerroError::not_fitted("...")` (used at fit.rs:162). Copy `fit.rs`'s existing `use` block paths for `FerroError`/`Result`/`Task`.
@@ -119,7 +121,8 @@ git commit -m "feat(automl): ordered AlgorithmComplexity + AlgorithmType::comple
 ### Task 2: `SelectionRationale` + `statistically_best_model()` (P3.1b)
 
 **Files:**
-- Modify: `ferroml-core/src/automl/fit.rs` (impl block after `competitive_models()` ~:231; struct near `ModelStatistics` ~:401; tests in `mod tests` ~:1554)
+- Modify: `ferroml-core/src/automl/fit.rs` (impl block after `competitive_models()` ~:231; struct near `ModelStatistics` ~:401; tests in `mod tests` ~:1554; add `AlgorithmComplexity` to the `use crate::automl::{...}` block at :49)
+- Modify: `ferroml-core/src/automl/mod.rs` (add `SelectionRationale` to the `pub use fit::{...}` list at :62)
 
 **Interfaces:**
 - Consumes: `AlgorithmType::complexity()` and `Ord` on `AlgorithmComplexity` (Task 1).
@@ -238,8 +241,8 @@ fn test_selects_simpler_noninferior_model() {
     );
     let (selected, rationale) = result.statistically_best_model().unwrap();
     assert_eq!(selected.trial_id, 1, "must pick the simpler non-inferior model");
-    assert_eq!(rationale.selected_algorithm, "LogisticRegression");
-    assert_eq!(rationale.top_algorithm, "SVC");
+    assert_eq!(rationale.selected_algorithm, "Logistic Regression"); // name(), human-readable
+    assert_eq!(rationale.top_algorithm, "Support Vector Classifier");
     assert_eq!(rationale.p_value_vs_top, Some(0.40));
     assert!(rationale.explanation.contains("not statistically distinguishable"));
 }
@@ -554,7 +557,7 @@ fn test_benchmark_report_json_schema_stable() {
     let v: serde_json::Value = serde_json::from_str(&json).expect("report must be valid JSON");
     assert_eq!(v["schema_version"], 1);
     assert_eq!(v["leaderboard"].as_array().unwrap().len(), 2);
-    assert_eq!(v["leaderboard"][0]["model"], "SVC");
+    assert_eq!(v["leaderboard"][0]["model"], "Support Vector Classifier"); // name(), human-readable
     assert_eq!(v["metric"]["name"], "accuracy");
     assert_eq!(v["comparisons"]["correction_method"], "Holm-Bonferroni");
     assert_eq!(v["selection"]["selected_algorithm"], "LogisticRegression");
@@ -975,7 +978,9 @@ fn card_test_result() -> AutoMLResult {
 fn test_from_automl_result_renders_selected_model_card() {
     let result = card_test_result();
     let card = ModelCardGenerator::from_automl_result(&result).unwrap();
-    // Card is for the SELECTED model (LogisticRegression), not the top-1 (SVC)
+    // Card is for the SELECTED model (LogisticRegression), not the top-1 (SVC).
+    // ModelCard.name is the PYTHON CLASS NAME ("LogisticRegression"), unlike
+    // AlgorithmType::name() which is human-readable — this assertion is correct as written.
     assert!(card.starts_with("# Model Card: LogisticRegression"));
     assert!(card.contains("## Why this model"));
     assert!(card.contains("## Performance (this run)"));
