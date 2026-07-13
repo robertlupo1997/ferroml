@@ -1,6 +1,7 @@
-# FerroML v1.0 Correctness Audit Report
+# FerroML v1.0.2 Correctness Audit Report
 
 **Date:** 2026-03-27 (Phase 1), updated 2026-03-28 (Phase 2 + Phase 3 complete)
+Updated 2026-07-12 (v1.0.2): added statistically-grounded selection (statistically_best_model + SelectionRationale), honest benchmark reports (Markdown/JSON), and run-specific model cards; all covered by unit + end-to-end tests.
 **Phase:** 1 (Audit) + 2 (Bug Fixes + Robustness) + 3 (Frankenstein Tests + Final Validation) — ALL COMPLETE
 **Scope:** All algorithms in ferroml-core/src/models/, clustering/, decomposition/, neural/, gpu/, sparse.rs
 **Methodology:** 5-layer correctness framework (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein) + GPU/Sparse stability assessment
@@ -49,9 +50,9 @@
 | Correctness tests | 304 | All passing |
 | Edge case + adversarial tests | 641 | All passing |
 | Integration + regression + vs_linfa | 195 | All passing |
-| **Rust total** | **4,364** | **All passing** |
-| Python tests | ~2,137 | All passing (incl. 37 Frankenstein, 4 xfail) |
-| **Grand total** | **~6,500** | **All passing** |
+| **Rust total** | **4,602** | **Collected tests** |
+| Python tests | 3,039 | Collected tests |
+| **Grand total** | **7,641** | **Collected tests** |
 
 ---
 
@@ -431,9 +432,9 @@ Full cross-library test suite re-run after Phase 2/3 changes:
 | Integration tests | 103 | All passing |
 | Regression tests | 36 | All passing |
 | vs_linfa tests | 56 | All passing |
-| **Rust total** | **4,364** | **All passing** |
-| Python tests | ~2,137 | All passing (incl. 37 Frankenstein, 4 xfail) |
-| **Grand total** | **~6,500** | **All passing** |
+| **Rust total** | **4,602** | **Collected tests** |
+| Python tests | 3,039 | Collected tests |
+| **Grand total** | **7,641** | **Collected tests** |
 
 ---
 

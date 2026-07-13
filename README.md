@@ -3,11 +3,11 @@
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/pypi/l/ferroml.svg)](https://pypi.org/project/ferroml/)
 [![PyPI](https://img.shields.io/pypi/v/ferroml.svg)](https://pypi.org/project/ferroml/)
-[![Tests](https://img.shields.io/badge/tests-6%2C500%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-7%2C600%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v1.0.1** — 55+ ML algorithms, 6,500+ tests passing (4,364 Rust + 2,137 Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
+> **Status: v1.0.2** — 55+ ML algorithms, 7,600+ tests passing (4,600+ Rust + 3,000+ Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -98,6 +98,8 @@ best = result.best_model()
 print(f"Best: {best.algorithm}")
 print(f"Score: {best.cv_score:.4f} ± {best.cv_std:.4f}")
 print(f"95% CI: [{best.ci_lower:.4f}, {best.ci_upper:.4f}]")
+
+# For statistically-grounded selection see "Intelligent Model Selection" below
 ```
 
 ### Text Classification Pipeline (Python)
@@ -323,13 +325,13 @@ at your option.
 
 ## Project Status
 
-### Current State (v1.0.0)
+### Current State (v1.0.2)
 
-FerroML is **v1.0.0**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
+FerroML is **v1.0.2**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 6,500+ passing (4,364 Rust + 2,137 Python), 0 failing, 26 ignored (slow AutoML system tests) |
+| **Tests** | 7,600+ passing (4,600+ Rust + 3,000+ Python), 0 failing, 26 ignored (slow AutoML system tests) |
 | **Correctness Tests** | 1,140 (553 edge_cases + 304 correctness + 88 adversarial + 103 integration + 36 regression + 56 vs_linfa) |
 | **Cross-Library Validation** | 489+ tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa) |
 | **Frankenstein Tests** | 37 Python + 8 Rust composition tests (pipeline, ensemble, serialization, thread safety) |

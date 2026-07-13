@@ -17,6 +17,8 @@ AutoMLResult
     Comprehensive result object with leaderboard, ensemble, and diagnostics
 LeaderboardEntry
     Entry in the AutoML leaderboard with CV scores and confidence intervals
+SelectionRationale
+    Evidence for why a model was selected (scores, corrected p-value, complexity, explanation)
 EnsembleResult
     Result of ensemble construction with member weights
 EnsembleMember
@@ -42,6 +44,9 @@ Example
 >>>
 >>> # Check results
 >>> print(result.summary())
+>>> entry, rationale = result.statistically_best_model()
+>>> print(rationale.explanation)
+>>> print(result.benchmark_report())
 >>> best = result.best_model()
 >>> print(f"Best: {best.algorithm} (score: {best.cv_score:.4f})")
 >>>

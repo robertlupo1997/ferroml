@@ -56,7 +56,34 @@ P3.2 `render_benchmark_report()` → P3.3 `ModelCardGenerator::from_automl_resul
 P3.4 PyO3 exposure + README section → P3.5 release v1.1.0 (**Trey gate before PyPI
 publish**). ~150 lines of core Rust plus bindings and tests.
 
-### 3.2 After P3, value-ranked (all optional, none block "done")
+### 3.2 The passion track — APPROVED by Trey 2026-07-12 ("attempt tier one and tier two")
+
+Trey reframed the project: beyond the career done-bar, FerroML continues as a passion
+project to build a genuinely good ML library. Approved scope, in build order (each item
+gets its own implementation plan via superpowers:writing-plans, executed Codex-first,
+one item at a time, sessions-sized):
+
+**Tier 1 — make what exists excellent:**
+1. Documentation site (mkdocs-material): user guide, API reference, correctness report
+   published properly. The front door.
+2. pyo3 0.24→0.29 migration — clears suppressed RUSTSEC-2026-0176/0177.
+3. Robustness pass — `clippy::unwrap_used` triage in automl/cv/neural/hpo/metrics;
+   no panics on adversarial input.
+4. Report/leaderboard polish (v-next): by-unique-algorithm leaderboard view; CLI flags
+   `--benchmark-report` / `--model-card` on `ferroml automl`.
+
+**Tier 2 — capability gaps:**
+5. Automated feature engineering in AutoML (polynomial/interactions, binning, selection).
+6. Python `model_selection` parity: `cross_val_score`, `GridSearchCV` (Rust cv/ machinery
+   already exists — binding gap only).
+7. Hyperband/ASHA early stopping in AutoML.
+8. sklearn interop (`__sklearn_tags__`) for pipeline/meta-estimator compatibility.
+9. Meta-learning selection v2 — wire metafeatures.rs + warmstart.rs into recommend().
+
+Pacing constraint (unchanged): Resume v3 and the P2 Ornith writeup outrank this track
+until they ship; passion-track sessions get the hours those don't need.
+
+### 3.2b Superseded value-ranking (kept for history; items merged above or dropped)
 
 1. **Portfolio writeup** (the only Phase 6 item with career ROI before Sep 1): a blog
    post on treylupo.com — "An AutoML that refuses to overclaim" — using a real
@@ -68,7 +95,9 @@ publish**). ~150 lines of core Rust plus bindings and tests.
    leaderboards are dominated by duplicate trials of one algorithm, so the top-10 table
    repeats one row and the pairwise matrix compares an algorithm against itself. A
    "by unique algorithm" leaderboard view (best trial per algorithm) would fix the
-   presentation without hiding trial counts. Out of P3 scope — do not build before Aug 29.
+   presentation without hiding trial counts. Also: `ferroml automl` CLI flags
+   (`--benchmark-report`, `--model-card`) to expose the new outputs — found in the
+   2026-07-12 docs audit. Out of P3 scope — do not build before Aug 29.
 4. **Hygiene track** (background, ideal Codex/Ornith fodder, no deadline):
    **pyo3 0.24→0.29 migration is the top item** — RUSTSEC-2026-0176/0177 are suppressed
    in deny.toml + ci.yml until it lands (added 2026-07-12; quick-xml 0194/0195 wait on

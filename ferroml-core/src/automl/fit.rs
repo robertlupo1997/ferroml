@@ -12,7 +12,7 @@
 //!
 //! ```no_run
 //! # fn main() -> ferroml_core::Result<()> {
-//! use ferroml_core::{AutoML, AutoMLConfig, Task, Metric};
+//! use ferroml_core::{AutoML, AutoMLConfig, Metric, Task};
 //! # use ndarray::{Array1, Array2};
 //! # let x = Array2::from_shape_vec((20, 3), (0..60).map(|i| i as f64).collect()).unwrap();
 //! # let y = Array1::from_vec((0..20).map(|i| (i % 2) as f64).collect());
@@ -42,6 +42,12 @@
 //! if let Some(importance) = &result.aggregated_importance {
 //!     println!("Top features: {:?}", importance.top_k(5));
 //! }
+//!
+//! // Statistically-grounded selection: simplest model not distinguishable from the best
+//! if let Some((entry, rationale)) = result.statistically_best_model() {
+//!     println!("Selected: {} — {}", entry.algorithm.name(), rationale.explanation);
+//! }
+//! println!("{}", result.render_benchmark_report(ferroml_core::automl::ReportFormat::Markdown));
 //! # Ok(())
 //! # }
 //! ```

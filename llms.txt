@@ -2,7 +2,7 @@
 
 > Statistically rigorous machine learning in Rust with Python bindings.
 
-FerroML is a machine learning library with 55+ models (regression, classification, clustering, anomaly detection, decomposition) that includes statistical diagnostics, confidence intervals, and assumption tests as first-class features. Written in Rust for performance, exposed via Python bindings (`import ferroml`). Includes AutoML, ONNX export, and a CLI for agent-driven workflows.
+FerroML is a machine learning library with 55+ models (regression, classification, clustering, anomaly detection, decomposition) that includes statistical diagnostics, confidence intervals, and assumption tests as first-class features. Written in Rust for performance, exposed via Python bindings (`import ferroml`). Includes AutoML, ONNX export, and a CLI for agent-driven workflows. Version 1.0.2 adds statistically_best_model(), benchmark_report(), and model_card() on AutoMLResult for evidence-based model selection and honest reporting.
 
 ## Docs
 

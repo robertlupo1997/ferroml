@@ -4,7 +4,7 @@ All notable changes to FerroML are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.1.0] — 2026-07-12
+## [1.0.2] — 2026-07-12
 
 ### Added — Intelligent AutoML selection (P3)
 - `AutoMLResult::statistically_best_model()` — selects the simplest model that is
@@ -24,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `result.model_card()`, and `ferroml.automl.SelectionRationale`
 - README "Intelligent Model Selection" section with real run output
 
-## [Unreleased] — 2026-03-18
+## [1.0.0] — 2026-03-31
 
 ### Performance — Plan Y: SVC + HistGBT + SAG/SAGA
 - SVC: slab-based LRU kernel cache with WSS3 selection (6.8x→0.44x vs sklearn)

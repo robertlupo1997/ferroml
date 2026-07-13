@@ -1,5 +1,7 @@
 # FerroML Core - Structural Repo Map
 
+Maintained by hand — update alongside public-API changes. Last updated: 2026-07-12.
+
 Generated structural overview of all public types, traits, and function signatures
 in `ferroml-core/src/`. Excludes function bodies, private items, test modules,
 comments, and `use` statements.
@@ -400,8 +402,12 @@ ferroml-core/src/automl/fit.rs
   pub struct ModelFeatureImportance { trial_id: usize, algorithm: AlgorithmType, cv_score: f64, importances: Vec<f64> }
   pub struct ModelComparisonResults { pairwise_comparisons: Vec<PairwiseComparison>, best_is_significantly_better: bool, n_significantly_worse: usize, corrected_alpha: f64, correction_method: String }
   pub struct PairwiseComparison { trial_id_1: usize, trial_id_2: usize, model1_name: String, model2_name: String, test_name: String, mean_difference: f64, std_error: f64, statistic: f64, ... }
+  pub struct SelectionRationale { selected_trial_id: usize, selected_algorithm: AlgorithmType, top_trial_id: usize, top_algorithm: AlgorithmType, selected_score: f64, selected_std: f64, selected_ci_lower: f64, selected_ci_upper: f64, top_score: f64, top_std: f64, corrected_p_value: Option<f64>, selected_complexity: AlgorithmComplexity, top_complexity: AlgorithmComplexity, correction_method: String, explanation: String }
+  pub enum ReportFormat { Markdown, Json }
   impl AutoMLResult {
     pub fn best_model(&self) -> Option<&LeaderboardEntry>
+    pub fn statistically_best_model(&self) -> Option<(&LeaderboardEntry, SelectionRationale)>
+    pub fn render_benchmark_report(&self, format: ReportFormat) -> String
     pub fn predict(&self, x_train: &Array2<f64>, y_train: &Array1<f64>, x_test: &Array...) -> Result<Array1<f64>>
     pub fn ensemble_score(&self) -> Option<f64>
     pub fn ensemble_improvement(&self) -> Option<f64>
@@ -428,6 +434,15 @@ ferroml-core/src/automl/fit.rs
   impl MetricTrait for MetricAdapter { fn name(...), fn direction(...), fn compute(...) }
   impl AutoML {
     pub fn fit(&self, x: &Array2<f64>, y: &Array1<f64>) -> Result<AutoMLResult>
+  }
+
+ferroml-core/src/model_card.rs
+  pub struct ModelCard { name: String, task: Vec<String>, complexity: String, interpretability: String, supports_sparse: bool, supports_incremental: bool, supports_sample_weight: bool, strengths: Vec<String>, limitations: Vec<String>, references: Vec<String> }
+  pub trait HasModelCard { fn model_card() -> ModelCard }
+  pub fn model_card_for_algorithm(algorithm: &AlgorithmType) -> ModelCard
+  pub struct ModelCardGenerator
+  impl ModelCardGenerator {
+    pub fn from_automl_result(result: &AutoMLResult) -> Result<String>
   }
 
 ferroml-core/src/automl/metafeatures.rs

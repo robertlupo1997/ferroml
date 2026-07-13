@@ -1,6 +1,6 @@
 # FerroML
 
-A machine learning library written in Rust with Python bindings, designed to compete with scikit-learn, statsmodels, and XGBoost. What sets it apart: every model includes statistical diagnostics (residual analysis, assumption tests, confidence intervals) as first-class features, not bolted-on extras. All implementations are correctness-verified against sklearn, scipy, linfa, and statsmodels via 5,000+ cross-validated tests.
+A machine learning library written in Rust with Python bindings, designed to compete with scikit-learn, statsmodels, and XGBoost. What sets it apart: every model includes statistical diagnostics (residual analysis, assumption tests, confidence intervals) as first-class features, not bolted-on extras. All implementations are correctness-verified against sklearn, scipy, linfa, and statsmodels via 7,600+ cross-validated tests.
 
 ## Workspace
 
@@ -40,6 +40,7 @@ pytest ferroml-python/tests/
 
 ## Reference
 
+- `docs/plans/2026-07-12-north-star.md` — top-level project direction and roadmap (read first)
 - `REPO_MAP.md` — structural skeleton of all source files (pub API surfaces)
 - `.planning/codebase/` — architecture, stack, conventions, testing, concerns docs
 - `docs/plans/` — implementation phase history (Plans A-X)

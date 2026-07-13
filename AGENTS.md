@@ -95,6 +95,10 @@ from ferroml.automl import AutoML, AutoMLConfig
 config = AutoMLConfig(task="regression", metric="rmse", time_budget_seconds=60)
 result = AutoML(config).fit(X, y)
 print(result.summary())
+entry, rationale = result.statistically_best_model()
+print(rationale.explanation)
+print(result.benchmark_report())   # or format="json"
+print(result.model_card())
 
 # Pipelines
 from ferroml.pipeline import Pipeline
@@ -166,13 +170,13 @@ Key error types: `ShapeMismatch`, `NotFitted`, `ConvergenceFailure`, `InvalidInp
 
 ```bash
 # Rust
-cargo test                              # core library (4,400+ tests)
+cargo test                              # core library (4,600+ tests)
 cargo test --test correctness           # correctness suite
 
 # Python
 source .venv/bin/activate
 maturin develop --release -m ferroml-python/Cargo.toml
-pytest ferroml-python/tests/            # 2,900+ tests
+pytest ferroml-python/tests/            # 3,000+ tests
 ```
 
 ## Key Imports by Submodule
@@ -192,7 +196,7 @@ ferroml.decomposition    # PCA, SVD, t-SNE, factor analysis
 ferroml.preprocessing    # Scalers, encoders, vectorizers
 ferroml.metrics      # Regression, classification, clustering metrics
 ferroml.stats        # Statistical tests, confidence intervals
-ferroml.automl       # AutoML, AutoMLConfig
+ferroml.automl       # AutoML, AutoMLConfig, SelectionRationale
 ferroml.pipeline     # Pipeline, FeatureUnion
 ferroml.model_selection  # Cross-validation, train/test split
 ```

@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-20
+**Analysis Date:** 2026-07-12 (structure refreshed; prose unchanged)
 
 ## Directory Layout
 
@@ -12,6 +12,7 @@ ferroml/
 │   │   ├── error.rs                 # FerroError enum
 │   │   ├── schema.rs                # Feature validation schema
 │   │   ├── serialization.rs         # Model persistence (JSON/MessagePack/Bincode)
+│   │   ├── model_card.rs            # Model cards and AutoML run-specific card generation
 │   │   ├── linalg.rs                # Linear algebra (QR, Cholesky, SVD via nalgebra)
 │   │   ├── models/                  # 25+ ML algorithms
 │   │   │   ├── mod.rs               # Re-exports all models
@@ -90,12 +91,15 @@ ferroml/
 │   │   │   ├── hyperband.rs         # Hyperband, ASHA for resource allocation
 │   │   │   └── sampler.rs           # Grid, random, TPE samplers
 │   │   ├── automl/                  # End-to-end ML automation
-│   │   │   ├── mod.rs               # AutoML, AutoMLConfig, AutoMLResult
-│   │   │   ├── search.rs            # Algorithm portfolio, ensemble selection
-│   │   │   ├── portfolio.rs         # Model portfolios (Balanced, Aggressive, Conservative)
 │   │   │   ├── ensemble.rs          # Ensemble aggregation
-│   │   │   ├── comparisons.rs       # Pairwise statistical comparisons
-│   │   │   └── result.rs            # AutoMLResult, LeaderboardEntry, statistics aggregation
+│   │   │   ├── fit.rs               # AutoML fit orchestration and result reporting
+│   │   │   ├── metafeatures.rs      # Dataset metafeature extraction
+│   │   │   ├── mod.rs               # AutoML module exports
+│   │   │   ├── portfolio.rs         # Model portfolios (Balanced, Aggressive, Conservative)
+│   │   │   ├── preprocessing.rs     # AutoML preprocessing selection
+│   │   │   ├── time_budget.rs       # Search time allocation
+│   │   │   ├── transfer.rs          # Transfer learning across AutoML runs
+│   │   │   └── warmstart.rs         # Warm-start recommendations
 │   │   ├── clustering/              # Unsupervised learning
 │   │   │   ├── mod.rs               # Re-exports clustering models
 │   │   │   ├── kmeans.rs            # KMeans, KMeans++, Elkan algorithm

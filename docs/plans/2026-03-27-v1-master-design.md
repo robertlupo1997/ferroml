@@ -10,6 +10,8 @@
 
 ---
 
+> **Superseded:** current project direction lives in [docs/plans/2026-07-12-north-star.md](2026-07-12-north-star.md) (ACTIVE). This document is the historical v1.0 design.
+
 ## Vision
 
 FerroML v1.0 makes three claims no other library makes simultaneously:
