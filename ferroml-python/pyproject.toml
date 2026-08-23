@@ -73,7 +73,7 @@ pandas = [
     "pandas>=1.5",
 ]
 test = [
-    "ferroml[dev,sklearn,pandas]",
+    "ferroml[dev,sklearn,pandas,cli]",
 ]
 cli = [
     "typer>=0.9",

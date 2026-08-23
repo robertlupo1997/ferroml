@@ -1,0 +1,44 @@
+🍹 Building a mixed python/rust project
+🐍 Found CPython 3.12 at /home/tlupo/prime-agent-lab/wt/ferroml-pilot/.venv/bin/python
+🔗 Found pyo3 bindings with abi3-py3.10 support
+📡 Using build options features, bindings from pyproject.toml
+Ignoring ferroml: markers 'extra == "all"' don't match your environment
+Ignoring typer: markers 'extra == "cli"' don't match your environment
+Ignoring rich: markers 'extra == "cli"' don't match your environment
+Ignoring polars: markers 'extra == "cli"' don't match your environment
+Ignoring pytest: markers 'extra == "dev"' don't match your environment
+Ignoring pytest-cov: markers 'extra == "dev"' don't match your environment
+Ignoring pytest-xdist: markers 'extra == "dev"' don't match your environment
+Ignoring mypy: markers 'extra == "dev"' don't match your environment
+Ignoring ruff: markers 'extra == "dev"' don't match your environment
+Ignoring pandas: markers 'extra == "pandas"' don't match your environment
+Ignoring polars: markers 'extra == "polars"' don't match your environment
+Ignoring scikit-learn: markers 'extra == "sklearn"' don't match your environment
+Ignoring ferroml: markers 'extra == "test"' don't match your environment
+Requirement already satisfied: numpy>=1.21 in /home/tlupo/prime-agent-lab/wt/ferroml-pilot/.venv/lib/python3.12/site-packages (2.5.2)
+   Compiling pyo3-build-config v0.24.2
+   Compiling paste v1.0.15
+   Compiling pyo3-ffi v0.24.2
+   Compiling pyo3-macros-backend v0.24.2
+   Compiling pyo3 v0.24.2
+   Compiling numpy v0.24.0
+   Compiling gemm-common v0.18.2
+   Compiling simba v0.9.1
+   Compiling argmin v0.10.0
+   Compiling gemm-f32 v0.18.2
+   Compiling gemm-f64 v0.18.2
+   Compiling gemm-c64 v0.18.2
+   Compiling gemm-c32 v0.18.2
+   Compiling gemm v0.18.2
+   Compiling faer v0.20.2
+   Compiling pyo3-macros v0.24.2
+   Compiling nalgebra v0.33.2
+   Compiling pyo3-polars v0.21.0
+   Compiling statrs v0.18.0
+   Compiling ferroml-core v1.0.2 (/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-core)
+   Compiling ferroml-python v1.0.2 (/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python)
+    Finished `release` profile [optimized] target(s) in 3m 50s
+📦 Built wheel for abi3 Python ≥ 3.10 to /tmp/.tmpfyxhMX/ferroml-1.0.2-cp310-abi3-linux_x86_64.whl
+✏️ Setting installed package as editable
+🛠 Installed ferroml-1.0.2
+MATURIN_EXIT_CODE=0
