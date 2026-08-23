@@ -5,6 +5,12 @@ against the release-mode extension built by `maturin develop --release`.
 
 This file exists to settle one question: **are FerroML's published test numbers true?**
 
+**Provenance.** The cargo log was recorded by the pilot iteration at 17:39 on 2026-08-22.
+The maturin build (21:47) and the Python run (22:20) were produced by a later Claude Code
+session on the same machine and the same commit. No suite was re-run to obtain a better
+number; the Python suite was run twice only because the first run lacked `typer`, and both
+logs are described below.
+
 ## Result
 
 | Suite | Passed | Failed | Other | Exit |
