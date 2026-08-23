@@ -1,0 +1,572 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.7, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python
+configfile: pyproject.toml
+plugins: xdist-3.8.0
+collected 2995 items / 1 skipped
+
+tests/test_anomaly.py ..............................                     [  1%]
+tests/test_automl.py ...........................s.                       [  1%]
+tests/test_automl_system.py ....................                         [  2%]
+tests/test_bagging_classifier.py ....................................... [  3%]
+...............................                                          [  4%]
+tests/test_bagging_regressor.py ........................................ [  6%]
+......................                                                   [  7%]
+tests/test_bindings_correctness.py ..................................... [  8%]
+.                                                                        [  8%]
+tests/test_cli.py FFFFFFF.FFFFFFFFFF.FFFFFF                              [  9%]
+tests/test_clustering.py ............................................... [ 10%]
+...................                                                      [ 11%]
+tests/test_comparison_edge_cases.py .........................            [ 12%]
+tests/test_comparison_linear.py ........................................ [ 13%]
+.                                                                        [ 13%]
+tests/test_comparison_preprocessing.py ................................. [ 14%]
+.......                                                                  [ 14%]
+tests/test_comparison_remaining.py ..................................    [ 16%]
+tests/test_comparison_trees.py ......................................... [ 17%]
+.......                                                                  [ 17%]
+tests/test_comparison_unsupervised.py .................................. [ 18%]
+............                                                             [ 19%]
+tests/test_count_vectorizer.py ...................                       [ 19%]
+tests/test_cross_library_edge_cases.py ................................. [ 20%]
+....................                                                     [ 21%]
+tests/test_cv.py ..............                                          [ 22%]
+tests/test_decision_function.py ................                         [ 22%]
+tests/test_decomposition.py ............................................ [ 24%]
+.......................                                                  [ 24%]
+tests/test_docstrings.py ............................................... [ 26%]
+........................................................................ [ 28%]
+........................................................................ [ 31%]
+........................................................................ [ 33%]
+.......................................................................  [ 35%]
+tests/test_ensemble.py ................................................. [ 37%]
+...................                                                      [ 38%]
+tests/test_errors.py s...........s.s.ss..............                    [ 39%]
+tests/test_explainability.py ........................................... [ 40%]
+..................                                                       [ 41%]
+tests/test_feature_importances_linear.py ........                        [ 41%]
+tests/test_frankenstein.py ........................xxxx.........         [ 42%]
+tests/test_gaussian_process.py ..........                                [ 43%]
+tests/test_gmm.py ..............................                         [ 44%]
+tests/test_import.py ......                                              [ 44%]
+tests/test_input_validation.py ......................................... [ 45%]
+........................................................................ [ 48%]
+......................................                                   [ 49%]
+tests/test_kernel_shap.py .............................................. [ 50%]
+...............................................                          [ 52%]
+tests/test_kernel_svm.py ............................................... [ 54%]
+..                                                                       [ 54%]
+tests/test_linear.py ..............                                      [ 54%]
+tests/test_linear_svm.py .............................................   [ 56%]
+tests/test_metrics.py ......................................             [ 57%]
+tests/test_model_card.py .........                                       [ 57%]
+tests/test_model_selection.py ..............................             [ 58%]
+tests/test_multioutput.py .............                                  [ 59%]
+tests/test_naive_bayes.py .............................................. [ 60%]
+.....                                                                    [ 60%]
+tests/test_neighbors.py ................................................ [ 62%]
+........                                                                 [ 62%]
+tests/test_neural.py ................................................... [ 64%]
+...................                                                      [ 65%]
+tests/test_onnx_export.py ..........................................     [ 66%]
+tests/test_partial_fit.py ..........                                     [ 66%]
+tests/test_performance_comparison.py ................................... [ 67%]
+.................                                                        [ 68%]
+tests/test_pickle_roundtrip.py ......................................... [ 69%]
+..........ss                                                             [ 70%]
+tests/test_pipeline.py ......                                            [ 70%]
+tests/test_preprocessing.py ...................                          [ 71%]
+tests/test_qda_isotonic.py ........................                      [ 71%]
+tests/test_recommend.py ...........                                      [ 72%]
+tests/test_regularized_cv.py ....................................        [ 73%]
+tests/test_reproducibility.py ss..............s.s..                      [ 74%]
+tests/test_rfe.py ...................................................... [ 75%]
+....                                                                     [ 76%]
+tests/test_score_all_models.py ........................s................ [ 77%]
+...                                                                      [ 77%]
+tests/test_sklearn_compat.py .....sssss..ss..........                    [ 78%]
+tests/test_sparse_gp.py .................                                [ 78%]
+tests/test_sparse_pipeline.py ........                                   [ 79%]
+tests/test_sparse_pipeline_e2e.py .................................      [ 80%]
+tests/test_sparse_roundtrip.py .......................                   [ 81%]
+tests/test_specialized_models.py .................................       [ 82%]
+tests/test_statistical_classifiers.py .................................. [ 83%]
+..........                                                               [ 83%]
+tests/test_statistical_hypothesis.py ..........                          [ 84%]
+tests/test_statistical_inference.py ............                         [ 84%]
+tests/test_statistical_logistic.py ...............                       [ 84%]
+tests/test_statistical_ols.py .............                              [ 85%]
+tests/test_statistical_regressors.py ................................... [ 86%]
+......................                                                   [ 87%]
+tests/test_structured_errors.py ......                                   [ 87%]
+tests/test_text_pipeline.py ..........................                   [ 88%]
+tests/test_tfidf_vectorizer.py ................................          [ 89%]
+tests/test_trees.py .................                                    [ 89%]
+tests/test_tsne.py ...................                                   [ 90%]
+tests/test_voting_stacking.py .......................................... [ 91%]
+.............                                                            [ 92%]
+tests/test_voting_stacking_correctness.py ................               [ 92%]
+tests/test_vs_lightgbm.py EEEEEEEEE                                      [ 93%]
+tests/test_vs_sklearn_clustering.py .......                              [ 93%]
+tests/test_vs_sklearn_decomposition.py ............                      [ 93%]
+tests/test_vs_sklearn_ensemble.py ...................                    [ 94%]
+tests/test_vs_sklearn_gaps.py ....................                       [ 95%]
+tests/test_vs_sklearn_gaps_phase2.py ............                        [ 95%]
+tests/test_vs_sklearn_gaps_phase2_expanded.py .......................... [ 96%]
+...................                                                      [ 97%]
+tests/test_vs_sklearn_multioutput.py ...........                         [ 97%]
+tests/test_vs_sklearn_preprocessing.py ....................              [ 98%]
+tests/test_vs_sklearn_special.py ..................                      [ 98%]
+tests/test_vs_sklearn_trees.py ............                              [ 99%]
+tests/test_vs_statsmodels.py ................                            [ 99%]
+tests/test_vs_xgboost.py EEEEEEEEEE                                      [100%]
+
+==================================== ERRORS ====================================
+______ ERROR at setup of TestHGBRegressorVsLGBM.test_r2_competitive[1000] ______
+tests/test_vs_lightgbm.py:43: in setup
+    import lightgbm as lgb
+E   ModuleNotFoundError: No module named 'lightgbm'
+______ ERROR at setup of TestHGBRegressorVsLGBM.test_r2_competitive[5000] ______
+tests/test_vs_lightgbm.py:43: in setup
+    import lightgbm as lgb
+E   ModuleNotFoundError: No module named 'lightgbm'
+_____ ERROR at setup of TestHGBRegressorVsLGBM.test_r2_competitive[10000] ______
+tests/test_vs_lightgbm.py:43: in setup
+    import lightgbm as lgb
+E   ModuleNotFoundError: No module named 'lightgbm'
+_ ERROR at setup of TestHGBRegressorVsLGBM.test_feature_importance_correlated __
+tests/test_vs_lightgbm.py:43: in setup
+    import lightgbm as lgb
+E   ModuleNotFoundError: No module named 'lightgbm'
+__ ERROR at setup of TestHGBClassifierVsLGBM.test_accuracy_competitive[1000] ___
+tests/test_vs_lightgbm.py:102: in setup
+    import lightgbm as lgb
+E   ModuleNotFoundError: No module named 'lightgbm'
+__ ERROR at setup of TestHGBClassifierVsLGBM.test_accuracy_competitive[5000] ___
+tests/test_vs_lightgbm.py:102: in setup
+    import lightgbm as lgb
+E   ModuleNotFoundError: No module named 'lightgbm'
+__ ERROR at setup of TestHGBClassifierVsLGBM.test_accuracy_competitive[10000] __
+tests/test_vs_lightgbm.py:102: in setup
+    import lightgbm as lgb
+E   ModuleNotFoundError: No module named 'lightgbm'
+_____ ERROR at setup of TestHGBClassifierVsLGBM.test_prediction_agreement ______
+tests/test_vs_lightgbm.py:102: in setup
+    import lightgbm as lgb
+E   ModuleNotFoundError: No module named 'lightgbm'
+_________ ERROR at setup of TestGBRegressorVsLGBM.test_r2_competitive __________
+tests/test_vs_lightgbm.py:153: in setup
+    import lightgbm as lgb
+E   ModuleNotFoundError: No module named 'lightgbm'
+_______ ERROR at setup of TestGBRegressorVsXGB.test_r2_competitive[1000] _______
+tests/test_vs_xgboost.py:56: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+_______ ERROR at setup of TestGBRegressorVsXGB.test_r2_competitive[5000] _______
+tests/test_vs_xgboost.py:56: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+_______ ERROR at setup of TestGBRegressorVsXGB.test_prediction_agreement _______
+tests/test_vs_xgboost.py:56: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+___ ERROR at setup of TestGBClassifierVsXGB.test_accuracy_competitive[1000] ____
+tests/test_vs_xgboost.py:110: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+___ ERROR at setup of TestGBClassifierVsXGB.test_accuracy_competitive[5000] ____
+tests/test_vs_xgboost.py:110: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+______ ERROR at setup of TestGBClassifierVsXGB.test_prediction_agreement _______
+tests/test_vs_xgboost.py:110: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+_________ ERROR at setup of TestHistGBVsXGB.test_regressor_competitive _________
+tests/test_vs_xgboost.py:161: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+________ ERROR at setup of TestHistGBVsXGB.test_classifier_competitive _________
+tests/test_vs_xgboost.py:161: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+______ ERROR at setup of TestPerformanceVsXGB.test_timing_recorded[1000] _______
+tests/test_vs_xgboost.py:215: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+______ ERROR at setup of TestPerformanceVsXGB.test_timing_recorded[5000] _______
+tests/test_vs_xgboost.py:215: in setup
+    import xgboost as xgb
+E   ModuleNotFoundError: No module named 'xgboost'
+=================================== FAILURES ===================================
+_________________________ TestCLIEntryPoint.test_help __________________________
+tests/test_cli.py:24: in test_help
+    assert result.returncode == 0
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+________________________ TestCLIEntryPoint.test_version ________________________
+tests/test_cli.py:30: in test_version
+    assert result.returncode == 0
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+__________________ TestCLIEntryPoint.test_no_args_shows_help ___________________
+tests/test_cli.py:36: in test_no_args_shows_help
+    assert "ferroml" in result.stdout.lower()
+E   assert 'ferroml' in ''
+E    +  where '' = <built-in method lower of str object at 0x1563588>()
+E    +    where <built-in method lower of str object at 0x1563588> = ''.lower
+E    +      where '' = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').stdout
+____________________ TestTrain.test_train_linear_regression ____________________
+tests/test_cli.py:61: in test_train_linear_regression
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_______________________ TestTrain.test_train_json_output _______________________
+tests/test_cli.py:69: in test_train_json_output
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_______________________ TestTrain.test_train_with_params _______________________
+tests/test_cli.py:80: in test_train_with_params
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_____________________ TestTrain.test_train_with_test_size ______________________
+tests/test_cli.py:88: in test_train_with_test_size
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_______________________ TestTrain.test_train_classifier ________________________
+tests/test_cli.py:103: in test_train_classifier
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+______________________ TestPredict.test_predict_to_stdout ______________________
+tests/test_cli.py:120: in test_predict_to_stdout
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+________________________ TestPredict.test_predict_json _________________________
+tests/test_cli.py:127: in test_predict_json
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_______________________ TestPredict.test_predict_to_file _______________________
+tests/test_cli.py:136: in test_predict_to_file
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+__________________ TestEvaluate.test_evaluate_default_metrics __________________
+tests/test_cli.py:153: in test_evaluate_default_metrics
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_________________ TestEvaluate.test_evaluate_specific_metrics __________________
+tests/test_cli.py:161: in test_evaluate_specific_metrics
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+____________________ TestEvaluate.test_evaluate_classifier _____________________
+tests/test_cli.py:171: in test_evaluate_classifier
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+___________________ TestRecommend.test_recommend_regression ____________________
+tests/test_cli.py:180: in test_recommend_regression
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_________________ TestRecommend.test_recommend_classification __________________
+tests/test_cli.py:189: in test_recommend_classification
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+___________________________ TestInfo.test_info_model ___________________________
+tests/test_cli.py:195: in test_info_model
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_________________________ TestInfo.test_info_list_all __________________________
+tests/test_cli.py:206: in test_info_list_all
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_____________________ TestCompare.test_compare_regressors ______________________
+tests/test_cli.py:216: in test_compare_regressors
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_____________________ TestCompare.test_compare_classifiers _____________________
+tests/test_cli.py:225: in test_compare_classifiers
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_________________ TestDiagnose.test_diagnose_linear_regression _________________
+tests/test_cli.py:238: in test_diagnose_linear_regression
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+______________________ TestAutoML.test_automl_regression _______________________
+tests/test_cli.py:252: in test_automl_regression
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+_________________________ TestExport.test_export_onnx __________________________
+tests/test_cli.py:266: in test_export_onnx
+    assert result.returncode == 0, result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<frozen runpy>", line 189, in _run_module_as_main
+E       File "<frozen runpy>", line 148, in _get_module_details
+E       File "<frozen runpy>", line 112, in _get_module_details
+E       File "/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/python/ferroml/cli/__init__.py", line 2, in <module>
+E         import typer
+E     ModuleNotFoundError: No module named 'typer'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/bin/python', '-m', 'ferroml....hon/ferroml/cli/__init__.py", line 2, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+=============================== warnings summary ===============================
+tests/test_comparison_remaining.py::TestLinearSVR::test_synthetic_regression
+tests/test_performance_comparison.py::test_linear_svc_performance[1000]
+tests/test_performance_comparison.py::test_linear_svc_performance[1000]
+tests/test_performance_comparison.py::test_linear_svc_performance[1000]
+tests/test_performance_comparison.py::test_linear_svc_performance[10000]
+tests/test_performance_comparison.py::test_linear_svc_performance[10000]
+tests/test_performance_comparison.py::test_linear_svc_performance[10000]
+  /home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/lib/python3.13/site-packages/sklearn/svm/_base.py:1298: ConvergenceWarning: Liblinear failed to converge, increase the number of iterations.
+    warnings.warn(
+
+tests/test_comparison_remaining.py::TestSVC::test_rbf_predict_proba
+  /home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/lib/python3.13/site-packages/sklearn/svm/_base.py:239: FutureWarning: The `probability` parameter was deprecated in 1.9 and will be removed in version 1.11. Use `CalibratedClassifierCV(SVC(), ensemble=False)` instead of `SVC(probability=True)`
+    warnings.warn(
+
+tests/test_comparison_remaining.py::TestSVR::test_linear_diabetes
+  /home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/lib/python3.13/site-packages/sklearn/svm/_base.py:340: ConvergenceWarning: Solver terminated early (max_iter=5000).  Consider pre-processing your data with StandardScaler or MinMaxScaler.
+    warnings.warn(
+
+tests/test_comparison_trees.py::TestSGDRegressor::test_sgd_regressor_huber_diabetes
+  /home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/lib/python3.13/site-packages/sklearn/linear_model/_stochastic_gradient.py:1620: ConvergenceWarning: Maximum number of iteration reached before convergence. Consider increasing max_iter to improve the fit.
+    warnings.warn(
+
+tests/test_cross_library_edge_cases.py::TestExtremeValues::test_ridge_extreme_features
+  /home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/lib/python3.13/site-packages/sklearn/linear_model/_ridge.py:227: LinAlgWarning: An ill-conditioned matrix detected: slice 0 has rcond = 1.643445166188118e-102.
+    return linalg.solve(A, Xy, assume_a="pos", overwrite_a=True).T
+
+tests/test_performance_comparison.py::test_mlp_performance[100]
+tests/test_performance_comparison.py::test_mlp_performance[100]
+tests/test_performance_comparison.py::test_mlp_performance[100]
+tests/test_performance_comparison.py::test_mlp_performance[1000]
+tests/test_performance_comparison.py::test_mlp_performance[1000]
+tests/test_performance_comparison.py::test_mlp_performance[1000]
+tests/test_performance_comparison.py::test_mlp_performance[10000]
+tests/test_performance_comparison.py::test_mlp_performance[10000]
+tests/test_performance_comparison.py::test_mlp_performance[10000]
+  /home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/lib/python3.13/site-packages/sklearn/neural_network/_multilayer_perceptron.py:785: ConvergenceWarning: Stochastic Optimizer: Maximum iterations (100) reached and the optimization hasn't converged yet.
+    warnings.warn(
+
+tests/test_vs_sklearn_gaps.py::TestPassiveAggressiveVsSklearn::test_accuracy_competitive
+tests/test_vs_sklearn_gaps_phase2_expanded.py::TestRemainingClassifiersVsSklearn::test_passive_aggressive_vs_sklearn
+  /home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/lib/python3.13/site-packages/sklearn/utils/deprecation.py:71: FutureWarning: Class PassiveAggressiveClassifier is deprecated; this is deprecated in version 1.8 and will be removed in 1.10. Use `SGDClassifier(loss='hinge', penalty=None, learning_rate='pa1', eta0=1.0)` instead.
+    warnings.warn(msg, category=FutureWarning)
+
+tests/test_vs_sklearn_gaps_phase2_expanded.py::TestRemainingClassifiersVsSklearn::test_mlp_classifier_vs_sklearn
+  /home/tlupo/prime-agent-lab/wt/ferroml-pilot/ferroml-python/.venv/lib/python3.13/site-packages/sklearn/neural_network/_multilayer_perceptron.py:785: ConvergenceWarning: Stochastic Optimizer: Maximum iterations (200) reached and the optimization hasn't converged yet.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_cli.py::TestCLIEntryPoint::test_help - assert 1 == 0
+FAILED tests/test_cli.py::TestCLIEntryPoint::test_version - assert 1 == 0
+FAILED tests/test_cli.py::TestCLIEntryPoint::test_no_args_shows_help - assert...
+FAILED tests/test_cli.py::TestTrain::test_train_linear_regression - Assertion...
+FAILED tests/test_cli.py::TestTrain::test_train_json_output - AssertionError:...
+FAILED tests/test_cli.py::TestTrain::test_train_with_params - AssertionError:...
+FAILED tests/test_cli.py::TestTrain::test_train_with_test_size - AssertionErr...
+FAILED tests/test_cli.py::TestTrain::test_train_classifier - AssertionError: ...
+FAILED tests/test_cli.py::TestPredict::test_predict_to_stdout - AssertionErro...
+FAILED tests/test_cli.py::TestPredict::test_predict_json - AssertionError: Tr...
+FAILED tests/test_cli.py::TestPredict::test_predict_to_file - AssertionError:...
+FAILED tests/test_cli.py::TestEvaluate::test_evaluate_default_metrics - Asser...
+FAILED tests/test_cli.py::TestEvaluate::test_evaluate_specific_metrics - Asse...
+FAILED tests/test_cli.py::TestEvaluate::test_evaluate_classifier - AssertionE...
+FAILED tests/test_cli.py::TestRecommend::test_recommend_regression - Assertio...
+FAILED tests/test_cli.py::TestRecommend::test_recommend_classification - Asse...
+FAILED tests/test_cli.py::TestInfo::test_info_model - AssertionError: Traceba...
+FAILED tests/test_cli.py::TestInfo::test_info_list_all - AssertionError: Trac...
+FAILED tests/test_cli.py::TestCompare::test_compare_regressors - AssertionErr...
+FAILED tests/test_cli.py::TestCompare::test_compare_classifiers - AssertionEr...
+FAILED tests/test_cli.py::TestDiagnose::test_diagnose_linear_regression - Ass...
+FAILED tests/test_cli.py::TestAutoML::test_automl_regression - AssertionError...
+FAILED tests/test_cli.py::TestExport::test_export_onnx - AssertionError: Trac...
+ERROR tests/test_vs_lightgbm.py::TestHGBRegressorVsLGBM::test_r2_competitive[1000]
+ERROR tests/test_vs_lightgbm.py::TestHGBRegressorVsLGBM::test_r2_competitive[5000]
+ERROR tests/test_vs_lightgbm.py::TestHGBRegressorVsLGBM::test_r2_competitive[10000]
+ERROR tests/test_vs_lightgbm.py::TestHGBRegressorVsLGBM::test_feature_importance_correlated
+ERROR tests/test_vs_lightgbm.py::TestHGBClassifierVsLGBM::test_accuracy_competitive[1000]
+ERROR tests/test_vs_lightgbm.py::TestHGBClassifierVsLGBM::test_accuracy_competitive[5000]
+ERROR tests/test_vs_lightgbm.py::TestHGBClassifierVsLGBM::test_accuracy_competitive[10000]
+ERROR tests/test_vs_lightgbm.py::TestHGBClassifierVsLGBM::test_prediction_agreement
+ERROR tests/test_vs_lightgbm.py::TestGBRegressorVsLGBM::test_r2_competitive
+ERROR tests/test_vs_xgboost.py::TestGBRegressorVsXGB::test_r2_competitive[1000]
+ERROR tests/test_vs_xgboost.py::TestGBRegressorVsXGB::test_r2_competitive[5000]
+ERROR tests/test_vs_xgboost.py::TestGBRegressorVsXGB::test_prediction_agreement
+ERROR tests/test_vs_xgboost.py::TestGBClassifierVsXGB::test_accuracy_competitive[1000]
+ERROR tests/test_vs_xgboost.py::TestGBClassifierVsXGB::test_accuracy_competitive[5000]
+ERROR tests/test_vs_xgboost.py::TestGBClassifierVsXGB::test_prediction_agreement
+ERROR tests/test_vs_xgboost.py::TestHistGBVsXGB::test_regressor_competitive
+ERROR tests/test_vs_xgboost.py::TestHistGBVsXGB::test_classifier_competitive
+ERROR tests/test_vs_xgboost.py::TestPerformanceVsXGB::test_timing_recorded[1000]
+ERROR tests/test_vs_xgboost.py::TestPerformanceVsXGB::test_timing_recorded[5000]
+= 23 failed, 2929 passed, 21 skipped, 4 xfailed, 23 warnings, 19 errors in 1581.46s (0:26:21) =
+EXIT_CODE=1
