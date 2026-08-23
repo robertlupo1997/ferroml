@@ -7,7 +7,7 @@
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v1.0.2** — 55+ ML algorithms, 7,600+ tests passing (4,600+ Rust + 3,000+ Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
+> **Status: v1.0.2** — 55+ ML algorithms, 8,196 tests passing (5,225 Rust + 2,971 Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -331,7 +331,7 @@ FerroML is **v1.0.2**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of
 
 | Metric | Status |
 |--------|--------|
-| **Tests** | 7,600+ passing (4,600+ Rust + 3,000+ Python), 0 failing, 26 ignored (slow AutoML system tests) |
+| **Tests** | 8,196 passing (5,225 Rust + 2,971 Python), 0 failing, 30 Rust ignored + 21 Python skipped + 4 xfailed. Recorded run: [`docs/test-runs/SUMMARY.md`](docs/test-runs/SUMMARY.md) |
 | **Correctness Tests** | 1,140 (553 edge_cases + 304 correctness + 88 adversarial + 103 integration + 36 regression + 56 vs_linfa) |
 | **Cross-Library Validation** | 489+ tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa) |
 | **Frankenstein Tests** | 37 Python + 8 Rust composition tests (pipeline, ensemble, serialization, thread safety) |
