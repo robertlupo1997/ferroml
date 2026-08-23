@@ -299,3 +299,6 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "automl: marks AutoML integration tests"
     )
+    config.addinivalue_line(
+        "markers", "parity: marks FM-003 parity-gate tests against certified tolerances"
+    )

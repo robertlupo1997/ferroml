@@ -110,6 +110,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "sklearn_compat: marks tests that require sklearn",
     "automl: marks AutoML integration tests",
+    "parity: marks FM-003 parity-gate tests against certified tolerances",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
