@@ -1,0 +1,268 @@
+{
+  "environment": {
+    "python": "3.13.7",
+    "numpy": "2.5.2",
+    "sklearn": "1.9.0",
+    "ferroml": "1.0.2",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "dtype": "float64"
+  },
+  "matrix": {
+    "seeds": [
+      42,
+      7,
+      123,
+      2026
+    ],
+    "configs": [
+      "blobs-easy",
+      "blobs-medium",
+      "blobs-wide",
+      "lowrank-noise"
+    ]
+  },
+  "policy": {
+    "derived_epsilon": "max(10 * max_abs_diff, 1e-12)",
+    "rtol": "derived_epsilon / max_ref_abs",
+    "subspace_gate": "max(10 * max_observed_subspace_distance, 1e-12)"
+  },
+  "channels": {
+    "explained_variance_ratio": {
+      "max_abs_diff": 7.771561172376096e-16,
+      "max_ref_abs": 0.6627526344237447,
+      "where": "blobs-easy/seed=123:evr",
+      "derived_epsilon": 1e-12
+    },
+    "transform_aligned": {
+      "max_abs_diff": 1.226199697335062e-12,
+      "max_ref_abs": 26.498119153247302,
+      "where": "blobs-medium/seed=123:transform",
+      "derived_epsilon": 1.226199697335062e-11
+    },
+    "reconstruction": {
+      "max_abs_diff": 8.739675649849232e-13,
+      "max_ref_abs": 13.730360702611751,
+      "where": "blobs-medium/seed=7:reconstruction",
+      "derived_epsilon": 8.739675649849232e-12
+    },
+    "subspace_distance": {
+      "max_observed": 4.470348358154296e-08,
+      "where": "blobs-wide/seed=2026:components",
+      "gate": 4.4703483581542963e-07
+    }
+  },
+  "scope_exclusions": {
+    "truncated_svd_evr": "FerroML TruncatedSVD explained_variance_ratio_ uses a different normalization than sklearn (observed ~4.2e-2 discrepancy at subspace distance ~4.5e-7); definitional mismatch, no parity epsilon claimed",
+    "gradient_boosting": "declared scope exclusion: algorithms differ from sklearn's"
+  },
+  "cells": [
+    {
+      "config": "blobs-easy",
+      "seed": 42,
+      "n": 200,
+      "k": 4,
+      "n_features": 10,
+      "generator": "blobs",
+      "subspace_distance": 2.1073424255447017e-08,
+      "evr_max_abs_diff": 3.3306690738754696e-16,
+      "transform_aligned_max_abs_diff": 4.440892098500626e-14,
+      "reconstruction_max_abs_diff": 2.3092638912203256e-14,
+      "evr_ref_max": 0.6617227889689693
+    },
+    {
+      "config": "blobs-medium",
+      "seed": 42,
+      "n": 500,
+      "k": 6,
+      "n_features": 10,
+      "generator": "blobs",
+      "subspace_distance": 2.980232238769531e-08,
+      "evr_max_abs_diff": 1.6653345369377348e-16,
+      "transform_aligned_max_abs_diff": 3.336411008580953e-13,
+      "reconstruction_max_abs_diff": 2.575717417130363e-13,
+      "evr_ref_max": 0.6627526344237447
+    },
+    {
+      "config": "blobs-wide",
+      "seed": 42,
+      "n": 1000,
+      "k": 8,
+      "n_features": 20,
+      "generator": "blobs",
+      "subspace_distance": 2.9802322387695312e-08,
+      "evr_max_abs_diff": 2.498001805406602e-16,
+      "transform_aligned_max_abs_diff": 4.618527782440651e-14,
+      "reconstruction_max_abs_diff": 3.907985046680551e-14,
+      "evr_ref_max": 0.23976317077239517
+    },
+    {
+      "config": "lowrank-noise",
+      "seed": 42,
+      "n": 500,
+      "k": 5,
+      "n_features": 20,
+      "generator": "lowrank",
+      "subspace_distance": 2.980232238769531e-08,
+      "evr_max_abs_diff": 5.134781488891349e-16,
+      "transform_aligned_max_abs_diff": 3.389649672058681e-15,
+      "reconstruction_max_abs_diff": 1.9984014443252818e-15,
+      "evr_ref_max": 0.1238097016326909
+    },
+    {
+      "config": "blobs-easy",
+      "seed": 7,
+      "n": 200,
+      "k": 4,
+      "n_features": 10,
+      "generator": "blobs",
+      "subspace_distance": 2.1073424255447017e-08,
+      "evr_max_abs_diff": 3.885780586188048e-16,
+      "transform_aligned_max_abs_diff": 4.1744385725905886e-14,
+      "reconstruction_max_abs_diff": 2.4868995751603507e-14,
+      "evr_ref_max": 0.4025899537014445
+    },
+    {
+      "config": "blobs-medium",
+      "seed": 7,
+      "n": 500,
+      "k": 6,
+      "n_features": 10,
+      "generator": "blobs",
+      "subspace_distance": 2.980232238769531e-08,
+      "evr_max_abs_diff": 4.996003610813204e-16,
+      "transform_aligned_max_abs_diff": 8.837375276016246e-13,
+      "reconstruction_max_abs_diff": 8.739675649849232e-13,
+      "evr_ref_max": 0.40216601404162905
+    },
+    {
+      "config": "blobs-wide",
+      "seed": 7,
+      "n": 1000,
+      "k": 8,
+      "n_features": 20,
+      "generator": "blobs",
+      "subspace_distance": 2.9802322387695312e-08,
+      "evr_max_abs_diff": 2.7755575615628914e-16,
+      "transform_aligned_max_abs_diff": 1.5987211554602254e-13,
+      "reconstruction_max_abs_diff": 3.907985046680551e-14,
+      "evr_ref_max": 0.24492275636044372
+    },
+    {
+      "config": "lowrank-noise",
+      "seed": 7,
+      "n": 500,
+      "k": 5,
+      "n_features": 20,
+      "generator": "lowrank",
+      "subspace_distance": 2.1073424255447017e-08,
+      "evr_max_abs_diff": 1.5265566588595902e-16,
+      "transform_aligned_max_abs_diff": 1.3183898417423734e-15,
+      "reconstruction_max_abs_diff": 7.632783294297951e-16,
+      "evr_ref_max": 0.11913262730734545
+    },
+    {
+      "config": "blobs-easy",
+      "seed": 123,
+      "n": 200,
+      "k": 4,
+      "n_features": 10,
+      "generator": "blobs",
+      "subspace_distance": 1.4901161193847656e-08,
+      "evr_max_abs_diff": 7.771561172376096e-16,
+      "transform_aligned_max_abs_diff": 4.0190073491430667e-14,
+      "reconstruction_max_abs_diff": 2.930988785010413e-14,
+      "evr_ref_max": 0.49487857833971566
+    },
+    {
+      "config": "blobs-medium",
+      "seed": 123,
+      "n": 500,
+      "k": 6,
+      "n_features": 10,
+      "generator": "blobs",
+      "subspace_distance": 2.580956827951785e-08,
+      "evr_max_abs_diff": 4.440892098500626e-16,
+      "transform_aligned_max_abs_diff": 1.226199697335062e-12,
+      "reconstruction_max_abs_diff": 6.892264536872972e-13,
+      "evr_ref_max": 0.4975915367587792
+    },
+    {
+      "config": "blobs-wide",
+      "seed": 123,
+      "n": 1000,
+      "k": 8,
+      "n_features": 20,
+      "generator": "blobs",
+      "subspace_distance": 0.0,
+      "evr_max_abs_diff": 3.885780586188048e-16,
+      "transform_aligned_max_abs_diff": 1.1368683772161603e-13,
+      "reconstruction_max_abs_diff": 4.796163466380676e-14,
+      "evr_ref_max": 0.25728838486346467
+    },
+    {
+      "config": "lowrank-noise",
+      "seed": 123,
+      "n": 500,
+      "k": 5,
+      "n_features": 20,
+      "generator": "lowrank",
+      "subspace_distance": 1.4901161193847656e-08,
+      "evr_max_abs_diff": 3.885780586188048e-16,
+      "transform_aligned_max_abs_diff": 4.7878367936959876e-15,
+      "reconstruction_max_abs_diff": 9.992007221626409e-16,
+      "evr_ref_max": 0.11837671242832426
+    },
+    {
+      "config": "blobs-easy",
+      "seed": 2026,
+      "n": 200,
+      "k": 4,
+      "n_features": 10,
+      "generator": "blobs",
+      "subspace_distance": 3.9424766765007225e-08,
+      "evr_max_abs_diff": 2.220446049250313e-16,
+      "transform_aligned_max_abs_diff": 1.2967404927621828e-13,
+      "reconstruction_max_abs_diff": 1.5987211554602254e-14,
+      "evr_ref_max": 0.46241324483510277
+    },
+    {
+      "config": "blobs-medium",
+      "seed": 2026,
+      "n": 500,
+      "k": 6,
+      "n_features": 10,
+      "generator": "blobs",
+      "subspace_distance": 2.980232238769531e-08,
+      "evr_max_abs_diff": 3.3306690738754696e-16,
+      "transform_aligned_max_abs_diff": 4.877209747178313e-13,
+      "reconstruction_max_abs_diff": 4.2810199829546036e-13,
+      "evr_ref_max": 0.46829432999614073
+    },
+    {
+      "config": "blobs-wide",
+      "seed": 2026,
+      "n": 1000,
+      "k": 8,
+      "n_features": 20,
+      "generator": "blobs",
+      "subspace_distance": 4.470348358154296e-08,
+      "evr_max_abs_diff": 1.3877787807814457e-16,
+      "transform_aligned_max_abs_diff": 6.88338275267597e-14,
+      "reconstruction_max_abs_diff": 4.440892098500626e-14,
+      "evr_ref_max": 0.23972169991121398
+    },
+    {
+      "config": "lowrank-noise",
+      "seed": 2026,
+      "n": 500,
+      "k": 5,
+      "n_features": 20,
+      "generator": "lowrank",
+      "subspace_distance": 3.650024149988857e-08,
+      "evr_max_abs_diff": 1.942890293094024e-16,
+      "transform_aligned_max_abs_diff": 5.828670879282072e-15,
+      "reconstruction_max_abs_diff": 1.3253287356462806e-15,
+      "evr_ref_max": 0.10136064693259321
+    }
+  ]
+}
