@@ -6,6 +6,8 @@ Updated 2026-07-12 (v1.0.2): added statistically-grounded selection (statistical
 **Scope:** All algorithms in ferroml-core/src/models/, clustering/, decomposition/, neural/, gpu/, sparse.rs
 **Methodology:** 5-layer correctness framework (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein) + GPU/Sparse stability assessment
 
+> **Erratum (v1.0.2 claims audit):** two classes of statements in this historical report do not hold against committed benchmark data and current static test counts. (1) The ">5x slower than sklearn" performance claims (the Session 8 table row, the Executive Summary, and the Phase 3 conclusion) are contradicted by the repository's own recorded results: docs/validation-report.md records sklearn 45.83x faster on KNeighborsClassifier predict and 25.32x faster on DBSCAN, and docs/benchmarks.md records SVC RBF at 6.20x slower. (2) The suite sub-counts below ("Library unit tests 3,224 / 26 ignored", "Edge case tests 553", "Adversarial tests 88") are stale: static counting today gives 3,795 `#[test]` attributes in ferroml-core/src with 31 `#[ignore]` attributes repo-wide, and per-file counts of 238 (edge_cases.rs) and 89 (adversarial.rs). The grand totals (4,602 Rust / 3,039 Python) remain as recorded. Treat the sub-counts and performance claims here as historical; regenerate before citing.
+
 ---
 
 ## Executive Summary

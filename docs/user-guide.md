@@ -73,7 +73,7 @@ This isn't just about adding numbers. It's about answering the question that mat
 **Rust (library)**:
 ```toml
 [dependencies]
-ferroml-core = "0.1"
+ferroml-core = "1.0"
 ```
 
 **Python (bindings)**:
@@ -335,14 +335,16 @@ The most advanced tree algorithm in FerroML:
 from ferroml.trees import HistGradientBoostingRegressor
 
 model = HistGradientBoostingRegressor(
-    n_estimators=100,
+    max_iter=100,       # the Python class uses max_iter, not n_estimators
     max_depth=6,
     learning_rate=0.1,
-    monotonic_constraints=[1, 0, -1],  # Feature 0: increasing, Feature 2: decreasing
-    early_stopping=True,
-    validation_fraction=0.1,
 )
 model.fit(X_train, y_train)
+
+# Note: monotonic constraints and interaction constraints exist in the Rust core
+# (ferroml-core/src/models/hist_boosting.rs) but are not exposed in the Python
+# API yet; early stopping / validation_fraction are likewise not parameters of
+# this class. The signature above is what ferroml.trees actually accepts.
 ```
 
 ### Support Vector Machines
@@ -1164,7 +1166,7 @@ When comparing many models:
 
 ```python
 config = AutoMLConfig(
-    multiple_testing_correction="benjamini_hochberg",
+    multiple_testing="bh",
     ...
 )
 ```

@@ -2,6 +2,8 @@
 
 *Generated from Plan M: Real-World Validation — 281 side-by-side comparison tests*
 
+> **Erratum (v1.0.2 claims audit):** this report's totals are internally inconsistent (281 here vs 265 in its own reproduce block) and disagree with docs/accuracy-report.md (279/265). The current suite contains 245 comparison test functions (test_comparison_*.py + test_performance_comparison.py). Treat the counts here as historical and regenerate before citing.
+
 ## Executive Summary
 
 FerroML's 50+ models and 18 preprocessing transformers have been systematically validated against scikit-learn on real datasets (iris, wine, breast_cancer, diabetes) and synthetic data. **All 281 tests pass.** Zero bugs were found during validation.

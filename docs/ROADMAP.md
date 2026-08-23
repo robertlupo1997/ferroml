@@ -2,9 +2,9 @@
 
 > **Last Updated:** 2026-03-18
 
-## Current Status: v0.3.1
+## Current Status: v1.0.2
 
-FerroML has completed 32 plans of development and hardening (Plans 1-6, A-Z) with 3,550+ Rust tests and 2,100+ Python tests passing (5,650+ total). All core ML algorithms are implemented, validated against sklearn/scipy/xgboost/lightgbm/statsmodels, and hardened with correctness tests. Python binding coverage is ~99%.
+FerroML has completed 32 plans of development and hardening (Plans 1-6, A-Z) plus the v1.0 phases, with 4,600+ Rust tests (`#[test]` attributes) and 3,000+ Python tests collected (7,600+ total; docs/correctness-report.md). All core ML algorithms are implemented and validated against sklearn/scipy/xgboost/lightgbm/statsmodels. The release entries below are dated history; earlier banners (e.g., the v0.3.1 status) describe past releases, not the current state.
 
 ## Release History
 

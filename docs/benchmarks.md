@@ -2,6 +2,8 @@
 
 Cross-library performance comparison: FerroML vs scikit-learn on standardized workloads.
 
+> **Superseded for current claims:** these results were recorded at FerroML v0.4.0-dev and the raw measurement samples are not committed. For current cross-library numbers see docs/cross-library-benchmark.md (2026-03-27).
+
 ## Methodology
 
 - **Hardware**: AMD Ryzen 7 5700G (16 threads), x86_64

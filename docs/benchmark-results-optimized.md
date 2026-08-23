@@ -1,5 +1,7 @@
 # FerroML Benchmark Results — Post-Optimization (Plan N)
 
+> **Historical snapshot:** Criterion timings recorded at commit 55ae057 (2026-03-08). No machine-readable results are committed for this run; superseded for current performance claims by docs/cross-library-benchmark.md.
+
 **Date**: 2026-03-09
 **Commit**: 55ae057 (Plan N phases N.1-N.8)
 **Hardware**: WSL2 Linux 6.6.87.2, x86_64

@@ -14,6 +14,7 @@ Usage:
 
 import argparse
 import json
+import math
 import platform
 import sys
 import time
@@ -297,10 +298,10 @@ def bench_logistic_regression(n_samples: int, n_features: int) -> List[Benchmark
     constructors = {}
     if has_ferroml():
         from ferroml.linear import LogisticRegression as FerroLR
-        constructors["ferroml"] = lambda: FerroLR(compute_diagnostics=False)
+        constructors["ferroml"] = lambda: FerroLR(compute_diagnostics=False, max_iter=1000, tol=1e-4)  # pinned to match sklearn
     if has_sklearn():
         from sklearn.linear_model import LogisticRegression as SkLR
-        constructors["sklearn"] = lambda: SkLR(max_iter=1000)
+        constructors["sklearn"] = lambda: SkLR(max_iter=1000, tol=1e-4)
 
     return run_single("LogisticRegression", "classification", n_samples, n_features,
                       constructors, X_train, y_train, X_test, y_test)
@@ -351,19 +352,32 @@ def bench_random_forest_regressor(n_samples: int, n_features: int) -> List[Bench
     constructors = {}
     if has_ferroml():
         from ferroml.trees import RandomForestRegressor as FerroRF
-        constructors["ferroml"] = lambda: FerroRF(n_estimators=100, max_depth=10)
+        # Parity note: FerroML's Python wrapper default is max_features="sqrt"
+        # (ferroml-python/src/trees.rs), which overrides the Rust core regressor
+        # default of Fraction(1/3) (ferroml-core/src/models/forest.rs); sklearn's
+        # RandomForestRegressor defaults to ALL features. Pin max_features="sqrt"
+        # on BOTH sides so the comparison is configured identically.
+        # Pin max_features="sqrt" explicitly: the Python wrapper default is
+        # "sqrt" (ferroml-python/src/trees.rs), which overrides the Rust core
+        # regressor default Fraction(1/3). Pinning keeps the benchmark immune
+        # to future wrapper-default changes.
+        constructors["ferroml"] = lambda: FerroRF(n_estimators=100, max_depth=10, max_features="sqrt", random_state=42)
     if has_sklearn():
         from sklearn.ensemble import RandomForestRegressor as SkRF
-        constructors["sklearn"] = lambda: SkRF(n_estimators=100, max_depth=10, random_state=42)
+        constructors["sklearn"] = lambda: SkRF(n_estimators=100, max_depth=10, max_features="sqrt", random_state=42)
     if has_xgboost():
         import xgboost as xgb
         constructors["xgboost"] = lambda: xgb.XGBRFRegressor(
-            n_estimators=100, max_depth=10, random_state=42, verbosity=0)
+            n_estimators=100, max_depth=10,
+            colsample_bynode=math.sqrt(n_features) / n_features,  # per-split sqrt(p), matches ferroml/sklearn
+            random_state=42, verbosity=0)
     if has_lightgbm():
         import lightgbm as lgb
         constructors["lightgbm"] = lambda: lgb.LGBMRegressor(
             boosting_type="rf", n_estimators=100, max_depth=10,
-            subsample=0.8, subsample_freq=1, random_state=42, verbose=-1)
+            subsample=0.8, subsample_freq=1,
+            feature_fraction_bynode=math.sqrt(n_features) / n_features,  # per-split sqrt(p)
+            random_state=42, verbose=-1)
 
     return run_single("RandomForestRegressor", "regression", n_samples, n_features,
                       constructors, X_train, y_train, X_test, y_test)
@@ -378,20 +392,25 @@ def bench_random_forest_classifier(n_samples: int, n_features: int) -> List[Benc
     constructors = {}
     if has_ferroml():
         from ferroml.trees import RandomForestClassifier as FerroRF
-        constructors["ferroml"] = lambda: FerroRF(n_estimators=100, max_depth=10)
+        # Pin max_features="sqrt" explicitly on both sides (see regressor note).
+        constructors["ferroml"] = lambda: FerroRF(n_estimators=100, max_depth=10, max_features="sqrt", random_state=42)
     if has_sklearn():
         from sklearn.ensemble import RandomForestClassifier as SkRF
-        constructors["sklearn"] = lambda: SkRF(n_estimators=100, max_depth=10, random_state=42)
+        constructors["sklearn"] = lambda: SkRF(n_estimators=100, max_depth=10, max_features="sqrt", random_state=42)
     if has_xgboost():
         import xgboost as xgb
         constructors["xgboost"] = lambda: xgb.XGBRFClassifier(
-            n_estimators=100, max_depth=10, random_state=42, verbosity=0,
+            n_estimators=100, max_depth=10,
+            colsample_bynode=math.sqrt(n_features) / n_features,  # per-split sqrt(p), matches ferroml/sklearn
+            random_state=42, verbosity=0,
             use_label_encoder=False, eval_metric="logloss")
     if has_lightgbm():
         import lightgbm as lgb
         constructors["lightgbm"] = lambda: lgb.LGBMClassifier(
             boosting_type="rf", n_estimators=100, max_depth=10,
-            subsample=0.8, subsample_freq=1, random_state=42, verbose=-1)
+            subsample=0.8, subsample_freq=1,
+            feature_fraction_bynode=math.sqrt(n_features) / n_features,  # per-split sqrt(p)
+            random_state=42, verbose=-1)
 
     return run_single("RandomForestClassifier", "classification", n_samples, n_features,
                       constructors, X_train, y_train, X_test, y_test)

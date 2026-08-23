@@ -188,7 +188,7 @@ DHAT_LOG=dhat-heap.json cargo bench --bench memory_benchmarks
 FerroML includes automatic performance regression detection in CI:
 
 1. **On Pull Requests**: Compares PR benchmarks against base branch
-2. **Threshold**: 10% regression triggers CI failure
+2. **Threshold**: 15% regression flags a benchmark regression (`regression_threshold_percent` in ferroml-core/benches/baseline.json)
 3. **Artifacts**: Benchmark results saved for 30 days
 
 ### How It Works

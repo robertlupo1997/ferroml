@@ -3,7 +3,7 @@
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/pypi/l/ferroml.svg)](https://pypi.org/project/ferroml/)
 [![PyPI](https://img.shields.io/pypi/v/ferroml.svg)](https://pypi.org/project/ferroml/)
-[![Tests](https://img.shields.io/badge/tests-7%2C600%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-7%2C600%2B%20collected-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
@@ -222,8 +222,7 @@ report = result.benchmark_report(format="json")   # machine-readable, schema_ver
 card = result.model_card()                        # Markdown model card for the selected model
 ```
 
-Real (excerpted) output from the run above — 420 trials on a 250 × 8 synthetic
-classification dataset:
+Illustrative example output (the excerpt predates v1.0.2; the run that produced it is not stored in this repository, so the trial count is unverified):
 
 ```text
 Multiple Linear SVC configurations are statistically indistinguishable at the
@@ -289,7 +288,7 @@ ferroml-core = { version = "1.0", features = ["simd", "sparse", "onnx"] }
 
 ### Benchmarks vs scikit-learn
 
-All benchmarks produce matching predictions (100% correctness). Results from cross-library benchmark (2026-03-27, 10K samples):
+Benchmarks train on identical data per workload. In the recorded run (2026-03-27, 10K samples), test scores match for most models but differ where model defaults differed — most visibly RandomForestRegressor, whose comparison pinned different `max_features` values on the two sides (fixed in scripts/benchmark_cross_library.py; affected numbers pending a rerun):
 
 | Model | vs sklearn | Status |
 |-------|-----------|--------|
@@ -302,14 +301,14 @@ All benchmarks produce matching predictions (100% correctness). Results from cro
 | LogReg | 2.1x | Competitive |
 | KNN | 4.0x | Known limitation |
 
-No model is more than 5x slower than sklearn. FerroML wins on **predict universally** (zero Python overhead), on **tree/ensemble models** (Rayon parallel construction), and achieves **parity or better on linear algebra** thanks to faer SVD and Cholesky solvers. Full results with methodology and analysis: [docs/benchmarks.md](docs/benchmarks.md)
+In the recorded cross-library benchmark no measured workload is more than ~4.2x slower than sklearn, though other repo benchmarks show larger gaps for KNN predict (45.8x at n=10K), DBSCAN fit, and SVC RBF (docs/validation-report.md, docs/benchmarks.md). FerroML wins on predict for most models but not universally — sklearn is faster on HistGBT and KNN predict at scale — and on tree/ensemble fit (Rayon parallel construction); on linear-model fits it is within ~2x of sklearn and at parity on PCA. Full results with methodology and analysis: [docs/benchmarks.md](docs/benchmarks.md)
 
 ### Architecture
 
 - **Rayon parallelism** — Automatic parallel iteration for ensemble training
 - **SIMD operations** — Vectorized distance calculations
-- **GPU acceleration** — wgpu-based GEMM, distance matrices, MLP forward/backward (8 WGSL shaders with auto CPU/GPU dispatch)
-- **Native sparse support** — CsrMatrix operations for 12 models, TfidfTransformer, sparse scalers
+- **GPU acceleration** — wgpu-based GEMM, distance matrices, MLP forward/backward (10 WGSL shaders with auto CPU/GPU dispatch)
+- **Native sparse support** — CsrMatrix operations for 11 models, TfidfTransformer, sparse scalers
 - **faer-backend** — BLAS-accelerated linear algebra (Cholesky, matrix solve) via faer
 - **Barnes-Hut t-SNE** — O(N log N) visualization with VP-tree and QuadTree
 - **LTO optimization** — Link-time optimization in release builds
@@ -334,11 +333,11 @@ FerroML is **v1.0.2**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of
 | **Tests** | 8,196 passing (5,225 Rust + 2,971 Python), 0 failing, 30 Rust ignored + 21 Python skipped + 4 xfailed. Recorded run: [`docs/test-runs/SUMMARY.md`](docs/test-runs/SUMMARY.md) |
 | **Correctness Tests** | 1,140 (553 edge_cases + 304 correctness + 88 adversarial + 103 integration + 36 regression + 56 vs_linfa) |
 | **Cross-Library Validation** | 489+ tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa) |
-| **Frankenstein Tests** | 37 Python + 8 Rust composition tests (pipeline, ensemble, serialization, thread safety) |
+| **Frankenstein Tests** | 37 Python + 7 Rust composition tests (pipeline, ensemble, serialization, thread safety) |
 | **5-Layer Verification** | Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein — all passing |
 | **Python Test Files** | 60+ end-to-end test files |
-| **Python Bindings** | ~99% coverage (55+ models, 22+ preprocessors, 6 decomposition, 37 explainability) |
-| **sklearn API** | `score()` on 56 models, `partial_fit` on 10, `decision_function` on 13 classifiers |
+| **Python Bindings** | 55+ models, 22+ preprocessors, 7 decomposition classes, 37 explainability tools (coverage report not yet published) |
+| **sklearn API** | `score()` on 56 models, `partial_fit` on 10, `decision_function` on 18 estimators |
 | **Benchmarks** | 86+ Criterion benchmarks with CI regression baseline |
 | **GPU Tests** | ~188 tests for wgpu shader acceleration |
 | **Sparse Tests** | ~55 sparse model tests + 90 sparse infrastructure tests |
@@ -364,7 +363,7 @@ FerroML is **v1.0.2**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of
 
 ### Accuracy Validation
 
-FerroML is validated against scikit-learn with 58 fixture-based comparisons and 489+ cross-library correctness tests:
+FerroML is validated against scikit-learn on committed fixture data (benchmarks/fixtures/: 17 model fixtures, 11 transformer fixtures, 12 adversarial fixtures) and 489+ cross-library correctness tests:
 
 | Category | Tests | Status |
 |----------|-------|--------|
@@ -373,6 +372,8 @@ FerroML is validated against scikit-learn with 58 fixture-based comparisons and 
 | Clustering correctness | 102 | All passing |
 | Neural network correctness | 49 | All passing |
 | Preprocessing correctness | 101 | All passing |
+
+*Note: the per-category counts in this table come from an earlier suite snapshot and could not be reproduced from current test IDs; they are pending regeneration from collected test IDs. The committed fixture data covers 17 model and 11 preprocessing fixtures.*
 
 | Algorithm Type | Tolerance |
 |----------------|-----------|
@@ -434,11 +435,11 @@ RandomForest and ExtraTrees use Rayon for parallel tree construction. Due to wor
 
 ### Sparse Algorithm Support
 
-12 models support sparse input (CSR format) via the `fit_sparse()`/`predict_sparse()` API. For unsupported models, sparse matrices are converted to dense automatically. Very large sparse datasets (>100K features) may cause memory issues during conversion.
+11 models support sparse input (CSR format) via the `fit_sparse()`/`predict_sparse()` API. For unsupported models, sparse matrices are converted to dense automatically. Very large sparse datasets (>100K features) may cause memory issues during conversion.
 
 ### ONNX Export (ort RC)
 
-ONNX export depends on `ort 2.0.0-rc.11` (release candidate). The API is stable and all 118 roundtrip tests pass, but users should be aware this is a pre-release dependency. Pin your ort version to avoid surprises on upgrade.
+ONNX export depends on `ort 2.0.0-rc.11` (release candidate). The API is stable — ferroml-core/src/onnx carries 88 unit tests — but users should be aware this is a pre-release dependency. Pin your ort version to avoid surprises on upgrade.
 
 ### Per-Model Notes
 
@@ -446,7 +447,7 @@ See individual model docstrings for model-specific limitations and recommendatio
 
 ### Benchmarks
 
-FerroML achieves competitive or better performance than scikit-learn across most algorithms. No model is more than 5x slower. Highlights: KMeans 3.9x faster, StandardScaler 3.4x faster, GaussianNB 2.7x faster. Full methodology and results: [docs/benchmarks.md](docs/benchmarks.md).
+FerroML achieves competitive or better performance than scikit-learn across most algorithms. Within the cross-library benchmark workloads the largest gap is ~4.2x (KNN fit); other repo benchmarks show larger gaps for KNN predict at scale, DBSCAN fit, and SVC RBF (docs/validation-report.md, docs/benchmarks.md). Highlights: KMeans 3.9x faster, StandardScaler 3.4x faster, GaussianNB 2.7x faster. Full methodology and results: [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Contributing
 

@@ -31,6 +31,8 @@ Comparison of FerroML against scikit-learn across models and preprocessing trans
 
 ## Plan M: Side-by-Side Validation (265 tests)
 
+> **Erratum:** the summary table above counts Plan M at 279 while this heading says 265, and docs/validation-report.md uses 281/265 elsewhere. These historical totals cannot be reconciled from repository artifacts; regenerate per-phase counts from collected test IDs before citing.
+
 Comprehensive Python-level comparison of 50+ FerroML models against sklearn equivalents.
 See [validation-report.md](validation-report.md) for full results including performance data.
 
@@ -140,14 +142,16 @@ In addition to sklearn fixture comparisons, FerroML has dedicated correctness te
 
 ## Test Infrastructure
 
+*Updated during the v1.0.2 claims audit: the stale v0.x figures in this table were replaced with current verified static counts.*
+
 | Metric | Value |
 |--------|-------|
-| Total Rust tests | ~3,400 passing, 0 failing, 6 ignored |
-| Lib tests (src/) | ~2,930 passing |
-| Integration tests (tests/) | ~480 passing |
-| Sklearn correctness tests | 58 passing |
-| Python tests | ~1,385 passing, 18 skipped |
-| Python test files | 35 |
+| Total Rust tests | 4,602 `#[test]` attributes (static count) |
+| Lib tests (src/) | 3,795 `#[test]` attributes |
+| Integration tests (tests/) | 807 `#[test]` attributes |
+| Sklearn fixture comparisons | 17 model fixtures + 11 transformer fixtures committed under benchmarks/fixtures/ |
+| Python tests | 2,428 `def test_` functions statically; 3,039 collected per docs/correctness-report.md |
+| Python test files | 85 |
 | Benchmarks | 86+ Criterion functions |
 
 ## Reproducing Results

@@ -6,7 +6,7 @@
 
 **High-performance ML in Rust with a scikit-learn-compatible Python API.**
 
-FerroML is a machine learning library written in Rust that provides 55+ algorithms with statistical rigor built in: confidence intervals on predictions, hypothesis testing for model comparison, and assumption checks on every model. It's 2-40x faster than scikit-learn on predict and up to 9x faster on fit for tree/ensemble models.
+FerroML is a machine learning library written in Rust that provides 55+ algorithms with statistical rigor built in: confidence intervals on predictions, hypothesis testing for model comparison, and assumption checks on every model. On the latest committed cross-library benchmark (2026-03-27, docs/cross-library-benchmark.md) it is up to ~7x faster than scikit-learn on predict for many models — though slower on HistGBT and KNN predict at scale — and, in that recorded run, up to ~20x faster on fit for tree/ensemble models (RandomForest fit; that run predates the max_features parity fix in scripts/benchmark_cross_library.py, so its comparison figures await a rerun).
 
 ## Installation
 
@@ -42,7 +42,7 @@ pipe = Pipeline([
     ("clf", RandomForestClassifier(n_estimators=100)),
 ])
 pipe.fit(X_train, y_train)
-score = pipe.score(X_test, y_test)
+y_pred = pipe.predict(X_test)
 ```
 
 ```python
@@ -60,7 +60,7 @@ clf.fit(X_tfidf, y)
 
 ## Performance vs scikit-learn
 
-All benchmarks produce matching predictions. Speedup >1x = FerroML is faster.
+Figures below are from the v0.2.0 run (2026-03-11, docs/benchmark-vs-sklearn.md); the newer cross-library benchmark (2026-03-27, docs/cross-library-benchmark.md) supersedes them. Test scores match for most models but differ where model defaults differed. Speedup >1x = FerroML is faster.
 
 | Model | N | Fit | Predict |
 |-------|--:|----:|--------:|
@@ -70,15 +70,15 @@ All benchmarks produce matching predictions. Speedup >1x = FerroML is faster.
 | GradientBoosting | 1K | **1.5x** | **1.2x** |
 | LogisticRegression | 10K | **1.5x** | **13.7x** |
 
-FerroML is faster on **predict universally** (zero Python overhead) and on **fit for tree/ensemble models** (Rayon parallel construction). scikit-learn wins on fit for LAPACK/MKL-backed linear algebra.
+FerroML is faster on **predict for most models**, though scikit-learn wins on HistGBT and KNN predict at scale, and FerroML is faster on **fit for tree/ensemble models** (Rayon parallel construction). scikit-learn wins on fit for LAPACK/MKL-backed linear algebra.
 
 ## Available Models
 
 | Module | Models |
 |--------|--------|
 | `linear` | LinearRegression, LogisticRegression, Ridge, Lasso, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier, QuantileRegression, RobustRegression, Perceptron, IsotonicRegression |
-| `trees` | DecisionTreeClassifier, DecisionTreeRegressor, GradientBoostingClassifier/Regressor, HistGradientBoostingClassifier/Regressor |
-| `ensemble` | RandomForest, ExtraTrees, AdaBoost, Bagging, Stacking, Voting (classifiers + regressors), SGD, PassiveAggressive |
+| `trees` | DecisionTreeClassifier/Regressor, RandomForestClassifier/Regressor, GradientBoostingClassifier/Regressor, HistGradientBoostingClassifier/Regressor |
+| `ensemble` | ExtraTrees, AdaBoost, Bagging, Stacking, Voting (classifiers + regressors), SGD, PassiveAggressive |
 | `naive_bayes` | GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB |
 | `svm` | SVC, SVR, LinearSVC, LinearSVR |
 | `neighbors` | KNeighborsClassifier/Regressor, NearestCentroid |
@@ -95,7 +95,7 @@ FerroML is faster on **predict universally** (zero Python overhead) and on **fit
 | `model_selection` | train_test_split, cross_validate, KFold, StratifiedKFold, GroupKFold, TimeSeriesSplit |
 | `metrics` | ROC-AUC, F1, MCC, R², RMSE, MAE, roc_curve, precision_recall_curve |
 | `automl` | AutoML with statistical model comparison |
-| `datasets` | Iris, Diabetes, Wine, California Housing, synthetic generators |
+| `datasets` | Iris, Diabetes, Wine, Linnerud, synthetic generators |
 
 ## sklearn API Compatibility
 
@@ -104,14 +104,14 @@ FerroML supports the scikit-learn API conventions:
 - `fit()` / `predict()` / `transform()` on all models
 - `score()` on 56 models (R² for regressors, accuracy for classifiers)
 - `partial_fit()` on 10 models for incremental learning
-- `decision_function()` on 13 classifiers
+- `decision_function()` on 18 estimators
 - `predict_proba()` on probabilistic classifiers
 - Pipeline and ColumnTransformer composition
 - NumPy array input/output
 
 ## Testing
 
-5,650+ tests passing (3,550+ Rust + 2,100+ Python), validated against scikit-learn, scipy, xgboost, lightgbm, and statsmodels with 200+ cross-library correctness tests.
+7,600+ tests collected (4,600+ Rust + 3,000+ Python; docs/correctness-report.md), validated against scikit-learn, scipy, xgboost, lightgbm, and statsmodels with 489+ cross-library correctness tests.
 
 ## License
 

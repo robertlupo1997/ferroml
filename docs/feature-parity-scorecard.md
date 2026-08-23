@@ -2,6 +2,8 @@
 
 *Generated: 2026-03-14 16:48*
 
+> **Historical snapshot (pre-v0.3.0):** the method-parity figures below were generated before Plan U expanded the API. Current bindings expose `score()` on 56 models, `partial_fit()` on 10, and `decision_function()` on 18 estimators. Regenerate via scripts/feature_parity_scorecard.py before citing.
+
 **Legend:** Y = supported, GAP = sklearn has it / FerroML missing, Y+ = FerroML-only, - = neither has it
 
 ## Summary

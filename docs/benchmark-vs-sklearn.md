@@ -35,6 +35,8 @@ Benchmark run: 2026-03-11 | FerroML v0.2.0 | scikit-learn 1.6.x | Linux x86_64 (
 
 Speedup >1x means FerroML is faster. **Bold** = FerroML wins. All 26 benchmarks produce matching predictions.
 
+> **Historical (FerroML v0.2.0, 2026-03-11):** superseded by docs/cross-library-benchmark.md (2026-03-27) for current claims. The newer data contradicts this document's headline generalizations ("all 26 benchmarks produce matching predictions", "2-40x faster on every model"): sklearn is faster on HistGBT and KNN predict at scale, and RandomForestRegressor scores differed in the newer run because its comparison pinned different `max_features` defaults on the two sides (fixed in scripts/benchmark_cross_library.py; numbers pending a rerun).
+
 ## Key Takeaways
 
 ### Where FerroML dominates
