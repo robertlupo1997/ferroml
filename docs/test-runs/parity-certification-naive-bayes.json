@@ -1,0 +1,396 @@
+{
+  "environment": {
+    "python": "3.13.7",
+    "numpy": "2.5.2",
+    "sklearn": "1.9.0",
+    "scipy": "1.18.1",
+    "ferroml": "1.0.2",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "dtype": "float64"
+  },
+  "matrix": {
+    "seeds": [
+      42,
+      7,
+      123,
+      2026
+    ],
+    "gnb_configs": [
+      "gauss-easy",
+      "gauss-medium",
+      "gauss-hard",
+      "gauss-wide"
+    ],
+    "mnb_configs": [
+      "counts-small",
+      "counts-large"
+    ],
+    "bnb_configs": [
+      "bernoulli-small",
+      "bernoulli-large"
+    ],
+    "scope_note": "CategoricalNB excluded from this slice"
+  },
+  "policy": {
+    "derived_epsilon": "max(10 * max_abs_diff, 1e-12)",
+    "rtol": "derived_epsilon / max_ref_abs",
+    "agreement_threshold": "max(0, min_observed_agreement - 0.01)"
+  },
+  "channels": {
+    "gnb_theta": {
+      "max_abs_diff": 0.0,
+      "max_ref_abs": 4.0545744535880015,
+      "where": "",
+      "derived_epsilon": 1e-12,
+      "derived_rtol": 2.466350073100947e-13
+    },
+    "gnb_var": {
+      "max_abs_diff": 4.389259800063883e-08,
+      "max_ref_abs": 60.59007691156325,
+      "where": "gauss-easy/seed=2026:var",
+      "derived_epsilon": 4.3892598000638827e-07,
+      "derived_rtol": 7.2441891870683845e-09
+    },
+    "gnb_predict_proba": {
+      "max_abs_diff": 8.004307217035489e-09,
+      "max_ref_abs": 1.0,
+      "where": "gauss-easy/seed=2026:proba",
+      "derived_epsilon": 8.004307217035489e-08,
+      "derived_rtol": 8.004307217035489e-08
+    },
+    "gnb_predict_log_proba_inrange": {
+      "max_abs_diff": 2.919941159973405e-07,
+      "max_ref_abs": 29.962396290906298,
+      "where": "gauss-easy/seed=2026:log_proba_inrange",
+      "derived_epsilon": 2.919941159973405e-06,
+      "derived_rtol": 9.745352580025844e-08
+    },
+    "gnb_log_proba_tail": {
+      "note": "FerroML floors class probabilities at 1e-15 before predict_log_proba; tail cells are gated structurally, not by epsilon",
+      "ref_tail_threshold": -30.0,
+      "tail_cells": 85,
+      "ref_min_observed": -84.3344747966904,
+      "fe_min_observed": -34.538776394910684,
+      "derived_floor": -34.538776394910684
+    },
+    "mnb_predict_proba": {
+      "max_abs_diff": 2.6001423236721166e-13,
+      "max_ref_abs": 0.9523541793976226,
+      "where": "counts-large/seed=42:proba",
+      "derived_epsilon": 2.6001423236721166e-12,
+      "derived_rtol": 2.730226190971035e-12
+    },
+    "bnb_predict_proba": {
+      "max_abs_diff": 5.218048215738236e-15,
+      "max_ref_abs": 0.9999832351164841,
+      "where": "bernoulli-large/seed=123:proba",
+      "derived_epsilon": 1e-12,
+      "derived_rtol": 1.000016765164582e-12
+    },
+    "gnb_label_agreement": {
+      "min_observed": 1.0,
+      "where": "",
+      "threshold": 0.99
+    },
+    "mnb_label_agreement": {
+      "min_observed": 1.0,
+      "where": "",
+      "threshold": 0.99
+    },
+    "bnb_label_agreement": {
+      "min_observed": 1.0,
+      "where": "",
+      "threshold": 0.99
+    }
+  },
+  "cells": [
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-easy",
+      "seed": 42,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 2.2578861447186682e-08,
+      "proba_max_abs_diff": 1.0386992932431838e-09,
+      "log_proba_inrange_max_abs_diff": 5.1871513306878114e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-medium",
+      "seed": 42,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 1.4772306933252821e-08,
+      "proba_max_abs_diff": 1.3004158305740532e-09,
+      "log_proba_inrange_max_abs_diff": 1.4958008165422143e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-hard",
+      "seed": 42,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 1.826839834961902e-08,
+      "proba_max_abs_diff": 1.4544198623234195e-09,
+      "log_proba_inrange_max_abs_diff": 1.6415015124948695e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-wide",
+      "seed": 42,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 3.408851512176625e-08,
+      "proba_max_abs_diff": 2.5046331675326883e-10,
+      "log_proba_inrange_max_abs_diff": 1.7182344436150743e-09,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "MultinomialNB",
+      "config": "counts-small",
+      "seed": 42,
+      "proba_max_abs_diff": 5.395683899678261e-14,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "MultinomialNB",
+      "config": "counts-large",
+      "seed": 42,
+      "proba_max_abs_diff": 2.6001423236721166e-13,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "BernoulliNB",
+      "config": "bernoulli-small",
+      "seed": 42,
+      "proba_max_abs_diff": 1.1102230246251565e-15,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "BernoulliNB",
+      "config": "bernoulli-large",
+      "seed": 42,
+      "proba_max_abs_diff": 4.440892098500626e-15,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-easy",
+      "seed": 7,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 9.04430530468403e-09,
+      "proba_max_abs_diff": 5.989486684399026e-11,
+      "log_proba_inrange_max_abs_diff": 5.766089827830001e-10,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-medium",
+      "seed": 7,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 8.632071057945723e-09,
+      "proba_max_abs_diff": 2.157609757524881e-09,
+      "log_proba_inrange_max_abs_diff": 8.066413670348993e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-hard",
+      "seed": 7,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 1.2964456175268424e-08,
+      "proba_max_abs_diff": 4.003161191423743e-09,
+      "log_proba_inrange_max_abs_diff": 4.211830173517228e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-wide",
+      "seed": 7,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 2.3655427838775722e-08,
+      "proba_max_abs_diff": 1.301994290159314e-09,
+      "log_proba_inrange_max_abs_diff": 1.127450843796396e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "MultinomialNB",
+      "config": "counts-small",
+      "seed": 7,
+      "proba_max_abs_diff": 2.853273173286652e-14,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "MultinomialNB",
+      "config": "counts-large",
+      "seed": 7,
+      "proba_max_abs_diff": 1.602051824534101e-13,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "BernoulliNB",
+      "config": "bernoulli-small",
+      "seed": 7,
+      "proba_max_abs_diff": 1.4432899320127035e-15,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "BernoulliNB",
+      "config": "bernoulli-large",
+      "seed": 7,
+      "proba_max_abs_diff": 3.6637359812630166e-15,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-easy",
+      "seed": 123,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 1.6059059859685476e-08,
+      "proba_max_abs_diff": 1.7733651769269443e-09,
+      "log_proba_inrange_max_abs_diff": 4.019474886263197e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-medium",
+      "seed": 123,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 8.915640226092592e-09,
+      "proba_max_abs_diff": 1.4293383143737515e-09,
+      "log_proba_inrange_max_abs_diff": 2.7034989358298844e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-hard",
+      "seed": 123,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 1.7334849999883772e-08,
+      "proba_max_abs_diff": 3.820069705007256e-09,
+      "log_proba_inrange_max_abs_diff": 3.91233569985161e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-wide",
+      "seed": 123,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 3.0631184699814185e-08,
+      "proba_max_abs_diff": 1.19866760961429e-09,
+      "log_proba_inrange_max_abs_diff": 1.2980436281395669e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "MultinomialNB",
+      "config": "counts-small",
+      "seed": 123,
+      "proba_max_abs_diff": 3.247402347028583e-14,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "MultinomialNB",
+      "config": "counts-large",
+      "seed": 123,
+      "proba_max_abs_diff": 1.616484723854228e-13,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "BernoulliNB",
+      "config": "bernoulli-small",
+      "seed": 123,
+      "proba_max_abs_diff": 1.3322676295501878e-15,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "BernoulliNB",
+      "config": "bernoulli-large",
+      "seed": 123,
+      "proba_max_abs_diff": 5.218048215738236e-15,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-easy",
+      "seed": 2026,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 4.389259800063883e-08,
+      "proba_max_abs_diff": 8.004307217035489e-09,
+      "log_proba_inrange_max_abs_diff": 2.919941159973405e-07,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-medium",
+      "seed": 2026,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 8.25133383841603e-09,
+      "proba_max_abs_diff": 2.5833631900340492e-09,
+      "log_proba_inrange_max_abs_diff": 5.3697483792802814e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-hard",
+      "seed": 2026,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 1.3498656414867582e-08,
+      "proba_max_abs_diff": 1.1732177451762027e-09,
+      "log_proba_inrange_max_abs_diff": 2.0075333395652706e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "GaussianNB",
+      "config": "gauss-wide",
+      "seed": 2026,
+      "theta_max_abs_diff": 0.0,
+      "var_max_abs_diff": 2.2662575815957098e-08,
+      "proba_max_abs_diff": 4.11981737613587e-09,
+      "log_proba_inrange_max_abs_diff": 3.028650752412432e-08,
+      "agreement_fit": 1.0,
+      "agreement_predict_holdout": 1.0
+    },
+    {
+      "estimator": "MultinomialNB",
+      "config": "counts-small",
+      "seed": 2026,
+      "proba_max_abs_diff": 3.4638958368304884e-14,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "MultinomialNB",
+      "config": "counts-large",
+      "seed": 2026,
+      "proba_max_abs_diff": 1.6220358389773537e-13,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "BernoulliNB",
+      "config": "bernoulli-small",
+      "seed": 2026,
+      "proba_max_abs_diff": 1.3322676295501878e-15,
+      "agreement_fit": 1.0
+    },
+    {
+      "estimator": "BernoulliNB",
+      "config": "bernoulli-large",
+      "seed": 2026,
+      "proba_max_abs_diff": 3.4416913763379853e-15,
+      "agreement_fit": 1.0
+    }
+  ]
+}
