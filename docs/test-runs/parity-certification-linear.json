@@ -1,0 +1,165 @@
+{
+  "contract": "PARITY-CONTRACT.md layers 2+4 (certification run, not tolerances)",
+  "margin_policy": {
+    "factor": 10.0,
+    "floor": 1e-12,
+    "formula": "eps = max(factor*max_abs_diff, floor)"
+  },
+  "environment": {
+    "python": "3.13.7",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "numpy": "2.5.2",
+    "sklearn": "1.9.0",
+    "ferroml": "1.0.2",
+    "dtype": "float64",
+    "threads_env": {
+      "OMP_NUM_THREADS": "",
+      "RAYON_NUM_THREADS": "",
+      "MKL_NUM_THREADS": ""
+    },
+    "seeds": [
+      42,
+      7,
+      123,
+      2026
+    ],
+    "shapes": [
+      [
+        200,
+        10
+      ],
+      [
+        500,
+        20
+      ],
+      [
+        1000,
+        50
+      ]
+    ]
+  },
+  "models": {
+    "LinearRegression": {
+      "coef": {
+        "max_abs_diff": 1.1541878564003127e-12,
+        "max_ref_abs": 3.15316594446025,
+        "n_compared": 320,
+        "argmax_case": "seed=42,shape=200x10",
+        "derived_epsilon": 1.1541878564003127e-11
+      },
+      "intercept": {
+        "max_abs_diff": 2.2648549702353193e-13,
+        "max_ref_abs": 0.5093475324219268,
+        "n_compared": 12,
+        "argmax_case": "seed=7,shape=200x10",
+        "derived_epsilon": 2.2648549702353193e-12
+      },
+      "predict": {
+        "max_abs_diff": 5.561773264162184e-12,
+        "max_ref_abs": 24.125253628248263,
+        "n_compared": 3400,
+        "argmax_case": "seed=42,shape=200x10",
+        "derived_epsilon": 5.561773264162184e-11
+      }
+    },
+    "RidgeRegression(alpha=1.0)": {
+      "coef": {
+        "max_abs_diff": 3.3306690738754696e-15,
+        "max_ref_abs": 3.1496593008057214,
+        "n_compared": 320,
+        "argmax_case": "seed=42,shape=1000x50",
+        "derived_epsilon": 1e-12
+      },
+      "intercept": {
+        "max_abs_diff": 3.885780586188048e-16,
+        "max_ref_abs": 0.5110385294856805,
+        "n_compared": 12,
+        "argmax_case": "seed=2026,shape=1000x50",
+        "derived_epsilon": 1e-12
+      },
+      "predict": {
+        "max_abs_diff": 1.9761969838327786e-14,
+        "max_ref_abs": 24.09734951806591,
+        "n_compared": 3400,
+        "argmax_case": "seed=42,shape=1000x50",
+        "derived_epsilon": 1e-12
+      }
+    },
+    "LassoRegression(alpha=0.1)": {
+      "coef": {
+        "max_abs_diff": 3.0242174800410027e-05,
+        "max_ref_abs": 3.0439861868579303,
+        "n_compared": 320,
+        "argmax_case": "seed=42,shape=1000x50",
+        "derived_epsilon": 0.00030242174800410027
+      },
+      "intercept": {
+        "max_abs_diff": 9.943723729977094e-07,
+        "max_ref_abs": 0.5398587063293165,
+        "n_compared": 12,
+        "argmax_case": "seed=2026,shape=1000x50",
+        "derived_epsilon": 9.943723729977094e-06
+      },
+      "predict": {
+        "max_abs_diff": 0.0002346229340925987,
+        "max_ref_abs": 22.74770905941664,
+        "n_compared": 3400,
+        "argmax_case": "seed=42,shape=1000x50",
+        "derived_epsilon": 0.002346229340925987
+      }
+    },
+    "ElasticNet(alpha=0.1,l1_ratio=0.5)": {
+      "coef": {
+        "max_abs_diff": 2.9717609883739282e-05,
+        "max_ref_abs": 2.9351839722122,
+        "n_compared": 320,
+        "argmax_case": "seed=42,shape=1000x50",
+        "derived_epsilon": 0.0002971760988373928
+      },
+      "intercept": {
+        "max_abs_diff": 6.339654908815717e-07,
+        "max_ref_abs": 0.5399843094782967,
+        "n_compared": 12,
+        "argmax_case": "seed=2026,shape=1000x50",
+        "derived_epsilon": 6.339654908815717e-06
+      },
+      "predict": {
+        "max_abs_diff": 0.00020951680899772285,
+        "max_ref_abs": 22.137580841751898,
+        "n_compared": 3400,
+        "argmax_case": "seed=42,shape=1000x50",
+        "derived_epsilon": 0.0020951680899772285
+      }
+    },
+    "LogisticRegression": {
+      "coef": {
+        "max_abs_diff": 0.001015117141132893,
+        "max_ref_abs": 1.6929128888438019,
+        "n_compared": 320,
+        "argmax_case": "seed=42,shape=1000x50,classes=2",
+        "derived_epsilon": 0.01015117141132893
+      },
+      "intercept": {
+        "max_abs_diff": 0.00043350579812162504,
+        "max_ref_abs": 0.4862767175869442,
+        "n_compared": 12,
+        "argmax_case": "seed=42,shape=1000x50,classes=2",
+        "derived_epsilon": 0.00433505798121625
+      },
+      "predict": {
+        "max_abs_diff": 0.0,
+        "max_ref_abs": 1.0,
+        "n_compared": 3400,
+        "argmax_case": "",
+        "derived_epsilon": 1e-12
+      },
+      "predict_proba": {
+        "max_abs_diff": 0.0010345569434691004,
+        "max_ref_abs": 0.9999996175988518,
+        "n_compared": 6800,
+        "argmax_case": "seed=42,shape=1000x50,classes=2",
+        "derived_epsilon": 0.010345569434691004
+      }
+    }
+  }
+}
