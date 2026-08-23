@@ -22,7 +22,9 @@ matrix).  A single epsilon there would be a rubber stamp (~5e2).  Instead:
 
   * in-range cells (reference > REF_TAIL = -30) get a real two-sided gate;
   * tail cells are checked structurally: all finite, and at or above the
-    measured FerroML floor recorded in the certification artifact.
+    measured FerroML floor recorded in the certification artifact. This
+    coverage is ONE-SIDED: tail values wrong upward are invisible to it
+    (see the artifact's ``notes.tail_coverage``).
 
 Layer-1 structural checks (shapes, class lists, finiteness) run alongside.
 If the live environment does not match the version-scoped certification
@@ -34,10 +36,13 @@ Run:
 from __future__ import annotations
 
 import json
+import platform
+import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
+import scipy
 import sklearn
 
 import ferroml
@@ -78,17 +83,30 @@ if not CERT_PATH.exists():
 CERT = json.loads(CERT_PATH.read_text())
 
 # --- Layer 4: tolerances are scoped to the certified environment -------------
+# The WHOLE recorded environment is load-bearing: interpreter version, the
+# BLAS-linked numpy/scipy builds, the platform's floating-point behaviour, and
+# the dtype all feed the measured max-diffs the tolerances were derived from,
+# so every field the artifact records is compared, not just package versions.
 _env = CERT["environment"]
-if (_env["sklearn"] != sklearn.__version__
-        or _env["numpy"] != np.__version__
-        or _env["ferroml"] != ferroml.__version__):
+_live = {
+    "python": sys.version.split()[0],
+    "numpy": np.__version__,
+    "sklearn": sklearn.__version__,
+    "scipy": scipy.__version__,
+    "ferroml": ferroml.__version__,
+    "platform": platform.platform(),
+    "dtype": "float64",
+}
+if _live != _env:
+    _mismatched = ", ".join(
+        f"{k} (certified {_env[k]!r}, live {_live.get(k)!r})"
+        for k in _env
+        if _env[k] != _live.get(k)
+    )
     pytest.skip(
-        "live environment "
-        f"(sklearn {sklearn.__version__}, numpy {np.__version__}, "
-        f"ferroml {ferroml.__version__}) does not match the certified "
-        f"environment (sklearn {_env['sklearn']}, numpy {_env['numpy']}, "
-        f"ferroml {_env['ferroml']}); tolerances are not valid outside the "
-        "certified matrix",
+        f"live environment does not match the certified environment; "
+        f"differing fields: {_mismatched}. Tolerances are not valid "
+        "outside the certified matrix",
         allow_module_level=True,
     )
 
@@ -218,17 +236,11 @@ class TestGaussianNBParity:
         covers it: wherever sklearn goes below REF_TAIL, FerroML must stay
         finite and at or above its measured clamp floor.
         """
-        X, y, sk, fe = _fit_gnb(seed, cfg)
-        lsk = np.asarray(sk.predict_log_proba(X), dtype=np.float64)
+        X, _, _, fe = _fit_gnb(seed, cfg)
         lfe = np.asarray(fe.predict_log_proba(X), dtype=np.float64)
-        tail = lsk <= REF_TAIL
         assert np.isfinite(lfe).all()
         assert (lfe >= TAIL_FLOOR - 1e-6).all(), (
             f"log_proba below the certified FerroML floor {TAIL_FLOOR}")
-        # The deviation must actually exist somewhere in the matrix, or this
-        # documentation check is stale.
-        if tail.any():
-            assert float(lfe[tail].min()) >= TAIL_FLOOR - 1e-6
 
     def test_label_agreement_fit_and_holdout(self, seed, cfg):
         """Layer 3: classification agreement, both in-sample and holdout."""

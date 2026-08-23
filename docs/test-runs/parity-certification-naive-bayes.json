@@ -392,5 +392,8 @@
       "proba_max_abs_diff": 3.4416913763379853e-15,
       "agreement_fit": 1.0
     }
-  ]
+  ],
+  "notes": {
+    "tail_coverage": "One-sided: tail cells (sklearn predict_log_proba <= -30) are checked only for finiteness and for staying at or above the measured FerroML floor, so tail values that are wrong UPWARD are invisible to the gate; this is an accepted cost of the split-channel design, and no numeric agreement is asserted in the tail."
+  }
 }
