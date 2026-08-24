@@ -1,6 +1,49 @@
 # Tree-Ensemble Structural Parity — Design Pass
 
-**Status:** design only; no implementation in this pass. **Round-3 revision:** revised
+> ## PARKED — do not implement from this document yet
+>
+> Three adversarial review rounds converged the mechanics, and this revision passes its
+> gate 26/26. It is parked anyway, on one unresolved question that no further revision
+> round can settle:
+>
+> **The tie-free pre-screen is named twelve times in this document and defined nowhere.**
+> It decides which configurations get structural gating at all — `dt_structure`,
+> `dt_leaf_value`, `dt_proba`, and `rf_structure_det` are all conditional on it — and the
+> document specifies no gain-gap formula, no numeric cutoff, no independent
+> implementation, no fixed corpus, no preregistration timing, and no minimum surviving
+> cell count. Q1 (section 11) defers its width to implementation time.
+>
+> An undefined screen is an escape hatch. An implementation can widen it until the
+> configurations that would have failed are classified as near-tied, watch them fall back
+> to agreement channels, and still call the programme structural parity. The artifact
+> would not look wrong. That is the exact failure this programme exists to prevent.
+>
+> The screen's width is downstream of a decision about what the parity claim promises,
+> which is a product call and not this document's to make. Written up with the options
+> and their costs in **`project-ops/thoughts/shared/2026-08-24-ferroml-tie-free-prescreen-decision.md`**.
+> Settle that first; the width follows from it.
+>
+> **Also outstanding**, from the round-3 review
+> (`coord/inbox/2026-08-24-codex-ferroml-design-review-round3.md`), all mechanical and
+> all unaddressed here:
+>
+> 1. Equality probes still escape when an **ancestor splits on the same feature** as the
+>    target node. The round-3 fix handles non-repeated ancestors only, so section 3's
+>    "guaranteed to arrive at N" is too strong and the M2 coverage claim is unsupported.
+> 2. The "complete TreeNode representation" omits `impurity_decrease`, a public field at
+>    `ferroml-core/src/models/tree.rs:198`. This document mentions it zero times while
+>    claiming completeness — the same defect class as the round-2 environment-block
+>    finding, in a second place.
+> 3. No serialization channel, though `PARITY-CONTRACT.md:63` requires
+>    "structure and serialized inference where applicable" for trees, and
+>    `ferroml-core/src/models/tree.rs:66` derives `Serialize`/`Deserialize` — so it applies.
+>
+> What survived three rounds and is reusable regardless of the decision: the capability
+> inventory (section 2), the preregistered tolerance ceilings (section 4), the full
+> environment block (section 7), the mutation plan (section 9), and the honest limits
+> (section 10).
+
+**Status:** design only; no implementation in this pass. **PARKED — see the banner above.** **Round-3 revision:** revised
 in place again after a second independent adversarial review from a different model
 family — five new high findings, none a repeat of round 1 — of commit `b71a571`
 (`coord/inbox/2026-08-24-codex-ferroml-design-review-round2.md`); see section 0B for
