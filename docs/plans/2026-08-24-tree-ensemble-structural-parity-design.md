@@ -795,20 +795,26 @@ this accounting happens against preregistered expectations rather than after the
   not equivalence.** `rf_pred`/`gb_pred` say how far apart predictions are on the
   certified corpus; they cannot say the models are interchangeable.
 
-- **Any structural claim stronger than section 12 permits.** Round 4 narrowed the permitted
-  claim to exactly this sentence: *"On a preregistered corpus, every structural divergence
-  between ferroml and scikit-learn was individually adjudicated; none exceeded the
-  preregistered margin, and N were recorded as ties with their margins published."*
-  Nothing in this design supports "structurally identical" or any unqualified parity
-  headline, and no artifact text may imply one. Structural results and prediction-only
+- **Any structural claim stronger than section 12 permits.** Round 5 narrowed the permitted
+  claim to exactly this sentence, replacing the round-4 wording ("every structural
+  divergence ... individually adjudicated"), which the procedure beneath it — first-
+  divergent-node adjudication only — did not support: *"On a preregistered corpus, at the
+  FIRST divergent node of every non-identical config, ferroml and scikit-learn's chosen
+  splits were individually adjudicated under one test-owned criterion; none exceeded the
+  preregistered margin; N configs were recorded as ties with their margins published,
+  M configs had identical structure, and F failed outright (above-cutoff or shape
+  divergence). Structure below an adjudicated tie is NOT covered by this claim."*
+  Nothing in this design supports "structurally identical", any unqualified parity
+  headline, or any structural statement about territory below an adjudicated tie. Structural results and prediction-only
   results are reported separately; adjudicated-tie cells are published with their margins
   and never inflate a structural headline.
 
 Residual risks accepted: correlated errors invisible to cross-implementation gates;
 epsilon-detail split flips on near-tie data (round 4 retired the tie-free pre-screen,
 so nothing is screened out up front; each divergence is adjudicated at the FIRST DIVERGENT
-NODE under section 12, and an above-cutoff divergence fails certification outright with
-no fallback); sklearn-version drift invalidating derived tolerances (mitigated by
+NODE under section 12; an above-cutoff divergence fails certification outright with no
+fallback, and so does a shape divergence, which has no second split to score; structure
+below an adjudicated tie is unexamined and outside every structural claim); sklearn-version drift invalidating derived tolerances (mitigated by
 the full-environment skip, which turns drift into an explicit skip, not a false pass);
 preregistered floors chosen partly from design judgement — if ferroml fails one, that
 is a genuine parity result to investigate, and the floor may be revisited only
@@ -881,8 +887,13 @@ not be simulated.
    structural channel passes outright for that config — no screen needed, no ties to
    classify.
 2. **At the FIRST DIVERGENT NODE, adjudicate.** Walk both trees in lockstep from the
-   root; the first node where feature choice or threshold differs is the adjudication
-   point, and everything below it is downstream of one split decision.
+   root; the first node where the two structures differ is the adjudication point,
+   and everything below it is downstream of one split decision. A node DIVERGES when
+   feature choice or threshold differs — OR WHEN EXACTLY ONE SIDE IS A LEAF. That
+   second case is a SHAPE divergence: one implementation splits a node where the
+   other stops. It must be detected as a divergence event even though no feature or
+   threshold differs there; a walk that compares only the split attributes of two
+   internal nodes walks straight past a shape divergence without seeing anything.
 3. **Above the cutoff, certification FAILS OUTRIGHT.** This is stated explicitly because
    it is the load-bearing rule: a divergence whose measured margin exceeds the
    preregistered cutoff is a certification failure with NO FALLBACK to agreement
@@ -890,6 +901,42 @@ not be simulated.
    passing cell.
 4. **Below the cutoff, record an adjudicated tie**: margin, node id, config id, and both
    chosen splits go into the artifact, and the margin histogram is published.
+
+### Shape divergence: one side has no split to score
+
+A shape divergence is not an edge case in this corpus; it is the MOST LIKELY divergence.
+Ferroml's hard-coded stopping rules (`depth >= 1000`, `impurity < 1e-10`,
+ferroml-core/src/models/tree.rs:707-708) sit against sklearn's impurity-epsilon and
+depth-cap semantics (open question Q1), and ferroml enforces `min_samples_leaf` as a
+post-hoc rejection of candidate splits rather than integrating it into splitting
+(ferroml-core/src/models/tree.rs:733-735, open question Q2). Both are stopping-rule
+differences, and a stopping-rule difference surfaces first as a node that one side
+splits while the other stops and makes it a leaf.
+
+The rule for it is explicit: **a shape divergence cannot be adjudicated by margin, so
+it FAILS THE CONFIG OUTRIGHT — same load-bearing status as rule 3, no fallback to
+agreement channels.**
+
+Why there is no margin: D-prime scores TWO CHOSEN SPLITS under one test-owned criterion
+over the same node's samples. At a shape-divergent node the stopping side has no split
+at all — there is no second split to score. Scoring "split versus no-split" would need
+the stopped side's best candidate gain, which means enumerating candidates — exactly
+the retired option A, dead for the reasons recorded above; neither implementation
+exports its candidate set or runner-up gains.
+
+Why failure rather than something softer: a below-cutoff margin certifies that two
+implementations picking different splits on identical data picked splits of equivalent
+quality — float noise, not semantic disagreement. A shape divergence is the opposite:
+the implementations disagree about whether to keep growing the tree at all. That is a
+genuine stopping-semantics difference (Q1/Q2) — precisely the defect class this
+certification exists to surface — and recording it as a tie would launder a semantic
+difference through arithmetic built only for near-tie gains over identical samples.
+
+The artifact reports shape-divergence failures as their own category, distinct from
+above-cutoff failures, so a corpus-wide pattern of them reads as what it is: evidence
+that stopping semantics need reconciliation before structural parity is even askable.
+Because Q1/Q2 make shape divergence likely, this rule should be expected to bind often;
+that pressure is intended.
 
 ### D-prime: the margin is a measurement, not a proxy
 
@@ -961,14 +1008,69 @@ gate green, and the shipped model silently changed. The pins make that mutation 
 in the artifact diff; any change to a pinned constant invalidates the certification and
 forces a full re-run against re-preregistered constants.
 
+### What an adjudicated tie covers — and what it does not
+
+External review (round 5) found the protocol silent on subtree coverage: after an
+adjudicated tie, both subtrees below the tie are built on different data and nothing
+examines them, so one adjudicated tie can pass a config while everything beneath it
+goes unchecked. Two resolutions existed — recurse into the subtrees, or narrow the
+claim — and the resolution chosen is **(b): NARROW THE CLAIM**, with the reason against
+recursion recorded.
+
+Recursion was rejected on substance, not cost. After an adjudicated tie at node v,
+ferroml and sklearn route v's samples through DIFFERENT splits, so every corresponding
+position below v is fitted on a different sample set. Any further structural difference
+below v is then guaranteed data divergence, not implementation noise. The 1e-9 cutoff
+derives its meaning from the ~1e-14 cancellation floor of scoring two splits over THE
+SAME samples; applied across different sample sets it measures nothing about
+implementation fidelity. Recursing would convert those guaranteed differences into
+manufactured "adjudications" and inflate N with numbers that carry no evidence.
+Margin adjudication does not transfer below a tie, so recursion would make "every
+divergence adjudicated" true in words and meaningless in substance.
+
+What the procedure therefore does and does not cover, stated plainly:
+
+- Per config, exactly one of three outcomes: identical structure (full structural
+  coverage for that config); an adjudicated tie at the FIRST divergent node, where
+  NOTHING BELOW THE TIE IS STRUCTURALLY COMPARED; or outright failure (above-cutoff or
+  shape divergence). The subtrees below an adjudicated tie are unexamined territory for
+  every structural channel. Behavior there is covered only by the prediction-only
+  channels, which still run on the whole corpus and are reported separately per this
+  section.
+- The artifact makes the uncovered region VISIBLE per tie cell: depth of the
+  adjudication point, node counts of both unexamined subtrees, and the fraction of each
+  tree's nodes below the tie — plus a corpus-level aggregate of examined vs total nodes.
+  The more ties a corpus records, the smaller its structurally covered fraction; that
+  fraction is published alongside the margin histogram rather than buried under the tie
+  count N.
+
+### Standing rule: claims are scoped by the procedure beneath them
+
+This is the THIRD instance in this document's history of a completeness claim outrunning
+the procedure underneath it: the round-2 "whole certified environment block" (seven of
+ten PARITY-CONTRACT dimensions), the round-3 representation comparison that skipped
+`impurity_decrease` (ferroml-core/src/models/tree.rs:198), and now round-5's "every
+structural divergence" over a first-divergence-only protocol. The standing rule adopted:
+any artifact claim containing "every", "all", or "whole" must name the procedure step
+whose enumeration defines its scope, and the claim's scope IS that enumeration — never
+wider. If no such step exists, the claim is rewritten at the procedure's actual
+granularity. A reviewer finding a fourth instance should treat the pattern as the
+finding, not just the case.
+
 ### The permitted claim
 
 The ONLY structural claim this certification supports, stated once and narrowed to what
-D + D-prime can prove:
+D + D-prime actually examines:
 
-> "On a preregistered corpus, every structural divergence between ferroml and
-> scikit-learn was individually adjudicated; none exceeded the preregistered margin, and
-> N were recorded as ties with their margins published."
+> "On a preregistered corpus, at the FIRST divergent node of every non-identical
+> config, ferroml and scikit-learn's chosen splits were individually adjudicated under
+> one test-owned criterion; none exceeded the preregistered margin; N configs were
+> recorded as ties with their margins published, M configs had identical structure, and
+> F failed outright (above-cutoff or shape divergence). Structure below an adjudicated
+> tie is NOT covered by this claim."
 
 No artifact text may state or imply anything stronger — not "structurally identical",
-not unqualified "structural parity". Section 10 records the same narrowing.
+not unqualified "structural parity", and not the round-4 wording ("every structural
+divergence ... individually adjudicated"), which this round replaces because the
+procedure beneath it adjudicates only the first divergence and cannot support the
+unqualified quantifier. Section 10 records the same narrowing.
