@@ -516,8 +516,9 @@ estimator has no channel, because a bare dash cannot say WHY coverage is absent.
 The cardinality check runs BEFORE any semantic validation: a row whose field count
 differs from the header's is a malformed document and the guard rejects it, since a
 parser could otherwise silently truncate surplus cells or mis-map coverage while the
-document claims to be machine-validated. This matrix is the document's ONLY markdown
-table, so the guard's whole-document column-cardinality check applies to it alone. `X` = applies, `S` = applies on a scoped slice (the deterministic-forest slice of §3.2;
+document claims to be machine-validated. Every markdown
+table in this document is checked by the guard independently: each of its rows must
+carry its own header's cell count, and no table can pass or fail because of another. `X` = applies, `S` = applies on a scoped slice (the deterministic-forest slice of §3.2;
 round 4 retired the tie-free pre-screen that formerly scoped these cells, so the scoping
 is configurational, not a screen).
 
@@ -586,44 +587,19 @@ a wider bound.
 **Preregistered constants (design commitments, recorded before measurement; changing
 one later follows PARITY-CONTRACT.md:75-76 — never after a production failure):**
 
-(Round 6: these constants are prose-listed rather than tabulated, so that the
-document's only markdown table is the section-3.4 coverage matrix — the one table
-whose machine validation depends on uniform column cardinality.)
-
-- `dt_proba` (structure-matched): quantity abs proba diff; ceiling 1e-9 — equal
-  structures imply equal integer class counts, hence rational probas agreeing to
-  division rounding (~1e-16); 1e-9 leaves slack for summation order only.
-- `dt_leaf_value` (structure-matched): quantity per-leaf count/mean diff; ceiling 1e-9,
-  counts exact 0 — integer counts must match exactly; regressor leaf means agree to
-  float rounding on identical structures.
-- `rf_proba`: quantity mean abs proba diff; ceiling = 10 x sklearn seed-noise scale,
-  hard cap 0.05 — different bootstraps give genuine forest-to-forest variation; the
-  scale is measured from sklearn vs itself, and 0.05 mean abs error on [0,1] is already
-  a materially different model.
-- `rf_agreement` (outside margin tail): quantity label agreement rate; floor 0.90 —
-  below 90% agreement outside near-ties means systematic disagreement, not RNG noise.
-- `rf_pred`: quantity RMSE / target std; ceiling = 10 x sklearn seed-noise scale, hard
-  cap 0.25 — same construction as `rf_proba`, in regression units.
-- `rf_score_floor`: quantity held-out R²; floor 0.85 on engineered easy targets —
-  engineered signal guarantees a correct learner exceeds this; a lower score means the
-  implementation is broken, regardless of sklearn.
-- `clf_margin_tail` / `reg_residual_tail` rate: quantity tail disagreement / excess
-  rate; cap 0.10, floor 1e-12 — a tail gate tolerating >10% disagreement certifies
-  nothing.
-- `gb_pred` / GBM layer-3: same forms and caps/floors as `rf_pred` / agreement — no
-  structural claim is made, so the aggregate bounds match the forest aggregates.
-- `rf_structure_det`: full node-array comparison (§3.1 field list); discrete fields
-  exact 0, float fields ceiling 1e-12 absolute — identical training set, deterministic
-  split search on both sides; only summation-order rounding can differ.
-- `reg_residual_tail`: mean per-sample error ratio in tail, ratio ceiling 1.5; share of
-  tail samples with ferroml error > 2x sklearn error, excess-rate cap 0.10 (same cap
-  logic as the margin tail) — inside a deep residual tail both models are at their
-  worst; tolerating more than these bounds certifies nothing about the region that
-  matters.
-- `traversal_reconstruction` value mapping: quantity leaf-value-to-output mapping
-  error; ceiling 1e-12 absolute (self-consistency arithmetic) — asserts internal
-  identity between exported arrays and model outputs, not cross-implementation
-  agreement.
+| Channel | Quantity | Ceiling / floor | Rationale |
+|---|---|---|---|
+| `dt_proba` (structure-matched) | abs proba diff | ceiling 1e-9 | equal structures imply equal integer class counts, hence rational probas agreeing to division rounding (~1e-16); 1e-9 leaves slack for summation order only |
+| `dt_leaf_value` (structure-matched) | per-leaf count/mean diff | ceiling 1e-9 (counts: exact 0) | integer counts must match exactly; regressor leaf means agree to float rounding on identical structures |
+| `rf_proba` | mean abs proba diff | ceiling = 10 x sklearn seed-noise scale, hard cap 0.05 | different bootstraps give genuine forest-to-forest variation; the scale is measured from sklearn vs itself, and 0.05 mean abs error on [0,1] is already a materially different model |
+| `rf_agreement` (outside margin tail) | label agreement rate | floor 0.90 | below 90% agreement outside near-ties means systematic disagreement, not RNG noise |
+| `rf_pred` | RMSE / target std | ceiling = 10 x sklearn seed-noise scale, hard cap 0.25 | same construction as `rf_proba`, in regression units |
+| `rf_score_floor` | held-out R² | floor 0.85 on engineered easy targets | engineered signal guarantees a correct learner exceeds this; a lower score means the implementation is broken, regardless of sklearn |
+| `clf_margin_tail` / `reg_residual_tail` rate | tail disagreement / excess rate | cap 0.10, floor 1e-12 | a tail gate tolerating >10% disagreement certifies nothing |
+| `gb_pred` / GBM layer-3 | same forms as `rf_pred` / agreement | same caps and floors | no structural claim is made, so the aggregate bounds match the forest aggregates |
+| `rf_structure_det` | full node-array comparison (§3.1 field list) | discrete fields exact 0; float fields ceiling 1e-12 absolute | identical training set, deterministic split search on both sides; only summation-order rounding can differ |
+| `reg_residual_tail` | mean per-sample error ratio in tail; share of tail samples with ferroml error > 2x sklearn error | ratio ceiling 1.5; excess-rate cap 0.10 (same cap logic as the margin tail) | inside a deep residual tail both models are at their worst; tolerating more than these bounds certifies nothing about the region that matters |
+| `traversal_reconstruction` value mapping | leaf-value-to-output mapping error | ceiling 1e-12 absolute (self-consistency arithmetic) | asserts internal identity between exported arrays and model outputs, not cross-implementation agreement |
 
 **Negative controls, upgraded.** Round 1's only control (tightening atol 1000x must
 violate) shows the gate discriminates against a tightened copy of itself; it says
@@ -731,21 +707,16 @@ CPU/GPU backend. Round 1 called seven unrelated runtime fields "the WHOLE certif
 environment block"; five contract dimensions were absent. The corrected block maps
 every contract dimension to an explicit artifact field:
 
-(Prose-listed rather than tabulated as of round 6, so that the document's only
-markdown table is the section-3.4 coverage matrix.)
-
-- sklearn version — artifact field `sklearn_version`, value from `sklearn.__version__`.
-- crate version — artifact field `crate_version`, ferroml core version string.
-- dtype — artifact field `dtype`, value `float64` throughout the matrix.
-- solver — artifact field `solver`, literal `"n/a"` for tree families: no iterative
-  solver participates; recorded explicitly, never omitted.
-- seed — artifact field `seed`, per certified cell (matrix dimension, section 8).
-- thread count — artifact field `thread_count`, per certified cell; pinned
-  `n_jobs=Some(1)` per ferroml-core/src/models/forest.rs:125.
-- BLAS implementation — artifact field `blas_implementation`, resolved at runtime from
-  the numpy/sklearn BLAS config.
-- CPU/GPU backend — artifact field `compute_backend`, value `"cpu"`: ferroml is
-  CPU-only; recorded explicitly so a GPU-sklearn environment cannot masquerade.
+| Contract dimension | Artifact field | Value / mechanism |
+|---|---|---|
+| sklearn version | `sklearn_version` | from `sklearn.__version__` |
+| crate version | `crate_version` | ferroml core version string |
+| dtype | `dtype` | `float64` throughout the matrix |
+| solver | `solver` | literal `"n/a"` for tree families — no iterative solver participates; recorded explicitly, never omitted |
+| seed | `seed` | per certified cell (matrix dimension, section 8) |
+| thread count | `thread_count` | per certified cell; pinned `n_jobs=Some(1)` per ferroml-core/src/models/forest.rs:125 |
+| BLAS implementation | `blas_implementation` | resolved at runtime from the numpy/sklearn BLAS config |
+| CPU/GPU backend | `compute_backend` | `"cpu"` — ferroml is CPU-only; recorded explicitly so a GPU-sklearn environment cannot masquerade |
 
 Diagnostic fields beyond the contract (python, numpy, scipy versions, platform) are
 retained in the artifact but are no longer the completeness claim; completeness is
@@ -792,46 +763,15 @@ gate-implementation time, results recorded in the artifact's notes. Every mutati
 marked "caught" doubles as the corrupted-model negative control of section 4: if it
 does not violate a gate, the gate plan — not just the mutation — has failed.
 
-(Prose-listed rather than tabulated as of round 6, so that the document's only
-markdown table is the section-3.4 coverage matrix.)
-
-- **M1** — Perturb one leaf value by +1 in a single tree. Expected catcher:
-  `rf_self_consistency` / `rf_self_consistency_reg` (averaged output no longer equals
-  recomputed aggregate) and `rf_proba` / `rf_pred`.
-- **M2** — Change traversal comparison `<=` to `<` at internal nodes. Expected catcher:
-  `traversal_reconstruction`: each probe is built from a sample that reaches the target
-  node, satisfying every ancestor constraint by construction, and carries the split
-  feature exactly at the stored threshold — the mutated comparison flips that probe's
-  leaf, which the test-owned traversal does not do. Assertions: reconstructed leaf id
-  vs `decision_path` terminal node; separately, leaf value vs mapped model output. NOT
-  `dt_structure` (fitted arrays unchanged) and NOT `decision_path`-vs-`predict`
-  (shared semantics, ferroml-core/src/models/tree.rs:357/646/1557 — round 1 wrongly
-  counted this as an independent oracle).
-- **M7** — Corrupt one child link (swap a left/right child id) in a single exported
-  tree, leaving feature/threshold arrays untouched. Expected catcher: `dt_structure`
-  full-representation comparison (round 3): topology/child-link comparison catches
-  what the round-2 `(feature, threshold, depth)` projection provably could not; also
-  caught by `rf_structure_det` on the deterministic slice. This mutation is the
-  negative control for finding 2 of section 0B.
-- **M3** — Return lower endpoint instead of midpoint as threshold. Expected catcher,
-  REASSIGNED in round 6 after the previous claim was shown false: NOT `dt_structure`,
-  NOT `dt_proba`, NOT `traversal_reconstruction`. The structural delta routes into
-  section-12 adjudication, where the endpoint and the midpoint partition the TRAINING
-  data identically — identical same-criterion gain, margin exactly zero below the 1e-9
-  cutoff — so adjudication records a TIE, not a failure. Training predictions are
-  unchanged (`dt_proba` is structure-matched and sees nothing), and
-  `traversal_reconstruction` follows the exported mutated threshold and stays
-  self-consistent. The real catcher is the inference-boundary probe of section 12
-  ("Threshold differences are never waived by gain alone"): probes placed STRICTLY
-  BETWEEN the two thresholds against an independent reference boundary change routing,
-  which fails certification regardless of gain margin.
-- **M4** — Drop one env field from the skip check. Expected catcher: day-one env-scope
-  guard tests, including the eight-contract-dimension enumeration (section 7).
-- **M5** — Widen tolerance floor `1e-12` -> `1e-6` in the gate. Expected catcher:
-  policy self-consistency test recomputing `max(10x, 1e-12)`.
-- **M6** — Bias predict toward class 0 only when `p_top1 - p_top2 < 1e-7`. Expected
-  catch: PARTIAL — caught only if the flipped-rate exceeds the capped tail rate bound
-  (cap 0.10, section 4); otherwise escapes.
+| # | Mutation (in a scratch copy of the model wrapper, never shipped) | Expected catcher |
+|---|---|---|
+| M1 | Perturb one leaf value by +1 in a single tree | `rf_self_consistency` / `rf_self_consistency_reg` (averaged output no longer equals recomputed aggregate) and `rf_proba` / `rf_pred` |
+| M2 | Change traversal comparison `<=` to `<` at internal nodes | `traversal_reconstruction`: each probe is built from a sample that reaches the target node, satisfying every ancestor constraint by construction, and carries the split feature exactly at the stored threshold — the mutated comparison flips that probe's leaf, which the test-owned traversal does not do. Assertions: reconstructed leaf id vs `decision_path` terminal node; separately, leaf value vs mapped model output. NOT `dt_structure` (fitted arrays unchanged) and NOT `decision_path`-vs-`predict` (shared semantics, ferroml-core/src/models/tree.rs:357/646/1557 — round 1 wrongly counted this as an independent oracle) |
+| M7 | Corrupt one child link (swap a left/right child id) in a single exported tree, leaving feature/threshold arrays untouched | `dt_structure` full-representation comparison (round 3): topology/child-link comparison catches what the round-2 `(feature, threshold, depth)` projection provably could not; also caught by `rf_structure_det` on the deterministic slice. This mutation is the negative control for finding 2 of section 0B |
+| M3 | Return lower endpoint instead of midpoint as threshold | REASSIGNED in round 6 after the previous claim was shown false: NOT `dt_structure`, NOT `dt_proba`, NOT `traversal_reconstruction`. The structural delta routes into section-12 adjudication, where the endpoint and the midpoint partition the TRAINING data identically — identical same-criterion gain, margin exactly zero below the 1e-9 cutoff — so adjudication records a TIE, not a failure. Training predictions are unchanged (`dt_proba` is structure-matched and sees nothing), and `traversal_reconstruction` follows the exported mutated threshold and stays self-consistent. The real catcher is the inference-boundary probe of section 12 ("Threshold differences are never waived by gain alone"): probes placed STRICTLY BETWEEN the two thresholds against an independent reference boundary change routing, which fails certification regardless of gain margin. |
+| M4 | Drop one env field from the skip check | day-one env-scope guard tests, including the eight-contract-dimension enumeration (section 7) |
+| M5 | Widen tolerance floor `1e-12` -> `1e-6` in the gate | policy self-consistency test recomputing `max(10x, 1e-12)` |
+| M6 | Bias predict toward class 0 only when `p_top1 - p_top2 < 1e-7` | expected catch: PARTIAL — caught only if the flipped-rate exceeds the capped tail rate bound (cap 0.10, section 4); otherwise escapes |
 
 Expected outcome: six of seven caught cleanly, M6 partial by preregistration —
 mirroring the NB experience. Round 6 states precisely what that claim now is, because
