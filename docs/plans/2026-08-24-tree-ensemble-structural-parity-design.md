@@ -1,49 +1,37 @@
 # Tree-Ensemble Structural Parity — Design Pass
 
-> ## PARKED — do not implement from this document yet
+> ## RESOLVED 2026-08-25 — pre-screen question settled; this document is unparked
 >
-> Three adversarial review rounds converged the mechanics, and this revision passes its
-> gate 26/26. It is parked anyway, on one unresolved question that no further revision
-> round can settle:
+> The parked question was decided as **option D plus the D-prime refinement**, with three
+> additions from a blind Codex review. Full reasoning:
+> **`coord/inbox/2026-08-25-prescreen-decision-SETTLED.md`**. The decision was produced by
+> two adversarial reviews: Codex, which saw the problem blind and was not told which option
+> was recommended, and Prime Agent's red-team of option A from the implementer's seat
+> (`coord/results/ferroml-prescreen-redteam.md`), which proved A is not buildable. The two
+> reviews conflict on mechanism and agree on the product; D-prime is their reconciliation.
 >
-> **The tie-free pre-screen is named twelve times in this document and defined nowhere.**
-> It decides which configurations get structural gating at all — `dt_structure`,
-> `dt_leaf_value`, `dt_proba`, and `rf_structure_det` are all conditional on it — and the
-> document specifies no gain-gap formula, no numeric cutoff, no independent
-> implementation, no fixed corpus, no preregistration timing, and no minimum surviving
-> cell count. Q1 (section 11) defers its width to implementation time.
+> What changed in this revision:
 >
-> An undefined screen is an escape hatch. An implementation can widen it until the
-> configurations that would have failed are classified as near-tied, watch them fall back
-> to agreement channels, and still call the programme structural parity. The artifact
-> would not look wrong. That is the exact failure this programme exists to prevent.
->
-> The screen's width is downstream of a decision about what the parity claim promises,
-> which is a product call and not this document's to make. Written up with the options
-> and their costs in **`project-ops/thoughts/shared/2026-08-24-ferroml-tie-free-prescreen-decision.md`**.
-> Settle that first; the width follows from it.
->
-> **Also outstanding**, from the round-3 review
-> (`coord/inbox/2026-08-24-codex-ferroml-design-review-round3.md`), all mechanical and
-> all unaddressed here:
->
-> 1. Equality probes still escape when an **ancestor splits on the same feature** as the
->    target node. The round-3 fix handles non-repeated ancestors only, so section 3's
->    "guaranteed to arrive at N" is too strong and the M2 coverage claim is unsupported.
-> 2. The "complete TreeNode representation" omits `impurity_decrease`, a public field at
->    `ferroml-core/src/models/tree.rs:198`. This document mentions it zero times while
->    claiming completeness — the same defect class as the round-2 environment-block
->    finding, in a second place.
-> 3. No serialization channel, though `PARITY-CONTRACT.md:63` requires
->    "structure and serialized inference where applicable" for trees, and
->    `ferroml-core/src/models/tree.rs:66` derives `Serialize`/`Deserialize` — so it applies.
->
-> What survived three rounds and is reusable regardless of the decision: the capability
-> inventory (section 2), the preregistered tolerance ceilings (section 4), the full
-> environment block (section 7), the mutation plan (section 9), and the honest limits
-> (section 10).
+> - The **a-priori tie-free pre-screen is retired** — stated plainly here and again at each
+>   place it used to condition a channel, not quietly deleted. It is not buildable: its
+>   gain-gap screen needs candidate split gains, and neither implementation retains them
+>   (sklearn 1.9.0's `tree_` exposes NO gain or candidate attribute; ferroml keeps only the
+>   winner — `if gain > best_gain` at `ferroml-core/src/models/tree.rs:902`,
+>   `ferroml-core/src/models/tree.rs:1041`, `ferroml-core/src/models/tree.rs:1759`,
+>   `ferroml-core/src/models/tree.rs:1853`). Every channel that was conditional on the
+>   screen is now conditional on nothing, because adjudication happens after the fit
+>   (section 12).
+> - New section **"12. Divergence adjudication (D + D-prime)"**: first-divergent-node
+>   protocol, same-criterion margin measurement, preregistered cutoff, stratified minimum
+>   surviving cells, two independent evaluators, separate structural reporting, and pinned
+>   epsilon constants.
+> - The three mechanical round-3 findings recorded in the former park banner are fixed:
+>   same-feature-ancestor probe escape (section 3.1 probe construction), `impurity_decrease`
+>   (`ferroml-core/src/models/tree.rs:198`) added to the complete-representation comparison,
+>   and a serialization channel `dt_serialized_inference` per `PARITY-CONTRACT.md:63`
+>   (`ferroml-core/src/models/tree.rs:66` imports `Serialize`/`Deserialize`).
 
-**Status:** design only; no implementation in this pass. **PARKED — see the banner above.** **Round-3 revision:** revised
+**Status:** design only; no implementation in this pass. **UNPARKED — see the resolution note above.** **Round-4 revision:** settled the parked pre-screen decision as option D + D-prime with Codex's three additions, wrote it in as section 12, and retired the a-priori tie-free pre-screen everywhere it conditioned a channel. **Round-3 revision:** revised
 in place again after a second independent adversarial review from a different model
 family — five new high findings, none a repeat of round 1 — of commit `b71a571`
 (`coord/inbox/2026-08-24-codex-ferroml-design-review-round2.md`); see section 0B for
@@ -280,26 +268,33 @@ a whole forest is reachable once bindings exist.
 
 With `max_features=None` both implementations run deterministic CART on the same
 data, same midpoint thresholds (sklearn also splits at midpoints), same criterion
-formulas. Structure comparison becomes plausible — but only on data engineered so
-that no split is decided by a near-tie or by the epsilon details above (ferroml's
-`1e-10` tolerances in equal-value checks and tie-breaks vs sklearn's exact
-comparisons can flip a split even without randomness). Therefore:
+formulas. Structure comparison is well-defined on EVERY certified config. Where a split IS decided
+by a near-tie or by the epsilon details above (ferroml's `1e-10` tolerances in equal-value
+checks and tie-breaks vs sklearn's exact comparisons can flip a split even without
+randomness), the fitted trees diverge from that node down — and that divergence is not
+excluded and not screened out; it is adjudicated after the fit under section 12. Therefore:
 
-- **Channel `dt_structure` (layer 1, conditional).** For each certified config, fit
+- **Channel `dt_structure` (layer 1, unconditional).** For each certified config, fit
   both trees and compare the COMPLETE exported representations node-by-node, not a
   projection. Round-2 compared only `(feature_index, threshold, depth)` sequences
   and leaf count; a tree with a corrupted child link or wrong metadata passed that
   gate. The round-3 comparison covers every field both sides expose — ferroml's
   `TreeNode` carries id, feature index, threshold, impurity, sample count,
-  weighted sample count, value vector, child ids, depth, and leaf flag
-  (ferroml-core/src/models/tree.rs:174-199), and sklearn's `tree_` arrays carry the
-  same information:
+  weighted sample count, value vector, child ids, depth, leaf flag, AND
+  `impurity_decrease` (ferroml-core/src/models/tree.rs:198) — round 4 added it after the
+  round-3 review found the "complete representation" claim omitted a public field — and
+  sklearn's `tree_` arrays carry the same information (the sklearn-side counterpart of
+  `impurity_decrease` is recomputed from `impurity` and `weighted_n_node_samples`;
+  because its exact semantics — raw gain versus weight-scaled contribution — are not
+  documented, they are pinned once at binding time against that recomputation and the
+  chosen semantic is recorded in the artifact):
   - topology: `children_left`/`children_right` versus `left_child`/`right_child`
     for every node — child LINKS, not just the attribute sequences;
   - node count and node id sets (root must be id 0 on both sides);
   - discrete fields exact: feature index, depth, leaf flag, node count, class count;
   - float fields under preregistered tolerances (section 4): thresholds,
-    impurity per node;
+    impurity per node, and `impurity_decrease` per node
+    (ferroml-core/src/models/tree.rs:198);
   - counts: `n_node_samples` and `weighted_n_node_samples` per node
     (`weighted_n_samples`, ferroml-core/src/models/tree.rs:186);
   - values: the full `value` array with its shape `(n_nodes, 1, k)` compared
@@ -309,10 +304,16 @@ comparisons can flip a split even without randomness). Therefore:
     class ordering matches via each model's `classes_`;
   - derived aggregates recomputed from the arrays and asserted equal: leaf count,
     maximum depth, and per-node depth from root.
-  Applied only to configs marked tie-free in the matrix design (see 5); configs
-  that fail a pre-screen for near-tied gains fall back to agreement channels only.
-  This pre-screen is itself recorded in the artifact, so the set of
-  structure-gated configs is evidence, not taste. Scope statement: `dt_structure`
+  Round-4 disposition of the former tie-free pre-screen: RETIRED, stated plainly where the
+  screen used to live rather than quietly deleted. The screen classified configs as
+  structure-gateable BEFORE fitting by comparing candidate split gains; it is not
+  buildable, because candidate gains do not survive either fit (sklearn 1.9.0's `tree_`
+  exposes no gain or candidate attribute; ferroml keeps only the winner at
+  ferroml-core/src/models/tree.rs:902, :1041, :1759, :1853). `dt_structure` now carries no
+  precondition: it runs on every certified config. Identical structures pass outright;
+  divergent structures go to the first-divergent-node adjudication of section 12 instead
+  of falling back to agreement channels. There is no longer any knob that widens the set
+  of structure-gated configs, because there is no longer a screen to widen. Scope statement: `dt_structure`
   verifies *fitted arrays*. It cannot see any inference-time defect — most
   importantly a traversal-semantics change (section 9, M2) — and is never cited as
   the catcher for one. The corrupted-topology negative control (M7, section 9)
@@ -330,10 +331,18 @@ comparisons can flip a split even without randomness). Therefore:
   reaching sample s, build the equality probe by copying all of s's feature values
   and setting only the split feature of N to N's stored threshold bit-for-bit
   (constructible because thresholds are f64 midpoints,
-  ferroml-core/src/models/tree.rs:1016). Because every ancestor constraint is
-  satisfied by construction — s reached N through them, and no other feature moved —
-  the probe is guaranteed to arrive at N, so flipping N's comparison from `<=` to
-  `<` cannot escape detection. Reachability is re-asserted with the test-owned
+  ferroml-core/src/models/tree.rs:1016). Round-4 correction of a round-3 escape: copying s
+  is NOT sufficient when an ANCESTOR OF N SPLITS ON THE SAME FEATURE as N. Setting that
+  feature to N's threshold can violate the ancestor's constraint — s reached N through
+  x[f] <= t_anc while equality at N demands x[f] = t_N, which may be > t_anc — so the probe
+  would be routed away before reaching N and the mutated comparison would escape. The probe
+  builder therefore first enumerates every ancestor of N that splits on f and intersects its
+  constraint interval with {t_N}. If the intersection is empty, NO equality probe exists
+  through this path and node N is UNPROBEABLE — recorded and failed like any other
+  unprobeable node, never skipped. When the intersection is non-empty, the copied-and-pinned
+  sample satisfies every ancestor constraint on every feature by construction, the probe is
+  guaranteed to arrive at N, and flipping N's comparison from `<=` to `<` cannot escape
+  detection. Reachability is re-asserted with the test-owned
   traversal before any behavioral assertion; a probe that fails its own reachability
   check fails the cell rather than producing a vacuous pass. Ordinary fit/holdout
   samples remain as probe class (b).
@@ -347,11 +356,26 @@ comparisons can flip a split even without randomness). Therefore:
 - **Channels `dt_proba`, `dt_predict` (layers 2-3, classifier).** Two-sided proba
   gates with derived tolerances under preregistered ceilings (section 4), plus label
   agreement, unconditional across all configs.
-- **Channel `dt_leaf_value` (conditional structural).** On tie-free configs, single-tree
-  leaf `value` vectors are compared elementwise against sklearn's `tree_.value` —
+- **Channel `dt_leaf_value` (structural).** On every certified config whose fitted
+  structures are identical (divergent structures are adjudicated under section 12;
+  adjudicated-tie configs are reported separately and never counted inside a structural
+  headline), single-tree leaf `value` vectors are compared elementwise against sklearn's
+  `tree_.value` —
   raw counts (classifier) or raw means (regressor), comparable far more tightly than
   probabilities. The regressor variant is the regression analog of the round-1
   leaf-value channel, now defined instead of implied.
+- **Channel `dt_serialized_inference` (layers 1+3; round-4 addition).** `PARITY-CONTRACT.md:63`
+  requires "structure and serialized inference where applicable" for trees, and the tree
+  model derives `Serialize`/`Deserialize` (serde imported at
+  ferroml-core/src/models/tree.rs:66; the forest containers likewise at
+  ferroml-core/src/models/forest.rs:104 and :844), so it applies. Per certified config:
+  serialize the fitted model through the standard save path, deserialize into a fresh
+  instance, then assert (a) the deserialized model's exported representation equals the
+  pre-serialization representation under the full `dt_structure` field comparison — a
+  round-trip identity check against ITSELF, not a cross-implementation claim — and
+  (b) predictions on the holdout set are bit-identical to the pre-serialization model's.
+  A digest of the serialized artifact is recorded in the certification artifact. Forest
+  rows apply the same round trip once the §11 estimator bindings exist.
 
 ### 3.2 Forests and ExtraTrees (RandomForest*, ExtraTrees* — classifier AND regressor)
 
@@ -369,11 +393,13 @@ identical training set with no random influence: bootstrap generation is bypasse
 `n_features` (ferroml-core/src/models/forest.rs:175), and the LCG feature-selection
 branch then yields all features regardless of stream state
 (ferroml-core/src/models/tree.rs:934-948). The same configuration exists in sklearn
-as `bootstrap=False, max_features=n_features`. On engineered tie-free configs
-(the same pre-screen as `dt_structure`), this makes every estimator tree
-structurally comparable to its sklearn counterpart.
+as `bootstrap=False, max_features=n_features`. This makes every estimator tree structurally comparable to its sklearn counterpart on
+every certified deterministic config; member trees that diverge are adjudicated under
+section 12 exactly like single trees (round 4 removed the former engineered-config /
+pre-screen precondition).
 
-- **Channel `rf_structure_det` (layer 1, conditional on the tie-free pre-screen).
+- **Channel `rf_structure_det` (layer 1; scoped to the deterministic slice — round 4
+  removed the former tie-free pre-screen condition).
   For each certified deterministic config, compare EVERY estimator tree of the
   ferroml forest against its indexed sklearn counterpart using the full
   representation comparison defined for `dt_structure` (topology/child links, node
@@ -457,16 +483,18 @@ must name a concrete executable channel implementable from the specified
 prerequisite work, or an N/A whose reason cites a representation limit (e.g., HGB's
 `HistTree`). The guard rejects any coverage-matrix cell that promises a channel its
 prerequisites cannot deliver; mandatory-but-unimplementable coverage is how gates
-get silently dropped at implementation time.** `X` = applies, `S` = applies
-conditionally (tie-free configs only).
+get silently dropped at implementation time.** `X` = applies, `S` = applies on a scoped slice (the deterministic-forest slice of §3.2;
+round 4 retired the tie-free pre-screen that formerly scoped these cells, so the scoping
+is configurational, not a screen).
 
 | Channel | DTC | DTR | RFC | RFR | ETC | ETR | GBC | GBR | HGB* | ABC | ABR |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `dt_structure` | S | S | S via `rf_structure_det` only | S (same slice) | N/A (random thresholds) | N/A (same) | N/A (own training procedure) | N/A (same) | N/A (own HistTree representation) | N/A (stochastic sample reweighting) | N/A (same) |
+| `dt_structure` | X | X | X via `rf_structure_det` only | S (same slice) | N/A (random thresholds) | N/A (same) | N/A (own training procedure) | N/A (same) | N/A (own HistTree representation) | N/A (stochastic sample reweighting) | N/A (same) |
 | `rf_structure_det` | — | — | S (deterministic slice, §3.2; full-representation comparison per estimator tree) | S (same) | N/A (random thresholds) | N/A (same) | N/A (own training procedure) | N/A (same) | N/A (HistTree bins) | N/A (same) | N/A (same) |
 | `traversal_reconstruction` | X | X | X (per estimator tree) | X | X | X | X (requires §11 binding over estimators(), boosting.rs:512/1114) | X (same) | N/A (HistTree routes on u8 bin indices over private bin edges — not implementable from specified work; see §10) | X (requires §11 binding over estimators(), adaboost.rs:128/437) | X (same) |
 | `dt_proba` / `dt_predict` | X | dt_predict only (values) | — | — | — | — | — | — | — | — | — |
-| `dt_leaf_value` | S | S | — | — | — | — | — | — | — | — | — |
+| `dt_leaf_value` | X | X | — | — | — | — | — | — | — | — | — |
+| `dt_serialized_inference` (§3.1) | X | X | X (per estimator tree, §11 bindings) | X (same) | X (same) | X (same) | X (via estimators(), boosting.rs:512/1114) | X (same) | — (HistTree serialization semantics unstated; N/A per §0B finding 5) | X (via estimators(), adaboost.rs:128/437) | X (same) | — | — | — | — | — | — | — | — | — |
 | `clf_margin_tail` (§5) | X | — | X | — | X | — | X | — | X (classifier variant) | X | — |
 | `reg_residual_tail` (§5) | — | X | — | X | — | X | — | X | X (regressor variant) | — | X |
 | `rf_self_consistency` | — | — | X | — | X | — | — | — | — | — | — |
@@ -526,8 +554,8 @@ one later follows PARITY-CONTRACT.md:75-76 — never after a production failure)
 
 | Channel | Quantity | Ceiling / floor | Rationale |
 |---|---|---|---|
-| `dt_proba` (tie-free) | abs proba diff | ceiling 1e-9 | equal structures imply equal integer class counts, hence rational probas agreeing to division rounding (~1e-16); 1e-9 leaves slack for summation order only |
-| `dt_leaf_value` (tie-free) | per-leaf count/mean diff | ceiling 1e-9 (counts: exact 0) | integer counts must match exactly; regressor leaf means agree to float rounding on identical structures |
+| `dt_proba` (structure-matched) | abs proba diff | ceiling 1e-9 | equal structures imply equal integer class counts, hence rational probas agreeing to division rounding (~1e-16); 1e-9 leaves slack for summation order only |
+| `dt_leaf_value` (structure-matched) | per-leaf count/mean diff | ceiling 1e-9 (counts: exact 0) | integer counts must match exactly; regressor leaf means agree to float rounding on identical structures |
 | `rf_proba` | mean abs proba diff | ceiling = 10 x sklearn seed-noise scale, hard cap 0.05 | different bootstraps give genuine forest-to-forest variation; the scale is measured from sklearn vs itself, and 0.05 mean abs error on [0,1] is already a materially different model |
 | `rf_agreement` (outside margin tail) | label agreement rate | floor 0.90 | below 90% agreement outside near-ties means systematic disagreement, not RNG noise |
 | `rf_pred` | RMSE / target std | ceiling = 10 x sklearn seed-noise scale, hard cap 0.25 | same construction as `rf_proba`, in regression units |
@@ -601,9 +629,10 @@ Design response:
   - *Outside the tail*, regressors are covered by the prediction-discrepancy
     channels already defined for them (`rf_pred`, `gb_pred`) — no label-agreement
     quantity is invoked anywhere in this channel.
-- **Rare-leaf channel `*_leaf_value` (conditional structural).** For single trees on
-  tie-free configs, leaf `value` vectors are compared elementwise under the section-4
-  ceiling (counts exact; means to 1e-9). For ensembles, leaf-depth and leaf-size
+- **Rare-leaf channel `*_leaf_value` (structural).** For single trees on every certified
+  config whose fitted structures are identical (section 12 governs divergences), leaf
+  `value` vectors are compared elementwise under the section-4 ceiling (counts exact;
+  means to 1e-9). For ensembles, leaf-depth and leaf-size
   histograms are recorded per tree as layer-1 metadata; gross divergence (e.g., all
   trees collapsing to stumps) fails a shape-level bound derived from the sklearn-only
   noise scale.
@@ -672,7 +701,9 @@ an absence. No field is optional from day one.
 
 - **Matrix:** seeds x configs, following the NB convention: seeds `[42, 7, 123,
   2026]`; per-family configs spanning small/large n, low/high dimension, 2-5
-  classes, engineered tie-free variants for the conditional structural channels, and
+  classes, engineered low-near-tie variants alongside ordinary configs for the structural
+  channels (round 4: these are corpus design, NOT a screen — the pre-screen is retired,
+  and divergent fits are adjudicated per section 12 rather than excluded), and
   **explicit regressor configs per family** (targets from fixed-seed generators with
   preregistered signal-to-noise) so the section-3.2/3.3 regressor channels have
   cells of their own. Seed and thread count are recorded in every cell row, per the
@@ -764,9 +795,20 @@ this accounting happens against preregistered expectations rather than after the
   not equivalence.** `rf_pred`/`gb_pred` say how far apart predictions are on the
   certified corpus; they cannot say the models are interchangeable.
 
+- **Any structural claim stronger than section 12 permits.** Round 4 narrowed the permitted
+  claim to exactly this sentence: *"On a preregistered corpus, every structural divergence
+  between ferroml and scikit-learn was individually adjudicated; none exceeded the
+  preregistered margin, and N were recorded as ties with their margins published."*
+  Nothing in this design supports "structurally identical" or any unqualified parity
+  headline, and no artifact text may imply one. Structural results and prediction-only
+  results are reported separately; adjudicated-tie cells are published with their margins
+  and never inflate a structural headline.
+
 Residual risks accepted: correlated errors invisible to cross-implementation gates;
-epsilon-detail split flips on near-tie data (mitigated by the tie-free pre-screen,
-not eliminated); sklearn-version drift invalidating derived tolerances (mitigated by
+epsilon-detail split flips on near-tie data (round 4 retired the tie-free pre-screen,
+so nothing is screened out up front; each divergence is adjudicated at the FIRST DIVERGENT
+NODE under section 12, and an above-cutoff divergence fails certification outright with
+no fallback); sklearn-version drift invalidating derived tolerances (mitigated by
 the full-environment skip, which turns drift into an explicit skip, not a false pass);
 preregistered floors chosen partly from design judgement — if ferroml fails one, that
 is a genuine parity result to investigate, and the floor may be revisited only
@@ -796,8 +838,10 @@ Open questions (facts not settled by sources read in this pass):
 
 - **Q1:** sklearn's exact growth-stopping semantics (impurity epsilon, depth cap)
   versus ferroml's `depth >= 1000` / `impurity < 1e-10` stops (tree.rs:707-708) —
-  settle by reading sklearn's splitter source at implementation time; affects only
-  how wide the tie-free pre-screen must be.
+  settle by reading sklearn's splitter source at implementation time. Round 4 removed the
+  purpose this question used to serve — sizing the tie-free pre-screen, which is retired
+  (section 12) — so the answer now matters only for predicting which certified configs
+  produce divergent trees that adjudication must classify.
 - **Q2:** whether sklearn's integrated `min_samples_leaf` handling versus ferroml's
   post-hoc rejection changes reachable tree shapes on tie-free configs — settle with
   the trivial probes in section 8.
@@ -807,3 +851,124 @@ Open questions (facts not settled by sources read in this pass):
 - **Q4 (round 2):** empirical scale of sklearn forest seed-to-seed noise, needed to
   instantiate the `rf_proba`/`rf_pred` ceilings at implementation time — measured
   sklearn-only during calibration, before any ferroml cell is read (section 4).
+
+## 12. Divergence adjudication (D + D-prime)
+
+Round 4 settled the question that parked this document. The decision is **option D plus
+the D-prime refinement, with three additions from a blind Codex review**; full reasoning,
+including why option A died, is in `coord/inbox/2026-08-25-prescreen-decision-SETTLED.md`,
+produced by two adversarial reviews (Codex blind; Prime Agent red-teaming option A from
+the implementer's seat). This section is the normative replacement for the retired
+a-priori tie-free pre-screen, and the round-4 gate reads THIS SECTION ONLY.
+
+### Why there is no pre-screen anymore
+
+The a-priori tie-free pre-screen is RETIRED, not revised. It required candidate split
+gains from both implementations before fitting, and those do not exist: sklearn 1.9.0's
+`tree_` exposes NO gain attribute and no candidate or runner-up splits (verified by
+probing its full public surface), and ferroml retains only the winning split
+(`if gain > best_gain` at ferroml-core/src/models/tree.rs:902,
+ferroml-core/src/models/tree.rs:1041, ferroml-core/src/models/tree.rs:1759,
+ferroml-core/src/models/tree.rs:1853). Reconstructing either side's candidate set means
+cloning its splitter — which produces YOUR floats, least accurate exactly on the
+near-ties the screen existed to classify. A screen that cannot be built honestly must
+not be simulated.
+
+### The protocol
+
+1. **Fit both trees on every certified config.** No config is excluded up front and no
+   ties are classified in advance. If the two fitted structures are IDENTICAL, every
+   structural channel passes outright for that config — no screen needed, no ties to
+   classify.
+2. **At the FIRST DIVERGENT NODE, adjudicate.** Walk both trees in lockstep from the
+   root; the first node where feature choice or threshold differs is the adjudication
+   point, and everything below it is downstream of one split decision.
+3. **Above the cutoff, certification FAILS OUTRIGHT.** This is stated explicitly because
+   it is the load-bearing rule: a divergence whose measured margin exceeds the
+   preregistered cutoff is a certification failure with NO FALLBACK to agreement
+   channels. There is no path by which a large-margin structural divergence becomes a
+   passing cell.
+4. **Below the cutoff, record an adjudicated tie**: margin, node id, config id, and both
+   chosen splits go into the artifact, and the margin histogram is published.
+
+### D-prime: the margin is a measurement, not a proxy
+
+Do NOT compare sklearn's winning gain against ferroml's winning gain. Those numbers come
+from two different implementations, so their difference carries a cross-implementation
+confound — it is a proxy for a tie, not a measurement of one. Instead:
+
+- Score BOTH sides' chosen splits under ONE test-owned criterion, using node membership
+  taken from the traversal the design already reconstructs (section 3.1): the test
+  computes each split's impurity decrease over the same node's samples with the same
+  formula, so the gap between sklearn's split and ferroml's split is a true
+  same-criterion quantity.
+- Verified buildable: reconstructing a winning gain from exported fields agrees with an
+  independent test-code computation to 1.11e-16, and a NON-winning split can be scored
+  the same way.
+- Evaluating two KNOWN splits is not enumerating candidates. That distinction is exactly
+  why this is buildable when option A was not: option A needed every candidate's gain;
+  adjudication needs only the two splits the fits actually chose.
+
+### Preregistered cutoff
+
+- **Cutoff: 1e-9 absolute**, preregistered before any measurement.
+- **Derivation:** the float cancellation floor of the reconstruction itself — parent
+  impurity minus weighted child impurities cancels to roughly 1e-14 at Gini/entropy
+  magnitudes, so margins below ~1e-14 are arithmetic noise; 1e-9 sits five orders above
+  that floor and far below any decision-relevant gain difference.
+- **Timing:** the cutoff, the corpus and config ids, the criterion implementation, and
+  the epsilon pins below are committed to the artifact PREREGISTERED BEFORE any ferroml
+  measurement is read. Changing any of them afterward follows PARITY-CONTRACT.md:75-76:
+  never after a production failure.
+- **Publication:** the artifact publishes the full margin histogram over adjudicated
+  ties, so a reader can see how close the corpus sits to the cutoff rather than only the
+  count N.
+
+### Minimum surviving cells: stratified
+
+The minimum is STRATIFIED, not a bare count. Certification fails unless the surviving
+(identical-structure plus adjudicated-tie) cells meet a preregistered distribution
+requirement across families AND configs — per family (single trees, deterministic
+forests) and per config class (small/large n, low/high dimension, regressor variants) —
+not merely a total. A corpus that survives only inside one family or one easy config
+class does not support the claim regardless of its size, and a total alone would let it.
+
+### Two independent evaluators
+
+TWO INDEPENDENT evaluator implementations — written separately against this section, not
+one implementation checked against itself — must agree on EVERY classification
+(identical / adjudicated-tie / fail). Any disagreement between evaluators fails the cell
+outright. One evaluator is one point of failure; a mis-classified above-cutoff divergence
+is precisely the defect class this programme exists to catch.
+
+### Separate reporting
+
+Structural results and prediction-only results are reported SEPARATELY, as distinct
+claims in the artifact. Configs excluded for representation limits and configs recorded
+as adjudicated ties are listed explicitly and MUST NOT be combined into, counted inside,
+or used to inflate a structural headline. The structural claim stands only on the cells
+it actually covers, and the prediction-only claim never borrows structural language.
+
+### Pinned epsilon constants
+
+Ferroml's epsilon constants are pinned in the artifact, with file:line and values read
+at the certified commit: ferroml-core/src/models/tree.rs:1041 (classifier strict-greater
+tie-break), ferroml-core/src/models/tree.rs:1853 (regressor
+`gain > best_gain + 1e-10`), ferroml-core/src/models/tree.rs:1012 (equal-value gap
+1e-10). These are the sharpest cheat knob under ANY option: widening
+them until ferroml picks whatever sklearn picks would make the whole corpus agree, the
+gate green, and the shipped model silently changed. The pins make that mutation visible
+in the artifact diff; any change to a pinned constant invalidates the certification and
+forces a full re-run against re-preregistered constants.
+
+### The permitted claim
+
+The ONLY structural claim this certification supports, stated once and narrowed to what
+D + D-prime can prove:
+
+> "On a preregistered corpus, every structural divergence between ferroml and
+> scikit-learn was individually adjudicated; none exceeded the preregistered margin, and
+> N were recorded as ties with their margins published."
+
+No artifact text may state or imply anything stronger — not "structurally identical",
+not unqualified "structural parity". Section 10 records the same narrowing.
