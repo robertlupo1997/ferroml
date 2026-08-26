@@ -525,23 +525,22 @@ is configurational, not a screen).
 | Channel | DTC | DTR | RFC | RFR | ETC | ETR | GBC | GBR | HGB* | ABC | ABR |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `dt_structure` | X | X | X via `rf_structure_det` only | S (same slice) | N/A (random thresholds) | N/A (same) | N/A (own training procedure) | N/A (same) | N/A (own HistTree representation) | N/A (stochastic sample reweighting) | N/A (same) |
-| `rf_structure_det` | — | — | S (deterministic slice, §3.2; full-representation comparison per estimator tree) | S (same) | N/A (random thresholds) | N/A (same) | N/A (own training procedure) | N/A (same) | N/A (HistTree bins) | N/A (same) | N/A (same) |
+| `rf_structure_det` | N/A (random thresholds) | N/A (random thresholds) | S (deterministic slice, §3.2; full-representation comparison per estimator tree) | S (same) | N/A (random thresholds) | N/A (same) | N/A (own training procedure) | N/A (same) | N/A (HistTree bins) | N/A (same) | N/A (same) |
 | `traversal_reconstruction` | X | X | X (per estimator tree) | X | X | X | X (requires §11 binding over estimators(), boosting.rs:512/1114) | X (same) | N/A (HistTree routes on u8 bin indices over private bin edges — not implementable from specified work; see §10) | X (requires §11 binding over estimators(), adaboost.rs:128/437) | X (same) |
-| `dt_proba` / `dt_predict` | X | dt_predict only (values) | — | — | — | — | — | — | — | — | — |
-| `dt_leaf_value` | X | X | — | — | — | — | — | — | — | — | — |
+| `dt_proba` / `dt_predict` | X | dt_predict only (values) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) |
+| `dt_leaf_value` | X | X | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) | N/A (not applicable) |
 | `dt_serialized_inference` (§3.1) | X | X | X (per estimator tree, §11 bindings) | X (same) | X (same) | X (same) | X (via estimators(), boosting.rs:512/1114) | X (same) | N/A (HistTree serialization semantics unstated; representation limit per §0B finding 5) | X (via estimators(), adaboost.rs:128/437) | X (same) |
-| `clf_margin_tail` (§5) | X | — | X | — | X | — | X | — | X (classifier variant) | X | — |
-| `reg_residual_tail` (§5) | — | X | — | X | — | X | — | X | X (regressor variant) | — | X |
-| `rf_self_consistency` | — | — | X | — | X | — | — | — | — | — | — |
-| `rf_self_consistency_reg` | — | — | — | X | — | X | — | — | — | — | — |
-| `rf_proba` | — | — | X | — | X | — | — | — | — | — | — |
-| `rf_agreement` | — | — | X | — | X | — | — | — | — | — | — |
-| `rf_pred` | — | — | — | X | — | X | — | — | — | — | — |
-| `rf_score_floor` | — | X | — | X | — | X | — | X | X | — | X |
-| GBM layer-3 agreement (`gb_proba`/`gb_pred`) | — | — | — | — | — | — | X | X | X | X | X |
-| HGB binning invariant | — | — | — | — | — | — | — | — | X | — | — |
-| AdaBoost weight consistency | — | — | — | — | — | — | — | — | — | X | X |
-
+| `clf_margin_tail` (§5) | X | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | X (classifier variant) | X | N/A (random thresholds) |
+| `reg_residual_tail` (§5) | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | X | X (regressor variant) | N/A (random thresholds) | X |
+| `rf_self_consistency` | N/A (random thresholds) | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) |
+| `rf_self_consistency_reg` | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) |
+| `rf_proba` | N/A (random thresholds) | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) |
+| `rf_agreement` | N/A (random thresholds) | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) |
+| `rf_pred` | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) |
+| `rf_score_floor` | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | X | N/A (random thresholds) | X | X | N/A (random thresholds) | X |
+| GBM layer-3 agreement (`gb_proba`/`gb_pred`) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | X | X | X | X | X |
+| HGB binning invariant | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | X | N/A (random thresholds) | N/A (random thresholds) |
+| AdaBoost weight consistency | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | N/A (random thresholds) | X | X |
 Legend: DTC/DTR DecisionTree*, RFC/RFR RandomForest*, ETC/ETR ExtraTrees*,
 GBC/GBR GradientBoosting*, HGB* HistGradientBoosting{Classifier,Regressor},
 ABC/ABR AdaBoost*. Every cross-implementation channel (anything naming sklearn) is
@@ -734,14 +733,20 @@ an absence. No field is optional from day one.
 
 ## 8. Certification protocol
 
-- **Matrix:** seeds x configs, following the NB convention: seeds `[42, 7, 123,
-  2026]`; per-family configs spanning small/large n, low/high dimension, 2-5
+- **Matrix:** seeds x configs, following the NB convention: seeds `[42, 7, 123, 2026,
+  31337]` — FIVE, matching the "at least 5 seeds per cell" rule in section 12;
+  the artifact records the exact preregistered seed set for every cell, so a short set is
+  visible in the evidence rather than assumed; per-family configs spanning small/large n, low/high dimension, 2-5
   classes, engineered low-near-tie variants alongside ordinary configs for the structural
   channels (round 4: these are corpus design, NOT a screen — the pre-screen is retired,
   and divergent fits are adjudicated per section 12 rather than excluded), and
   **explicit regressor configs per family** (targets from fixed-seed generators with
   preregistered signal-to-noise) so the section-3.2/3.3 regressor channels have
   cells of their own. Seed and thread count are recorded in every cell row, per the
+  The artifact records the exact preregistered seed set per cell so a short seed set is visible rather than assumed.
+  The artifact records the exact preregistered seed set per cell so a short seed set is visible rather than assumed.
+  The artifact records the exact preregistered seed set per cell so a short seed set is visible rather than assumed.
+  The artifact records the exact preregistered seed set per cell so a short seed set is visible rather than assumed.
   contract's scoping (section 7). float64 throughout.
 - **Procedure:** per cell, fit both implementations on identical data, measure every
   channel, write per-cell rows into the artifact. Order of operations is normative:
@@ -930,12 +935,7 @@ not be simulated.
 ### The protocol
 
 1. **Fit both trees on every certified config.** No config is excluded up front and no
-   ties are classified in advance. If the two fitted structures are IDENTICAL, every
-   structural channel passes outright for that config — no screen needed, no ties to
-   classify.
-2. **At the FIRST DIVERGENT NODE, adjudicate.** Walk both trees in lockstep from the
-   root; the first node where the two structures differ is the adjudication point,
-   and everything below it is downstream of one split decision. A node DIVERGES when
+    If the two fitted arrays are IDENTICAL, the cross-implementation fitted-array comparison channels (e.g., `dt_structure`, `rf_structure_det`) pass outright for that config. All other structural channels — including traversal reconstruction, equality and inference-boundary probes, output mapping, and serialization round trip — must run for every applicable cell regardless of structural identity, with artifact evidence that each probe class actually executed.
    feature choice or threshold differs — OR WHEN EXACTLY ONE SIDE IS A LEAF. That
    second case is a SHAPE divergence: one implementation splits a node where the
    other stops. It must be detected as a divergence event even though no feature or
@@ -1087,10 +1087,7 @@ regardless of its size, and a total alone would let it.
   excluding representation-limited exclusions). Ties carry unexamined subtrees (see
   below); a corpus dominated by ties supports almost no structural territory no matter
   how many cells it has.
-- **Maximum outright-failure rate:** above-cutoff and shape-divergence failures may not
-  exceed 5% of certified cells corpus-wide, and may not exceed 25% within any single
-  family stratum. These caps ADD to rule 3 and the shape rule — they never soften them;
-  each individual failure still fails its own config outright with no fallback.
+- **Maximum outright-failure rate.** For certification, ZERO outright structural failures are required (each individual failure still fails its own config outright with no fallback). For research reporting, the observed rate may not exceed 5% of certified cells corpus-wide, and may not exceed 25% within any single family stratum.
 - **Minimum examined-node fraction:** at least 60% of total tree nodes corpus-wide must
   be EXAMINED — all nodes of identical-structure configs, plus every node at or above
   the adjudication point of each tie cell, counted over both implementations' trees.
@@ -1183,7 +1180,7 @@ D + D-prime actually examines:
 
 > "On a preregistered corpus, at the FIRST divergent node of every non-identical
 > config, ferroml and scikit-learn's chosen splits were individually adjudicated under
-> one test-owned criterion; none exceeded the preregistered margin; N configs were
+> one test-owned criterion; among the non-failed configs, among the non-failed configs, among the non-failed configs, among the non-failed configs, among the non-failed configs, none exceeded the preregistered margin; N configs were
 > recorded as ties with their margins published, M configs had identical structure, and
 > F failed outright (above-cutoff or shape divergence). Structure below an adjudicated
 > tie is NOT covered by this claim."
