@@ -31,7 +31,30 @@
 >   and a serialization channel `dt_serialized_inference` per `PARITY-CONTRACT.md:63`
 >   (`ferroml-core/src/models/tree.rs:66` imports `Serialize`/`Deserialize`).
 
-**Status:** design only; no implementation in this pass. **UNPARKED — see the resolution note above.** **Round-4 revision:** settled the parked pre-screen decision as option D + D-prime with Codex's three additions, wrote it in as section 12, and retired the a-priori tie-free pre-screen everywhere it conditioned a channel. **Round-3 revision:** revised
+> ## SHELVED 2026-08-27 — design converged, blocked on work that does not exist
+>
+> Eight build rounds and five adversarial reviews. The gate passes 49 checks. Nothing here
+> is known to be wrong, and the design is not being abandoned for lack of quality.
+>
+> **It cannot be implemented against the codebase as it stands.** Section 11: the
+> traversal-reconstruction oracle for trees and forests is blocked on Python bindings that
+> expose `TreeStructure` node arrays and `decision_path`, plus per-tree proba and prediction
+> access, plus `estimators()` on the boosting side. That binding work is not designed, not
+> scoped, and not started. Every structural channel in this document depends on it.
+>
+> **The next step is code, not another review round.** The findings across the last three
+> rounds narrowed from missing sections to cell formatting, which is what diminishing returns
+> look like. Reviewing this document further buys polish on something nobody can build.
+>
+> If this resumes, resume with the bindings slice in section 11 and come back here after.
+> If it does not, this document is the record of what was decided and why, and every review
+> that produced it is in `coord/inbox/`.
+>
+> **Known gap at shelving:** round 8 (`3858b0a`) has not been adversarially reviewed. Codex
+> last attacked round 7. Its four findings are addressed here and two were verified
+> independently, but the fixes themselves were never attacked.
+
+**Status:** SHELVED — see the banner above. Design only; no implementation in this pass. **UNPARKED — see the resolution note above.** **Round-4 revision:** settled the parked pre-screen decision as option D + D-prime with Codex's three additions, wrote it in as section 12, and retired the a-priori tie-free pre-screen everywhere it conditioned a channel. **Round-3 revision:** revised
 in place again after a second independent adversarial review from a different model
 family — five new high findings, none a repeat of round 1 — of commit `b71a571`
 (`coord/inbox/2026-08-24-codex-ferroml-design-review-round2.md`); see section 0B for
