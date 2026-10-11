@@ -3,11 +3,10 @@
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/pypi/l/ferroml.svg)](https://pypi.org/project/ferroml/)
 [![PyPI](https://img.shields.io/pypi/v/ferroml.svg)](https://pypi.org/project/ferroml/)
-[![Tests](https://img.shields.io/badge/tests-7%2C600%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v1.0.2** — 55+ ML algorithms, 8,196 tests passing (5,225 Rust + 2,971 Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
+> **Status: v1.0.2 in this repository; PyPI serves 1.0.1, and the Rust crate is not on crates.io yet.** 55+ ML algorithms, 8,196 tests (5,225 Rust + 2,971 Python) by this README's own count, with no run log checked in, GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
@@ -15,7 +14,7 @@ FerroML is a high-performance machine learning library that prioritizes statisti
 
 - **Statistical Rigor First** — Confidence intervals on all predictions, hypothesis testing for model comparison, multiple testing correction (Bonferroni, Holm, Benjamini-Hochberg)
 - **Transparent Assumptions** — All statistical assumptions are documented and tested. No hidden magic.
-- **Reproducible Results** — Deterministic by default with explicit randomness control
+- **Reproducible Results** — Explicit randomness control via `random_state`; RandomForest and ExtraTrees also need `n_jobs=1` to be deterministic (see Known Limitations)
 - **High Performance** — Written in Rust with SIMD acceleration, parallel processing via Rayon, GPU acceleration via wgpu, and native sparse matrix support
 - **Python Bindings** — Seamless NumPy/Polars integration via PyO3
 
@@ -23,9 +22,11 @@ FerroML is a high-performance machine learning library that prioritizes statisti
 
 ### Rust
 
+`ferroml-core` is not published on crates.io yet. Use a git dependency:
+
 ```toml
 [dependencies]
-ferroml-core = "1.0"
+ferroml-core = { git = "https://github.com/robertlupo1997/ferroml" }
 ```
 
 ### Python (3.10-3.13)
@@ -268,7 +269,7 @@ cargo run --example pipeline
 
 ```toml
 [dependencies]
-ferroml-core = { version = "1.0", features = ["simd", "sparse", "onnx"] }
+ferroml-core = { git = "https://github.com/robertlupo1997/ferroml", features = ["simd", "sparse", "onnx"] }
 ```
 
 | Feature | Description |
@@ -325,9 +326,9 @@ at your option.
 
 ## Project Status
 
-### Current State (v1.0.2)
+### Current State (v1.0.2, unreleased)
 
-FerroML is **v1.0.2**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
+FerroML is **v1.0.2** in this repository (PyPI serves 1.0.1), hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|
@@ -426,7 +427,7 @@ ONNX roundtrip is finicky. We've fixed subtle issues in AdaBoost (weighted-sum a
 
 ## Known Limitations
 
-FerroML is production-ready with the following known limitations. For model-specific details, see the Notes section in each model's docstring (`help(Model)`).
+FerroML has the following known limitations. For model-specific details, see the Notes section in each model's docstring (`help(Model)`).
 
 ### RandomForest Parallel Non-Determinism
 
