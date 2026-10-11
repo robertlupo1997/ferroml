@@ -6,7 +6,7 @@
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v1.0.2 in this repository; PyPI serves 1.0.1, and the Rust crate is not on crates.io yet.** 55+ ML algorithms, 8,196 tests (5,225 Rust + 2,971 Python) at the author's last local run, with no run log checked in, GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
+> **Status: v1.0.2 in this repository; PyPI serves 1.0.1, and the Rust crate is not on crates.io yet.** 55+ ML algorithms, 8,196 tests (5,225 Rust + 2,971 Python) by this README's own count, with no run log checked in, GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
