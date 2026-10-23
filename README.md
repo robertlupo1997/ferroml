@@ -7,7 +7,7 @@
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status:** `pip install ferroml` gives **v1.0.1** (the latest PyPI release). This repository is at **v1.0.2**, which adds [Intelligent Model Selection](#intelligent-model-selection) and is not released yet. The Rust crate is not on crates.io; use the git dependency below.
+> **Status: v1.0.2**, on PyPI (`pip install ferroml`). 1.0.2 adds [Intelligent Model Selection](#intelligent-model-selection). The Rust crate is not on crates.io; use the git dependency below.
 >
 > 55+ ML algorithms, 8,196 tests passing at v1.0.2 (5,225 Rust + 2,971 Python, [recorded run](docs/test-runs/SUMMARY.md)), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
 
@@ -26,12 +26,12 @@ FerroML is a high-performance machine learning library that prioritizes statisti
 ### Python (3.10+)
 
 ```bash
-pip install ferroml        # installs 1.0.1, the latest PyPI release
+pip install ferroml
 ```
 
-Pre-built wheels cover Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and Windows (x86_64). CI tests Python 3.10–3.12; the Python Quick Start below was also run against the 1.0.1 wheel on 3.13.
+Pre-built wheels cover Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and Windows (x86_64). CI tests Python 3.10–3.12; the Python examples below were also run against a 1.0.2 build on 3.13.
 
-To get v1.0.2 features that are not on PyPI yet (such as [Intelligent Model Selection](#intelligent-model-selection)), build from source. This needs a Rust toolchain:
+To build from source instead (needs a Rust toolchain):
 
 ```bash
 git clone https://github.com/robertlupo1997/ferroml && cd ferroml
@@ -217,8 +217,6 @@ FerroML distinguishes itself through rigorous statistical methodology:
 
 ## Intelligent Model Selection
 
-> Requires v1.0.2 (build from source, see [Installation](#installation)). `pip install ferroml` (1.0.1) does not have `statistically_best_model`, `benchmark_report` or `model_card` yet.
-
 Most AutoML returns the leaderboard top-1 and calls it a day. FerroML computes
 corrected resampled t-tests (Nadeau-Bengio) between top models, applies
 multiple-testing correction, and then selects **the simplest model that is not
@@ -319,7 +317,7 @@ Fit time relative to sklearn, from the cross-library benchmark run on 2026-03-27
 | LogReg | 2.1x | Competitive |
 | KNN | 4.0x | Known limitation |
 
-In this run no model's fit was more than 5x slower than sklearn's. Read the scores alongside the times: most models match sklearn's score, but FerroML's RandomForest scored lower with default settings (R² 0.45 vs 0.79 for the regressor, accuracy 0.89 vs 0.93 for the classifier), so its 5–20x faster fit is not a like-for-like win. Predict is faster for most models but slower for KNN (2.1x) and HistGBT (2x).
+In this run no model's fit was more than 5x slower than sklearn's. Read the scores alongside the times: most models match sklearn's score, but FerroML's RandomForest scored lower (R² 0.45 vs 0.79 for the regressor, accuracy 0.89 vs 0.93 for the classifier), so its 5–20x faster fit is not a like-for-like win. The cause is a known bug, planned to be fixed in 1.0.3: it samples candidate features once per tree instead of at every split. Predict is faster for most models but slower for KNN (2.1x) and HistGBT (2x).
 
 A separate, larger-workload run ([docs/benchmarks.md](docs/benchmarks.md), v0.4.0-dev) found different ratios for some models: KMeans 4.25x slower on 5000×50 with k=10, and SVC RBF 6.2x slower on 2000×20. Speed depends on data shape; check both reports for your case.
 
@@ -344,9 +342,9 @@ at your option.
 
 ## Project Status
 
-### Current State (v1.0.2, unreleased)
+### Current State (v1.0.2)
 
-FerroML is **v1.0.2** in this repository (PyPI serves 1.0.1), hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
+FerroML is **v1.0.2**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|
@@ -465,7 +463,7 @@ See individual model docstrings for model-specific limitations and recommendatio
 
 ### Benchmarks
 
-Speed relative to scikit-learn depends on data shape. The two recorded runs disagree for KMeans (3.9x faster on 10K×20, 4.25x slower on 5000×50) and SVC RBF (1.5x vs 6.2x slower). RandomForest fits faster but scored lower than sklearn with default settings. Details: [Performance](#performance), [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md), [docs/benchmarks.md](docs/benchmarks.md).
+Speed relative to scikit-learn depends on data shape. The two recorded runs disagree for KMeans (3.9x faster on 10K×20, 4.25x slower on 5000×50) and SVC RBF (1.5x vs 6.2x slower). RandomForest fits faster but currently scores lower than sklearn because of a known feature-sampling bug (fix planned for 1.0.3). Details: [Performance](#performance), [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md), [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Contributing
 
