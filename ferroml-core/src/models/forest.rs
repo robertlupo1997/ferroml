@@ -1752,4 +1752,90 @@ mod tests {
             oob.unwrap()
         );
     }
+
+    /// 200 x 16 data where every feature carries signal, so a healthy tree
+    /// splits on many different columns.
+    fn make_wide_data() -> (Array2<f64>, Array1<f64>, Array1<f64>) {
+        let (n, p) = (200, 16);
+        let mut state: u64 = 7;
+        let x = Array2::from_shape_fn((n, p), |_| {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64
+        });
+        let y_reg = x
+            .rows()
+            .into_iter()
+            .map(|r| r.sum())
+            .collect::<Array1<f64>>();
+        let mid = {
+            let mut v = y_reg.to_vec();
+            v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            v[n / 2]
+        };
+        let y_clf = y_reg.mapv(|v| if v > mid { 1.0 } else { 0.0 });
+        (x, y_reg, y_clf)
+    }
+
+    use crate::models::tree::TreeStructure;
+
+    fn distinct_split_features(tree: &TreeStructure) -> usize {
+        tree.nodes
+            .iter()
+            .filter(|n| !n.is_leaf)
+            .filter_map(|n| n.feature_index)
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+    }
+
+    // Regression test: the feature subset used to be drawn once per tree and
+    // reused at every split, so a tree never saw more than max_features columns.
+    #[test]
+    fn test_regressor_draws_fresh_features_at_each_split() {
+        let (x, y, _) = make_wide_data();
+        let mut rf = RandomForestRegressor::new()
+            .with_n_estimators(1)
+            .with_bootstrap(false)
+            .with_max_features(Some(MaxFeatures::Sqrt))
+            .with_random_state(3)
+            .with_n_jobs(Some(1));
+        rf.fit(&x, &y).unwrap();
+        let tree = rf.estimators().unwrap()[0].tree().unwrap();
+        assert!(distinct_split_features(tree) > 4);
+    }
+
+    #[test]
+    fn test_classifier_draws_fresh_features_at_each_split() {
+        let (x, _, y) = make_wide_data();
+        let mut rf = RandomForestClassifier::new()
+            .with_n_estimators(1)
+            .with_bootstrap(false)
+            .with_max_features(Some(MaxFeatures::Sqrt))
+            .with_random_state(3)
+            .with_n_jobs(Some(1));
+        rf.fit(&x, &y).unwrap();
+        let tree = rf.estimators().unwrap()[0].tree().unwrap();
+        assert!(distinct_split_features(tree) > 4);
+    }
+
+    // Invariant: with no resampling and every feature available, a one-tree
+    // forest is exactly a decision tree.
+    #[test]
+    fn test_single_tree_forest_matches_decision_tree() {
+        let (x, y, _) = make_wide_data();
+        let mut rf = RandomForestRegressor::new()
+            .with_n_estimators(1)
+            .with_bootstrap(false)
+            .with_max_features(Some(MaxFeatures::All))
+            .with_random_state(3)
+            .with_n_jobs(Some(1));
+        rf.fit(&x, &y).unwrap();
+        let mut tree = DecisionTreeRegressor::new();
+        tree.fit(&x, &y).unwrap();
+        let (a, b) = (rf.predict(&x).unwrap(), tree.predict(&x).unwrap());
+        for (p, q) in a.iter().zip(b.iter()) {
+            assert_abs_diff_eq!(p, q, epsilon = 1e-12);
+        }
+    }
 }

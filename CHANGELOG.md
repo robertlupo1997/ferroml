@@ -4,6 +4,24 @@ All notable changes to FerroML are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed — Random forest feature sampling
+- Decision trees with `max_features` set (every `RandomForest*` model, and any tree
+  given `max_features`) drew one feature subset per tree and reused it at every
+  split, so a tree never looked at more than `max_features` columns. Each split now
+  draws a fresh subset, seeded from `random_state` and the node, so fits stay
+  reproducible. Measured on the 1.0.1 wheel, 20 features, 5 seeds, matched settings
+  (`max_features="sqrt"`): FerroML R² 0.42 vs sklearn 0.79 before this fix.
+- Python `RandomForestRegressor` / `RandomForestClassifier`: `max_features="none"` /
+  `"all"` used to fall back to n/3 (regressor) or sqrt (classifier). They now mean
+  every feature.
+
+### Changed
+- Python `RandomForestRegressor` default `max_features` is now `"all"`, matching
+  sklearn's regressor default (was `"sqrt"`). Pass `max_features="sqrt"` for the old
+  behaviour. Fitted results for a given seed differ from earlier releases.
+
 ## [1.0.2] — 2026-07-12
 
 ### Added — Intelligent AutoML selection (P3)
