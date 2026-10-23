@@ -2,11 +2,11 @@
 
 [![PyPI](https://img.shields.io/pypi/v/ferroml.svg)](https://pypi.org/project/ferroml/)
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
-[![License](https://img.shields.io/crates/l/ferroml-core.svg)](https://github.com/robertlupo1997/ferroml)
+[![License](https://img.shields.io/pypi/l/ferroml.svg)](https://github.com/robertlupo1997/ferroml)
 
 **High-performance ML in Rust with a scikit-learn-compatible Python API.**
 
-FerroML is a machine learning library written in Rust that provides 55+ algorithms with statistical rigor built in: confidence intervals on predictions, hypothesis testing for model comparison, and assumption checks on every model. It's 2-40x faster than scikit-learn on predict and up to 9x faster on fit for tree/ensemble models.
+FerroML is a machine learning library written in Rust that provides 55+ algorithms with statistical rigor built in: confidence intervals on cross-validation scores, prediction intervals on the models that support them, hypothesis testing for model comparison, and regression diagnostics. New in 1.0.2: AutoML that picks the simplest model not statistically worse than the best, and says so when models are indistinguishable.
 
 ## Installation
 
@@ -42,7 +42,19 @@ pipe = Pipeline([
     ("clf", RandomForestClassifier(n_estimators=100)),
 ])
 pipe.fit(X_train, y_train)
-score = pipe.score(X_test, y_test)
+predictions = pipe.predict(X_test)
+```
+
+```python
+from ferroml.automl import AutoML, AutoMLConfig
+
+# Statistically-grounded model selection (new in 1.0.2)
+config = AutoMLConfig(task="classification", metric="accuracy",
+                      time_budget_seconds=15, statistical_tests=True, seed=42)
+result = AutoML(config).fit(X, y)
+entry, rationale = result.statistically_best_model()
+print(rationale.explanation)
+print(result.benchmark_report())
 ```
 
 ```python
@@ -60,25 +72,28 @@ clf.fit(X_tfidf, y)
 
 ## Performance vs scikit-learn
 
-All benchmarks produce matching predictions. Speedup >1x = FerroML is faster.
+Fit time relative to scikit-learn from the 2026-03-27 cross-library run (10K × 20; lower is faster):
 
-| Model | N | Fit | Predict |
-|-------|--:|----:|--------:|
-| RandomForest | 1K | **9.2x** | **7.8x** |
-| Ridge | 1K | **5.3x** | **19.3x** |
-| DecisionTree | 5K | **1.4x** | **16.4x** |
-| GradientBoosting | 1K | **1.5x** | **1.2x** |
-| LogisticRegression | 10K | **1.5x** | **13.7x** |
+| Model | vs sklearn |
+|-------|-----------:|
+| KMeans | **0.26x** |
+| StandardScaler | **0.29x** |
+| GaussianNB | **0.37x** |
+| DecisionTree | 1.1–1.3x |
+| SVC RBF (5K) | 1.54x |
+| HistGBT | 2.0x |
+| LogisticRegression | 2.1x |
+| KNN | 4.0x |
 
-FerroML is faster on **predict universally** (zero Python overhead) and on **fit for tree/ensemble models** (Rayon parallel construction). scikit-learn wins on fit for LAPACK/MKL-backed linear algebra.
+Speed depends on data shape, and most but not all models match sklearn's score (RandomForest scores lower with default settings). Full numbers, including predict times and scores: [cross-library benchmark](https://github.com/robertlupo1997/ferroml/blob/master/docs/cross-library-benchmark.md).
 
 ## Available Models
 
 | Module | Models |
 |--------|--------|
-| `linear` | LinearRegression, LogisticRegression, Ridge, Lasso, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier, QuantileRegression, RobustRegression, Perceptron, IsotonicRegression |
-| `trees` | DecisionTreeClassifier, DecisionTreeRegressor, GradientBoostingClassifier/Regressor, HistGradientBoostingClassifier/Regressor |
-| `ensemble` | RandomForest, ExtraTrees, AdaBoost, Bagging, Stacking, Voting (classifiers + regressors), SGD, PassiveAggressive |
+| `linear` | LinearRegression, LogisticRegression, RidgeRegression, LassoRegression, ElasticNet, RidgeCV, LassoCV, ElasticNetCV, RidgeClassifier, QuantileRegression, RobustRegression, Perceptron, IsotonicRegression |
+| `trees` | DecisionTreeClassifier/Regressor, RandomForestClassifier/Regressor, GradientBoostingClassifier/Regressor, HistGradientBoostingClassifier/Regressor |
+| `ensemble` | ExtraTrees, AdaBoost, Bagging, Stacking, Voting (classifiers + regressors), SGD, PassiveAggressive |
 | `naive_bayes` | GaussianNB, MultinomialNB, BernoulliNB, CategoricalNB |
 | `svm` | SVC, SVR, LinearSVC, LinearSVR |
 | `neighbors` | KNeighborsClassifier/Regressor, NearestCentroid |
@@ -90,7 +105,7 @@ FerroML is faster on **predict universally** (zero Python overhead) and on **fit
 | `preprocessing` | 22+ transformers: scalers, encoders, imputers, SMOTE/ADASYN, CountVectorizer, TfidfTransformer |
 | `explainability` | TreeSHAP, KernelSHAP, permutation importance, PDP, ICE, H-statistic |
 | `multioutput` | MultiOutputClassifier, MultiOutputRegressor |
-| `calibration` | TemperatureScaling, Sigmoid (Platt), Isotonic |
+| `calibration` | TemperatureScalingCalibrator (Sigmoid/Platt and Isotonic calibration are available in the Rust crate) |
 | `pipeline` | Pipeline, ColumnTransformer, FeatureUnion |
 | `model_selection` | train_test_split, cross_validate, KFold, StratifiedKFold, GroupKFold, TimeSeriesSplit |
 | `metrics` | ROC-AUC, F1, MCC, R², RMSE, MAE, roc_curve, precision_recall_curve |
@@ -111,7 +126,7 @@ FerroML supports the scikit-learn API conventions:
 
 ## Testing
 
-5,650+ tests passing (3,550+ Rust + 2,100+ Python), validated against scikit-learn, scipy, xgboost, lightgbm, and statsmodels with 200+ cross-library correctness tests.
+8,196 tests passing at 1.0.2 (5,225 Rust + 2,971 Python; [recorded run](https://github.com/robertlupo1997/ferroml/blob/master/docs/test-runs/SUMMARY.md)), validated against scikit-learn, scipy, xgboost, lightgbm, statsmodels and linfa with 489+ cross-library correctness tests.
 
 ## License
 

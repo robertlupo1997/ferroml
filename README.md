@@ -7,7 +7,7 @@
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status:** `pip install ferroml` gives **v1.0.1** (the latest PyPI release). This repository is at **v1.0.2**, which adds [Intelligent Model Selection](#intelligent-model-selection) and is not released yet. The Rust crate is not on crates.io; use the git dependency below.
+> **Status: v1.0.2**, on PyPI (`pip install ferroml`). 1.0.2 adds [Intelligent Model Selection](#intelligent-model-selection). The Rust crate is not on crates.io; use the git dependency below.
 >
 > 55+ ML algorithms, 8,196 tests passing at v1.0.2 (5,225 Rust + 2,971 Python, [recorded run](docs/test-runs/SUMMARY.md)), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
 
@@ -26,12 +26,12 @@ FerroML is a high-performance machine learning library that prioritizes statisti
 ### Python (3.10+)
 
 ```bash
-pip install ferroml        # installs 1.0.1, the latest PyPI release
+pip install ferroml
 ```
 
-Pre-built wheels cover Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and Windows (x86_64). CI tests Python 3.10–3.12; the Python Quick Start below was also run against the 1.0.1 wheel on 3.13.
+Pre-built wheels cover Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and Windows (x86_64). CI tests Python 3.10–3.12; the Python examples below were also run against a 1.0.2 build on 3.13.
 
-To get v1.0.2 features that are not on PyPI yet (such as [Intelligent Model Selection](#intelligent-model-selection)), build from source. This needs a Rust toolchain:
+To build from source instead (needs a Rust toolchain):
 
 ```bash
 git clone https://github.com/robertlupo1997/ferroml && cd ferroml
@@ -217,8 +217,6 @@ FerroML distinguishes itself through rigorous statistical methodology:
 
 ## Intelligent Model Selection
 
-> Requires v1.0.2 (build from source, see [Installation](#installation)). `pip install ferroml` (1.0.1) does not have `statistically_best_model`, `benchmark_report` or `model_card` yet.
-
 Most AutoML returns the leaderboard top-1 and calls it a day. FerroML computes
 corrected resampled t-tests (Nadeau-Bengio) between top models, applies
 multiple-testing correction, and then selects **the simplest model that is not
@@ -344,9 +342,9 @@ at your option.
 
 ## Project Status
 
-### Current State (v1.0.2, unreleased)
+### Current State (v1.0.2)
 
-FerroML is **v1.0.2** in this repository (PyPI serves 1.0.1), hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
+FerroML is **v1.0.2**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|
