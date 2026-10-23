@@ -39,6 +39,32 @@ def _make_circles_sklearn(n_samples=300, noise=0.05, factor=0.5, random_state=42
                         random_state=random_state)
 
 
+def _sklearn_qda():
+    """sklearn QDA with the unbiased (n_k - 1) class covariance FerroML uses.
+
+    sklearn <= 1.8 used the unbiased estimate by default. sklearn 1.9 switched the
+    default to the maximum-likelihood (n_k) estimate, which moves iris
+    probabilities by ~7.5e-3. Requesting the unbiased estimate explicitly keeps
+    this a like-for-like comparison on every sklearn version.
+    """
+    import sklearn
+    from sklearn.base import BaseEstimator
+    from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+
+    major, minor = (int(v) for v in sklearn.__version__.split(".")[:2])
+    if (major, minor) < (1, 9):
+        return QuadraticDiscriminantAnalysis()
+
+    class _UnbiasedCovariance(BaseEstimator):
+        def fit(self, X, y=None):
+            self.covariance_ = np.cov(X, rowvar=False, ddof=1)
+            return self
+
+    return QuadraticDiscriminantAnalysis(
+        solver="eigen", covariance_estimator=_UnbiasedCovariance()
+    )
+
+
 def _knn_preservation(X_high, X_low, k=7):
     """Fraction of k-nearest neighbors preserved from high-dim to low-dim."""
     from sklearn.neighbors import NearestNeighbors
@@ -577,7 +603,6 @@ class TestQDAComparison:
     def test_qda_iris_accuracy(self):
         """QDA on iris: accuracy matches sklearn within 1e-4."""
         from ferroml.decomposition import QuadraticDiscriminantAnalysis as FerroQDA
-        from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis as SkQDA
 
         X, y = get_iris()
 
@@ -585,7 +610,7 @@ class TestQDAComparison:
         ferro.fit(X, y)
         ferro_preds = np.array(ferro.predict(X))
 
-        sk = SkQDA()
+        sk = _sklearn_qda()
         sk.fit(X, y)
         sk_preds = sk.predict(X)
 
@@ -598,7 +623,6 @@ class TestQDAComparison:
     def test_qda_iris_proba(self):
         """QDA predict_proba on iris matches sklearn within 1e-3."""
         from ferroml.decomposition import QuadraticDiscriminantAnalysis as FerroQDA
-        from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis as SkQDA
 
         X, y = get_iris()
 
@@ -606,7 +630,7 @@ class TestQDAComparison:
         ferro.fit(X, y)
         ferro_proba = np.array(ferro.predict_proba(X))
 
-        sk = SkQDA()
+        sk = _sklearn_qda()
         sk.fit(X, y)
         sk_proba = sk.predict_proba(X)
 
@@ -617,7 +641,6 @@ class TestQDAComparison:
     def test_qda_predictions_match(self):
         """QDA: predictions exactly match sklearn on iris."""
         from ferroml.decomposition import QuadraticDiscriminantAnalysis as FerroQDA
-        from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis as SkQDA
 
         X, y = get_iris()
 
@@ -625,7 +648,7 @@ class TestQDAComparison:
         ferro.fit(X, y)
         ferro_preds = np.array(ferro.predict(X))
 
-        sk = SkQDA()
+        sk = _sklearn_qda()
         sk.fit(X, y)
         sk_preds = sk.predict(X).astype(np.float64)
 

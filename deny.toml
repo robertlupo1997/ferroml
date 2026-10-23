@@ -33,6 +33,11 @@ ignore = [
     # via polars, parent pins <0.41 — no compatible fix available yet
     "RUSTSEC-2026-0194",
     "RUSTSEC-2026-0195",
+    # skiplist <1.1.1 use-after-free when an element's Drop panics; transitive via
+    # polars-compute 0.48 (requires skiplist ^0.5.1). polars-compute 0.55 drops
+    # skiplist, but that needs pyo3-polars 0.28 and the pyo3 migration above.
+    # Accepted by the owner 2026-10-23 until that migration lands
+    "RUSTSEC-2026-0300",
 ]
 
 # ============================================================
