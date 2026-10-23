@@ -200,3 +200,9 @@ ferroml.automl       # AutoML, AutoMLConfig, SelectionRationale
 ferroml.pipeline     # Pipeline, FeatureUnion
 ferroml.model_selection  # Cross-validation, train/test split
 ```
+
+## Code Review Rules
+
+- Flag any change to a model's numerics that lacks a test comparing it against a reference implementation (sklearn, scipy, statsmodels, or linfa) within a stated tolerance.
+- Flag a model added or changed in `ferroml-core/src/` without the matching PyO3 wrapper in `ferroml-python/src/` and re-export in `ferroml-python/python/ferroml/<submodule>/__init__.py`.
+- Flag any README, docstring, or benchmark claim that the diff makes but does not back with a test or a reproducible command.
