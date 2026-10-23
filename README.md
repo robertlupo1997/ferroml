@@ -317,7 +317,7 @@ Fit time relative to sklearn, from the cross-library benchmark run on 2026-03-27
 | LogReg | 2.1x | Competitive |
 | KNN | 4.0x | Known limitation |
 
-In this run no model's fit was more than 5x slower than sklearn's. Read the scores alongside the times: most models match sklearn's score, but FerroML's RandomForest scored lower with default settings (R² 0.45 vs 0.79 for the regressor, accuracy 0.89 vs 0.93 for the classifier), so its 5–20x faster fit is not a like-for-like win. Predict is faster for most models but slower for KNN (2.1x) and HistGBT (2x).
+In this run no model's fit was more than 5x slower than sklearn's. Read the scores alongside the times: most models match sklearn's score, but FerroML's RandomForest scored lower (R² 0.45 vs 0.79 for the regressor, accuracy 0.89 vs 0.93 for the classifier), so its 5–20x faster fit is not a like-for-like win. The cause is a known bug, planned to be fixed in 1.0.3: it samples candidate features once per tree instead of at every split. Predict is faster for most models but slower for KNN (2.1x) and HistGBT (2x).
 
 A separate, larger-workload run ([docs/benchmarks.md](docs/benchmarks.md), v0.4.0-dev) found different ratios for some models: KMeans 4.25x slower on 5000×50 with k=10, and SVC RBF 6.2x slower on 2000×20. Speed depends on data shape; check both reports for your case.
 
@@ -463,7 +463,7 @@ See individual model docstrings for model-specific limitations and recommendatio
 
 ### Benchmarks
 
-Speed relative to scikit-learn depends on data shape. The two recorded runs disagree for KMeans (3.9x faster on 10K×20, 4.25x slower on 5000×50) and SVC RBF (1.5x vs 6.2x slower). RandomForest fits faster but scored lower than sklearn with default settings. Details: [Performance](#performance), [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md), [docs/benchmarks.md](docs/benchmarks.md).
+Speed relative to scikit-learn depends on data shape. The two recorded runs disagree for KMeans (3.9x faster on 10K×20, 4.25x slower on 5000×50) and SVC RBF (1.5x vs 6.2x slower). RandomForest fits faster but currently scores lower than sklearn because of a known feature-sampling bug (fix planned for 1.0.3). Details: [Performance](#performance), [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md), [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Contributing
 

@@ -85,7 +85,7 @@ Fit time relative to scikit-learn from the 2026-03-27 cross-library run (10K × 
 | LogisticRegression | 2.1x |
 | KNN | 4.0x |
 
-Speed depends on data shape, and most but not all models match sklearn's score (RandomForest scores lower with default settings). Full numbers, including predict times and scores: [cross-library benchmark](https://github.com/robertlupo1997/ferroml/blob/master/docs/cross-library-benchmark.md).
+Speed depends on data shape, and most but not all models match sklearn's score (RandomForest currently scores lower: a known bug samples its candidate features once per tree instead of at every split; the fix is planned for 1.0.3). Full numbers, including predict times and scores: [cross-library benchmark](https://github.com/robertlupo1997/ferroml/blob/master/docs/cross-library-benchmark.md).
 
 ## Available Models
 
