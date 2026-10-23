@@ -5,6 +5,7 @@ Cross-library validation for:
 1. ExtraTreesClassifier / ExtraTreesRegressor
 2. GradientBoostingClassifier / GradientBoostingRegressor
 3. HistGradientBoostingClassifier / HistGradientBoostingRegressor
+4. RandomForestClassifier / RandomForestRegressor
 
 Phase X.3 — Plan X production-readiness validation.
 """
@@ -344,3 +345,98 @@ class TestHistGBRegressorVsSklearn:
 
         assert np.all(np.isfinite(pred))
         assert pred.shape == (len(X_test),)
+
+
+# ===========================================================================
+# 7. RandomForest (matched settings, several seeds)
+# ===========================================================================
+#
+# These caught nothing before because none existed: FerroML's forests drew
+# one feature subset per tree and reused it at every split, which cost
+# about 0.35 R2 against sklearn at identical settings.
+
+def _wide_regression(seed):
+    X, y = make_regression(
+        n_samples=2000, n_features=20, n_informative=10, noise=10.0, random_state=seed
+    )
+    return train_test_split(X, y, test_size=0.25, random_state=seed)
+
+
+def _wide_classification(seed):
+    X, y = make_classification(
+        n_samples=2000, n_features=20, n_informative=10, n_redundant=4, random_state=seed
+    )
+    return train_test_split(X, y, test_size=0.25, random_state=seed)
+
+
+class TestRandomForestVsSklearn:
+    """Compare FerroML random forests against sklearn with matched settings."""
+
+    SEEDS = (0, 1, 2)
+
+    @pytest.mark.parametrize("max_features", ["sqrt", "all"])
+    def test_regressor_mean_r2_within_005(self, max_features):
+        from ferroml.trees import RandomForestRegressor
+
+        from sklearn.ensemble import RandomForestRegressor as SkRFR
+
+        sk_mf = 1.0 if max_features == "all" else max_features
+        gaps = []
+        for seed in self.SEEDS:
+            X_train, X_test, y_train, y_test = _wide_regression(seed)
+            sk = SkRFR(n_estimators=50, max_depth=10, max_features=sk_mf, random_state=seed)
+            sk.fit(X_train, y_train)
+            fm = RandomForestRegressor(
+                n_estimators=50, max_depth=10, max_features=max_features, random_state=seed
+            )
+            fm.fit(X_train, y_train.astype(np.float64))
+            gaps.append(
+                r2_score(y_test, sk.predict(X_test))
+                - r2_score(y_test, np.array(fm.predict(X_test)))
+            )
+        assert abs(np.mean(gaps)) < 0.05, f"mean R2 gap vs sklearn: {np.mean(gaps):.4f}"
+
+    def test_classifier_mean_accuracy_within_003(self):
+        from ferroml.trees import RandomForestClassifier
+
+        from sklearn.ensemble import RandomForestClassifier as SkRFC
+
+        gaps = []
+        for seed in self.SEEDS:
+            X_train, X_test, y_train, y_test = _wide_classification(seed)
+            sk = SkRFC(n_estimators=50, max_features="sqrt", random_state=seed)
+            sk.fit(X_train, y_train)
+            fm = RandomForestClassifier(n_estimators=50, max_features="sqrt", random_state=seed)
+            fm.fit(X_train, y_train.astype(np.float64))
+            gaps.append(
+                accuracy_score(y_test, sk.predict(X_test))
+                - accuracy_score(y_test, np.array(fm.predict(X_test)))
+            )
+        assert abs(np.mean(gaps)) < 0.03, f"mean accuracy gap vs sklearn: {np.mean(gaps):.4f}"
+
+    def test_regressor_default_uses_all_features(self):
+        """Default max_features matches sklearn's regressor default (all features)."""
+        from ferroml.trees import DecisionTreeRegressor, RandomForestRegressor
+
+        X_train, X_test, y_train, _ = _wide_regression(0)
+        y_train = y_train.astype(np.float64)
+        rf = RandomForestRegressor(n_estimators=1, bootstrap=False, random_state=0)
+        rf.fit(X_train, y_train)
+        tree = DecisionTreeRegressor()
+        tree.fit(X_train, y_train)
+        np.testing.assert_allclose(np.array(rf.predict(X_test)), np.array(tree.predict(X_test)))
+
+    @pytest.mark.parametrize("alias", ["all", "none"])
+    def test_all_features_alias(self, alias):
+        """'none' and 'all' both mean every feature (it used to mean n/3 or sqrt)."""
+        from ferroml.trees import DecisionTreeRegressor, RandomForestRegressor
+
+        X_train, X_test, y_train, _ = _wide_regression(1)
+        y_train = y_train.astype(np.float64)
+        rf = RandomForestRegressor(
+            n_estimators=1, bootstrap=False, max_features=alias, random_state=0
+        )
+        rf.fit(X_train, y_train)
+        tree = DecisionTreeRegressor()
+        tree.fit(X_train, y_train)
+        np.testing.assert_allclose(np.array(rf.predict(X_test)), np.array(tree.predict(X_test)))

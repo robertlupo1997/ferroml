@@ -769,7 +769,7 @@ impl PyRandomForestClassifier {
         let max_feat = match max_features.to_lowercase().as_str() {
             "sqrt" | "auto" => Some(MaxFeatures::Sqrt),
             "log2" => Some(MaxFeatures::Log2),
-            "none" | "all" => None,
+            "none" | "all" => Some(MaxFeatures::All),
             _ => {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                     "max_features must be 'sqrt', 'log2', or 'none'",
@@ -1037,8 +1037,9 @@ impl PyRandomForestClassifier {
 ///     Minimum samples to split a node.
 /// min_samples_leaf : int, optional (default=1)
 ///     Minimum samples at a leaf.
-/// max_features : str or None, optional (default="sqrt")
-///     Features to consider at each split.
+/// max_features : str, optional (default="all")
+///     Features to consider at each split ("all", "sqrt", or "log2").
+///     "all" (alias "none") matches scikit-learn's regressor default.
 /// bootstrap : bool, optional (default=True)
 ///     Whether to use bootstrap sampling.
 /// oob_score : bool, optional (default=True)
@@ -1095,8 +1096,8 @@ impl PyRandomForestRegressor {
     ///     Minimum samples to split a node.
     /// min_samples_leaf : int, optional (default=1)
     ///     Minimum samples at a leaf.
-    /// max_features : str or None, optional (default="sqrt")
-    ///     Features to consider at each split ("sqrt", "log2", or "none").
+    /// max_features : str, optional (default="all")
+    ///     Features to consider at each split ("all", "sqrt", or "log2").
     /// bootstrap : bool, optional (default=True)
     ///     Whether to use bootstrap sampling.
     /// oob_score : bool, optional (default=True)
@@ -1109,7 +1110,7 @@ impl PyRandomForestRegressor {
     /// RandomForestRegressor
     ///     A new model instance.
     #[new]
-    #[pyo3(signature = (n_estimators=100, max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features="sqrt", bootstrap=true, oob_score=true, random_state=None))]
+    #[pyo3(signature = (n_estimators=100, max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features="all", bootstrap=true, oob_score=true, random_state=None))]
     fn new(
         n_estimators: usize,
         max_depth: Option<usize>,
@@ -1123,7 +1124,7 @@ impl PyRandomForestRegressor {
         let max_feat = match max_features.to_lowercase().as_str() {
             "sqrt" | "auto" => Some(MaxFeatures::Sqrt),
             "log2" => Some(MaxFeatures::Log2),
-            "none" | "all" => None,
+            "none" | "all" => Some(MaxFeatures::All),
             _ => {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                     "max_features must be 'sqrt', 'log2', or 'none'",
