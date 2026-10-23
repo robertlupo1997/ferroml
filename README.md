@@ -3,35 +3,50 @@
 [![CI](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml/badge.svg)](https://github.com/robertlupo1997/ferroml/actions/workflows/ci.yml)
 [![License](https://img.shields.io/pypi/l/ferroml.svg)](https://pypi.org/project/ferroml/)
 [![PyPI](https://img.shields.io/pypi/v/ferroml.svg)](https://pypi.org/project/ferroml/)
-[![Tests](https://img.shields.io/badge/tests-7%2C600%2B%20passing-brightgreen)](https://github.com/robertlupo1997/ferroml)
+[![Tests](https://img.shields.io/badge/tests-8%2C196%20passing-brightgreen)](docs/test-runs/SUMMARY.md)
 
 **Statistically rigorous AutoML in Rust with Python bindings.**
 
-> **Status: v1.0.2** — 55+ ML algorithms, 8,196 tests passing (5,225 Rust + 2,971 Python), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
+> **Status:** `pip install ferroml` gives **v1.0.1** (the latest PyPI release). This repository is at **v1.0.2**, which adds [Intelligent Model Selection](#intelligent-model-selection) and is not released yet. The Rust crate is not on crates.io; use the git dependency below.
+>
+> 55+ ML algorithms, 8,196 tests passing at v1.0.2 (5,225 Rust + 2,971 Python, [recorded run](docs/test-runs/SUMMARY.md)), GPU acceleration, native sparse support, sklearn-compatible API (`score`, `partial_fit`, `decision_function`), validated against sklearn/scipy/xgboost/lightgbm/statsmodels/linfa with 489+ cross-library correctness tests and 5-layer correctness verification (Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein). See [Project Status](#project-status) for details.
 
 FerroML is a high-performance machine learning library that prioritizes statistical rigor over black-box automation. Unlike traditional AutoML tools that hide statistical assumptions, FerroML makes them explicit and testable.
 
 ## Key Features
 
-- **Statistical Rigor First** — Confidence intervals on all predictions, hypothesis testing for model comparison, multiple testing correction (Bonferroni, Holm, Benjamini-Hochberg)
+- **Statistical Rigor First** — Confidence intervals on CV scores, prediction intervals on the models that support them (linear, regularized, robust, quantile, KNN, SVM, naive Bayes), hypothesis testing for model comparison, multiple testing correction (Bonferroni, Holm, Benjamini-Hochberg)
 - **Transparent Assumptions** — All statistical assumptions are documented and tested. No hidden magic.
-- **Reproducible Results** — Deterministic by default with explicit randomness control
+- **Reproducible Results** — Explicit randomness control via seeds; RandomForest and ExtraTrees also need `n_jobs=1` to be deterministic (see [Known Limitations](#known-limitations))
 - **High Performance** — Written in Rust with SIMD acceleration, parallel processing via Rayon, GPU acceleration via wgpu, and native sparse matrix support
 - **Python Bindings** — Seamless NumPy/Polars integration via PyO3
 
 ## Installation
 
+### Python (3.10+)
+
+```bash
+pip install ferroml        # installs 1.0.1, the latest PyPI release
+```
+
+Pre-built wheels cover Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and Windows (x86_64). CI tests Python 3.10–3.12; the Python Quick Start below was also run against the 1.0.1 wheel on 3.13.
+
+To get v1.0.2 features that are not on PyPI yet (such as [Intelligent Model Selection](#intelligent-model-selection)), build from source. This needs a Rust toolchain:
+
+```bash
+git clone https://github.com/robertlupo1997/ferroml && cd ferroml
+python -m venv .venv && source .venv/bin/activate
+pip install maturin
+maturin develop --release -m ferroml-python/Cargo.toml
+```
+
 ### Rust
+
+`ferroml-core` is not published on crates.io. Use a git dependency:
 
 ```toml
 [dependencies]
-ferroml-core = "1.0"
-```
-
-### Python (3.10-3.13)
-
-```bash
-pip install ferroml
+ferroml-core = { git = "https://github.com/robertlupo1997/ferroml" }
 ```
 
 ## Quick Start
@@ -202,6 +217,8 @@ FerroML distinguishes itself through rigorous statistical methodology:
 
 ## Intelligent Model Selection
 
+> Requires v1.0.2 (build from source, see [Installation](#installation)). `pip install ferroml` (1.0.1) does not have `statistically_best_model`, `benchmark_report` or `model_card` yet.
+
 Most AutoML returns the leaderboard top-1 and calls it a day. FerroML computes
 corrected resampled t-tests (Nadeau-Bengio) between top models, applies
 multiple-testing correction, and then selects **the simplest model that is not
@@ -268,7 +285,7 @@ cargo run --example pipeline
 
 ```toml
 [dependencies]
-ferroml-core = { version = "1.0", features = ["simd", "sparse", "onnx"] }
+ferroml-core = { git = "https://github.com/robertlupo1997/ferroml", features = ["simd", "sparse", "onnx"] }
 ```
 
 | Feature | Description |
@@ -289,7 +306,7 @@ ferroml-core = { version = "1.0", features = ["simd", "sparse", "onnx"] }
 
 ### Benchmarks vs scikit-learn
 
-All benchmarks produce matching predictions (100% correctness). Results from cross-library benchmark (2026-03-27, 10K samples):
+Fit time relative to sklearn, from the cross-library benchmark run on 2026-03-27 (10K samples × 20 features, SVC on 5K; lower is faster). Raw numbers, including predict times and scores: [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md).
 
 | Model | vs sklearn | Status |
 |-------|-----------|--------|
@@ -302,7 +319,9 @@ All benchmarks produce matching predictions (100% correctness). Results from cro
 | LogReg | 2.1x | Competitive |
 | KNN | 4.0x | Known limitation |
 
-No model is more than 5x slower than sklearn. FerroML wins on **predict universally** (zero Python overhead), on **tree/ensemble models** (Rayon parallel construction), and achieves **parity or better on linear algebra** thanks to faer SVD and Cholesky solvers. Full results with methodology and analysis: [docs/benchmarks.md](docs/benchmarks.md)
+In this run no model's fit was more than 5x slower than sklearn's. Read the scores alongside the times: most models match sklearn's score, but FerroML's RandomForest scored lower with default settings (R² 0.45 vs 0.79 for the regressor, accuracy 0.89 vs 0.93 for the classifier), so its 5–20x faster fit is not a like-for-like win. Predict is faster for most models but slower for KNN (2.1x) and HistGBT (2x).
+
+A separate, larger-workload run ([docs/benchmarks.md](docs/benchmarks.md), v0.4.0-dev) found different ratios for some models: KMeans 4.25x slower on 5000×50 with k=10, and SVC RBF 6.2x slower on 2000×20. Speed depends on data shape; check both reports for your case.
 
 ### Architecture
 
@@ -325,14 +344,14 @@ at your option.
 
 ## Project Status
 
-### Current State (v1.0.2)
+### Current State (v1.0.2, unreleased)
 
-FerroML is **v1.0.2**, hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
+FerroML is **v1.0.2** in this repository (PyPI serves 1.0.1), hardened through 32 plans (1-6, A-Z) and 4 v1.0 phases of correctness, performance, and feature work:
 
 | Metric | Status |
 |--------|--------|
 | **Tests** | 8,196 passing (5,225 Rust + 2,971 Python), 0 failing, 30 Rust ignored + 21 Python skipped + 4 xfailed. Recorded run: [`docs/test-runs/SUMMARY.md`](docs/test-runs/SUMMARY.md) |
-| **Correctness Tests** | 1,140 (553 edge_cases + 304 correctness + 88 adversarial + 103 integration + 36 regression + 56 vs_linfa) |
+| **Correctness Tests** | 1,169 (582 edge_cases + 304 correctness + 88 adversarial + 103 integration + 36 regression + 56 vs_linfa) |
 | **Cross-Library Validation** | 489+ tests (vs sklearn, scipy, xgboost, lightgbm, statsmodels, linfa) |
 | **Frankenstein Tests** | 37 Python + 8 Rust composition tests (pipeline, ensemble, serialization, thread safety) |
 | **5-Layer Verification** | Reference-Match, Textbook, Property/Invariant, Adversarial, Frankenstein — all passing |
@@ -417,7 +436,7 @@ Every new model requires **three** updates — miss one and Python silently brea
 ### Numerical Stability
 
 - **Tolerances vary by algorithm type** when comparing to sklearn: closed-form (1e-8), iterative (1e-4), tree-based (1e-6), ensemble (5% for RNG variance). Using the wrong tolerance gives false test failures.
-- **SVC with RBF kernels** is ~1.5x slower than sklearn (improved from 7.7x). Competitive for most workloads.
+- **SVC with RBF kernels** is 1.5x slower than sklearn on 5K×20 and 6.2x slower on 2K×20 in the two benchmark runs.
 - **IncrementalPCA** accumulates rounding errors in streaming mode — this is inherent to the algorithm, not a FerroML bug.
 
 ### ONNX Export
@@ -426,7 +445,7 @@ ONNX roundtrip is finicky. We've fixed subtle issues in AdaBoost (weighted-sum a
 
 ## Known Limitations
 
-FerroML is production-ready with the following known limitations. For model-specific details, see the Notes section in each model's docstring (`help(Model)`).
+FerroML has the following known limitations. For model-specific details, see the Notes section in each model's docstring (`help(Model)`).
 
 ### RandomForest Parallel Non-Determinism
 
@@ -446,7 +465,7 @@ See individual model docstrings for model-specific limitations and recommendatio
 
 ### Benchmarks
 
-FerroML achieves competitive or better performance than scikit-learn across most algorithms. No model is more than 5x slower. Highlights: KMeans 3.9x faster, StandardScaler 3.4x faster, GaussianNB 2.7x faster. Full methodology and results: [docs/benchmarks.md](docs/benchmarks.md).
+Speed relative to scikit-learn depends on data shape. The two recorded runs disagree for KMeans (3.9x faster on 10K×20, 4.25x slower on 5000×50) and SVC RBF (1.5x vs 6.2x slower). RandomForest fits faster but scored lower than sklearn with default settings. Details: [Performance](#performance), [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md), [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Contributing
 
