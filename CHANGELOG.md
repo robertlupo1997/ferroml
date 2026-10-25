@@ -4,7 +4,7 @@ All notable changes to FerroML are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.0.2] — 2026-10-25
 
 ### Fixed — Random forest feature sampling
 - Decision trees with `max_features` set (every `RandomForest*` model, and any tree
@@ -21,8 +21,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Python `RandomForestRegressor` default `max_features` is now `"all"`, matching
   sklearn's regressor default (was `"sqrt"`). Pass `max_features="sqrt"` for the old
   behaviour. Fitted results for a given seed differ from earlier releases.
-
-## [1.0.2] — 2026-07-12
 
 ### Added — Intelligent AutoML selection (P3)
 - `AutoMLResult::statistically_best_model()` — selects the simplest model that is
