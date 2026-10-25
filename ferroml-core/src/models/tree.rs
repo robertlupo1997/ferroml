@@ -714,12 +714,24 @@ impl DecisionTreeClassifier {
 
         // Find best split with weights (dispatch on split strategy)
         let best_split = match self.split_strategy {
-            SplitStrategy::Random => {
-                self.find_random_split_weighted(x, y, sample_weights, indices, classes, impurity)
-            }
-            SplitStrategy::Best => {
-                self.find_best_split_weighted(x, y, sample_weights, indices, classes, impurity)
-            }
+            SplitStrategy::Random => self.find_random_split_weighted(
+                node_id,
+                x,
+                y,
+                sample_weights,
+                indices,
+                classes,
+                impurity,
+            ),
+            SplitStrategy::Best => self.find_best_split_weighted(
+                node_id,
+                x,
+                y,
+                sample_weights,
+                indices,
+                classes,
+                impurity,
+            ),
         };
 
         if let Some((feature_idx, threshold, left_indices, right_indices, impurity_decrease)) =
@@ -777,6 +789,7 @@ impl DecisionTreeClassifier {
     /// impurity gain. Picks the feature with the best gain.
     fn find_random_split_weighted(
         &self,
+        node_id: usize,
         x: &Array2<f64>,
         y: &Array1<f64>,
         sample_weights: &Array1<f64>,
@@ -796,21 +809,8 @@ impl DecisionTreeClassifier {
             .wrapping_add(indices.len() as u64);
 
         // Select features to check
-        let features_to_check: Vec<usize> = if let Some(max_f) = self.max_features {
-            use std::collections::HashSet;
-            let mut selected = HashSet::new();
-            let max_f = max_f.min(n_features);
-            while selected.len() < max_f {
-                rng = rng.wrapping_mul(1103515245).wrapping_add(12345);
-                let idx = (rng as usize) % n_features;
-                selected.insert(idx);
-            }
-            let mut features: Vec<usize> = selected.into_iter().collect();
-            features.sort();
-            features
-        } else {
-            (0..n_features).collect()
-        };
+        let features_to_check =
+            sample_split_features(self.random_state, node_id, n_features, self.max_features);
 
         // Pre-compute class index for each sample
         let sample_class_idx: Vec<usize> = indices
@@ -914,6 +914,7 @@ impl DecisionTreeClassifier {
     /// accumulating running class weight counts. O(n * p * log n) instead of O(n^2 * p).
     fn find_best_split_weighted(
         &self,
+        node_id: usize,
         x: &Array2<f64>,
         y: &Array1<f64>,
         sample_weights: &Array1<f64>,
@@ -931,22 +932,8 @@ impl DecisionTreeClassifier {
         let mut best_split = None;
 
         // Determine which features to consider
-        let features_to_check: Vec<usize> = if let Some(max_f) = self.max_features {
-            use std::collections::HashSet;
-            let mut rng = self.random_state.unwrap_or(42);
-            let mut selected = HashSet::new();
-            let max_f = max_f.min(n_features);
-            while selected.len() < max_f {
-                rng = rng.wrapping_mul(1103515245).wrapping_add(12345);
-                let idx = (rng as usize) % n_features;
-                selected.insert(idx);
-            }
-            let mut features: Vec<usize> = selected.into_iter().collect();
-            features.sort();
-            features
-        } else {
-            (0..n_features).collect()
-        };
+        let features_to_check =
+            sample_split_features(self.random_state, node_id, n_features, self.max_features);
 
         let n_classes = classes.len();
 
@@ -1147,6 +1134,34 @@ impl DecisionTreeClassifier {
 }
 
 /// Count leaves in a subtree
+/// Pick the candidate features for one split.
+///
+/// Draws a fresh subset at every node, as in Breiman's random forests. The seed
+/// mixes the tree's `random_state` with `node_id`, so a fitted tree stays
+/// reproducible while different nodes see different features. Returns all
+/// features when `max_features` is `None` or covers every column.
+fn sample_split_features(
+    random_state: Option<u64>,
+    node_id: usize,
+    n_features: usize,
+    max_features: Option<usize>,
+) -> Vec<usize> {
+    use rand::rngs::StdRng;
+    use rand::SeedableRng;
+
+    let max_f = match max_features {
+        Some(m) if m < n_features => m.max(1),
+        _ => return (0..n_features).collect(),
+    };
+    let seed = random_state
+        .unwrap_or(42)
+        .wrapping_add((node_id as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+    let mut rng = StdRng::seed_from_u64(seed);
+    let mut features = rand::seq::index::sample(&mut rng, n_features, max_f).into_vec();
+    features.sort_unstable();
+    features
+}
+
 fn count_leaves_in_subtree(nodes: &[TreeNode], node_id: usize) -> usize {
     let node = &nodes[node_id];
     if node.is_leaf {
@@ -1623,8 +1638,8 @@ impl DecisionTreeRegressor {
 
         // Find best split
         let best_split = match self.split_strategy {
-            SplitStrategy::Random => self.find_random_split(x, y, indices, impurity),
-            SplitStrategy::Best => self.find_best_split(x, y, indices, impurity),
+            SplitStrategy::Random => self.find_random_split(node_id, x, y, indices, impurity),
+            SplitStrategy::Best => self.find_best_split(node_id, x, y, indices, impurity),
         };
 
         if let Some((feature_idx, threshold, left_indices, right_indices, impurity_decrease)) =
@@ -1668,6 +1683,7 @@ impl DecisionTreeRegressor {
     /// Find split using random thresholds (ExtraTrees) for regression.
     fn find_random_split(
         &self,
+        node_id: usize,
         x: &Array2<f64>,
         y: &Array1<f64>,
         indices: &[usize],
@@ -1681,21 +1697,8 @@ impl DecisionTreeRegressor {
             .unwrap_or(42)
             .wrapping_add(n_samples as u64);
 
-        let features_to_check: Vec<usize> = if let Some(max_f) = self.max_features {
-            use std::collections::HashSet;
-            let mut selected = HashSet::new();
-            let max_f = max_f.min(n_features);
-            while selected.len() < max_f {
-                rng = rng.wrapping_mul(1103515245).wrapping_add(12345);
-                let idx = (rng as usize) % n_features;
-                selected.insert(idx);
-            }
-            let mut features: Vec<usize> = selected.into_iter().collect();
-            features.sort();
-            features
-        } else {
-            (0..n_features).collect()
-        };
+        let features_to_check =
+            sample_split_features(self.random_state, node_id, n_features, self.max_features);
 
         let mut best_gain = f64::NEG_INFINITY;
         let mut best_split = None;
@@ -1767,6 +1770,7 @@ impl DecisionTreeRegressor {
 
     fn find_best_split(
         &self,
+        node_id: usize,
         x: &Array2<f64>,
         y: &Array1<f64>,
         indices: &[usize],
@@ -1779,22 +1783,8 @@ impl DecisionTreeRegressor {
         let mut best_split = None;
 
         // Determine which features to consider
-        let features_to_check: Vec<usize> = if let Some(max_f) = self.max_features {
-            use std::collections::HashSet;
-            let mut rng = self.random_state.unwrap_or(42);
-            let mut selected = HashSet::new();
-            let max_f = max_f.min(n_features);
-            while selected.len() < max_f {
-                rng = rng.wrapping_mul(1103515245).wrapping_add(12345);
-                let idx = (rng as usize) % n_features;
-                selected.insert(idx);
-            }
-            let mut features: Vec<usize> = selected.into_iter().collect();
-            features.sort();
-            features
-        } else {
-            (0..n_features).collect()
-        };
+        let features_to_check =
+            sample_split_features(self.random_state, node_id, n_features, self.max_features);
 
         // Pre-allocate sorted indices buffer (indices into the `indices` slice)
         let mut sorted_pos: Vec<usize> = Vec::with_capacity(n_samples);

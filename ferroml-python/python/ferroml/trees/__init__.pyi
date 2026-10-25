@@ -126,7 +126,7 @@ class RandomForestRegressor:
         max_depth: int | None = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
-        max_features: str = "sqrt",
+        max_features: str = "all",
         bootstrap: bool = True,
         oob_score: bool = True,
         random_state: int | None = None,
