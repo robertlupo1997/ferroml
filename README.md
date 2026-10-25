@@ -304,20 +304,23 @@ ferroml-core = { git = "https://github.com/robertlupo1997/ferroml", features = [
 
 ### Benchmarks vs scikit-learn
 
-Fit time relative to sklearn, from the cross-library benchmark run on 2026-03-27 (10K samples × 20 features, SVC on 5K; lower is faster). Raw numbers, including predict times and scores: [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md).
+Fit time relative to sklearn, from the cross-library benchmark re-run for 1.0.2 on 2026-10-25 (10K samples × 20 features, SVC on 5K; median of three runs on a 4-core Linux VM; lower is faster). Raw numbers, including predict times and scores: [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md).
 
 | Model | vs sklearn | Status |
 |-------|-----------|--------|
-| KMeans | **0.26x** | **3.9x FASTER** |
-| StandardScaler | **0.29x** | **3.4x FASTER** |
-| GaussianNB | **0.37x** | **2.7x FASTER** |
-| DecisionTree | 1.1-1.3x | ~Parity |
-| SVC RBF | 1.54x | Competitive (improved from 7.7x) |
-| HistGBT | 2.0x | Competitive |
-| LogReg | 2.1x | Competitive |
-| KNN | 4.0x | Known limitation |
+| StandardScaler | **0.26x** | **3.8x faster** |
+| GaussianNB | **0.32x** | **3.1x faster** |
+| RandomForest | **0.36-0.41x** | **2.4-2.8x faster**, same score |
+| DecisionTree | 0.58-0.81x | Faster |
+| GradientBoosting | 0.65-0.69x | Faster |
+| KMeans | 0.73x | ~1.4x faster (noisy at ~20 ms) |
+| LinearRegression / Ridge | 1.2x | ~Parity |
+| SVC RBF | 1.3x | Competitive |
+| HistGBT | 1.8-2.0x | Competitive |
+| LogReg | 2.3x | Competitive |
+| KNN | 3.1x | Known limitation |
 
-In this run no model's fit was more than 5x slower than sklearn's. Read the scores alongside the times: most models match sklearn's score, but RandomForest scored lower in this run (R² 0.45 vs 0.79 for the regressor, accuracy 0.89 vs 0.93 for the classifier). That was a bug, fixed in 1.0.2: trees sampled their candidate features once per tree instead of at every split. After the fix, at matched settings over 5 seeds (10K × 20), the regressor scores R² 0.84 vs sklearn's 0.84 with all features and the classifier 0.946 vs 0.946 accuracy. The RandomForest timings in this table predate the fix and have not been re-run. Predict is faster for most models but slower for KNN (2.1x) and HistGBT (2x).
+No model's fit was more than 5x slower than sklearn's. Read the scores alongside the times: every model scores within 0.01 of sklearn except GradientBoostingClassifier (accuracy 0.906 vs 0.929). RandomForest now matches sklearn (R² 0.785 vs 0.786, accuracy 0.925 vs 0.930); before the 1.0.2 fix it scored R² 0.45, because trees sampled their candidate features once per tree instead of at every split. Predict is faster for most models but slower for KNN (3.3x) and HistGBT (1.6-1.7x).
 
 A separate, larger-workload run ([docs/benchmarks.md](docs/benchmarks.md), v0.4.0-dev) found different ratios for some models: KMeans 4.25x slower on 5000×50 with k=10, and SVC RBF 6.2x slower on 2000×20. Speed depends on data shape; check both reports for your case.
 
@@ -434,7 +437,7 @@ Every new model requires **three** updates — miss one and Python silently brea
 ### Numerical Stability
 
 - **Tolerances vary by algorithm type** when comparing to sklearn: closed-form (1e-8), iterative (1e-4), tree-based (1e-6), ensemble (5% for RNG variance). Using the wrong tolerance gives false test failures.
-- **SVC with RBF kernels** is 1.5x slower than sklearn on 5K×20 and 6.2x slower on 2K×20 in the two benchmark runs.
+- **SVC with RBF kernels** is 1.3x slower than sklearn on 5K×20 and 6.2x slower on 2K×20 in the two benchmark runs.
 - **IncrementalPCA** accumulates rounding errors in streaming mode — this is inherent to the algorithm, not a FerroML bug.
 
 ### ONNX Export
@@ -463,7 +466,7 @@ See individual model docstrings for model-specific limitations and recommendatio
 
 ### Benchmarks
 
-Speed relative to scikit-learn depends on data shape. The two recorded runs disagree for KMeans (3.9x faster on 10K×20, 4.25x slower on 5000×50) and SVC RBF (1.5x vs 6.2x slower). RandomForest's recorded timings predate the 1.0.2 feature-sampling fix and have not been re-run. Details: [Performance](#performance), [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md), [docs/benchmarks.md](docs/benchmarks.md).
+Speed relative to scikit-learn depends on data shape. The two recorded runs disagree for KMeans (1.4x faster on 10K×20, 4.25x slower on 5000×50) and SVC RBF (1.3x vs 6.2x slower). Details: [Performance](#performance), [docs/cross-library-benchmark.md](docs/cross-library-benchmark.md), [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Contributing
 

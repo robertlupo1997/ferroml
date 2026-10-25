@@ -1,13 +1,13 @@
 {
   "system_info": {
-    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
-    "python_version": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
+    "platform": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
+    "python_version": "3.13.17 (main, Oct 22 2026, 14:06:04) [GCC 13.3.0]",
     "cpu": "x86_64",
-    "numpy_version": "2.4.2",
-    "timestamp": "2026-03-27T14:07:08.672329",
-    "sklearn_version": "1.8.0",
-    "xgboost_version": "3.2.0",
-    "lightgbm_version": "4.6.0"
+    "numpy_version": "2.5.4",
+    "timestamp": "2026-10-25T20:03:33.677987",
+    "sklearn_version": "1.9.1",
+    "xgboost_version": "3.4.1",
+    "lightgbm_version": "4.7.0"
   },
   "results": [
     {
@@ -16,8 +16,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 4.215,
-      "predict_time_ms": 0.06,
+      "fit_time_ms": 4.468,
+      "predict_time_ms": 0.088,
       "score": 0.999297
     },
     {
@@ -26,8 +26,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 2.191,
-      "predict_time_ms": 0.072,
+      "fit_time_ms": 3.782,
+      "predict_time_ms": 0.12,
       "score": 0.999297
     },
     {
@@ -36,8 +36,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 1.688,
-      "predict_time_ms": 0.054,
+      "fit_time_ms": 2.532,
+      "predict_time_ms": 0.093,
       "score": 0.999297
     },
     {
@@ -46,8 +46,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 0.994,
-      "predict_time_ms": 0.063,
+      "fit_time_ms": 2.077,
+      "predict_time_ms": 0.161,
       "score": 0.999297
     },
     {
@@ -56,8 +56,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 0.795,
-      "predict_time_ms": 0.052,
+      "fit_time_ms": 1.078,
+      "predict_time_ms": 0.092,
       "score": 0.388931
     },
     {
@@ -66,8 +66,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 0.746,
-      "predict_time_ms": 0.068,
+      "fit_time_ms": 1.436,
+      "predict_time_ms": 0.14,
       "score": 0.388931
     },
     {
@@ -76,8 +76,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 16.797,
-      "predict_time_ms": 0.08,
+      "fit_time_ms": 29.227,
+      "predict_time_ms": 0.156,
       "score": 0.8175
     },
     {
@@ -86,8 +86,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 8.045,
-      "predict_time_ms": 0.108,
+      "fit_time_ms": 12.956,
+      "predict_time_ms": 0.326,
       "score": 0.8175
     },
     {
@@ -96,8 +96,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 77.534,
-      "predict_time_ms": 0.214,
+      "fit_time_ms": 89.402,
+      "predict_time_ms": 0.314,
       "score": 0.502125
     },
     {
@@ -106,9 +106,9 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 88.452,
-      "predict_time_ms": 0.233,
-      "score": 0.501976
+      "fit_time_ms": 110.503,
+      "predict_time_ms": 0.396,
+      "score": 0.497164
     },
     {
       "algorithm": "DecisionTreeClassifier",
@@ -116,8 +116,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 85.132,
-      "predict_time_ms": 0.164,
+      "fit_time_ms": 87.618,
+      "predict_time_ms": 0.307,
       "score": 0.866
     },
     {
@@ -126,9 +126,9 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 109.863,
-      "predict_time_ms": 0.183,
-      "score": 0.858
+      "fit_time_ms": 150.809,
+      "predict_time_ms": 0.437,
+      "score": 0.861
     },
     {
       "algorithm": "RandomForestRegressor",
@@ -136,9 +136,9 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 274.506,
-      "predict_time_ms": 2.642,
-      "score": 0.449433
+      "fit_time_ms": 2554.269,
+      "predict_time_ms": 10.915,
+      "score": 0.785131
     },
     {
       "algorithm": "RandomForestRegressor",
@@ -146,8 +146,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 5455.67,
-      "predict_time_ms": 18.562,
+      "fit_time_ms": 7032.682,
+      "predict_time_ms": 28.369,
       "score": 0.786271
     },
     {
@@ -156,9 +156,9 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 1913.44,
-      "predict_time_ms": 1.893,
-      "score": 0.778473
+      "fit_time_ms": 2680.89,
+      "predict_time_ms": 2.88,
+      "score": 0.779132
     },
     {
       "algorithm": "RandomForestRegressor",
@@ -166,8 +166,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 89.878,
-      "predict_time_ms": 1.572,
+      "fit_time_ms": 155.268,
+      "predict_time_ms": 3.776,
       "score": 0.553714
     },
     {
@@ -176,9 +176,9 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 298.367,
-      "predict_time_ms": 2.447,
-      "score": 0.891
+      "fit_time_ms": 837.663,
+      "predict_time_ms": 8.252,
+      "score": 0.925
     },
     {
       "algorithm": "RandomForestClassifier",
@@ -186,8 +186,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 1463.077,
-      "predict_time_ms": 15.502,
+      "fit_time_ms": 2035.998,
+      "predict_time_ms": 23.31,
       "score": 0.93
     },
     {
@@ -196,9 +196,9 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 567.23,
-      "predict_time_ms": 0.939,
-      "score": 0.921
+      "fit_time_ms": 924.957,
+      "predict_time_ms": 2.362,
+      "score": 0.9225
     },
     {
       "algorithm": "RandomForestClassifier",
@@ -206,8 +206,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 84.004,
-      "predict_time_ms": 1.671,
+      "fit_time_ms": 141.714,
+      "predict_time_ms": 3.537,
       "score": 0.865
     },
     {
@@ -216,8 +216,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 4982.58,
-      "predict_time_ms": 1.431,
+      "fit_time_ms": 5159.595,
+      "predict_time_ms": 4.559,
       "score": 0.929753
     },
     {
@@ -226,9 +226,9 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 5612.301,
-      "predict_time_ms": 4.461,
-      "score": 0.929611
+      "fit_time_ms": 7463.541,
+      "predict_time_ms": 6.163,
+      "score": 0.929566
     },
     {
       "algorithm": "GradientBoostingRegressor",
@@ -236,9 +236,9 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 81.637,
-      "predict_time_ms": 0.546,
-      "score": 0.932335
+      "fit_time_ms": 145.739,
+      "predict_time_ms": 1.4,
+      "score": 0.930092
     },
     {
       "algorithm": "GradientBoostingRegressor",
@@ -246,8 +246,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 46.809,
-      "predict_time_ms": 1.789,
+      "fit_time_ms": 101.57,
+      "predict_time_ms": 4.128,
       "score": 0.933587
     },
     {
@@ -256,8 +256,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 4802.847,
-      "predict_time_ms": 1.697,
+      "fit_time_ms": 4906.471,
+      "predict_time_ms": 4.907,
       "score": 0.906
     },
     {
@@ -266,8 +266,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 5864.183,
-      "predict_time_ms": 4.046,
+      "fit_time_ms": 7576.225,
+      "predict_time_ms": 5.769,
       "score": 0.9285
     },
     {
@@ -276,9 +276,9 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 76.114,
-      "predict_time_ms": 0.615,
-      "score": 0.9335
+      "fit_time_ms": 130.919,
+      "predict_time_ms": 1.149,
+      "score": 0.9345
     },
     {
       "algorithm": "GradientBoostingClassifier",
@@ -286,8 +286,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 48.574,
-      "predict_time_ms": 2.143,
+      "fit_time_ms": 100.361,
+      "predict_time_ms": 4.286,
       "score": 0.939
     },
     {
@@ -296,8 +296,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 299.302,
-      "predict_time_ms": 4.216,
+      "fit_time_ms": 436.972,
+      "predict_time_ms": 6.767,
       "score": 0.930093
     },
     {
@@ -306,9 +306,9 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 138.585,
-      "predict_time_ms": 2.027,
-      "score": 0.93129
+      "fit_time_ms": 223.871,
+      "predict_time_ms": 4.233,
+      "score": 0.93086
     },
     {
       "algorithm": "HistGradientBoostingRegressor",
@@ -316,9 +316,9 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 88.354,
-      "predict_time_ms": 0.585,
-      "score": 0.932335
+      "fit_time_ms": 130.702,
+      "predict_time_ms": 1.047,
+      "score": 0.930092
     },
     {
       "algorithm": "HistGradientBoostingRegressor",
@@ -326,8 +326,8 @@
       "task": "regression",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 47.854,
-      "predict_time_ms": 1.834,
+      "fit_time_ms": 91.509,
+      "predict_time_ms": 4.081,
       "score": 0.933587
     },
     {
@@ -336,8 +336,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 271.519,
-      "predict_time_ms": 4.149,
+      "fit_time_ms": 388.599,
+      "predict_time_ms": 6.345,
       "score": 0.931
     },
     {
@@ -346,9 +346,9 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 137.226,
-      "predict_time_ms": 2.032,
-      "score": 0.9355
+      "fit_time_ms": 217.573,
+      "predict_time_ms": 3.741,
+      "score": 0.935
     },
     {
       "algorithm": "HistGradientBoostingClassifier",
@@ -356,9 +356,9 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 76.123,
-      "predict_time_ms": 0.652,
-      "score": 0.9335
+      "fit_time_ms": 120.188,
+      "predict_time_ms": 1.356,
+      "score": 0.9345
     },
     {
       "algorithm": "HistGradientBoostingClassifier",
@@ -366,8 +366,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 50.759,
-      "predict_time_ms": 1.996,
+      "fit_time_ms": 88.527,
+      "predict_time_ms": 4.194,
       "score": 0.939
     },
     {
@@ -376,8 +376,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 1.994,
-      "predict_time_ms": 27.478,
+      "fit_time_ms": 3.127,
+      "predict_time_ms": 62.82,
       "score": 0.9425
     },
     {
@@ -386,8 +386,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 0.472,
-      "predict_time_ms": 12.902,
+      "fit_time_ms": 0.994,
+      "predict_time_ms": 19.184,
       "score": 0.9425
     },
     {
@@ -396,8 +396,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 143.632,
-      "predict_time_ms": 19.51,
+      "fit_time_ms": 150.417,
+      "predict_time_ms": 22.449,
       "score": 0.964
     },
     {
@@ -406,8 +406,8 @@
       "task": "classification",
       "n_samples": 5000,
       "n_features": 20,
-      "fit_time_ms": 93.147,
-      "predict_time_ms": 33.127,
+      "fit_time_ms": 116.613,
+      "predict_time_ms": 47.771,
       "score": 0.956
     },
     {
@@ -416,8 +416,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 0.613,
-      "predict_time_ms": 0.213,
+      "fit_time_ms": 1.104,
+      "predict_time_ms": 0.296,
       "score": 0.7995
     },
     {
@@ -426,8 +426,8 @@
       "task": "classification",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 1.668,
-      "predict_time_ms": 0.363,
+      "fit_time_ms": 3.379,
+      "predict_time_ms": 0.68,
       "score": 0.7995
     },
     {
@@ -436,8 +436,8 @@
       "task": "preprocessing",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 0.293,
-      "predict_time_ms": 0.104,
+      "fit_time_ms": 0.453,
+      "predict_time_ms": 0.158,
       "score": null
     },
     {
@@ -446,8 +446,8 @@
       "task": "preprocessing",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 1.007,
-      "predict_time_ms": 0.137,
+      "fit_time_ms": 1.872,
+      "predict_time_ms": 0.239,
       "score": null
     },
     {
@@ -456,8 +456,8 @@
       "task": "preprocessing",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 0.624,
-      "predict_time_ms": 0.114,
+      "fit_time_ms": 1.144,
+      "predict_time_ms": 0.169,
       "score": null
     },
     {
@@ -466,8 +466,8 @@
       "task": "preprocessing",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 0.633,
-      "predict_time_ms": 0.123,
+      "fit_time_ms": 1.308,
+      "predict_time_ms": 0.205,
       "score": null
     },
     {
@@ -476,8 +476,8 @@
       "task": "clustering",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 4.571,
-      "predict_time_ms": 0.119,
+      "fit_time_ms": 17.26,
+      "predict_time_ms": 0.154,
       "score": 159775.178721
     },
     {
@@ -486,8 +486,8 @@
       "task": "clustering",
       "n_samples": 10000,
       "n_features": 20,
-      "fit_time_ms": 17.841,
-      "predict_time_ms": 0.365,
+      "fit_time_ms": 23.583,
+      "predict_time_ms": 0.354,
       "score": 159775.178721
     }
   ]

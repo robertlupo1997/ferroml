@@ -72,20 +72,22 @@ clf.fit(X_tfidf, y)
 
 ## Performance vs scikit-learn
 
-Fit time relative to scikit-learn from the 2026-03-27 cross-library run (10K × 20; lower is faster):
+Fit time relative to scikit-learn from the 1.0.2 cross-library run (10K × 20, median of three runs; lower is faster):
 
 | Model | vs sklearn |
 |-------|-----------:|
-| KMeans | **0.26x** |
-| StandardScaler | **0.29x** |
-| GaussianNB | **0.37x** |
-| DecisionTree | 1.1–1.3x |
-| SVC RBF (5K) | 1.54x |
-| HistGBT | 2.0x |
-| LogisticRegression | 2.1x |
-| KNN | 4.0x |
+| StandardScaler | **0.26x** |
+| GaussianNB | **0.32x** |
+| RandomForest | **0.36–0.41x** |
+| DecisionTree | 0.58–0.81x |
+| GradientBoosting | 0.65–0.69x |
+| KMeans | 0.73x |
+| SVC RBF (5K) | 1.3x |
+| HistGBT | 1.8–2.0x |
+| LogisticRegression | 2.3x |
+| KNN | 3.1x |
 
-Speed depends on data shape. In this run RandomForest scored below sklearn because of a feature-sampling bug that 1.0.2 fixes; at matched settings it now matches sklearn (R² 0.84 vs 0.84, accuracy 0.946 vs 0.946), and its timings have not been re-run. Full numbers, including predict times and scores: [cross-library benchmark](https://github.com/robertlupo1997/ferroml/blob/master/docs/cross-library-benchmark.md).
+Speed depends on data shape, and timings under ~30 ms are noisy. Scores match sklearn within 0.01 for every model except GradientBoostingClassifier (0.906 vs 0.929). RandomForest now matches sklearn (R² 0.785 vs 0.786, accuracy 0.925 vs 0.930) after the 1.0.2 feature-sampling fix. Full numbers, including predict times and scores: [cross-library benchmark](https://github.com/robertlupo1997/ferroml/blob/master/docs/cross-library-benchmark.md).
 
 ## Available Models
 

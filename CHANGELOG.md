@@ -40,6 +40,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `result.model_card()`, and `ferroml.automl.SelectionRationale`
 - README "Intelligent Model Selection" section with real run output
 
+### Docs
+- Re-ran the cross-library benchmark on 1.0.2 (`docs/cross-library-benchmark.md`,
+  median of three runs). RandomForest now scores the same as sklearn and fits
+  2.4-2.8x faster at 10K × 20. README performance tables updated from this run.
+
+## [1.0.1] — 2026-03-31
+
+### Docs
+- README: Claude Code plugin section; license badge points to PyPI.
+
 ## [1.0.0] — 2026-03-31
 
 ### Performance — Plan Y: SVC + HistGBT + SAG/SAGA
