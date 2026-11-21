@@ -149,15 +149,15 @@ fn cross_validate(
 ///     Mean cross-validated score of the best estimator.
 /// cv_results_ : list[dict]
 ///     List of dicts with keys "params" and "mean_score" for each combination.
-#[pyclass(name = "GridSearchCV")]
+#[pyclass(name = "GridSearchCV", module = "ferroml.hpo")]
 pub struct PyGridSearchCV {
-    model: PyObject,
-    param_grid: PyObject,
+    model: Py<PyAny>,
+    param_grid: Py<PyAny>,
     cv: usize,
     scoring: String,
-    best_params: Option<PyObject>,
+    best_params: Option<Py<PyAny>>,
     best_score: Option<f64>,
-    cv_results: Option<PyObject>,
+    cv_results: Option<Py<PyAny>>,
 }
 
 #[pymethods]
@@ -181,7 +181,7 @@ impl PyGridSearchCV {
     ///     A new GridSearchCV instance.
     #[new]
     #[pyo3(signature = (model, param_grid, cv=5, scoring="accuracy"))]
-    fn new(model: PyObject, param_grid: PyObject, cv: usize, scoring: &str) -> Self {
+    fn new(model: Py<PyAny>, param_grid: Py<PyAny>, cv: usize, scoring: &str) -> Self {
         Self {
             model,
             param_grid,
@@ -197,21 +197,21 @@ impl PyGridSearchCV {
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'py>,
-        x: PyObject,
-        y: PyObject,
+        x: Py<PyAny>,
+        y: Py<PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let param_grid = slf.param_grid.bind(py).downcast::<PyDict>()?.clone();
+        let param_grid = slf.param_grid.bind(py).cast::<PyDict>()?.clone();
         let model = slf.model.bind(py).clone();
         let cv = slf.cv;
         let scoring = slf.scoring.clone();
 
         // Extract parameter names and value lists
         let mut param_names: Vec<String> = Vec::new();
-        let mut param_values: Vec<Vec<PyObject>> = Vec::new();
+        let mut param_values: Vec<Vec<Py<PyAny>>> = Vec::new();
         for (key, value) in param_grid.iter() {
             param_names.push(key.extract::<String>()?);
-            let values_list = value.downcast::<PyList>()?;
-            let vals: Vec<PyObject> = values_list.iter().map(|v| v.unbind()).collect();
+            let values_list = value.cast::<PyList>()?;
+            let vals: Vec<Py<PyAny>> = values_list.iter().map(|v| v.unbind()).collect();
             param_values.push(vals);
         }
 
@@ -271,7 +271,7 @@ impl PyGridSearchCV {
 
     /// Best parameters found by grid search.
     #[getter]
-    fn best_params_(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn best_params_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         self.best_params
             .as_ref()
             .map(|p| p.clone_ref(py))
@@ -294,7 +294,7 @@ impl PyGridSearchCV {
 
     /// Cross-validation results for all parameter combinations.
     #[getter]
-    fn cv_results_(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn cv_results_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         self.cv_results
             .as_ref()
             .map(|r| r.clone_ref(py))
@@ -330,17 +330,17 @@ impl PyGridSearchCV {
 ///     Scoring metric: "accuracy", "neg_mean_squared_error", or "r2".
 /// seed : int or None, optional (default=None)
 ///     Random seed for reproducibility.
-#[pyclass(name = "RandomSearchCV")]
+#[pyclass(name = "RandomSearchCV", module = "ferroml.hpo")]
 pub struct PyRandomSearchCV {
-    model: PyObject,
-    param_distributions: PyObject,
+    model: Py<PyAny>,
+    param_distributions: Py<PyAny>,
     n_iter: usize,
     cv: usize,
     scoring: String,
     seed: Option<u64>,
-    best_params: Option<PyObject>,
+    best_params: Option<Py<PyAny>>,
     best_score: Option<f64>,
-    cv_results: Option<PyObject>,
+    cv_results: Option<Py<PyAny>>,
 }
 
 #[pymethods]
@@ -369,8 +369,8 @@ impl PyRandomSearchCV {
     #[new]
     #[pyo3(signature = (model, param_distributions, n_iter=10, cv=5, scoring="accuracy", seed=None))]
     fn new(
-        model: PyObject,
-        param_distributions: PyObject,
+        model: Py<PyAny>,
+        param_distributions: Py<PyAny>,
         n_iter: usize,
         cv: usize,
         scoring: &str,
@@ -393,14 +393,10 @@ impl PyRandomSearchCV {
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'py>,
-        x: PyObject,
-        y: PyObject,
+        x: Py<PyAny>,
+        y: Py<PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let param_dist = slf
-            .param_distributions
-            .bind(py)
-            .downcast::<PyDict>()?
-            .clone();
+        let param_dist = slf.param_distributions.bind(py).cast::<PyDict>()?.clone();
         let model = slf.model.bind(py).clone();
         let n_iter = slf.n_iter;
         let cv = slf.cv;
@@ -409,11 +405,11 @@ impl PyRandomSearchCV {
 
         // Extract parameter names and value lists
         let mut param_names: Vec<String> = Vec::new();
-        let mut param_values: Vec<Vec<PyObject>> = Vec::new();
+        let mut param_values: Vec<Vec<Py<PyAny>>> = Vec::new();
         for (key, value) in param_dist.iter() {
             param_names.push(key.extract::<String>()?);
-            let values_list = value.downcast::<PyList>()?;
-            let vals: Vec<PyObject> = values_list.iter().map(|v| v.unbind()).collect();
+            let values_list = value.cast::<PyList>()?;
+            let vals: Vec<Py<PyAny>> = values_list.iter().map(|v| v.unbind()).collect();
             param_values.push(vals);
         }
 
@@ -468,7 +464,7 @@ impl PyRandomSearchCV {
 
     /// Best parameters found by randomized search.
     #[getter]
-    fn best_params_(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn best_params_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         self.best_params
             .as_ref()
             .map(|p| p.clone_ref(py))
@@ -491,7 +487,7 @@ impl PyRandomSearchCV {
 
     /// Cross-validation results for all sampled combinations.
     #[getter]
-    fn cv_results_(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn cv_results_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         self.cv_results
             .as_ref()
             .map(|r| r.clone_ref(py))
@@ -531,11 +527,11 @@ impl PyRandomSearchCV {
 ///     Best objective value found so far.
 /// trials : list[dict]
 ///     List of all trials with their params, values, and states.
-#[pyclass(name = "Study")]
+#[pyclass(name = "Study", module = "ferroml.hpo")]
 pub struct PyStudy {
     direction: String,
     seed: Option<u64>,
-    trials_params: Vec<HashMap<String, PyObject>>,
+    trials_params: Vec<HashMap<String, Py<PyAny>>>,
     trials_values: Vec<Option<f64>>,
     trials_states: Vec<String>,
 }
@@ -595,16 +591,16 @@ impl PyStudy {
     fn optimize<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'py>,
-        objective: PyObject,
+        objective: Py<PyAny>,
         n_trials: usize,
-        search_space: Option<PyObject>,
+        search_space: Option<Py<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let direction_str = slf.direction.clone();
         let seed = slf.seed;
 
         if let Some(ref ss_obj) = search_space {
             // Use Rust-backed HPO with search space
-            let ss_dict = ss_obj.bind(py).downcast::<PyDict>()?;
+            let ss_dict = ss_obj.bind(py).cast::<PyDict>()?;
             let rust_ss = build_search_space(ss_dict)?;
 
             let direction = match direction_str.as_str() {
@@ -628,7 +624,7 @@ impl PyStudy {
                 // Convert params to Python dict
                 let params_py = PyDict::new(py);
                 for (k, v) in &trial.params {
-                    let py_val: PyObject = match v {
+                    let py_val: Py<PyAny> = match v {
                         ferroml_core::hpo::ParameterValue::Int(i) => {
                             i.into_pyobject(py).unwrap().into_any().unbind()
                         }
@@ -658,7 +654,7 @@ impl PyStudy {
 
                         let mut param_map = HashMap::new();
                         for (k, v) in &trial.params {
-                            let py_val: PyObject = match v {
+                            let py_val: Py<PyAny> = match v {
                                 ferroml_core::hpo::ParameterValue::Int(i) => {
                                     i.into_pyobject(py).unwrap().into_any().unbind()
                                 }
@@ -716,7 +712,7 @@ impl PyStudy {
 
     /// Best parameters found so far.
     #[getter]
-    fn best_params(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn best_params(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let maximize = self.direction == "maximize";
         let mut best_idx: Option<usize> = None;
         let mut best_val = if maximize {
@@ -793,7 +789,7 @@ impl PyStudy {
 
     /// All trials as a list of dicts.
     #[getter]
-    fn trials(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn trials(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let list = PyList::empty(py);
         for i in 0..self.trials_params.len() {
             let dict = PyDict::new(py);
@@ -839,7 +835,7 @@ fn build_search_space(ss_dict: &Bound<'_, PyDict>) -> PyResult<ferroml_core::hpo
 
     for (key, value) in ss_dict.iter() {
         let name: String = key.extract()?;
-        let spec = value.downcast::<PyDict>()?;
+        let spec = value.cast::<PyDict>()?;
 
         let param_type: String = spec
             .get_item("type")?

@@ -4,6 +4,30 @@ All notable changes to FerroML are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Security — dependency upgrade
+- polars 0.46 → 0.55, pyo3 0.24 → 0.29, numpy (Rust) 0.24 → 0.29, pyo3-polars
+  0.21 → 0.28. Clears RUSTSEC-2026-0300 (skiplist use-after-free, via
+  polars-compute), RUSTSEC-2026-0176/0177 (pyo3 out-of-bounds read / missing `Sync`
+  bound) and RUSTSEC-2026-0049 (rustls-webpki); all four are removed from the
+  `deny.toml` and CI audit ignore lists. Still ignored: quick-xml 0194/0195 (pinned
+  by polars → object_store) and four unmaintained-crate notices.
+- pyo3-polars no longer needs its `derive` feature; polars types come from the
+  direct `polars` dependency.
+
+### Added
+- `ferroml.preprocessing.Binarizer` (the Rust transformer existed but was never
+  bound to Python).
+- `ferroml-python/tests/test_binding_completeness.py`: every Rust estimator must have
+  a PyO3 wrapper, be registered, declare its module, and be re-exported from that
+  module's `__all__`. `CalibratedClassifierCV` is the one documented exception.
+
+### Fixed
+- 12 Python classes (all `ferroml.cv` splitters, `GridSearchCV`, `RandomSearchCV`,
+  `Study`, `Normalizer`) reported `__module__ == "builtins"`; they now report their
+  real module.
+
 ## [1.0.2] — 2026-10-25
 
 ### Fixed — Random forest feature sampling

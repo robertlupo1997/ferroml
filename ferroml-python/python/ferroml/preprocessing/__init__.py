@@ -68,6 +68,7 @@ TfidfTransformer = _native.preprocessing.TfidfTransformer
 CountVectorizer = _native.preprocessing.CountVectorizer
 TfidfVectorizer = _native.preprocessing.TfidfVectorizer
 Normalizer = _native.preprocessing.Normalizer
+Binarizer = _native.preprocessing.Binarizer
 
 __all__ = [
     "StandardScaler",
@@ -96,4 +97,5 @@ __all__ = [
     "CountVectorizer",
     "TfidfVectorizer",
     "Normalizer",
+    "Binarizer",
 ]

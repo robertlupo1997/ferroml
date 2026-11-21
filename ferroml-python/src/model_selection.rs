@@ -7,6 +7,9 @@ use ndarray::{Array1, Axis};
 use numpy::{IntoPyArray, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 
+/// `(X_train, X_test, y_train, y_test)` as Python objects.
+type TrainTestSplit = (Py<PyAny>, Py<PyAny>, Py<PyAny>, Py<PyAny>);
+
 /// Split arrays into random train and test subsets.
 ///
 /// Parameters
@@ -38,7 +41,7 @@ fn train_test_split(
     shuffle: bool,
     random_state: Option<u64>,
     stratify: Option<PyReadonlyArray1<f64>>,
-) -> PyResult<(PyObject, PyObject, PyObject, PyObject)> {
+) -> PyResult<TrainTestSplit> {
     let x_arr = x.as_array().to_owned();
     let y_arr = y.as_array().to_owned();
     let n_samples = x_arr.nrows();

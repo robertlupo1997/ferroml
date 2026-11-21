@@ -36,7 +36,7 @@ use crate::model_card::PyModelCard;
 /// length_scale : float, optional (default=1.0)
 ///     Length scale of the kernel. Valid range: (0, inf).
 ///     Larger values produce smoother functions.
-#[pyclass(name = "RBF", module = "ferroml.gaussian_process")]
+#[pyclass(name = "RBF", module = "ferroml.gaussian_process", from_py_object)]
 #[derive(Clone)]
 pub struct PyRBF {
     length_scale: f64,
@@ -72,7 +72,7 @@ impl PyRBF {
 ///     Length scale of the kernel.
 /// nu : float, optional (default=1.5)
 ///     Smoothness parameter. Must be 0.5, 1.5, or 2.5.
-#[pyclass(name = "Matern", module = "ferroml.gaussian_process")]
+#[pyclass(name = "Matern", module = "ferroml.gaussian_process", from_py_object)]
 #[derive(Clone)]
 pub struct PyMatern {
     length_scale: f64,
@@ -112,7 +112,11 @@ impl PyMatern {
 /// ----------
 /// constant : float, optional (default=1.0)
 ///     The constant value of the kernel.
-#[pyclass(name = "ConstantKernel", module = "ferroml.gaussian_process")]
+#[pyclass(
+    name = "ConstantKernel",
+    module = "ferroml.gaussian_process",
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PyConstantKernel {
     constant: f64,
@@ -144,7 +148,11 @@ impl PyConstantKernel {
 /// ----------
 /// noise_level : float, optional (default=1.0)
 ///     The noise level.
-#[pyclass(name = "WhiteKernel", module = "ferroml.gaussian_process")]
+#[pyclass(
+    name = "WhiteKernel",
+    module = "ferroml.gaussian_process",
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PyWhiteKernel {
     noise_level: f64,

@@ -106,7 +106,7 @@ fn algorithm_type_to_str(algo: AlgorithmType) -> &'static str {
 }
 
 /// Convert ParamValue to Python object
-fn param_value_to_py(py: Python<'_>, value: &ParamValue) -> PyObject {
+fn param_value_to_py(py: Python<'_>, value: &ParamValue) -> Py<PyAny> {
     match value {
         ParamValue::Int(v) => v.into_pyobject(py).unwrap().into_any().unbind(),
         ParamValue::Float(v) => v.into_pyobject(py).unwrap().into_any().unbind(),
@@ -157,7 +157,7 @@ fn param_value_to_py(py: Python<'_>, value: &ParamValue) -> PyObject {
 /// ...     time_budget_seconds=300,
 /// ... )
 /// >>> automl = AutoML(config)
-#[pyclass(name = "AutoMLConfig", module = "ferroml.automl")]
+#[pyclass(name = "AutoMLConfig", module = "ferroml.automl", from_py_object)]
 #[derive(Clone)]
 pub struct PyAutoMLConfig {
     /// Task type string

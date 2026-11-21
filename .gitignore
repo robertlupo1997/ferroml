@@ -40,3 +40,7 @@ docs/python-api/
 
 # Test artifacts
 **/test_write.txt
+
+# maturin develop output
+ferroml-python/python/ferroml/*.so
+ferroml-python/python/ferroml/*.pyd

@@ -57,7 +57,7 @@ fn ttest_ind(
     x: PyReadonlyArray1<f64>,
     y: PyReadonlyArray1<f64>,
     equal_var: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_array1(x);
     let y_arr = to_array1(y);
 
@@ -88,7 +88,7 @@ fn welch_ttest(
     py: Python<'_>,
     x: PyReadonlyArray1<f64>,
     y: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_array1(x);
     let y_arr = to_array1(y);
 
@@ -117,7 +117,7 @@ fn mann_whitney(
     py: Python<'_>,
     x: PyReadonlyArray1<f64>,
     y: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_array1(x);
     let y_arr = to_array1(y);
 
@@ -150,7 +150,7 @@ fn cohens_d(
     py: Python<'_>,
     x: PyReadonlyArray1<f64>,
     y: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_array1(x);
     let y_arr = to_array1(y);
 
@@ -186,7 +186,7 @@ fn hedges_g(
     py: Python<'_>,
     x: PyReadonlyArray1<f64>,
     y: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_array1(x);
     let y_arr = to_array1(y);
 
@@ -229,7 +229,7 @@ fn confidence_interval(
     data: PyReadonlyArray1<f64>,
     level: f64,
     method: &str,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let data_arr = to_array1(data);
 
     let ci_method = match method {
@@ -289,7 +289,7 @@ fn bootstrap_ci(
     n_bootstrap: usize,
     confidence: f64,
     seed: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let data_arr = to_array1(data);
 
     let mut bootstrap = Bootstrap::new(n_bootstrap).with_confidence(confidence);
@@ -345,7 +345,7 @@ fn adjust_pvalues(
     p_values: PyReadonlyArray1<f64>,
     method: &str,
     alpha: f64,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let pvals: Vec<f64> = p_values.as_array().to_vec();
 
     let correction = match method {
@@ -463,7 +463,7 @@ fn durbin_watson(residuals: PyReadonlyArray1<f64>) -> PyResult<f64> {
 ///     iqr, skewness, kurtosis.
 #[pyfunction]
 #[pyo3(signature = (data,))]
-fn descriptive_stats(py: Python<'_>, data: PyReadonlyArray1<f64>) -> PyResult<PyObject> {
+fn descriptive_stats(py: Python<'_>, data: PyReadonlyArray1<f64>) -> PyResult<Py<PyAny>> {
     let data_arr = to_array1(data);
     let result =
         stats::DescriptiveStats::compute(&data_arr).map_err(crate::errors::ferro_to_pyerr)?;
@@ -497,7 +497,7 @@ fn descriptive_stats(py: Python<'_>, data: PyReadonlyArray1<f64>) -> PyResult<Py
 ///     Dictionary with keys: statistic, p_value, is_normal, skewness, kurtosis.
 #[pyfunction]
 #[pyo3(signature = (data,))]
-fn normality_test(py: Python<'_>, data: PyReadonlyArray1<f64>) -> PyResult<PyObject> {
+fn normality_test(py: Python<'_>, data: PyReadonlyArray1<f64>) -> PyResult<Py<PyAny>> {
     let data_arr = to_array1(data);
     let result = ShapiroWilkTest
         .test(&data_arr)
@@ -538,7 +538,7 @@ fn correlation(
     x: PyReadonlyArray1<f64>,
     y: PyReadonlyArray1<f64>,
     confidence: f64,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_array1(x);
     let y_arr = to_array1(y);
 
@@ -563,7 +563,7 @@ fn correlation(
 fn statistical_result_to_dict(
     py: Python<'_>,
     result: &stats::StatisticalResult,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("statistic", result.statistic)?;
     dict.set_item("p_value", result.p_value)?;

@@ -27,7 +27,7 @@ use pyo3::types::{PyDict, PyList};
 /// Internal representation of a pipeline step
 struct PipelineStepInner {
     name: String,
-    obj: PyObject,
+    obj: Py<PyAny>,
     is_model: bool,
 }
 
@@ -84,7 +84,7 @@ impl PyPipeline {
         let mut pipeline_steps = Vec::new();
 
         for item in steps.iter() {
-            let tuple = item.downcast::<pyo3::types::PyTuple>()?;
+            let tuple = item.cast::<pyo3::types::PyTuple>()?;
             if tuple.len() != 2 {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                     "Each step must be a tuple of (name, transformer/model)",
@@ -92,7 +92,7 @@ impl PyPipeline {
             }
 
             let name: String = tuple.get_item(0)?.extract()?;
-            let obj: PyObject = tuple.get_item(1)?.unbind();
+            let obj: Py<PyAny> = tuple.get_item(1)?.unbind();
 
             // Check if it's a model (has predict method) or transformer (has transform method)
             let has_predict = obj.bind(py).hasattr("predict")?;
@@ -491,7 +491,7 @@ impl PyPipeline {
 /// Internal representation of a column transformer step
 struct ColumnTransformerStepInner {
     name: String,
-    transformer: PyObject,
+    transformer: Py<PyAny>,
     columns: Vec<usize>,
 }
 
@@ -546,7 +546,7 @@ impl PyColumnTransformer {
         let mut all_columns: Vec<usize> = Vec::new();
 
         for item in transformers.iter() {
-            let tuple = item.downcast::<pyo3::types::PyTuple>()?;
+            let tuple = item.cast::<pyo3::types::PyTuple>()?;
             if tuple.len() != 3 {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                     "Each transformer must be a tuple of (name, transformer, columns)",
@@ -554,7 +554,7 @@ impl PyColumnTransformer {
             }
 
             let name: String = tuple.get_item(0)?.extract()?;
-            let transformer: PyObject = tuple.get_item(1)?.unbind();
+            let transformer: Py<PyAny> = tuple.get_item(1)?.unbind();
 
             // Parse columns - can be a list of indices or "all"
             let columns_item = tuple.get_item(2)?;
@@ -837,7 +837,7 @@ impl PyColumnTransformer {
 /// Internal representation of a feature union step
 struct FeatureUnionStepInner {
     name: String,
-    transformer: PyObject,
+    transformer: Py<PyAny>,
 }
 
 /// Apply multiple transformers in parallel and concatenate their outputs.
@@ -880,7 +880,7 @@ impl PyFeatureUnion {
         let mut transformers = Vec::new();
 
         for item in transformer_list.iter() {
-            let tuple = item.downcast::<pyo3::types::PyTuple>()?;
+            let tuple = item.cast::<pyo3::types::PyTuple>()?;
             if tuple.len() != 2 {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                     "Each item must be a tuple of (name, transformer)",
@@ -888,7 +888,7 @@ impl PyFeatureUnion {
             }
 
             let name: String = tuple.get_item(0)?.extract()?;
-            let transformer: PyObject = tuple.get_item(1)?.unbind();
+            let transformer: Py<PyAny> = tuple.get_item(1)?.unbind();
 
             transformers.push(FeatureUnionStepInner { name, transformer });
         }
@@ -1164,7 +1164,7 @@ fn model_predict<'py>(
 /// A step in the text pipeline
 struct TextPipelineStepInner {
     name: String,
-    obj: PyObject,
+    obj: Py<PyAny>,
     is_model: bool,
 }
 
@@ -1217,7 +1217,7 @@ impl PyTextPipeline {
         let mut pipeline_steps = Vec::new();
 
         for item in steps.iter() {
-            let tuple = item.downcast::<pyo3::types::PyTuple>()?;
+            let tuple = item.cast::<pyo3::types::PyTuple>()?;
             if tuple.len() != 2 {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                     "Each step must be a tuple of (name, transformer/model)",
@@ -1225,7 +1225,7 @@ impl PyTextPipeline {
             }
 
             let name: String = tuple.get_item(0)?.extract()?;
-            let obj: PyObject = tuple.get_item(1)?.unbind();
+            let obj: Py<PyAny> = tuple.get_item(1)?.unbind();
 
             let has_predict = obj.bind(py).hasattr("predict")?;
 

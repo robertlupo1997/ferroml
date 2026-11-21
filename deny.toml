@@ -14,7 +14,8 @@ db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 # Treat unmaintained crates as warnings, not errors
 ignore = [
-    # bincode 1.x is used by polars, unmaintained but widely used
+    # bincode 1.x is ferroml-core's own model save/load format; unmaintained, and
+    # moving to 2.x changes the on-disk format, so it is a deliberate later change
     "RUSTSEC-2025-0141",
     # instant is used by argmin, unmaintained but not security-critical
     "RUSTSEC-2024-0384",
@@ -22,22 +23,12 @@ ignore = [
     "RUSTSEC-2024-0436",
     # encoding crate via linfa-preprocessing, unmaintained but not security-critical
     "RUSTSEC-2021-0153",
-    # Transitive dependency via polars-arrow, no fix available yet
-    "RUSTSEC-2026-0049",
-    # pyo3 0.24 OOB read in PyList/PyTuple iter nth/nth_back + missing Sync bound
-    # on new_closure; fix requires pyo3 >=0.29 — tracked as the top hygiene item
-    # (north-star §3.2), migration too large to gate the v1.1.0 release
-    "RUSTSEC-2026-0176",
-    "RUSTSEC-2026-0177",
     # quick-xml <0.41 quadratic attr check + NsReader allocation DoS; transitive
-    # via polars, parent pins <0.41 — no compatible fix available yet
+    # via polars 0.55 -> object_store 0.13 (pins quick-xml 0.39) — no compatible fix yet.
+    # Cleared 2026-11-21 by the polars 0.55 / pyo3 0.29 upgrade and removed here:
+    # RUSTSEC-2026-0049 (rustls-webpki), -0176/-0177 (pyo3), -0300 (skiplist).
     "RUSTSEC-2026-0194",
     "RUSTSEC-2026-0195",
-    # skiplist <1.1.1 use-after-free when an element's Drop panics; transitive via
-    # polars-compute 0.48 (requires skiplist ^0.5.1). polars-compute 0.55 drops
-    # skiplist, but that needs pyo3-polars 0.28 and the pyo3 migration above.
-    # Accepted by the owner 2026-10-23 until that migration lands
-    "RUSTSEC-2026-0300",
 ]
 
 # ============================================================

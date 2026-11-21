@@ -38,10 +38,10 @@ use ndarray::{Array1, Array2};
 use pyo3::prelude::*;
 use pyo3_polars::PyDataFrame;
 
-// Re-export polars types from pyo3-polars to ensure version compatibility
-pub use pyo3_polars::export::polars_core::frame::DataFrame;
-pub use pyo3_polars::export::polars_core::prelude::{DataType, Float64Type, NamedFrom};
-pub use pyo3_polars::export::polars_core::series::Series;
+// Polars types come from the direct `polars` dependency. Cargo.toml pins it to the
+// same minor version pyo3-polars requires, so these are the very types PyDataFrame
+// wraps; pyo3-polars' `export` module would need its heavy `derive` feature.
+pub use polars::prelude::{DataFrame, DataType, Float64Type, NamedFrom, Series};
 
 /// Result type for DataFrame conversion operations.
 pub type PolarsResult<T> = Result<T, PolarsConversionError>;
@@ -319,7 +319,7 @@ fn series_to_array1(series: &Series, column_name: &str) -> PolarsResult<Array1<f
         })?;
 
     // Extract values - we've already checked for nulls, so unwrap is safe
-    let values: Vec<f64> = chunked.into_iter().map(|opt| opt.unwrap_or(0.0)).collect();
+    let values: Vec<f64> = chunked.iter().map(|opt| opt.unwrap_or(0.0)).collect();
 
     Ok(Array1::from(values))
 }

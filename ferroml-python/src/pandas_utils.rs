@@ -333,7 +333,7 @@ fn extract_column_as_array1<'py>(
     let numpy_array = float_series.call_method0("to_numpy")?;
 
     // Convert to Rust ndarray
-    let py_array: PyReadonlyArray1<f64> = numpy_array.extract()?;
+    let py_array: PyReadonlyArray1<f64> = numpy_array.extract().map_err(PyErr::from)?;
     Ok(py_array.to_owned_array())
 }
 
