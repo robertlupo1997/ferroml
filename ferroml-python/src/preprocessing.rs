@@ -36,7 +36,9 @@ use ferroml_core::preprocessing::{
     polynomial::PolynomialFeatures,
     power::PowerTransformer,
     quantile::QuantileTransformer,
-    scalers::{MaxAbsScaler, MinMaxScaler, NormType, Normalizer, RobustScaler, StandardScaler},
+    scalers::{
+        Binarizer, MaxAbsScaler, MinMaxScaler, NormType, Normalizer, RobustScaler, StandardScaler,
+    },
     selection::{ClosureEstimator, RecursiveFeatureElimination, SelectKBest, VarianceThreshold},
     Transformer, UnknownCategoryHandling,
 };
@@ -4586,7 +4588,7 @@ impl PyTfidfVectorizer {
 /// Normalizer operates on each sample (row) independently, not on
 /// features (columns). This is useful for text classification (TF-IDF
 /// vectors) or when feature magnitudes vary across samples.
-#[pyclass(name = "Normalizer")]
+#[pyclass(name = "Normalizer", module = "ferroml.preprocessing")]
 pub struct PyNormalizer {
     inner: Normalizer,
 }
@@ -4673,6 +4675,100 @@ impl PyNormalizer {
     }
 }
 
+// =============================================================================
+// Binarizer
+// =============================================================================
+
+/// Binarize data (set feature values to 0 or 1) according to a threshold.
+///
+/// Values strictly greater than the threshold map to 1.0; all others map to 0.0.
+///
+/// Parameters
+/// ----------
+/// threshold : float, optional (default=0.0)
+///     Feature values below or equal to this are replaced by 0, above it by 1.
+///
+/// Examples
+/// --------
+/// >>> from ferroml.preprocessing import Binarizer
+/// >>> import numpy as np
+/// >>> X = np.array([[1.0, -1.0, 2.0], [2.0, 0.0, 0.0], [0.0, 1.0, -1.0]])
+/// >>> Binarizer().fit_transform(X)
+/// array([[1., 0., 1.],
+///        [1., 0., 0.],
+///        [0., 1., 0.]])
+#[pyclass(name = "Binarizer", module = "ferroml.preprocessing")]
+pub struct PyBinarizer {
+    inner: Binarizer,
+}
+
+#[pymethods]
+impl PyBinarizer {
+    /// Create a new Binarizer.
+    #[new]
+    #[pyo3(signature = (threshold=0.0))]
+    fn new(threshold: f64) -> PyResult<Self> {
+        if !threshold.is_finite() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "threshold must be a finite number",
+            ));
+        }
+        Ok(Self {
+            inner: Binarizer::new().with_threshold(threshold),
+        })
+    }
+
+    /// The threshold used to binarize.
+    #[getter]
+    fn threshold(&self) -> f64 {
+        self.inner.threshold
+    }
+
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        check_array_finite(&x)?;
+        let x_arr = to_owned_array_2d(x);
+        slf.inner
+            .fit(&x_arr)
+            .map_err(crate::errors::ferro_to_pyerr)?;
+        Ok(slf)
+    }
+
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
+        let x_arr = to_owned_array_2d(x);
+        let result = self
+            .inner
+            .transform(&x_arr)
+            .map_err(crate::errors::ferro_to_pyerr)?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn fit_transform<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        check_array_finite(&x)?;
+        let x_arr = to_owned_array_2d(x);
+        let result = slf
+            .inner
+            .fit_transform(&x_arr)
+            .map_err(crate::errors::ferro_to_pyerr)?;
+        Ok(result.into_pyarray(py))
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Binarizer(threshold={})", self.inner.threshold)
+    }
+}
+
 pub fn register_preprocessing_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
     let preprocessing_module = PyModule::new(parent_module.py(), "preprocessing")?;
 
@@ -4727,6 +4823,9 @@ pub fn register_preprocessing_module(parent_module: &Bound<'_, PyModule>) -> PyR
 
     // Normalizer
     preprocessing_module.add_class::<PyNormalizer>()?;
+
+    // Binarizer
+    preprocessing_module.add_class::<PyBinarizer>()?;
 
     parent_module.add_submodule(&preprocessing_module)?;
 

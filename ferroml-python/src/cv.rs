@@ -40,7 +40,7 @@ use pyo3::types::PyTuple;
 /// >>> splits = kf.split(X)
 /// >>> for train_idx, test_idx in splits:
 /// ...     print(f"Train: {train_idx}, Test: {test_idx}")
-#[pyclass(name = "KFold")]
+#[pyclass(name = "KFold", module = "ferroml.cv")]
 #[derive(Clone)]
 struct PyKFold {
     n_folds: usize,
@@ -154,7 +154,7 @@ impl PyKFold {
 /// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
 /// >>> skf = StratifiedKFold(n_folds=2)
 /// >>> splits = skf.split(X, y)
-#[pyclass(name = "StratifiedKFold")]
+#[pyclass(name = "StratifiedKFold", module = "ferroml.cv")]
 #[derive(Clone)]
 struct PyStratifiedKFold {
     n_folds: usize,
@@ -269,7 +269,7 @@ impl PyStratifiedKFold {
 /// >>> X = np.array([[1], [2], [3], [4], [5], [6]])
 /// >>> tscv = TimeSeriesSplit(n_splits=3)
 /// >>> splits = tscv.split(X)
-#[pyclass(name = "TimeSeriesSplit")]
+#[pyclass(name = "TimeSeriesSplit", module = "ferroml.cv")]
 #[derive(Clone)]
 struct PyTimeSeriesSplit {
     n_splits: usize,
@@ -360,7 +360,7 @@ impl PyTimeSeriesSplit {
 /// >>> splits = loo.split(X)
 /// >>> len(splits)
 /// 3
-#[pyclass(name = "LeaveOneOut")]
+#[pyclass(name = "LeaveOneOut", module = "ferroml.cv")]
 #[derive(Clone)]
 struct PyLeaveOneOut;
 
@@ -446,7 +446,7 @@ impl PyLeaveOneOut {
 /// >>> splits = rkf.split(X)
 /// >>> len(splits)
 /// 6
-#[pyclass(name = "RepeatedKFold")]
+#[pyclass(name = "RepeatedKFold", module = "ferroml.cv")]
 #[derive(Clone)]
 struct PyRepeatedKFold {
     n_folds: usize,
@@ -561,7 +561,7 @@ impl PyRepeatedKFold {
 /// >>> splits = ss.split(X)
 /// >>> len(splits)
 /// 3
-#[pyclass(name = "ShuffleSplit")]
+#[pyclass(name = "ShuffleSplit", module = "ferroml.cv")]
 #[derive(Clone)]
 struct PyShuffleSplit {
     n_splits: usize,
@@ -682,7 +682,7 @@ impl PyShuffleSplit {
 /// >>> groups = np.array([0, 0, 1, 1])
 /// >>> gkf = GroupKFold(n_folds=2)
 /// >>> splits = gkf.split(X, groups=groups)
-#[pyclass(name = "GroupKFold")]
+#[pyclass(name = "GroupKFold", module = "ferroml.cv")]
 #[derive(Clone)]
 struct PyGroupKFold {
     n_folds: usize,
@@ -780,7 +780,7 @@ impl PyGroupKFold {
 /// >>> splits = lpo.split(X)
 /// >>> len(splits)
 /// 6
-#[pyclass(name = "LeavePOut")]
+#[pyclass(name = "LeavePOut", module = "ferroml.cv")]
 #[derive(Clone)]
 struct PyLeavePOut {
     p: usize,

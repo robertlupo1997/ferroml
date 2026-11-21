@@ -149,7 +149,7 @@ fn cross_validate(
 ///     Mean cross-validated score of the best estimator.
 /// cv_results_ : list[dict]
 ///     List of dicts with keys "params" and "mean_score" for each combination.
-#[pyclass(name = "GridSearchCV")]
+#[pyclass(name = "GridSearchCV", module = "ferroml.hpo")]
 pub struct PyGridSearchCV {
     model: PyObject,
     param_grid: PyObject,
@@ -330,7 +330,7 @@ impl PyGridSearchCV {
 ///     Scoring metric: "accuracy", "neg_mean_squared_error", or "r2".
 /// seed : int or None, optional (default=None)
 ///     Random seed for reproducibility.
-#[pyclass(name = "RandomSearchCV")]
+#[pyclass(name = "RandomSearchCV", module = "ferroml.hpo")]
 pub struct PyRandomSearchCV {
     model: PyObject,
     param_distributions: PyObject,
@@ -531,7 +531,7 @@ impl PyRandomSearchCV {
 ///     Best objective value found so far.
 /// trials : list[dict]
 ///     List of all trials with their params, values, and states.
-#[pyclass(name = "Study")]
+#[pyclass(name = "Study", module = "ferroml.hpo")]
 pub struct PyStudy {
     direction: String,
     seed: Option<u64>,
