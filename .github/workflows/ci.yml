@@ -560,10 +560,9 @@ jobs:
       - name: Audit dependencies
         uses: actions-rust-lang/audit@v1
         with:
-          # 2026-0176/0177: pyo3 0.24 (fix needs >=0.29, tracked hygiene item);
-          # 2026-0194/0195: quick-xml pinned <0.41 transitively via polars;
-          # 2026-0300: skiplist 0.5 via polars-compute 0.48 (fix needs the polars/pyo3 upgrade)
-          ignore: RUSTSEC-2025-0141,RUSTSEC-2024-0384,RUSTSEC-2024-0436,RUSTSEC-2021-0153,RUSTSEC-2026-0049,RUSTSEC-2026-0176,RUSTSEC-2026-0177,RUSTSEC-2026-0194,RUSTSEC-2026-0195,RUSTSEC-2026-0300
+          # 2026-0194/0195: quick-xml 0.39 pinned transitively via polars -> object_store.
+          # (0049, 0176/0177 and 0300 were cleared by the polars 0.55 / pyo3 0.29 upgrade.)
+          ignore: RUSTSEC-2025-0141,RUSTSEC-2024-0384,RUSTSEC-2024-0436,RUSTSEC-2021-0153,RUSTSEC-2026-0194,RUSTSEC-2026-0195
 
   # License compliance check
   license-check:

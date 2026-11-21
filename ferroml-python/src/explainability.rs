@@ -127,7 +127,7 @@ impl PyTreeExplainer {
     ///     'base_value' : float - expected model output
     ///     'shap_values' : ndarray - SHAP value for each feature
     ///     'feature_values' : ndarray - input feature values
-    fn explain<'py>(&self, py: Python<'py>, x: PyReadonlyArray1<'py, f64>) -> PyResult<PyObject> {
+    fn explain<'py>(&self, py: Python<'py>, x: PyReadonlyArray1<'py, f64>) -> PyResult<Py<PyAny>> {
         let x_vec: Vec<f64> = x.as_array().to_vec();
 
         let result = self
@@ -160,7 +160,7 @@ impl PyTreeExplainer {
         &self,
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let x_arr = to_owned_array_2d(x);
 
         let result = self
@@ -236,7 +236,7 @@ fn run_permutation_importance<M: Model>(
     }
 }
 
-fn perm_result_to_dict(py: Python<'_>, result: PermutationImportanceResult) -> PyResult<PyObject> {
+fn perm_result_to_dict(py: Python<'_>, result: PermutationImportanceResult) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("importances_mean", result.importances_mean.into_pyarray(py))?;
     dict.set_item("importances_std", result.importances_std.into_pyarray(py))?;
@@ -281,7 +281,7 @@ fn py_permutation_importance_rf_reg<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -307,7 +307,7 @@ fn py_permutation_importance_rf_clf<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -333,7 +333,7 @@ fn py_permutation_importance_dt_reg<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -359,7 +359,7 @@ fn py_permutation_importance_dt_clf<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -385,7 +385,7 @@ fn py_permutation_importance_gb_reg<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -411,7 +411,7 @@ fn py_permutation_importance_gb_clf<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -437,7 +437,7 @@ fn py_permutation_importance_linear<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -463,7 +463,7 @@ fn py_permutation_importance_logistic<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -489,7 +489,7 @@ fn py_permutation_importance_et_clf<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -515,7 +515,7 @@ fn py_permutation_importance_et_reg<'py>(
     metric: &str,
     n_repeats: usize,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let y_arr = to_owned_array_1d(y);
     let result = run_permutation_importance(
@@ -550,7 +550,7 @@ fn run_pdp<M: Model>(
     )
 }
 
-fn pdp_result_to_dict(py: Python<'_>, result: PDPResult) -> PyResult<PyObject> {
+fn pdp_result_to_dict(py: Python<'_>, result: PDPResult) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("grid_values", result.grid_values.into_pyarray(py))?;
     dict.set_item("pdp_values", result.pdp_values.into_pyarray(py))?;
@@ -583,7 +583,7 @@ fn py_partial_dependence_rf_reg<'py>(
     x: PyReadonlyArray2<'py, f64>,
     feature_idx: usize,
     grid_resolution: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
         .map_err(crate::errors::ferro_to_pyerr)?;
@@ -599,7 +599,7 @@ fn py_partial_dependence_rf_clf<'py>(
     x: PyReadonlyArray2<'py, f64>,
     feature_idx: usize,
     grid_resolution: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
         .map_err(crate::errors::ferro_to_pyerr)?;
@@ -615,7 +615,7 @@ fn py_partial_dependence_gb_reg<'py>(
     x: PyReadonlyArray2<'py, f64>,
     feature_idx: usize,
     grid_resolution: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
         .map_err(crate::errors::ferro_to_pyerr)?;
@@ -631,7 +631,7 @@ fn py_partial_dependence_gb_clf<'py>(
     x: PyReadonlyArray2<'py, f64>,
     feature_idx: usize,
     grid_resolution: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
         .map_err(crate::errors::ferro_to_pyerr)?;
@@ -647,7 +647,7 @@ fn py_partial_dependence_dt_reg<'py>(
     x: PyReadonlyArray2<'py, f64>,
     feature_idx: usize,
     grid_resolution: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
         .map_err(crate::errors::ferro_to_pyerr)?;
@@ -663,7 +663,7 @@ fn py_partial_dependence_dt_clf<'py>(
     x: PyReadonlyArray2<'py, f64>,
     feature_idx: usize,
     grid_resolution: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
         .map_err(crate::errors::ferro_to_pyerr)?;
@@ -679,7 +679,7 @@ fn py_partial_dependence_linear<'py>(
     x: PyReadonlyArray2<'py, f64>,
     feature_idx: usize,
     grid_resolution: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp(model.inner_ref(), &x_arr, feature_idx, grid_resolution)
         .map_err(crate::errors::ferro_to_pyerr)?;
@@ -710,7 +710,7 @@ fn run_pdp_2d<M: Model>(
 fn pdp_2d_result_to_dict(
     py: Python<'_>,
     result: ferroml_core::explainability::PDP2DResult,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("grid_values_1", result.grid_values_1.into_pyarray(py))?;
     dict.set_item("grid_values_2", result.grid_values_2.into_pyarray(py))?;
@@ -749,7 +749,7 @@ fn py_partial_dependence_2d_rf_reg<'py>(
     feature_idx_1: usize,
     feature_idx_2: usize,
     grid_resolution: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp_2d(
         model.inner_ref(),
@@ -772,7 +772,7 @@ fn py_partial_dependence_2d_gb_reg<'py>(
     feature_idx_1: usize,
     feature_idx_2: usize,
     grid_resolution: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_pdp_2d(
         model.inner_ref(),
@@ -810,7 +810,7 @@ fn run_ice<M: Model>(
 fn ice_result_to_dict(
     py: Python<'_>,
     result: ferroml_core::explainability::ICEResult,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("grid_values", result.grid_values.into_pyarray(py))?;
     dict.set_item("ice_curves", result.ice_curves.into_pyarray(py))?;
@@ -862,7 +862,7 @@ fn py_ice_rf_reg<'py>(
     n_grid_points: usize,
     center: bool,
     compute_derivative: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_ice(
         model.inner_ref(),
@@ -887,7 +887,7 @@ fn py_ice_gb_reg<'py>(
     n_grid_points: usize,
     center: bool,
     compute_derivative: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_ice(
         model.inner_ref(),
@@ -912,7 +912,7 @@ fn py_ice_dt_reg<'py>(
     n_grid_points: usize,
     center: bool,
     compute_derivative: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_ice(
         model.inner_ref(),
@@ -937,7 +937,7 @@ fn py_ice_linear<'py>(
     n_grid_points: usize,
     center: bool,
     compute_derivative: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_ice(
         model.inner_ref(),
@@ -969,7 +969,7 @@ fn run_h_statistic<M: Model>(
 fn h_stat_result_to_dict(
     py: Python<'_>,
     result: ferroml_core::explainability::HStatisticResult,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("h_squared", result.h_squared)?;
     dict.set_item("h_statistic", result.h_statistic)?;
@@ -1013,7 +1013,7 @@ fn py_h_statistic_rf_reg<'py>(
     feature_idx_1: usize,
     feature_idx_2: usize,
     n_grid_points: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_h_statistic(
         model.inner_ref(),
@@ -1036,7 +1036,7 @@ fn py_h_statistic_gb_reg<'py>(
     feature_idx_1: usize,
     feature_idx_2: usize,
     n_grid_points: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let result = run_h_statistic(
         model.inner_ref(),
@@ -1076,7 +1076,7 @@ fn py_h_statistic_matrix_rf_reg<'py>(
     x: PyReadonlyArray2<'py, f64>,
     feature_indices: Option<Vec<usize>>,
     n_grid_points: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = to_owned_array_2d(x);
     let config = HStatisticConfig::new().with_grid_points(n_grid_points);
     let result = h_statistic_matrix(
@@ -1120,7 +1120,10 @@ fn run_kernel_shap<M: Model>(
     explainer.explain_batch(x)
 }
 
-fn kernel_shap_batch_result_to_dict(py: Python<'_>, result: SHAPBatchResult) -> PyResult<PyObject> {
+fn kernel_shap_batch_result_to_dict(
+    py: Python<'_>,
+    result: SHAPBatchResult,
+) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("base_value", result.base_value)?;
     dict.set_item("shap_values", result.shap_values.into_pyarray(py))?;
@@ -1158,7 +1161,7 @@ fn py_kernel_shap_rf_reg<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
@@ -1176,7 +1179,7 @@ fn py_kernel_shap_rf_clf<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
@@ -1194,7 +1197,7 @@ fn py_kernel_shap_dt_reg<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
@@ -1212,7 +1215,7 @@ fn py_kernel_shap_dt_clf<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
@@ -1230,7 +1233,7 @@ fn py_kernel_shap_gb_reg<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
@@ -1248,7 +1251,7 @@ fn py_kernel_shap_gb_clf<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
@@ -1266,7 +1269,7 @@ fn py_kernel_shap_linear<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
@@ -1284,7 +1287,7 @@ fn py_kernel_shap_logistic<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
@@ -1302,7 +1305,7 @@ fn py_kernel_shap_et_clf<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)
@@ -1320,7 +1323,7 @@ fn py_kernel_shap_et_reg<'py>(
     x: PyReadonlyArray2<'py, f64>,
     n_samples: Option<usize>,
     random_state: Option<u64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bg_arr = to_owned_array_2d(background);
     let x_arr = to_owned_array_2d(x);
     let result = run_kernel_shap(model.inner_ref(), &bg_arr, &x_arr, n_samples, random_state)

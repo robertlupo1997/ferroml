@@ -279,7 +279,7 @@ impl PyDataset {
     /// -------
     /// dict
     ///     Dictionary containing n_samples, n_features, and feature_stats
-    fn describe(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn describe(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let stats = self.inner.describe();
         let dict = PyDict::new(py);
         dict.set_item("n_samples", stats.n_samples)?;

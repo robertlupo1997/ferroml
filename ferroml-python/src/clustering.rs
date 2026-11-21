@@ -291,7 +291,7 @@ impl PyKMeans {
         k_max: usize,
         n_refs: usize,
         random_state: Option<u64>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
@@ -331,7 +331,7 @@ impl PyKMeans {
         k_min: usize,
         k_max: usize,
         random_state: Option<u64>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
@@ -590,7 +590,7 @@ impl PyDBSCAN {
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
         min_samples: usize,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 
@@ -646,7 +646,7 @@ impl PyDBSCAN {
         &self,
         py: Python<'py>,
         x: PyReadonlyArray2<'py, f64>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         check_array_finite(&x)?;
         let x_arr = to_owned_array_2d(x);
 

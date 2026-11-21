@@ -40,7 +40,7 @@ use pyo3::types::PyTuple;
 /// >>> splits = kf.split(X)
 /// >>> for train_idx, test_idx in splits:
 /// ...     print(f"Train: {train_idx}, Test: {test_idx}")
-#[pyclass(name = "KFold", module = "ferroml.cv")]
+#[pyclass(name = "KFold", module = "ferroml.cv", from_py_object)]
 #[derive(Clone)]
 struct PyKFold {
     n_folds: usize,
@@ -94,7 +94,7 @@ impl PyKFold {
         py: Python<'py>,
         x: PyReadonlyArray2<f64>,
         y: Option<PyReadonlyArray1<f64>>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let n_samples = x.shape()[0];
         let mut cv = KFold::new(self.n_folds).with_shuffle(self.shuffle);
         if let Some(seed) = self.random_state {
@@ -154,7 +154,7 @@ impl PyKFold {
 /// >>> y = np.array([0.0, 0.0, 1.0, 1.0])
 /// >>> skf = StratifiedKFold(n_folds=2)
 /// >>> splits = skf.split(X, y)
-#[pyclass(name = "StratifiedKFold", module = "ferroml.cv")]
+#[pyclass(name = "StratifiedKFold", module = "ferroml.cv", from_py_object)]
 #[derive(Clone)]
 struct PyStratifiedKFold {
     n_folds: usize,
@@ -208,7 +208,7 @@ impl PyStratifiedKFold {
         py: Python<'py>,
         x: PyReadonlyArray2<f64>,
         y: Option<PyReadonlyArray1<f64>>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let n_samples = x.shape()[0];
         let mut cv = StratifiedKFold::new(self.n_folds).with_shuffle(self.shuffle);
         if let Some(seed) = self.random_state {
@@ -269,7 +269,7 @@ impl PyStratifiedKFold {
 /// >>> X = np.array([[1], [2], [3], [4], [5], [6]])
 /// >>> tscv = TimeSeriesSplit(n_splits=3)
 /// >>> splits = tscv.split(X)
-#[pyclass(name = "TimeSeriesSplit", module = "ferroml.cv")]
+#[pyclass(name = "TimeSeriesSplit", module = "ferroml.cv", from_py_object)]
 #[derive(Clone)]
 struct PyTimeSeriesSplit {
     n_splits: usize,
@@ -313,7 +313,7 @@ impl PyTimeSeriesSplit {
         py: Python<'py>,
         x: PyReadonlyArray2<f64>,
         y: Option<PyReadonlyArray1<f64>>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let n_samples = x.shape()[0];
         let cv = TimeSeriesSplit::new(self.n_splits);
 
@@ -360,7 +360,7 @@ impl PyTimeSeriesSplit {
 /// >>> splits = loo.split(X)
 /// >>> len(splits)
 /// 3
-#[pyclass(name = "LeaveOneOut", module = "ferroml.cv")]
+#[pyclass(name = "LeaveOneOut", module = "ferroml.cv", from_py_object)]
 #[derive(Clone)]
 struct PyLeaveOneOut;
 
@@ -396,7 +396,7 @@ impl PyLeaveOneOut {
         py: Python<'py>,
         x: PyReadonlyArray2<f64>,
         y: Option<PyReadonlyArray1<f64>>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let n_samples = x.shape()[0];
         let cv = LeaveOneOut::new();
 
@@ -446,7 +446,7 @@ impl PyLeaveOneOut {
 /// >>> splits = rkf.split(X)
 /// >>> len(splits)
 /// 6
-#[pyclass(name = "RepeatedKFold", module = "ferroml.cv")]
+#[pyclass(name = "RepeatedKFold", module = "ferroml.cv", from_py_object)]
 #[derive(Clone)]
 struct PyRepeatedKFold {
     n_folds: usize,
@@ -500,7 +500,7 @@ impl PyRepeatedKFold {
         py: Python<'py>,
         x: PyReadonlyArray2<f64>,
         y: Option<PyReadonlyArray1<f64>>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let n_samples = x.shape()[0];
         let mut cv = RepeatedKFold::new(self.n_folds, self.n_repeats);
         if let Some(seed) = self.random_state {
@@ -561,7 +561,7 @@ impl PyRepeatedKFold {
 /// >>> splits = ss.split(X)
 /// >>> len(splits)
 /// 3
-#[pyclass(name = "ShuffleSplit", module = "ferroml.cv")]
+#[pyclass(name = "ShuffleSplit", module = "ferroml.cv", from_py_object)]
 #[derive(Clone)]
 struct PyShuffleSplit {
     n_splits: usize,
@@ -624,7 +624,7 @@ impl PyShuffleSplit {
         py: Python<'py>,
         x: PyReadonlyArray2<f64>,
         y: Option<PyReadonlyArray1<f64>>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let n_samples = x.shape()[0];
         let mut cv = ShuffleSplit::new(self.n_splits).with_test_size(self.test_size);
         if let Some(train) = self.train_size {
@@ -682,7 +682,7 @@ impl PyShuffleSplit {
 /// >>> groups = np.array([0, 0, 1, 1])
 /// >>> gkf = GroupKFold(n_folds=2)
 /// >>> splits = gkf.split(X, groups=groups)
-#[pyclass(name = "GroupKFold", module = "ferroml.cv")]
+#[pyclass(name = "GroupKFold", module = "ferroml.cv", from_py_object)]
 #[derive(Clone)]
 struct PyGroupKFold {
     n_folds: usize,
@@ -724,7 +724,7 @@ impl PyGroupKFold {
         x: PyReadonlyArray2<f64>,
         y: Option<PyReadonlyArray1<f64>>,
         groups: Option<PyReadonlyArray1<i64>>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let n_samples = x.shape()[0];
         let cv = GroupKFold::new(self.n_folds);
         let _ = y;
@@ -780,7 +780,7 @@ impl PyGroupKFold {
 /// >>> splits = lpo.split(X)
 /// >>> len(splits)
 /// 6
-#[pyclass(name = "LeavePOut", module = "ferroml.cv")]
+#[pyclass(name = "LeavePOut", module = "ferroml.cv", from_py_object)]
 #[derive(Clone)]
 struct PyLeavePOut {
     p: usize,
@@ -824,7 +824,7 @@ impl PyLeavePOut {
         py: Python<'py>,
         x: PyReadonlyArray2<f64>,
         y: Option<PyReadonlyArray1<f64>>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let n_samples = x.shape()[0];
         let cv = LeavePOut::new(self.p);
         let _ = y;
@@ -882,7 +882,7 @@ fn cross_val_score<'py>(
     y: PyReadonlyArray1<f64>,
     cv: usize,
     scoring: &str,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let x_arr = x.as_array().to_owned();
     let y_arr = y.as_array().to_owned();
     let n_samples = x_arr.nrows();
@@ -948,7 +948,7 @@ fn cross_val_score<'py>(
 // =============================================================================
 
 /// Convert CVFold vector to Python list of (train_indices, test_indices) tuples
-fn folds_to_py_list(py: Python<'_>, folds: &[ferroml_core::cv::CVFold]) -> PyResult<PyObject> {
+fn folds_to_py_list(py: Python<'_>, folds: &[ferroml_core::cv::CVFold]) -> PyResult<Py<PyAny>> {
     let list = pyo3::types::PyList::empty(py);
     for fold in folds {
         let train = Array1::from_vec(fold.train_indices.iter().map(|&i| i as i64).collect())

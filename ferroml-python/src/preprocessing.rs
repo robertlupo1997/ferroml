@@ -4147,7 +4147,11 @@ impl PyTfidfTransformer {
 /// >>> corpus = ["the cat sat", "the dog sat"]
 /// >>> cv = CountVectorizer()
 /// >>> X = cv.fit_transform(corpus)
-#[pyclass(name = "CountVectorizer", module = "ferroml.preprocessing")]
+#[pyclass(
+    name = "CountVectorizer",
+    module = "ferroml.preprocessing",
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PyCountVectorizer {
     inner: ferroml_core::preprocessing::count_vectorizer::CountVectorizer,
@@ -4331,7 +4335,11 @@ impl PyCountVectorizer {
 /// >>> corpus = ["the cat sat", "the dog sat"]
 /// >>> tv = TfidfVectorizer()
 /// >>> X = tv.fit_transform(corpus)  # returns scipy.sparse.csr_matrix
-#[pyclass(name = "TfidfVectorizer", module = "ferroml.preprocessing")]
+#[pyclass(
+    name = "TfidfVectorizer",
+    module = "ferroml.preprocessing",
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PyTfidfVectorizer {
     inner: ferroml_core::preprocessing::tfidf_vectorizer::TfidfVectorizer,
@@ -4455,7 +4463,7 @@ impl PyTfidfVectorizer {
     /// X : scipy.sparse.csr_matrix
     ///     TF-IDF weighted sparse matrix.
     #[cfg(feature = "sparse")]
-    fn transform(&self, py: Python<'_>, documents: Vec<String>) -> PyResult<PyObject> {
+    fn transform(&self, py: Python<'_>, documents: Vec<String>) -> PyResult<Py<PyAny>> {
         use ferroml_core::preprocessing::count_vectorizer::TextTransformer;
         let csr = self
             .inner
@@ -4480,7 +4488,7 @@ impl PyTfidfVectorizer {
         mut slf: PyRefMut<'py, Self>,
         py: Python<'py>,
         documents: Vec<String>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         use ferroml_core::preprocessing::count_vectorizer::TextTransformer;
         slf.inner
             .fit_text(&documents)

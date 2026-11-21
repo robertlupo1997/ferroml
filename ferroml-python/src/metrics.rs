@@ -236,7 +236,7 @@ fn confusion_matrix(
     py: Python<'_>,
     y_true: PyReadonlyArray1<f64>,
     y_pred: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
     let cm = ConfusionMatrix::compute(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)?;
@@ -265,7 +265,7 @@ fn classification_report(
     py: Python<'_>,
     y_true: PyReadonlyArray1<f64>,
     y_pred: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let yt = to_array1(y_true);
     let yp = to_array1(y_pred);
     let report = ClassificationReport::compute(&yt, &yp).map_err(crate::errors::ferro_to_pyerr)?;
@@ -533,7 +533,7 @@ fn roc_curve(
     py: Python<'_>,
     y_true: PyReadonlyArray1<f64>,
     y_score: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let yt = to_array1(y_true);
     let ys = to_array1(y_score);
     let curve =
@@ -570,7 +570,7 @@ fn precision_recall_curve(
     py: Python<'_>,
     y_true: PyReadonlyArray1<f64>,
     y_score: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let yt = to_array1(y_true);
     let ys = to_array1(y_score);
     let curve = probabilistic::PrCurve::compute(&yt, &ys).map_err(crate::errors::ferro_to_pyerr)?;
@@ -595,7 +595,7 @@ fn precision_recall_curve(
 fn comparison_result_to_dict(
     py: Python<'_>,
     result: &comparison::ModelComparisonResult,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("test_name", &result.test_name)?;
     dict.set_item("statistic", result.statistic)?;
@@ -632,7 +632,7 @@ fn paired_ttest(
     py: Python<'_>,
     scores1: PyReadonlyArray1<f64>,
     scores2: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let s1 = to_array1(scores1);
     let s2 = to_array1(scores2);
     let result = comparison::paired_ttest(&s1, &s2).map_err(crate::errors::ferro_to_pyerr)?;
@@ -666,7 +666,7 @@ fn corrected_resampled_ttest(
     scores2: PyReadonlyArray1<f64>,
     n_train: usize,
     n_test: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let s1 = to_array1(scores1);
     let s2 = to_array1(scores2);
     let result = comparison::corrected_resampled_ttest(&s1, &s2, n_train, n_test)
@@ -696,7 +696,7 @@ fn mcnemar_test(
     y_true: PyReadonlyArray1<f64>,
     pred1: PyReadonlyArray1<f64>,
     pred2: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let yt = to_array1(y_true);
     let p1 = to_array1(pred1);
     let p2 = to_array1(pred2);
@@ -725,7 +725,7 @@ fn wilcoxon_test(
     py: Python<'_>,
     scores1: PyReadonlyArray1<f64>,
     scores2: PyReadonlyArray1<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let s1 = to_array1(scores1);
     let s2 = to_array1(scores2);
     let result =

@@ -489,14 +489,14 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
             let chunked = series
                 .f64()
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to f64: {}", e)))?;
-            Ok(chunked.into_iter().map(|v| v.unwrap_or(f64::NAN)).collect())
+            Ok(chunked.iter().map(|v| v.unwrap_or(f64::NAN)).collect())
         }
         DataType::Float32 => {
             let chunked = series
                 .f32()
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to f32: {}", e)))?;
             Ok(chunked
-                .into_iter()
+                .iter()
                 .map(|v: Option<f32>| v.map(|f| f64::from(f)).unwrap_or(f64::NAN))
                 .collect())
         }
@@ -506,7 +506,7 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to i64: {}", e)))?;
             #[allow(clippy::cast_precision_loss)]
             let result = chunked
-                .into_iter()
+                .iter()
                 .map(|v: Option<i64>| v.map(|i| i as f64).unwrap_or(f64::NAN))
                 .collect();
             Ok(result)
@@ -516,7 +516,7 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
                 .i32()
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to i32: {}", e)))?;
             Ok(chunked
-                .into_iter()
+                .iter()
                 .map(|v: Option<i32>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
@@ -525,7 +525,7 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
                 .i16()
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to i16: {}", e)))?;
             Ok(chunked
-                .into_iter()
+                .iter()
                 .map(|v: Option<i16>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
@@ -534,7 +534,7 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
                 .i8()
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to i8: {}", e)))?;
             Ok(chunked
-                .into_iter()
+                .iter()
                 .map(|v: Option<i8>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
@@ -544,7 +544,7 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to u64: {}", e)))?;
             #[allow(clippy::cast_precision_loss)]
             let result = chunked
-                .into_iter()
+                .iter()
                 .map(|v: Option<u64>| v.map(|i| i as f64).unwrap_or(f64::NAN))
                 .collect();
             Ok(result)
@@ -554,7 +554,7 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
                 .u32()
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to u32: {}", e)))?;
             Ok(chunked
-                .into_iter()
+                .iter()
                 .map(|v: Option<u32>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
@@ -563,7 +563,7 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
                 .u16()
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to u16: {}", e)))?;
             Ok(chunked
-                .into_iter()
+                .iter()
                 .map(|v: Option<u16>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }
@@ -572,7 +572,7 @@ fn series_to_f64_vec(series: &Column) -> Result<Vec<f64>> {
                 .u8()
                 .map_err(|e| FerroError::invalid_input(format!("Failed to cast to u8: {}", e)))?;
             Ok(chunked
-                .into_iter()
+                .iter()
                 .map(|v: Option<u8>| v.map(|i| f64::from(i)).unwrap_or(f64::NAN))
                 .collect())
         }

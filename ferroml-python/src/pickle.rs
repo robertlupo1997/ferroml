@@ -121,9 +121,9 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
 
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let model = LinearRegression::new().with_fit_intercept(true);
 
             // Serialize

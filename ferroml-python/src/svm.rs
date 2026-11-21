@@ -756,7 +756,7 @@ fn parse_class_weight(class_weight: Option<&Bound<'_, PyAny>>) -> PyResult<Class
                         other
                     ))),
                 }
-            } else if let Ok(dict) = ob.downcast::<pyo3::types::PyDict>() {
+            } else if let Ok(dict) = ob.cast::<pyo3::types::PyDict>() {
                 let mut weights = Vec::new();
                 for (key, value) in dict.iter() {
                     let k: f64 = key.extract().map_err(|_| {

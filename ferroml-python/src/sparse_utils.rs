@@ -203,7 +203,7 @@ pub fn sparse_to_dense<'py>(
         .map_err(|e| SparseConversionError::NonNumericData(e.to_string()))?;
 
     // Extract as numpy array and convert to ndarray
-    let py_array: numpy::PyReadonlyArray2<f64> = dense_float.extract()?;
+    let py_array: numpy::PyReadonlyArray2<f64> = dense_float.extract().map_err(PyErr::from)?;
     let array = py_array.to_owned_array();
 
     // Check for NaN/Inf values
@@ -255,7 +255,7 @@ pub fn sparse_to_dense_efficient<'py>(
         .call_method1("astype", ("float64",))
         .map_err(|e| SparseConversionError::NonNumericData(e.to_string()))?;
 
-    let data: PyReadonlyArray1<f64> = data_float.extract()?;
+    let data: PyReadonlyArray1<f64> = data_float.extract().map_err(PyErr::from)?;
     let data_arr = data.as_array();
 
     // Indices are typically int32 or int64
@@ -529,7 +529,7 @@ pub fn py_csr_to_ferro(
     let data_float = data_py
         .call_method1("astype", ("float64",))
         .map_err(|e| SparseConversionError::NonNumericData(e.to_string()))?;
-    let data_arr: PyReadonlyArray1<f64> = data_float.extract()?;
+    let data_arr: PyReadonlyArray1<f64> = data_float.extract().map_err(PyErr::from)?;
     let data: Vec<f64> = data_arr.as_array().to_vec();
 
     // Extract .indices as Vec<usize>
@@ -584,7 +584,7 @@ pub fn py_csr_to_ferro(
 pub fn ferro_csr_to_py(
     matrix: &ferroml_core::sparse::CsrMatrix,
     py: Python<'_>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     use numpy::IntoPyArray;
 
     let data = matrix.data().to_vec();
